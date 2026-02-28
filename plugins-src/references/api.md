@@ -2,7 +2,7 @@
 
 이 문서는 `python-hwpx`를 스킬에서 사용할 때 **헷갈리기 쉬운 포인트만** 정리합니다.
 
-- 검증 버전: `python-hwpx 2.3`
+- 검증 버전: `python-hwpx 2.5`
 - import 이름: `hwpx`
 
 ## 설치
@@ -103,7 +103,7 @@ texts = finder.find_all(tag="t")
 tables = finder.find_all(tag="tbl")
 ```
 
-시그니처(2.3):
+시그니처(2.5):
 - `find_all(tag=..., attrs=..., xpath=..., section_filter=..., limit=...)`
 
 ---

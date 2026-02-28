@@ -8,7 +8,7 @@ description: "HWPX(.hwpx/OWPML) 문서 처리 스킬 v3: python-hwpx 기반 열�
 이 스킬은 `.hwpx`(한글 OWPML, ZIP 컨테이너) 문서를 **읽기/추출/편집/치환**하는 실전 워크플로를 제공합니다.
 
 - 기준 라이브러리: `python-hwpx` (import: `hwpx`)
-- API 검증 버전(로컬): `python-hwpx 2.3`
+- API 검증 버전(로컬): `python-hwpx 2.5`
 
 ## 빠른 선택 가이드
 
