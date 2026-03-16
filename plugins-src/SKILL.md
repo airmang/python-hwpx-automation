@@ -1,227 +1,111 @@
 ---
 name: hwpx
-description: "HWPX(.hwpx/OWPML) 문서 처리 스킬 v3: python-hwpx 기반 열기/생성/편집, TextExtractor로 텍스트 추출, ObjectFinder로 구조 탐색, 대량 치환은 ZIP-level + 네임스페이스 정리(fix_namespaces)."
+description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한글 문서 편집해줘', 가정통신문·공문·한글 양식 작성, HWPX 편집, 한글 파일/OWPML 분석, 플레이스홀더 치환, 문서 자동화 요청이면 이 스킬을 반드시 사용하세요."
 ---
 
-# hwpx v3 (HWPX / OWPML)
+# hwpx (HWPX / OWPML)
 
-이 스킬은 `.hwpx`(한글 OWPML, ZIP 컨테이너) 문서를 **읽기/추출/편집/치환**하는 실전 워크플로를 제공합니다.
+`.hwpx`는 ZIP 기반 OWPML 문서다. 기본 생성·편집은 `python-hwpx`로 처리하고, 표를 포함한 전역 치환이나 ZIP 레벨 후처리는 번들 스크립트로 처리한다.
 
 - 기준 라이브러리: `python-hwpx` (import: `hwpx`)
-- API 검증 버전(로컬): `python-hwpx 2.3`
+- 기준 버전: `python-hwpx 2.5+`
+- 로컬 검증 버전: `python-hwpx 2.8`
+- 상세 시그니처와 옵션은 [`references/api.md`](references/api.md)에서 확인한다.
 
-## 빠른 선택 가이드
-
-1) **문서 생성/간단 편집** → `HwpxDocument`
-2) **텍스트만 빠르게 추출** → `TextExtractor.extract_text()` 또는 `iter_document_paragraphs()`
-3) **OWPML 태그/표/플레이스홀더 전수 조사** → `ObjectFinder.find_all()`
-4) **표 포함 문서 전역 대량 치환** → ZIP-level 문자열 치환(여러 XML 파트) → `scripts/fix_namespaces.py`
-
----
-
-## 0) 설치
+## 시작
 
 ```bash
-pip install -U python-hwpx
-# ZIP-level 치환 후 네임스페이스 정리에 필요
-pip install -U lxml
+pip install -U python-hwpx lxml
 ```
 
-주요 import:
+## 빠른 의사결정
 
-```python
-from hwpx import HwpxDocument, HwpxPackage, TextExtractor, ObjectFinder
-from hwpx.opc.package import HwpxPackageError, HwpxStructureError
-```
+1. **텍스트만 추출한다**  
+   `python3 scripts/text_extract.py input.hwpx`  
+   표 안 문단까지 포함하려면 `--include-nested`, 구조화된 결과가 필요하면 `--format json`을 사용한다.
 
----
+2. **새 문서를 만들거나 본문을 간단히 편집한다**  
+   `HwpxDocument`를 사용한다. 문단 추가, 표 생성, 메모 삽입, 내보내기는 [`references/api.md`](references/api.md)와 [`examples/01_create_and_save.py`](examples/01_create_and_save.py)를 본다.
 
-## 1) 문서 생성/열기/저장 (HwpxDocument)
+3. **문서 구조를 조사한다**  
+   텍스트 노드, 표 개수, 특정 OWPML 태그 분포를 확인할 때는 `ObjectFinder`를 사용한다. 예시는 [`examples/02_extract_and_inspect.py`](examples/02_extract_and_inspect.py)를 본다.
 
-### 1.1 새 문서 만들기
+4. **플레이스홀더를 일괄 치환한다**  
+   표 셀까지 포함한 전역 치환이면 `python3 scripts/zip_replace_all.py input.hwpx output.hwpx --replace "{기관명}=OO구청" "{담당자}=홍길동"`을 사용한다. 치환 직후 네임스페이스 정리까지 하려면 `--auto-fix-ns`를 붙인다.
 
-```python
-from hwpx import HwpxDocument
+5. **ZIP-level 수정 후 네임스페이스만 다시 정리한다**  
+   `python3 scripts/fix_namespaces.py input.hwpx --inplace --backup`
 
-doc = HwpxDocument.new()
-doc.add_paragraph("자동 생성 문서")
+## 작업 패턴
 
-# 권장: save_to_path()
-doc.save_to_path("out.hwpx")
-```
+### 1) 가정통신문·공문·한글 양식 작성
 
-### 1.2 기존 문서 열기
+- 새 파일이면 `HwpxDocument.new()`로 시작한다.
+- 기존 양식을 채우는 작업이면 템플릿을 열고 문단과 표를 수정한다.
+- 표 셀 입력은 `doc.add_table(...)`의 반환값에서 `set_cell_text(...)`를 호출한다.
+- 저장은 `save_to_path(path)`를 사용한다. `save()`는 deprecated wrapper다.
 
-```python
-from hwpx import HwpxDocument
+관련 예제:
+- [`examples/01_create_and_save.py`](examples/01_create_and_save.py)
+- [`references/api.md`](references/api.md)
 
-with HwpxDocument.open("input.hwpx") as doc:
-    doc.add_paragraph("추가 문단")
-    doc.save_to_path("output.hwpx")
-```
+### 2) 문서 텍스트 추출·검수·분석
 
-### 1.3 저장 API 주의사항
+- 텍스트만 필요하면 `scripts/text_extract.py`를 우선 사용한다.
+- 하위 구조까지 포함한 문단 목록이 필요하면 `--format json --include-nested`를 사용한다.
+- 표 개수, 특정 태그, 플레이스홀더 흔적을 조사할 때는 `ObjectFinder.find_all()`을 사용한다.
 
-- `save()`는 **하위호환을 위한 deprecated wrapper**입니다(향후 제거 가능).
-- **경로 저장은 `save_to_path(path)`**를 사용하세요.
+관련 예제:
+- [`scripts/text_extract.py`](scripts/text_extract.py)
+- [`examples/02_extract_and_inspect.py`](examples/02_extract_and_inspect.py)
 
-```python
-with HwpxDocument.open("input.hwpx") as doc:
-    doc.save_to_path("output.hwpx")
+### 3) 플레이스홀더 치환 전략
 
-# 바이트가 필요하면 (버전별 제공 여부 확인)
-# data = doc.to_bytes()
-```
+- **본문 런(run) 수준 치환만 필요하다**  
+  `replace_text_in_runs()`를 사용한다. 색상·밑줄 같은 스타일 필터도 줄 수 있다.
 
----
+- **표 셀까지 포함한 전역 치환이 필요하다**  
+  `scripts/zip_replace_all.py`를 사용한다. 이 스크립트는 `mimetype` 엔트리를 `ZIP_STORED`로 유지하고, 입력/출력 경로가 같으면 임시 파일로 안전하게 처리한다.
 
-## 2) 텍스트 추출 (TextExtractor)
+- **치환 키에 XML 조각이 들어 있다**  
+  `<`, `>`, `</`가 포함된 치환 키는 문서를 깨뜨릴 수 있다. 태그가 아닌 텍스트 플레이스홀더로 바꾼 뒤 치환한다.
 
-`TextExtractor`는 편집 DOM을 만들지 않고 텍스트를 모으는 용도입니다.
+관련 예제:
+- [`scripts/zip_replace_all.py`](scripts/zip_replace_all.py)
+- [`examples/03_template_replace.py`](examples/03_template_replace.py)
 
-### 2.1 한 번에 문자열로 추출: `extract_text()`
+### 4) 불안정한 영역
 
-```python
-from hwpx import TextExtractor
+- `set_header_text()`와 `set_footer_text()`는 문서/버전 조합에 따라 레이아웃이 흔들릴 수 있다.
+- 자동화 파이프라인에서는 결과 파일을 다시 열어 반드시 검수한다.
+- 헤더/푸터가 문제를 일으키면 템플릿에서 고정하고, 본문·표·메모만 자동화한다.
 
-tex = TextExtractor("input.hwpx")
-text = tex.extract_text(paragraph_separator="\n", skip_empty=True)
-print(text[:2000])
-```
+## 번들 리소스
 
-### 2.2 문단 단위 스트리밍: `iter_document_paragraphs()`
+- [`references/api.md`](references/api.md)  
+  `HwpxDocument`, `TextExtractor`, `ObjectFinder`, `HwpxPackage`의 시그니처와 주의사항만 모아둔 API 레퍼런스.
 
-```python
-from hwpx import TextExtractor
+- [`scripts/text_extract.py`](scripts/text_extract.py)  
+  원커맨드 텍스트 추출 CLI. 에이전트가 가장 먼저 시도하기 좋은 안전한 읽기 경로.
 
-tex = TextExtractor("input.hwpx")
-for p in tex.iter_document_paragraphs(include_nested=True):
-    t = (p.text() or "").strip()
-    if t:
-        print(t)
-```
+- [`scripts/zip_replace_all.py`](scripts/zip_replace_all.py)  
+  표 포함 전역 치환용 CLI 겸 import 가능한 함수 모듈.
 
----
+- [`scripts/fix_namespaces.py`](scripts/fix_namespaces.py)  
+  ZIP-level 수정 후 XML 네임스페이스 선언을 다시 정리하는 후처리 스크립트.
 
-## 3) 구조 탐색/플레이스홀더 조사 (ObjectFinder)
+- [`examples/01_create_and_save.py`](examples/01_create_and_save.py)  
+  새 문서 생성, 문단/표 추가, 저장 예제.
 
-`ObjectFinder`는 문서 내부 XML에서 특정 태그를 찾아 **전수 조사**할 때 씁니다.
+- [`examples/02_extract_and_inspect.py`](examples/02_extract_and_inspect.py)  
+  텍스트 추출과 구조 조사 예제.
 
-```python
-from hwpx import ObjectFinder
+- [`examples/03_template_replace.py`](examples/03_template_replace.py)  
+  템플릿 치환부터 namespace 정리까지의 전체 파이프라인 예제.
 
-finder = ObjectFinder("input.hwpx")
+## 실행 전 체크리스트
 
-# 텍스트 노드(<t>) 전수
-for el in finder.find_all(tag="t"):
-    t = (el.text or "").strip()
-    if t:
-        print(repr(t))
-
-# 표(<tbl>) 개수 확인
-tables = finder.find_all(tag="tbl")
-print("tables:", len(tables))
-```
-
-버전/문서에 따라 `FoundElement`의 내부 구조가 달라질 수 있으니, 필요하면 다음처럼 확인합니다.
-
-```python
-x = finder.find_all(tag="t", limit=1)[0]
-print(type(x))
-print([n for n in dir(x) if not n.startswith("_")])
-```
-
----
-
-## 4) 텍스트 치환 (중요한 제한 포함)
-
-### 4.1 문서 본문 런(run) 기반 치환: `replace_text_in_runs()`
-
-```python
-from hwpx import HwpxDocument
-
-with HwpxDocument.open("input.hwpx") as doc:
-    doc.replace_text_in_runs("{기관명}", "OO구청")
-    doc.save_to_path("output.hwpx")
-```
-
-#### 제한(실측): 표 내부 텍스트는 치환되지 않을 수 있음
-
-`replace_text_in_runs()`는 **표 내부(테이블 셀)의 텍스트까지 보장되지 않습니다.**
-- 표 안 플레이스홀더까지 바꿔야 하면 아래 4.2의 **ZIP-level 치환**을 우선 고려하세요.
-
-### 4.2 문서 전역(표 포함) 대량 치환: ZIP-level 문자열 치환
-
-HWPX는 ZIP 안에 여러 XML 파트가 있으므로, 단순 플레이스홀더 치환은 ZIP-level로 빠르게 처리할 수 있습니다.
-
-주의:
-- 태그 조각을 바꾸는 치환은 금지(문서가 깨질 수 있음)
-- 치환 후 네임스페이스 선언이 꼬일 수 있어 **반드시 `fix_namespaces.py` 후처리** 권장
-
-```python
-import zipfile
-
-
-def zip_replace_all(in_hwpx: str, out_hwpx: str, repl: dict[str, str]) -> dict:
-    stats = {"parts": 0, "changed_xml": 0, "replacements": 0}
-
-    with zipfile.ZipFile(in_hwpx, "r") as zin:
-        with zipfile.ZipFile(out_hwpx, "w", compression=zipfile.ZIP_DEFLATED) as zout:
-            for info in zin.infolist():
-                stats["parts"] += 1
-                data = zin.read(info.filename)
-
-                if info.filename.lower().endswith(".xml"):
-                    try:
-                        s = data.decode("utf-8")
-                    except UnicodeDecodeError:
-                        zout.writestr(info.filename, data)
-                        continue
-
-                    before = s
-                    n_here = 0
-                    for old, new in repl.items():
-                        if not old:
-                            continue
-                        c = s.count(old)
-                        if c:
-                            s = s.replace(old, new)
-                            n_here += c
-
-                    if s != before:
-                        stats["changed_xml"] += 1
-                        stats["replacements"] += n_here
-                        data = s.encode("utf-8")
-
-                zout.writestr(info.filename, data)
-
-    return stats
-```
-
-치환 후 네임스페이스 정리:
-
-```bash
-python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
-```
-
----
-
-## 5) 머리말/꼬리말 설정 주의
-
-`set_header_text()`는 일부 문서/버전에서 **레이아웃이 깨지거나 적용이 불안정**하다는 사례가 있습니다.
-- 자동화 파이프라인에서는 적용 결과를 **반드시 열어서 확인**하세요.
-- 문제가 재현되면: (1) 헤더 편집을 생략 (2) 템플릿에서 헤더를 고정 (3) ZIP-level로 해당 파트만 조정 중 하나로 우회합니다.
-
----
-
-## 6) 네임스페이스 정리 스크립트
-
-ZIP-level 치환/수정 후 XML 파트의 namespace prefix 선언이 불안정해질 수 있습니다.
-이 스킬은 이를 완화하는 스크립트를 포함합니다.
-
-- 위치: `scripts/fix_namespaces.py`
-- 동작: HWPX 내부의 `.xml` 파트를 `lxml`로 파싱 후 재직렬화
-
-```bash
-python3 scripts/fix_namespaces.py input.hwpx --out fixed.hwpx
-```
+- `python-hwpx`와 `lxml`이 설치되어 있는지 확인한다.
+- 결과 파일을 덮어쓸 때는 `--backup`을 사용한다.
+- 자동화 결과물은 가능한 한 한 번 다시 열어본다.
+- API 세부 옵션이나 최신 시그니처가 필요하면 항상 [`references/api.md`](references/api.md)를 먼저 읽는다.

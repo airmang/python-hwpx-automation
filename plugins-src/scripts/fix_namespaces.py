@@ -25,10 +25,18 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import shutil
 import sys
 import zipfile
+
+
+def _clone_zipinfo(info: zipfile.ZipInfo, *, force_stored: bool = False) -> zipfile.ZipInfo:
+    cloned = copy.copy(info)
+    if force_stored:
+        cloned.compress_type = zipfile.ZIP_STORED
+    return cloned
 
 
 def fix_namespaces(in_hwpx: str, out_hwpx: str) -> dict:
@@ -78,8 +86,8 @@ def fix_namespaces(in_hwpx: str, out_hwpx: str) -> dict:
                         # Keep original bytes if parsing fails.
                         stats["xml_failed"] += 1
 
-                # Preserve filename; ZipInfo metadata is not strictly required for HWPX.
-                zout.writestr(item.filename, data)
+                force_stored = item.filename == "mimetype"
+                zout.writestr(_clone_zipinfo(item, force_stored=force_stored), data)
 
     return stats
 
