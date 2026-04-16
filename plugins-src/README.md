@@ -56,6 +56,10 @@ hwpx-skill/
 python -m pip install -U python-hwpx lxml
 ```
 
+현재 권장 기준:
+- 최소 호환 기준: `python-hwpx >= 2.6`
+- 최근 로컬 검증 기준: `python-hwpx 2.9.0`
+
 ## Claude Code 설치
 
 프로젝트 로컬 설치:
@@ -143,6 +147,23 @@ python -m pip install -U python-hwpx lxml
 ```
 
 Codex CLI에서는 `SKILL.md` frontmatter의 `description`이 핵심 트리거 역할을 한다. 따라서 자연어 요청과 도메인 키워드를 충분히 담은 상태로 유지하는 것이 중요하다.
+
+## 빠른 검증
+
+설치 직후 최소 성공 경로는 이 셋이면 충분하다.
+
+```bash
+python examples/01_create_and_save.py
+python examples/02_extract_and_inspect.py examples/out/01_created.hwpx
+python scripts/text_extract.py examples/out/01_created.hwpx
+```
+
+플레이스홀더 치환까지 확인하려면:
+
+```bash
+python examples/03_template_replace.py examples/out/01_created.hwpx examples/out/03_replaced.hwpx --replace "학부모님께 안내드립니다.=학부모님께 수정 안내드립니다."
+python examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
+```
 
 ## 빠른 사용 예시
 

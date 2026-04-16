@@ -8,14 +8,31 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 `.hwpx`는 ZIP 기반 OWPML 문서다. 기본 생성·편집은 `python-hwpx`로 처리하고, 표를 포함한 전역 치환이나 ZIP 레벨 후처리는 번들 스크립트로 처리한다.
 
 - 기준 라이브러리: `python-hwpx` (import: `hwpx`)
-- 기준 버전: `python-hwpx 2.5+`
-- 로컬 검증 버전: `python-hwpx 2.8`
+- 최소 호환 기준: `python-hwpx >= 2.6`
+- 최근 로컬 검증 버전: `python-hwpx 2.9.0`
 - 상세 시그니처와 옵션은 [`references/api.md`](references/api.md)에서 확인한다.
 
 ## 시작
 
 ```bash
 pip install -U python-hwpx lxml
+```
+
+## 5분 검증
+
+설치 직후에는 아래 순서로 최소 성공 경로를 먼저 확인한다.
+
+```bash
+python3 examples/01_create_and_save.py
+python3 examples/02_extract_and_inspect.py examples/out/01_created.hwpx
+python3 scripts/text_extract.py examples/out/01_created.hwpx
+```
+
+치환 흐름까지 확인하려면:
+
+```bash
+python3 examples/03_template_replace.py examples/out/01_created.hwpx examples/out/03_replaced.hwpx --replace "학부모님께 안내드립니다.=학부모님께 수정 안내드립니다."
+python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 ```
 
 ## 빠른 의사결정
