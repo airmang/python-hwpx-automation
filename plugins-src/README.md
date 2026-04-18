@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">📄 hwpx-skill</h1>
   <p align="center">
-    <strong>한글(HWPX) 문서를 AI 에이전트가 안전하게 읽고·편집하고·자동화하는 프로덕션용 스킬</strong>
+    <strong>AI 에이전트가 HWPX 문서를 바로 읽고, 바꾸고, 점검하게 만드는 공식 온보딩 스킬</strong>
   </p>
   <p align="center">
     순수 Python · 한컴오피스 불필요 · 크로스 플랫폼
@@ -25,9 +25,14 @@
 | 🎯 에이전트 스킬 | **[`hwpx-skill`](https://github.com/airmang/hwpx-skill)** | 에이전트가 HWPX를 바로 쓰게 해주는 공식 온보딩 스킬 |
 
 ---
-`hwpx-skill`은 `python-hwpx` 기반의 에이전트 스킬이다. `.hwpx` 문서를 열고, 텍스트를 추출하고, 표를 포함한 양식을 채우고, 플레이스홀더를 치환하는 작업을 에이전트가 바로 수행할 수 있게 설계했다.
 
-이 레포의 차별점은 단순한 커뮤니티 래퍼가 아니라는 점이다. `python-hwpx` 라이브러리 저자가 직접 관리하는 공식 스킬이므로, 라이브러리 실제 API와 예제가 함께 유지된다.
+`hwpx-skill`은 `python-hwpx` 기반의 공식 에이전트 스킬이다. HWPX를 잘 모르는 사용자도 **스킬 설치 후 바로 문서 읽기, 텍스트 추출, 템플릿 치환, 기본 점검**까지 갈 수 있게 만드는 데 초점을 둔다. `.hwpx` 문서를 열고, 텍스트를 추출하고, 표를 포함한 양식을 채우고, 플레이스홀더를 치환하는 작업을 에이전트가 바로 수행할 수 있게 설계했다.
+
+즉, 이 저장소는 단순 설명서가 아니다.
+- 에이전트가 따라갈 `SKILL.md`
+- 바로 실행해볼 수 있는 예제
+- 입문자가 첫 성공을 확인하는 보조 CLI
+를 함께 제공하는 **HWPX 자동화 입구**다.
 
 > 대상 포맷은 Open XML 기반 `.hwpx`다. 레거시 바이너리 `.hwp` 직접 편집은 범위 밖이다.
 
@@ -37,10 +42,74 @@
 - **Cursor Skills / Rules** — `.cursor/skills/`와 `.cursor/rules/` 조합으로 온보딩할 수 있다.
 - **Codex CLI Skills** — `.agents/skills/hwpx-skill/` 경로 기준으로 바로 붙일 수 있다.
 
+## 이 저장소가 바로 해결하는 일
+
+- HWPX 문서 텍스트를 빠르게 추출한다.
+- 표를 포함한 문서의 플레이스홀더를 일괄 치환한다.
+- 설치 직후 환경이 맞는지 한 번에 확인한다.
+- 에이전트가 HWPX 작업에서 어떤 흐름을 따라야 하는지 알려준다.
+
+## 3분 설치
+
+기본 명령:
+
+```bash
+python3 -m pip install -U python-hwpx lxml
+```
+
+현재 권장 기준:
+- Python 3.10+
+- 최소 호환 기준: `python-hwpx >= 2.6`
+- 최근 로컬 검증 기준: `python-hwpx 2.9.0`
+
+## 5분 성공 확인
+
+설치 후 이 명령 하나부터 돌린다.
+
+```bash
+python3 scripts/quickcheck.py
+```
+
+이 스크립트는 다음을 한 번에 확인한다.
+- Python 버전
+- `python-hwpx`, `lxml` import
+- 예제 문서 생성
+- 생성 문서 구조 점검
+- CLI 텍스트 추출
+
+정상이라면 마지막에 아래 문구가 나온다.
+
+```text
+[OK] basic hwpx skill workflow passed
+```
+
+## 가장 많이 쓰는 작업 3개
+
+### 1) 문서 텍스트 바로 추출
+
+```bash
+python3 scripts/text_extract.py input.hwpx
+python3 scripts/text_extract.py input.hwpx --format json --include-nested --out output.json
+```
+
+### 2) 플레이스홀더 전역 치환
+
+```bash
+python3 scripts/zip_replace_all.py template.hwpx output.hwpx --replace "{학교명}=테스트초" "{담당자}=홍길동" --auto-fix-ns
+```
+
+### 3) 예제 문서 생성 후 구조 확인
+
+```bash
+python3 examples/01_create_and_save.py
+python3 examples/02_extract_and_inspect.py examples/out/01_created.hwpx
+```
+
 ## 포함 내용
 
 - `SKILL.md`: 에이전트용 의사결정 트리와 실전 워크플로
 - `references/api.md`: `python-hwpx` API 레퍼런스
+- `scripts/quickcheck.py`: 설치 직후 첫 성공 경로를 점검하는 CLI
 - `scripts/text_extract.py`: 텍스트 추출 CLI
 - `scripts/zip_replace_all.py`: 플레이스홀더 전역 치환 CLI
 - `scripts/fix_namespaces.py`: ZIP-level 수정 후 namespace 정리
@@ -56,6 +125,7 @@ hwpx-skill/
 │   └── api.md
 ├── scripts/
 │   ├── fix_namespaces.py
+│   ├── quickcheck.py
 │   ├── text_extract.py
 │   └── zip_replace_all.py
 └── examples/
@@ -63,18 +133,6 @@ hwpx-skill/
     ├── 02_extract_and_inspect.py
     └── 03_template_replace.py
 ```
-
-## 공통 의존성
-
-모든 플랫폼에서 먼저 Python 의존성을 설치한다.
-
-```bash
-python -m pip install -U python-hwpx lxml
-```
-
-현재 권장 기준:
-- 최소 호환 기준: `python-hwpx >= 2.6`
-- 최근 로컬 검증 기준: `python-hwpx 2.9.0`
 
 ## Claude Code 설치
 
@@ -96,7 +154,13 @@ python -m pip install -U python-hwpx lxml
 2. 아래 명령으로 의존성을 설치한다.
 
 ```bash
-python -m pip install -U python-hwpx lxml
+python3 -m pip install -U python-hwpx lxml
+```
+
+3. 아래 명령으로 첫 성공 경로를 확인한다.
+
+```bash
+python3 scripts/quickcheck.py
 ```
 
 에이전트가 `한글 문서 편집`, `가정통신문 작성`, `공문 양식 채우기`, `HWPX 플레이스홀더 치환` 같은 요청을 받으면 스킬이 트리거되도록 `SKILL.md` description을 유지한다.
@@ -118,7 +182,7 @@ python -m pip install -U python-hwpx lxml
 의존성 설치:
 
 ```bash
-python -m pip install -U python-hwpx lxml
+python3 -m pip install -U python-hwpx lxml
 ```
 
 권장 트리거 룰 파일:
@@ -159,26 +223,32 @@ Cursor에서 스킬과 룰을 함께 두면 자연어 요청과 파일 확장자
 의존성 설치:
 
 ```bash
-python -m pip install -U python-hwpx lxml
+python3 -m pip install -U python-hwpx lxml
 ```
 
 Codex CLI에서는 `SKILL.md` frontmatter의 `description`이 핵심 트리거 역할을 한다. 따라서 자연어 요청과 도메인 키워드를 충분히 담은 상태로 유지하는 것이 중요하다.
 
 ## 빠른 검증
 
-설치 직후 최소 성공 경로는 이 셋이면 충분하다.
+가장 빠른 검증은 `quickcheck.py`다.
 
 ```bash
-python examples/01_create_and_save.py
-python examples/02_extract_and_inspect.py examples/out/01_created.hwpx
-python scripts/text_extract.py examples/out/01_created.hwpx
+python3 scripts/quickcheck.py
+```
+
+수동으로 최소 성공 경로를 밟으려면 아래 셋이면 충분하다.
+
+```bash
+python3 examples/01_create_and_save.py
+python3 examples/02_extract_and_inspect.py examples/out/01_created.hwpx
+python3 scripts/text_extract.py examples/out/01_created.hwpx
 ```
 
 플레이스홀더 치환까지 확인하려면:
 
 ```bash
-python examples/03_template_replace.py examples/out/01_created.hwpx examples/out/03_replaced.hwpx --replace "학부모님께 안내드립니다.=학부모님께 수정 안내드립니다."
-python examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
+python3 examples/03_template_replace.py examples/out/01_created.hwpx examples/out/03_replaced.hwpx --replace "학부모님께 안내드립니다.=학부모님께 수정 안내드립니다."
+python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 ```
 
 ## 빠른 사용 예시
@@ -186,20 +256,20 @@ python examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 텍스트 추출:
 
 ```bash
-python scripts/text_extract.py input.hwpx
-python scripts/text_extract.py input.hwpx --format json --include-nested --out output.json
+python3 scripts/text_extract.py input.hwpx
+python3 scripts/text_extract.py input.hwpx --format json --include-nested --out output.json
 ```
 
 플레이스홀더 전역 치환:
 
 ```bash
-python scripts/zip_replace_all.py template.hwpx output.hwpx --replace "{학교명}=테스트초" "{담당자}=홍길동" --auto-fix-ns
+python3 scripts/zip_replace_all.py template.hwpx output.hwpx --replace "{학교명}=테스트초" "{담당자}=홍길동" --auto-fix-ns
 ```
 
 namespace 정리만 수행:
 
 ```bash
-python scripts/fix_namespaces.py output.hwpx --inplace --backup
+python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
 ```
 
 ## 예제
@@ -207,6 +277,16 @@ python scripts/fix_namespaces.py output.hwpx --inplace --backup
 - `examples/01_create_and_save.py`: 새 문서 생성, 문단/표 추가, 저장
 - `examples/02_extract_and_inspect.py`: 텍스트 추출, 문단 순회, 표 개수 확인
 - `examples/03_template_replace.py`: 템플릿 치환, namespace 정리, 결과 저장
+
+## 설치 후 문제를 만나면
+
+먼저 아래를 확인한다.
+- `python3 -m pip install -U python-hwpx lxml`를 다시 실행했는가
+- `python3 scripts/quickcheck.py`가 통과하는가
+- 결과 파일이 `examples/out/` 아래 생성되는가
+- 입력 파일이 실제 `.hwpx` ZIP 패키지인가
+
+문제가 재현되면 `quickcheck.py` 출력과 함께 이슈를 남기면 된다.
 
 ## 운영 메모
 
