@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """fix_namespaces.py
 
 Re-serialize XML parts inside a .hwpx (ZIP) to normalize namespace

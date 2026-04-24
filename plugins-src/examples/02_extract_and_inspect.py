@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """기존 HWPX에서 텍스트를 추출하고 표 개수를 조사하는 예제."""
 
 from __future__ import annotations
