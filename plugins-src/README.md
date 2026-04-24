@@ -10,6 +10,7 @@
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?style=flat-square&color=blue" alt="PyPI"></a>
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/pyversions/python-hwpx?style=flat-square" alt="Python"></a>
     <a href="https://github.com/airmang/hwpx-skill"><img src="https://img.shields.io/badge/repo-airmang%2Fhwpx--skill-181717?style=flat-square" alt="Repo"></a>
+    <a href="https://github.com/airmang/hwpx-skill/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
   </p>
 </p>
 
@@ -203,3 +204,6 @@ python scripts/fix_namespaces.py output.hwpx --inplace --backup
 **고규현** (airmang)  
 - GitHub: <https://github.com/airmang>
 - Base Library: <https://github.com/airmang/python-hwpx>
+
+## License
+Apache License 2.0. See LICENSE and NOTICE.

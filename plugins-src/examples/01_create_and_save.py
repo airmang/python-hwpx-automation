@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """새 HWPX 문서를 만들고 저장하는 예제."""
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """템플릿 HWPX에서 플레이스홀더를 치환하고 namespace를 정리하는 예제."""
 
 from __future__ import annotations

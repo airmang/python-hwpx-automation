@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """zip_replace_all.py
 
 Replace plain-text placeholders across XML parts in an HWPX container.

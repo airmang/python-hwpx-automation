@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """text_extract.py
 
 Extract text from an HWPX document using python-hwpx TextExtractor.
