@@ -16,11 +16,26 @@
 
 ---
 
+## 🧩 HWPX Stack (3종)
+
+| 계층 | 레포 | 역할 |
+|---|---|---|
+| 📦 라이브러리 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | 순수 파이썬 HWPX 파싱·편집·생성 코어 |
+| 🔌 MCP 서버 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop, VS Code 등)에서 HWPX 조작 |
+| 🎯 에이전트 스킬 | **[`hwpx-skill`](https://github.com/airmang/hwpx-skill)** | 에이전트가 HWPX를 바로 쓰게 해주는 공식 온보딩 스킬 |
+
+---
 `hwpx-skill`은 `python-hwpx` 기반의 에이전트 스킬이다. `.hwpx` 문서를 열고, 텍스트를 추출하고, 표를 포함한 양식을 채우고, 플레이스홀더를 치환하는 작업을 에이전트가 바로 수행할 수 있게 설계했다.
 
 이 레포의 차별점은 단순한 커뮤니티 래퍼가 아니라는 점이다. `python-hwpx` 라이브러리 저자가 직접 관리하는 공식 스킬이므로, 라이브러리 실제 API와 예제가 함께 유지된다.
 
 > 대상 포맷은 Open XML 기반 `.hwpx`다. 레거시 바이너리 `.hwp` 직접 편집은 범위 밖이다.
+
+## 지원 에이전트 생태계
+
+- **Claude Code Skills** — `.claude/skills/hwpx-skill/`에 넣어 바로 트리거할 수 있다.
+- **Cursor Skills / Rules** — `.cursor/skills/`와 `.cursor/rules/` 조합으로 온보딩할 수 있다.
+- **Codex CLI Skills** — `.agents/skills/hwpx-skill/` 경로 기준으로 바로 붙일 수 있다.
 
 ## 포함 내용
 
