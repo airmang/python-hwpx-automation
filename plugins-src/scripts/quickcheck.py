@@ -12,6 +12,7 @@ What it verifies:
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -37,7 +38,11 @@ def _print_block(label: str, output: str) -> None:
     print()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run hwpx-skill sanity checks")
+    parser.add_argument("--proposal", action="store_true", help="also run the proposal-generation preset example")
+    args = parser.parse_args(argv)
+
     print("[STEP] checking Python runtime")
     if sys.version_info < MIN_PYTHON:
         current = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
@@ -77,6 +82,12 @@ def main() -> int:
         ),
     ]
 
+    if args.proposal:
+        commands.append((
+            "proposal",
+            [sys.executable, str(EXAMPLES_DIR / "04_create_proposal.py")],
+        ))
+
     for label, cmd in commands:
         print(f"[STEP] running {label}: {' '.join(cmd)}")
         result = _run(cmd)
@@ -94,6 +105,8 @@ def main() -> int:
 
     print(f"[OK] output exists: {OUTPUT_PATH}")
     print("[OK] basic hwpx skill workflow passed")
+    if args.proposal:
+        print("[OK] proposal generation workflow passed")
     print("[NEXT] try placeholder replacement:")
     print(
         "       python3 examples/03_template_replace.py examples/out/01_created.hwpx "

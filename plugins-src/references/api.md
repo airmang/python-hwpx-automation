@@ -250,3 +250,45 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 - 손상된 ZIP/OWPML 구조를 다룰 때는 `HwpxPackageError`, `HwpxStructureError`를 잡는다.
 - `.hwp`는 대상이 아니다. `.hwpx`만 지원한다.
 - ZIP-level 문자열 치환 뒤에는 `scripts/fix_namespaces.py` 또는 `scripts/zip_replace_all.py --auto-fix-ns`로 후처리한다.
+
+## Proposal preset
+
+`python-hwpx`의 proposal preset은 agent-first 제안서/기획안 생성을 위한 고수준 API다.
+
+```python
+from hwpx.presets import create_proposal_document, inspect_proposal_quality
+
+proposal_spec = {
+    "title": "AI 융합형 교육실 구축 제안서",
+    "executive_summary": "핵심 요약을 작성합니다.",
+    "sections": [
+        {"title": "추진 배경 및 문제 정의", "paragraphs": ["배경 설명"]},
+        {"title": "제안 내용", "bullets": ["핵심 제안 1"]},
+        {"title": "구축 및 운영 계획", "paragraphs": ["추진 일정"]},
+    ],
+    "budget_items": [{"item": "기자재", "amount": "5,000,000원", "note": "노트북"}],
+    "expected_outcomes": ["수업 참여도 향상"],
+    "closing": "검토 후 승인 요청드립니다.",
+}
+
+doc = create_proposal_document(proposal_spec)
+doc.save_to_path("proposal.hwpx")
+doc.close()
+
+report = inspect_proposal_quality("proposal.hwpx")
+assert report["rubric_average"] >= 4.0
+assert report["sample_match"]["pass"] is True
+```
+
+주요 함수:
+
+- `create_proposal_document(spec, *, preset="clean_korean_proposal") -> HwpxDocument`
+- `inspect_proposal_quality(source) -> dict`
+
+품질 기준:
+
+- rubric 평균 4.0 이상
+- `sample_match.average` 4.0 이상 및 실패 dimension 없음
+- critical validation error 없음
+- 생성 파일 payload 5MB 미만 권장
+- `visual_review_required=True`이면 렌더러/픽셀 diff 없이 proxy 기준만 통과한 상태

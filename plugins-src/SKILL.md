@@ -126,3 +126,17 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 - 결과 파일을 덮어쓸 때는 `--backup`을 사용한다.
 - 자동화 결과물은 가능한 한 한 번 다시 열어본다.
 - API 세부 옵션이나 최신 시그니처가 필요하면 항상 [`references/api.md`](references/api.md)를 먼저 읽는다.
+
+## 제안서/기획안 생성 workflow
+
+사용자가 “제안서”, “기획안”, “계획서” 형태의 새 HWPX 생성을 요청하면 저수준 XML 조작보다 `python-hwpx`의 proposal preset을 먼저 사용한다.
+
+1. 자연어 요청을 `ProposalSpec` JSON으로 정규화한다.
+2. `from hwpx.presets import create_proposal_document, inspect_proposal_quality`를 사용한다.
+3. 생성 직후 `inspect_proposal_quality()`로 구조, 표, payload, validation, rubric 점수, `sample_match`를 확인한다.
+4. 평균 점수 4.0 미만, `sample_match.pass == false`, 특정 sample-match dimension 실패, 필수 섹션 누락이면 `ProposalSpec`을 보강해 다시 생성한다.
+5. 샘플에서 배운 anti-pattern: 큰 BMP 이미지에 의존하는 문서, 표/메타데이터가 이미지처럼 박힌 문서, 연락처/이메일/주소 등 PII가 redaction 없이 예제에 노출되는 문서는 피한다.
+6. `visual_review_required=True`는 렌더러/픽셀 diff 없이 sample-derived proxy metric만 통과했다는 제한으로 해석한다.
+
+예제: `examples/04_create_proposal.py`
+검증: `python3 scripts/quickcheck.py --proposal`

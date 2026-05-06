@@ -300,5 +300,28 @@ python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
 - GitHub: <https://github.com/airmang>
 - Base Library: <https://github.com/airmang/python-hwpx>
 
+## 제안서/기획안 생성
+
+`python-hwpx`의 proposal preset이 설치된 환경에서는 자연어 요청을 `ProposalSpec`으로 정리한 뒤 HWPX 제안서를 바로 생성할 수 있다.
+
+```bash
+python3 examples/04_create_proposal.py
+python3 scripts/quickcheck.py --proposal
+```
+
+권장 흐름:
+
+1. 사용자 요청을 제목, 부제, 기관, 작성자, 핵심 요약, 섹션, 예산 항목, 기대 효과, 마무리 문구로 나눈다.
+2. `create_proposal_document(proposal_spec)`로 HWPX를 생성한다.
+3. `inspect_proposal_quality(output.hwpx)`로 필수 섹션, 표, validation, rubric 평균, `sample_match` 결과를 확인한다.
+4. 평균 4.0 미만, `sample_match.pass == false`, 특정 dimension 실패, 필수 섹션 누락이면 `ProposalSpec`을 보강해 재생성한다.
+
+샘플 기반 주의사항:
+
+- 좋은 예시는 한국식 제안서/계획서의 메타데이터 표, 명확한 제목, 단계적 본문 흐름을 갖는다.
+- 나쁜 예시는 과도한 BMP 이미지 payload와 agent가 재현하기 어려운 이미지 중심 구조를 포함한다.
+- v2 리포트의 `visual_review_required=True`는 렌더러/픽셀 diff 없이 package/XML/text proxy만 확인했다는 뜻이다.
+- 예제/문서에는 이름, 전화번호, 이메일, 주소 등 PII를 redaction 없이 넣지 않는다.
+
 ## License
 Apache License 2.0. See LICENSE and NOTICE.
