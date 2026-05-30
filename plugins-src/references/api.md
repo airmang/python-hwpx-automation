@@ -4,12 +4,13 @@
 
 | python-hwpx 버전 | 상태 | 비고 |
 |---|---|---|
-| 2.5+ | ✅ 검증 완료 | 이 스킬의 기준 버전 |
-| 2.0–2.4 | ⚠️ 대부분 호환 | 일부 API 시그니처 차이 가능 |
+| 2.9.1+ | ✅ 권장 | document-plan 생성 API 포함 로컬 스택 기준 |
+| 2.6–2.9.0 | ✅ 기본 편집 호환 | `HwpxDocument` 기반 생성/편집 가능, document-plan API는 없을 수 있음 |
+| 2.0–2.5 | ⚠️ 대부분 호환 | 일부 API 시그니처 차이 가능 |
 | 1.x | ❌ 비호환 | HwpxDocument API 미지원 |
 
 - import 이름: `hwpx`
-- 로컬 실측 버전: `python-hwpx 2.8`
+- 로컬 실측 버전: `python-hwpx 2.9.1`
 
 ## 목차
 
@@ -18,6 +19,8 @@
 - `TextExtractor`
 - `ObjectFinder`
 - `HwpxPackage`
+- Document plan authoring
+- Template form-fit authoring
 - 예외와 주의사항
 
 ## 설치와 기본 import
@@ -250,6 +253,215 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 - 손상된 ZIP/OWPML 구조를 다룰 때는 `HwpxPackageError`, `HwpxStructureError`를 잡는다.
 - `.hwp`는 대상이 아니다. `.hwpx`만 지원한다.
 - ZIP-level 문자열 치환 뒤에는 `scripts/fix_namespaces.py` 또는 `scripts/zip_replace_all.py --auto-fix-ns`로 후처리한다.
+
+## Document plan authoring
+
+`hwpx.document_plan.v1`은 agent가 자연어 요청을 OWPML이 아닌 JSON 계획으로 정리한 뒤, `python-hwpx`가 공개 API만 사용해 HWPX를 생성하는 경로다.
+
+```python
+from hwpx import (
+    create_document_from_plan,
+    inspect_document_authoring_quality,
+    inspect_operating_plan_quality,
+    validate_document_plan,
+)
+
+document_plan = {
+    "schemaVersion": "hwpx.document_plan.v1",
+    "title": "2026 AI Education Operating Plan",
+    "metadata": {"organization": "Sample School", "date": "2026-05-09"},
+    "blocks": [
+        {"type": "heading", "level": 1, "text": "Executive Summary"},
+        {"type": "paragraph", "text": "The plan connects lessons, training, and review."},
+        {"type": "bullets", "items": ["Run grade-band AI lessons.", "Review outcomes each term."]},
+        {
+            "type": "table",
+            "caption": "Budget Plan",
+            "columns": [
+                {"key": "item", "label": "Item", "widthWeight": 2},
+                {"key": "amount", "label": "Amount", "widthWeight": 1},
+            ],
+            "rows": [{"item": "AI devices", "amount": "5,000,000 KRW"}],
+        },
+    ],
+    "qualityGates": {
+        "validatePackage": True,
+        "validateDocument": True,
+        "reopen": True,
+        "visualReviewRequired": True,
+    },
+}
+
+validation = validate_document_plan(document_plan)
+if not validation.ok:
+    for issue in validation.to_dict()["issues"]:
+        print(issue["code"], issue["path"], issue["message"])
+    for hint in validation.to_dict()["repairHints"]:
+        print(hint["action"], hint["path"], hint["message"])
+    raise SystemExit(1)
+
+doc = create_document_from_plan(document_plan)
+doc.save_to_path("agent-plan.hwpx")
+doc.close()
+
+report = inspect_document_authoring_quality("agent-plan.hwpx", plan=document_plan)
+assert report["pass"] is True
+assert report["validation"]["validate_package"]["ok"] is True
+assert report["validation"]["validate_document"]["ok"] is True
+```
+
+주요 함수:
+
+- `validate_document_plan(plan) -> PlanValidationReport`
+- `normalize_document_plan(plan) -> DocumentPlan`
+- `create_document_from_plan(plan, *, preset="standard_korean_business") -> HwpxDocument`
+- `inspect_document_authoring_quality(source, *, plan=None, quality_profile=None) -> dict`
+- `inspect_operating_plan_quality(source, *, plan=None, profile=None) -> dict`
+
+`PlanValidationReport.to_dict()` 주요 필드:
+
+- `ok`: error가 없으면 `True`. warning만 있으면 생성 가능하다.
+- `errors`, `warnings`: 기존 문자열 호환 필드.
+- `issues`: `PlanValidationIssue` 목록. 각 issue는 `code`, `path`, `message`, `severity`, `suggestion`을 가진다.
+- `repairHints`: agent가 다음 수정에 바로 사용할 수 있는 `{path, code, action, message}` 목록.
+
+대표 issue code:
+
+- `invalid_schema_version`, `missing_blocks`, `unsupported_block_type`
+- `invalid_heading_level`, `missing_text`, `missing_bullet_items`
+- `missing_table_columns`, `missing_table_rows`, `invalid_table_row`
+- `duplicate_table_column_key`, `table_row_missing_cells`, `table_row_extra_cells`
+- `unknown_style_token`, `invalid_width_weight`
+
+지원 block:
+
+- `heading`: `level` 1-3, `text`
+- `paragraph`: `text`
+- `bullets`: `items`
+- `table`: `caption`, `columns`, `rows`
+- `page_break`
+- `memo`
+
+검증 리포트에서 반드시 확인할 필드:
+
+- `pass`
+- `validation.reopened`
+- `validation.validate_package.ok`
+- `validation.validate_package.issues`
+- `validation.validate_document.ok`
+- `validation.validate_document.issues`
+- `recovery.repair_hints`
+- `recovery.next_actions`
+- `visual_review_required`
+
+`visual_review_required=True`는 구조/스키마 검증은 통과했지만 렌더러나 사람의 시각 검수는 별도로 필요하다는 뜻이다.
+
+패키징 오류(`mimetype` 순서/압축, manifest/version 참조 등)나 schema 오류가 있으면
+`validation.*.issues[]`의 `part`, `message`, `suggestion`을 따라 재저장 또는 plan
+재생성을 수행한 뒤 `inspect_document_authoring_quality()`를 다시 실행한다.
+
+### Operating plan quality profile
+
+운영 계획서는 `quality_profile="operating_plan"`을 켜서 구조 검증과
+제출 후보 품질 검증을 분리한다.
+
+```python
+report = inspect_document_authoring_quality(
+    "operating-plan.hwpx",
+    plan=document_plan,
+    quality_profile="operating_plan",
+)
+profile = report["profiles"]["operating_plan"]
+assert profile["pass"] is True
+
+direct = inspect_operating_plan_quality("operating-plan.hwpx", plan=document_plan)
+assert direct["profile_version"] == "operating-plan-quality-v1"
+```
+
+MCP 운영 계획서 경로에서 확인할 필드:
+
+- `analyze_document_plan(..., quality_profile="operating_plan")`
+- `create_document_from_plan(..., quality_profile="operating_plan")`
+- `handoff_status`: `ready` 또는 `needs_revision`
+- `next_action`: 다음 조치 안내
+- `quality.profiles.operating_plan.pass`
+- `quality.profiles.operating_plan.score`
+- `quality.profiles.operating_plan.gaps[]`
+- `quality.profiles.operating_plan.repair_hints[]`
+
+운영 계획서 handoff 기준:
+
+- `plan_validation.ok == true`
+- `quality.validation.reopened == true`
+- `quality.validation.validate_package.ok == true`
+- `quality.validation.validate_document.ok == true`
+- `quality.profiles.operating_plan.pass == true`
+- `visual_review_required == true`이면 최종 제출 전 렌더링 또는 사람의 시각 검토 필요
+
+## Template form-fit authoring
+
+`hwpx.template-formfit.baseline.v1`은 승인된 HWPX 양식을 보존하면서 특정
+anchor 아래의 placeholder scaffold와 표 영역만 채우는 계약이다.
+
+```python
+from hwpx import analyze_template_formfit, apply_template_formfit
+
+analysis = analyze_template_formfit(
+    "template.hwpx",
+    baseline="template-formfit-baseline.json",
+    content={
+        "school": {"name": "광교고등학교"},
+        "sections": {
+            "background_purpose": [
+                "AI 융합형 교육실 구축으로 학생 맞춤형 탐구 수업을 확대한다.",
+                "교원 공동 설계와 지역 연계를 통해 지속 가능한 운영 체계를 만든다.",
+            ],
+            "timeline": {
+                "rows": [
+                    {"월": "3월", "추진 내용": "운영 협의체 구성"},
+                    {"월": "4월", "추진 내용": "공간 설계 및 기자재 선정"},
+                ]
+            },
+        },
+    },
+    destination="filled.hwpx",
+)
+assert analysis["mutated"] is False
+assert analysis["unresolved_count"] == 0
+
+result = apply_template_formfit(analysis=analysis, confirm=True)
+assert result["source"]["preserved"] is True
+assert result["validation"]["validate_package"]["ok"] is True
+assert result["validation"]["validate_document"]["ok"] is True
+```
+
+주요 함수:
+
+- `analyze_template_formfit(source, *, baseline, content, destination=None, options=None) -> dict`
+- `apply_template_formfit(*, analysis=None, source=None, baseline=None, content=None, destination=None, confirm=True) -> dict`
+
+MCP 도구:
+
+- `analyze_template_formfit(source_filename, baseline, content, destination_filename=None)`
+- `apply_template_formfit(analysis=None, source_filename=None, baseline=None, content=None, destination_filename=None, confirm=True)`
+
+handoff 기준:
+
+- `analysis.mutated == false`
+- `analysis.source.unchanged_after_analysis == true`
+- `analysis.unresolved_count == 0`
+- `result.handoff_status == "ready"`
+- `result.source.preserved == true`
+- `result.validation.validate_package.ok == true`
+- `result.validation.validate_document.ok == true`
+- `result.residual_markers.blocking == []`
+
+제한:
+
+- source와 destination이 같으면 apply는 거부된다.
+- anchor가 없거나 둘 이상이면 apply 전 `unresolved`로 막는다.
+- 이미지/평면도/픽셀 단위 레이아웃은 자동 보장하지 않는다.
+- `visual_review_required=True`이면 최종 제출 전에 열린 문서 또는 사람의 시각 검토가 필요하다.
 
 ## Proposal preset
 

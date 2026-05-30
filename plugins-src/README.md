@@ -59,8 +59,9 @@ python3 -m pip install -U python-hwpx lxml
 
 현재 권장 기준:
 - Python 3.10+
-- 최소 호환 기준: `python-hwpx >= 2.6`
-- 최근 로컬 검증 기준: `python-hwpx 2.9.0`
+- 기본 편집 최소 호환 기준: `python-hwpx >= 2.6`
+- document-plan 생성 권장 기준: `python-hwpx >= 2.9.1`
+- 최근 로컬 검증 기준: `python-hwpx 2.9.1`
 
 ## 5분 성공 확인
 
@@ -83,7 +84,25 @@ python3 scripts/quickcheck.py
 [OK] basic hwpx skill workflow passed
 ```
 
-## 가장 많이 쓰는 작업 3개
+선언형 document-plan 생성까지 확인하려면:
+
+```bash
+python3 scripts/quickcheck.py --document-plan
+```
+
+운영 계획서 품질 프로필까지 확인하려면:
+
+```bash
+python3 scripts/quickcheck.py --operating-plan
+```
+
+양식 보존 form-fit 경로까지 확인하려면:
+
+```bash
+python3 scripts/quickcheck.py --template-formfit
+```
+
+## 가장 많이 쓰는 작업
 
 ### 1) 문서 텍스트 바로 추출
 
@@ -105,6 +124,48 @@ python3 examples/01_create_and_save.py
 python3 examples/02_extract_and_inspect.py examples/out/01_created.hwpx
 ```
 
+### 4) 선언형 document-plan에서 새 HWPX 생성
+
+```bash
+python3 examples/06_create_from_document_plan.py
+python3 scripts/quickcheck.py --document-plan
+```
+
+`validate_document_plan`이 실패하면 `issues[].code`, `issues[].path`,
+`repairHints[]`를 보고 plan을 고친 뒤 다시 검증한다. `can_create=false`인
+MCP 응답에서는 파일 생성을 진행하지 않는다.
+
+### 5) 운영 계획서 제출 후보 생성
+
+```bash
+python3 examples/07_create_operating_plan.py
+python3 scripts/quickcheck.py --operating-plan
+```
+
+운영 계획서는 `hwpx.document_plan.v1`로 먼저 구조화하고
+`quality_profile="operating_plan"`을 켠다. MCP 서버가 있으면
+`validate_document_plan` → `analyze_document_plan` → `create_document_from_plan`
+→ `inspect_document_authoring_quality` 순서로 진행한다. MCP가 없으면 local
+`python-hwpx`의 `inspect_operating_plan_quality()`로 같은 품질 프로필을 확인한다.
+생성 또는 form-fit 이후에는 MCP `inspect_operating_plan_quality(filename)` 또는
+local `inspect_operating_plan_quality(path)`로 파일만 다시 열어 evidence를 남긴다.
+핵심 evidence는 `report_version`, `status`, `score`, `gaps`, `repair_hints`,
+`visual_review_required`다. `status="ready"`여도 `visual_review_required=true`이면
+최종 제출 전 별도 시각 검토가 필요하다.
+
+### 6) 승인된 양식을 보존하며 운영 계획서 채우기
+
+```bash
+python3 examples/08_template_formfit.py
+python3 scripts/quickcheck.py --template-formfit
+```
+
+실제 P6 기준선이 있는 양식은 MCP에서 `analyze_template_formfit` →
+`apply_template_formfit` 순서로 처리한다. 분석 단계는 파일을 쓰지 않고,
+적용 단계는 원본과 다른 `destination_filename`에만 복사 후 반영한다.
+`source.preserved`, package/schema validation, `residual_markers.blocking`,
+`visual_review_required`를 handoff 근거로 확인한다.
+
 ## 포함 내용
 
 - `SKILL.md`: 에이전트용 의사결정 트리와 실전 워크플로
@@ -114,6 +175,12 @@ python3 examples/02_extract_and_inspect.py examples/out/01_created.hwpx
 - `scripts/zip_replace_all.py`: 플레이스홀더 전역 치환 CLI
 - `scripts/fix_namespaces.py`: ZIP-level 수정 후 namespace 정리
 - `examples/`: 생성, 추출, 템플릿 치환 예제
+  - `examples/06_create_from_document_plan.py`: `hwpx.document_plan.v1` 생성 예제
+  - `examples/06_mcp_document_plan.md`: MCP document-plan 호출 예시
+  - `examples/07_create_operating_plan.py`: 운영 계획서 document-plan + 품질 프로필 예제
+  - `examples/07_mcp_operating_plan.md`: MCP 운영 계획서 생성/검증 호출 예시
+  - `examples/08_template_formfit.py`: template form-fit local quickcheck 예제
+  - `examples/08_mcp_template_formfit.md`: MCP 양식 보존 workflow 예시
 
 ## 프로젝트 구조
 

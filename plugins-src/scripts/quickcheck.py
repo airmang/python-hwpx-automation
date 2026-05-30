@@ -8,6 +8,7 @@ What it verifies:
 2. Example document creation works
 3. Example inspection works on the created document
 4. CLI text extraction works on the created document
+5. Optional document-plan/proposal generation paths work when requested
 """
 
 from __future__ import annotations
@@ -41,6 +42,17 @@ def _print_block(label: str, output: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run hwpx-skill sanity checks")
     parser.add_argument("--proposal", action="store_true", help="also run the proposal-generation preset example")
+    parser.add_argument("--document-plan", action="store_true", help="also run the declarative document-plan generation example")
+    parser.add_argument(
+        "--operating-plan",
+        action="store_true",
+        help="also run the operating-plan document-plan quality example",
+    )
+    parser.add_argument(
+        "--template-formfit",
+        action="store_true",
+        help="also run the template-preserving form-fit example",
+    )
     args = parser.parse_args(argv)
 
     print("[STEP] checking Python runtime")
@@ -87,6 +99,33 @@ def main(argv: list[str] | None = None) -> int:
             "proposal",
             [sys.executable, str(EXAMPLES_DIR / "04_create_proposal.py")],
         ))
+    if args.document_plan:
+        commands.append((
+            "document-plan",
+            [sys.executable, str(EXAMPLES_DIR / "06_create_from_document_plan.py")],
+        ))
+    if args.operating_plan:
+        commands.append((
+            "operating-plan",
+            [sys.executable, str(EXAMPLES_DIR / "07_create_operating_plan.py")],
+        ))
+        operating_plan_output = EXAMPLES_DIR / "out" / "07_operating_plan.hwpx"
+        check_code = (
+            "from hwpx import inspect_operating_plan_quality; "
+            f"report = inspect_operating_plan_quality({str(operating_plan_output)!r}); "
+            "assert report['report_version'] == 'operating-plan-quality-v1'; "
+            "assert report['status'] == 'ready'; "
+            "assert report['visual_review_required'] is True"
+        )
+        commands.append((
+            "operating-plan-file-only-quality",
+            [sys.executable, "-c", check_code],
+        ))
+    if args.template_formfit:
+        commands.append((
+            "template-formfit",
+            [sys.executable, str(EXAMPLES_DIR / "08_template_formfit.py")],
+        ))
 
     for label, cmd in commands:
         print(f"[STEP] running {label}: {' '.join(cmd)}")
@@ -107,6 +146,12 @@ def main(argv: list[str] | None = None) -> int:
     print("[OK] basic hwpx skill workflow passed")
     if args.proposal:
         print("[OK] proposal generation workflow passed")
+    if args.document_plan:
+        print("[OK] document-plan generation workflow passed")
+    if args.operating_plan:
+        print("[OK] operating-plan document-plan workflow passed")
+    if args.template_formfit:
+        print("[OK] template form-fit workflow passed")
     print("[NEXT] try placeholder replacement:")
     print(
         "       python3 examples/03_template_replace.py examples/out/01_created.hwpx "
