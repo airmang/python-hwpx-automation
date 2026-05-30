@@ -14,6 +14,7 @@ What it verifies:
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -53,6 +54,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="also run the template-preserving form-fit example",
     )
+    parser.add_argument(
+        "--visual-review",
+        action="store_true",
+        help="also validate the visual-review fallback evidence shape",
+    )
     args = parser.parse_args(argv)
 
     print("[STEP] checking Python runtime")
@@ -79,6 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     print("[OK] imports passed")
     print()
 
+    visual_review_evidence = EXAMPLES_DIR / "out" / "09_visual_review_fallback.json"
     commands = [
         (
             "create",
@@ -113,9 +120,13 @@ def main(argv: list[str] | None = None) -> int:
         check_code = (
             "from hwpx import inspect_operating_plan_quality; "
             f"report = inspect_operating_plan_quality({str(operating_plan_output)!r}); "
-            "assert report['report_version'] == 'operating-plan-quality-v1'; "
-            "assert report['status'] == 'ready'; "
-            "assert report['visual_review_required'] is True"
+            "checks = ["
+            "(report.get('report_version') == 'operating-plan-quality-v1', 'report_version mismatch'), "
+            "(report.get('status') == 'ready', 'status is not ready'), "
+            "(report.get('visual_review_required') is True, 'visual_review_required is not true')"
+            "]; "
+            "failures = [message for passed, message in checks if not passed]; "
+            "raise SystemExit('; '.join(failures) if failures else 0)"
         )
         commands.append((
             "operating-plan-file-only-quality",
@@ -125,6 +136,31 @@ def main(argv: list[str] | None = None) -> int:
         commands.append((
             "template-formfit",
             [sys.executable, str(EXAMPLES_DIR / "08_template_formfit.py")],
+        ))
+    if args.visual_review:
+        visual_review_evidence.unlink(missing_ok=True)
+        if not args.operating_plan:
+            commands.append((
+                "operating-plan",
+                [sys.executable, str(EXAMPLES_DIR / "07_create_operating_plan.py")],
+            ))
+        commands.append((
+            "visual-review-fallback",
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "visual_review.py"),
+                str(EXAMPLES_DIR / "out" / "07_operating_plan.hwpx"),
+                "--evidence",
+                str(visual_review_evidence),
+                "--viewer",
+                "none",
+                "--status",
+                "blocked",
+                "--notes",
+                "CI fallback smoke: document viewer is intentionally disabled.",
+                "--layout-risk",
+                "Rendered page breaks and table fit require opened-document review.",
+            ],
         ))
 
     for label, cmd in commands:
@@ -152,6 +188,33 @@ def main(argv: list[str] | None = None) -> int:
         print("[OK] operating-plan document-plan workflow passed")
     if args.template_formfit:
         print("[OK] template form-fit workflow passed")
+    if args.visual_review:
+        try:
+            evidence = json.loads(visual_review_evidence.read_text(encoding="utf-8"))
+            checks = [
+                (evidence.get("schemaVersion") == "hwpx.visual-review.v1", "schemaVersion mismatch"),
+                (evidence.get("current", {}).get("status") == "blocked", "current.status is not blocked"),
+                (
+                    evidence.get("summary", {}).get("resolved_visual_review_required") == "blocked",
+                    "summary.resolved_visual_review_required is not blocked",
+                ),
+                (
+                    evidence.get("summary", {}).get("ready_for_submission_claim") is False,
+                    "summary.ready_for_submission_claim is not false",
+                ),
+                (evidence.get("viewer", {}).get("available") is False, "viewer.available is not false"),
+                (
+                    evidence.get("current", {}).get("tool_path", "").endswith("visual_review.py"),
+                    "current.tool_path does not end with visual_review.py",
+                ),
+            ]
+            for passed, message in checks:
+                if not passed:
+                    raise ValueError(message)
+        except Exception as exc:
+            print(f"[ERR] visual-review fallback evidence validation failed: {exc}")
+            return 4
+        print("[OK] visual-review fallback evidence workflow passed")
     print("[NEXT] try placeholder replacement:")
     print(
         "       python3 examples/03_template_replace.py examples/out/01_created.hwpx "

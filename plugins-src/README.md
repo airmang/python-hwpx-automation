@@ -94,6 +94,8 @@ python3 scripts/quickcheck.py --document-plan
 
 ```bash
 python3 scripts/quickcheck.py --operating-plan
+python3 scripts/quickcheck.py --visual-review
+python3 scripts/quickcheck.py --visual-review --operating-plan
 ```
 
 양식 보존 form-fit 경로까지 확인하려면:
@@ -153,6 +155,14 @@ local `inspect_operating_plan_quality(path)`로 파일만 다시 열어 evidence
 `visual_review_required`다. `status="ready"`여도 `visual_review_required=true`이면
 최종 제출 전 별도 시각 검토가 필요하다.
 
+`visual_review_required=true`는 파일만 여는 package/schema/text 검사는 통과했지만,
+열린 문서의 페이지 나눔, 표 맞춤, 잘림 여부는 아직 확인하지 않았다는 뜻이다.
+최종 제출 가능 상태라고 말하려면 ComputerUse 또는 사람이 HWPX viewer에서 문서를
+열어본 뒤 `scripts/visual_review.py`로 `--screenshot`이 포함된 `observed_pass`
+evidence를 남겨야 한다. `--observation`만으로는 최종 제출 가능 상태가 아니다.
+viewer가 없는 CI/컨테이너에서는 `--viewer none --status blocked` fallback evidence를
+남기고, 최종 시각 검토 대기 상태로 handoff한다.
+
 ### 6) 승인된 양식을 보존하며 운영 계획서 채우기
 
 ```bash
@@ -174,6 +184,7 @@ python3 scripts/quickcheck.py --template-formfit
 - `scripts/text_extract.py`: 텍스트 추출 CLI
 - `scripts/zip_replace_all.py`: 플레이스홀더 전역 치환 CLI
 - `scripts/fix_namespaces.py`: ZIP-level 수정 후 namespace 정리
+- `scripts/visual_review.py`: 열린 문서 시각 검토 evidence 기록 CLI
 - `examples/`: 생성, 추출, 템플릿 치환 예제
   - `examples/06_create_from_document_plan.py`: `hwpx.document_plan.v1` 생성 예제
   - `examples/06_mcp_document_plan.md`: MCP document-plan 호출 예시
@@ -181,6 +192,7 @@ python3 scripts/quickcheck.py --template-formfit
   - `examples/07_mcp_operating_plan.md`: MCP 운영 계획서 생성/검증 호출 예시
   - `examples/08_template_formfit.py`: template form-fit local quickcheck 예제
   - `examples/08_mcp_template_formfit.md`: MCP 양식 보존 workflow 예시
+  - `examples/09_visual_review_loop.md`: ComputerUse/사람 viewer 시각 검토 반복 workflow
 
 ## 프로젝트 구조
 
@@ -194,6 +206,7 @@ hwpx-skill/
 │   ├── fix_namespaces.py
 │   ├── quickcheck.py
 │   ├── text_extract.py
+│   ├── visual_review.py
 │   └── zip_replace_all.py
 └── examples/
     ├── 01_create_and_save.py
@@ -344,6 +357,7 @@ python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
 - `examples/01_create_and_save.py`: 새 문서 생성, 문단/표 추가, 저장
 - `examples/02_extract_and_inspect.py`: 텍스트 추출, 문단 순회, 표 개수 확인
 - `examples/03_template_replace.py`: 템플릿 치환, namespace 정리, 결과 저장
+- `examples/09_visual_review_loop.md`: 열린 문서 시각 검토 evidence와 viewer-missing fallback
 
 ## 설치 후 문제를 만나면
 

@@ -463,6 +463,112 @@ handoff 기준:
 - 이미지/평면도/픽셀 단위 레이아웃은 자동 보장하지 않는다.
 - `visual_review_required=True`이면 최종 제출 전에 열린 문서 또는 사람의 시각 검토가 필요하다.
 
+### Visual review evidence
+
+운영 계획서 품질 검사 또는 template form-fit 결과에서 `visual_review_required=True`가
+나오면, 파일 단위 검증만으로는 최종 제출 가능 상태를 주장하지 않는다.
+ComputerUse 또는 사람이 HWPX viewer에서 문서를 연 뒤 `scripts/visual_review.py`로
+`hwpx.visual-review.v1` evidence를 남긴다. `--viewer`는 `auto`, `none`,
+`command:open` 같은 viewer 실행 방식이고, ComputerUse는 `--method computer-use`로
+기록하는 관찰 방법이다.
+
+viewer가 없는 CI/컨테이너에서는 blocked fallback을 기록한다.
+
+```bash
+python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence examples/out/09_visual_review_fallback.json --viewer none --status blocked --notes "No HWPX viewer is available in this environment." --layout-risk "Rendered page breaks and table fit require opened-document review."
+```
+
+로컬 viewer 또는 ComputerUse로 확인한 경우:
+
+```bash
+python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence examples/out/09_visual_review_pass.json --viewer auto --method computer-use --status observed_pass --screenshot examples/out/09_visual_review_page1.png --notes "Opened in local HWPX viewer. Tables fit, page breaks are acceptable, and no clipped placeholders were visible."
+```
+
+허용 상태는 `observed_pass`, `needs_review`, `blocked`뿐이다. 최종 제출 가능
+시각 검토 주장은 `current.status == "observed_pass"`이고
+`current.screenshot_path`가 있으며 `summary.ready_for_submission_claim == true`인
+evidence에서만 허용한다. `observed_pass`에는 `--screenshot`이 필수이며,
+`--observation`만으로는 최종 제출 가능 상태가 아니다.
+`needs_review`는 재생성 또는 레이아웃 보완이 필요하고, `blocked`는 viewer가 없어
+열린 문서 검토가 남았다는 뜻이다. 공통 handoff 경로는 `current.timestamp`,
+`current.tool_path`, `current.screenshot_path`, `summary.ready_for_submission_claim`이며,
+viewer unavailable/disabled/failure fallback에는 `current.fallback_reason`이 추가된다.
+
+`iterations[]`는 같은 target checksum에 대해 같은 evidence 파일을 다시 쓸 때만
+이전 `current`가 이동되어 누적된다. 재생성된 HWPX는 path 또는 checksum이 달라질 수
+있으므로 새 evidence 파일을 쓰고 `--regenerated-from`에 이전 evidence 경로를 넣어
+연결한다. 이 연결은 추적성만 제공하며, 이전 JSON을 새 evidence의 `iterations[]`로
+병합하지 않는다.
+
+```bash
+python3 scripts/visual_review.py examples/out/07_operating_plan_regenerated.hwpx --evidence examples/out/09_visual_review_pass_after_regen.json --viewer command:open --method computer-use --status observed_pass --screenshot examples/out/09_visual_review_regenerated_page3.png --notes "Regenerated from the overflow evidence. Budget table now fits on page 3." --regenerated-from examples/out/09_visual_review_needs_review.json
+```
+
+Evidence schema:
+
+```json
+{
+  "schemaVersion": "hwpx.visual-review.v1",
+  "target": {
+    "path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/examples/out/07_operating_plan.hwpx",
+    "name": "07_operating_plan.hwpx",
+    "size_bytes": 123456,
+    "mtime": "2026-05-30T12:00:00Z",
+    "sha256": "hex-encoded-sha256"
+  },
+  "quality": {
+    "available": true,
+    "report_version": "operating-plan-quality-v1",
+    "status": "ready",
+    "score": 5.0,
+    "pass": true,
+    "gaps": [],
+    "repair_hints": [],
+    "visual_review_required": true
+  },
+  "viewer": {
+    "mode": "auto",
+    "available": true,
+    "command": "open",
+    "launched": false
+  },
+  "current": {
+    "iteration": 2,
+    "status": "observed_pass",
+    "timestamp": "2026-05-30T12:00:00Z",
+    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+    "review_method": "computer-use-or-human-viewer",
+    "screenshot_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/examples/out/09_visual_review_page1.png",
+    "observations": [
+      "Tables fit, page breaks are acceptable, and no clipped placeholders were visible."
+    ],
+    "layout_risks": [],
+    "notes": "Opened in local HWPX viewer.",
+    "regenerated_from": ""
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "blocked",
+      "timestamp": "2026-05-30T11:50:00Z",
+      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+      "review_method": "computer-use-or-human-viewer",
+      "screenshot_path": null,
+      "observations": [],
+      "layout_risks": ["Rendered page breaks and table fit require opened-document review."],
+      "notes": "No HWPX viewer is available in this environment.",
+      "regenerated_from": "",
+      "fallback_reason": "viewer disabled by --viewer none"
+    }
+  ],
+  "summary": {
+    "resolved_visual_review_required": "observed_pass",
+    "ready_for_submission_claim": true,
+    "residual_layout_risk_count": 0
+  }
+}
+```
+
 ## Proposal preset
 
 `python-hwpx`의 proposal preset은 agent-first 제안서/기획안 생성을 위한 고수준 API다.

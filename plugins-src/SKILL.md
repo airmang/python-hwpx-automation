@@ -46,10 +46,10 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
    `HwpxDocument`를 사용한다. 문단 추가, 표 생성, 메모 삽입, 내보내기는 [`references/api.md`](references/api.md)와 [`examples/01_create_and_save.py`](examples/01_create_and_save.py)를 본다.
 
 3. **운영 계획서를 작성한다**
-   먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화하고, `quality_profile="operating_plan"`을 켠다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `analyze_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `validate_document_plan()`, `create_document_from_plan()`, `inspect_document_authoring_quality(..., quality_profile="operating_plan")`, `inspect_operating_plan_quality()`를 직접 사용한다. 예시는 [`examples/07_create_operating_plan.py`](examples/07_create_operating_plan.py)와 [`examples/07_mcp_operating_plan.md`](examples/07_mcp_operating_plan.md)를 본다.
+   먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화하고, `quality_profile="operating_plan"`을 켠다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `analyze_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `validate_document_plan()`, `create_document_from_plan()`, `inspect_document_authoring_quality(..., quality_profile="operating_plan")`, `inspect_operating_plan_quality()`를 직접 사용한다. `visual_review_required=true`이면 `scripts/visual_review.py` evidence에서 `current.status == "observed_pass"`와 `current.screenshot_path`까지 확인해야 제출 준비 완료라고 말할 수 있다. 예시는 [`examples/07_create_operating_plan.py`](examples/07_create_operating_plan.py), [`examples/07_mcp_operating_plan.md`](examples/07_mcp_operating_plan.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
 4. **승인된 양식을 보존하며 운영 계획서를 채운다**
-   사용자가 특정 HWPX 양식이나 P6 기준선 기반 운영 계획서 작성을 요청하면 document-plan 새 문서 생성보다 template form-fit 경로를 우선한다. MCP 서버가 있으면 `analyze_template_formfit`으로 원본이 변하지 않았고 `unresolved_count == 0`인지 확인한 뒤, `apply_template_formfit(confirm=True)`로 원본과 다른 destination에만 적용한다. 결과에서 `source.preserved`, `validation.validate_package.ok`, `validation.validate_document.ok`, `residual_markers.blocking == []`를 확인한다. `visual_review_required=True`이면 최종 제출 전 열린 문서/사람 검토가 필요하다고 명시한다. 예시는 [`examples/08_template_formfit.py`](examples/08_template_formfit.py)와 [`examples/08_mcp_template_formfit.md`](examples/08_mcp_template_formfit.md)를 본다.
+   사용자가 특정 HWPX 양식이나 P6 기준선 기반 운영 계획서 작성을 요청하면 document-plan 새 문서 생성보다 template form-fit 경로를 우선한다. MCP 서버가 있으면 `analyze_template_formfit`으로 원본이 변하지 않았고 `unresolved_count == 0`인지 확인한 뒤, `apply_template_formfit(confirm=True)`로 원본과 다른 destination에만 적용한다. 결과에서 `source.preserved`, `validation.validate_package.ok`, `validation.validate_document.ok`, `residual_markers.blocking == []`를 확인한다. `visual_review_required=True`이면 최종 제출 전 열린 문서/사람 검토 evidence가 필요하며, `current.status == "observed_pass"`가 아니거나 `current.screenshot_path`가 없으면 최종 제출 가능 상태라고 주장하지 않는다. 예시는 [`examples/08_template_formfit.py`](examples/08_template_formfit.py), [`examples/08_mcp_template_formfit.md`](examples/08_mcp_template_formfit.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
 5. **자연어 요청으로 새 문서를 완성한다**
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화한다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `create_document_from_plan()`을 직접 사용한다. 예시는 [`examples/06_create_from_document_plan.py`](examples/06_create_from_document_plan.py)를 본다.
@@ -125,8 +125,17 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
    - `quality.validation.validate_document.ok == true`
    - file-only `inspect_operating_plan_quality(path).report_version == "operating-plan-quality-v1"`
    - file-only `inspect_operating_plan_quality(path).status == "ready"`
-   - `visual_review_required == true`이면 최종 제출 전 별도 시각 검토가 필요하다고 명시
+   - `quality.visual_review_required == true`이면 `scripts/visual_review.py` evidence 또는 ComputerUse/사람이 연 문서 검토 evidence가 있어야 함
+   - visual-review evidence `schemaVersion == "hwpx.visual-review.v1"`
+   - visual-review evidence `current.status == "observed_pass"`
+   - visual-review evidence `current.screenshot_path`가 있어야 함 (`--observation`만으로는 부족)
+   - visual-review evidence `summary.ready_for_submission_claim == true`
 8. `status="needs_revision"` 또는 `gaps[]`가 있으면 `repair_hints[]`를 반영해 plan을 보강하고 다시 검증한다.
+9. HWPX viewer가 없는 CI/컨테이너에서는 아래처럼 blocked evidence를 남기고, 제출 준비 완료가 아니라 viewer 검토 대기 상태로 handoff한다.
+
+```bash
+python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence examples/out/09_visual_review_fallback.json --viewer none --status blocked --notes "No HWPX viewer is available in this environment." --layout-risk "Rendered page breaks and table fit require opened-document review."
+```
 
 예제:
 - [`examples/07_create_operating_plan.py`](examples/07_create_operating_plan.py)
@@ -150,7 +159,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
    - `validation.validate_document.ok == true`
    - `residual_markers.blocking == []`
    - file-only `inspect_operating_plan_quality(destination).status == "ready"` 또는 남은 gap이 제출 전 수동 보완 가능하다는 근거
-6. `visual_review_required=true`이면 렌더링/열람/사람 검토를 최종 제출 전 별도 gate로 남긴다.
+6. `visual_review_required=true`이면 `scripts/visual_review.py` evidence 또는 ComputerUse/사람이 연 문서 검토 evidence를 남긴다. evidence `schemaVersion == "hwpx.visual-review.v1"`이고 `current.status == "observed_pass"`이며 `current.screenshot_path`가 있을 때만 최종 제출 가능 상태라고 말한다. `--observation`만으로는 부족하다. HWPX viewer가 없으면 `--viewer none --status blocked` fallback evidence를 남기고, 열린 문서 검토가 필요하다고 handoff한다.
 
 예제:
 - [`examples/08_template_formfit.py`](examples/08_template_formfit.py)
@@ -227,6 +236,9 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 
 - [`examples/08_mcp_template_formfit.md`](examples/08_mcp_template_formfit.md)
   MCP 서버에서 `analyze_template_formfit` → `apply_template_formfit`로 원본을 보존하며 채우는 호출 흐름.
+
+- [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)
+  ComputerUse 또는 사람 viewer로 연 문서 시각 검토 evidence를 남기고, viewer가 없을 때 blocked fallback을 기록하는 반복 workflow.
 
 ## 실행 전 체크리스트
 
