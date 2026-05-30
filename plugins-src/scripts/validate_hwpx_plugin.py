@@ -110,6 +110,19 @@ def validate_sync_manifest() -> None:
     )
 
 
+def validate_launcher_content() -> None:
+    launcher = PLUGIN / "scripts" / "hwpx-mcp-server"
+    text = launcher.read_text(encoding="utf-8")
+    required_fragments = [
+        "HWPX_MCP_SERVER_REPO",
+        "PYTHON_HWPX_REPO",
+        "uv run --project",
+        'uvx --from "hwpx-mcp-server==2.2.6"',
+    ]
+    missing = [fragment for fragment in required_fragments if fragment not in text]
+    require(not missing, f"launcher missing expected fragments: {missing}")
+
+
 def main() -> int:
     manifest_path = PLUGIN / ".codex-plugin" / "plugin.json"
     mcp_path = PLUGIN / ".mcp.json"
@@ -134,6 +147,7 @@ def main() -> int:
     require(server.get("cwd") == ".", "MCP server cwd is invalid")
     require(os.access(launcher, os.X_OK), "launcher is not executable")
     validate_sync_manifest()
+    validate_launcher_content()
     print("[OK] hwpx-plugin manifest and MCP launcher are valid")
     return 0
 
