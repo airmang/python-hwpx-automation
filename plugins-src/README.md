@@ -125,7 +125,14 @@ The plugin MCP launcher prefers sibling local checkouts:
 Override them with `HWPX_MCP_SERVER_REPO` and `PYTHON_HWPX_REPO` when the checkout layout differs.
 If local checkouts are unavailable, the launcher falls back to `uvx --from hwpx-mcp-server==2.2.6 hwpx-mcp-server`.
 
-After changing plugin files, update the manifest cachebuster with the Codex plugin creator helper and reinstall from the selected local marketplace. Start a new Codex thread before testing newly installed skills or MCP tools.
+After changing plugin files, update the manifest cachebuster with:
+
+```bash
+python3 /Users/wilycastle/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py plugins/hwpx-plugin
+python3 /Users/wilycastle/.codex/skills/.system/plugin-creator/scripts/read_marketplace_name.py
+```
+
+Then reinstall from the selected local marketplace. Start a new Codex thread before testing newly installed skills or MCP tools.
 
 ## 가장 많이 쓰는 작업
 
