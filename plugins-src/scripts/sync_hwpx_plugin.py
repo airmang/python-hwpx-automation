@@ -48,11 +48,29 @@ def destination_for(source: str) -> Path:
     return PLUGIN_SKILL / source
 
 
+def clean_stale_skill_files(expected_destinations: set[Path]) -> None:
+    if not PLUGIN_SKILL.exists():
+        return
+
+    for path in PLUGIN_SKILL.rglob("*"):
+        if path.is_file() and path not in expected_destinations:
+            path.unlink()
+
+    for path in sorted((p for p in PLUGIN_SKILL.rglob("*") if p.is_dir()), reverse=True):
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+
+
 def main() -> int:
     missing = [source for source in SYNC_FILES if not (ROOT / source).is_file()]
     if missing:
         missing_list = ", ".join(missing)
         raise SystemExit(f"missing sync source file(s): {missing_list}")
+
+    expected_destinations = {destination_for(source) for source in SYNC_FILES}
+    clean_stale_skill_files(expected_destinations)
 
     records = []
     for source in SYNC_FILES:
