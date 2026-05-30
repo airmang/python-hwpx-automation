@@ -128,8 +128,8 @@ If local checkouts are unavailable, the launcher falls back to `uvx --from hwpx-
 After changing plugin files, update the manifest cachebuster with:
 
 ```bash
-python3 /Users/wilycastle/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py plugins/hwpx-plugin
-python3 /Users/wilycastle/.codex/skills/.system/plugin-creator/scripts/read_marketplace_name.py
+python3 ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py plugins/hwpx-plugin
+python3 ~/.codex/skills/.system/plugin-creator/scripts/read_marketplace_name.py
 ```
 
 Then reinstall from the selected local marketplace. Start a new Codex thread before testing newly installed skills or MCP tools.
@@ -407,7 +407,7 @@ python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
 
 ## 작성자
 
-**고규현** (airmang)  
+**고규현** (airmang)
 - GitHub: <https://github.com/airmang>
 - Base Library: <https://github.com/airmang/python-hwpx>
 

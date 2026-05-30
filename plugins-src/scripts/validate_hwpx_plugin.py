@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "plugins" / "hwpx-plugin"
 PLUGIN_SKILL = PLUGIN / "skills" / "hwpx"
+PLUGIN_VERSION_RE = re.compile(r"^0\.1\.0(?:\+codex\.[A-Za-z0-9._-]+)?$")
 
 
 def load_json(path: Path) -> dict:
@@ -133,7 +135,8 @@ def main() -> int:
 
     manifest = load_json(manifest_path)
     require(manifest.get("name") == "hwpx-plugin", "manifest name is invalid")
-    require(manifest.get("version") == "0.1.0", "manifest version is invalid")
+    version = manifest.get("version")
+    require(isinstance(version, str) and PLUGIN_VERSION_RE.fullmatch(version), "manifest version is invalid")
     require(manifest.get("skills") == "./skills/", "manifest skills path is invalid")
     require(manifest.get("mcpServers") == "./.mcp.json", "manifest mcpServers path is invalid")
     require("[PLACEHOLDER:" not in json.dumps(manifest), "manifest contains a placeholder")
