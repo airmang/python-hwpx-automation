@@ -104,6 +104,29 @@ python3 scripts/quickcheck.py --visual-review --operating-plan
 python3 scripts/quickcheck.py --template-formfit
 ```
 
+## Codex plugin bundle
+
+This repository ships a local Codex plugin at `plugins/hwpx-plugin`.
+The plugin exposes the same HWPX skill surface plus a companion MCP launcher.
+
+Development smoke:
+
+```bash
+python3 scripts/sync_hwpx_plugin.py
+python3 scripts/validate_hwpx_plugin.py
+uv run --with lxml --with ../python-hwpx python scripts/quickcheck.py --document-plan --operating-plan --template-formfit --visual-review
+```
+
+The plugin MCP launcher prefers sibling local checkouts:
+
+- `../hwpx-mcp-server`
+- `../python-hwpx`
+
+Override them with `HWPX_MCP_SERVER_REPO` and `PYTHON_HWPX_REPO` when the checkout layout differs.
+If local checkouts are unavailable, the launcher falls back to `uvx --from hwpx-mcp-server==2.2.6 hwpx-mcp-server`.
+
+After changing plugin files, update the manifest cachebuster with the Codex plugin creator helper and reinstall from the selected local marketplace. Start a new Codex thread before testing newly installed skills or MCP tools.
+
 ## 가장 많이 쓰는 작업
 
 ### 1) 문서 텍스트 바로 추출

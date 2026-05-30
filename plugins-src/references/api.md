@@ -445,6 +445,19 @@ MCP 도구:
 - `analyze_template_formfit(source_filename, baseline, content, destination_filename=None)`
 - `apply_template_formfit(analysis=None, source_filename=None, baseline=None, content=None, destination_filename=None, confirm=True)`
 
+### Codex plugin bundle
+
+`plugins/hwpx-plugin` is the single-plugin distribution surface for this skill stack.
+It contains the `hwpx` skill assets and an MCP config for `hwpx-mcp-server`.
+
+For development checkouts, the launcher resolves:
+
+1. `HWPX_MCP_SERVER_REPO` or `../hwpx-mcp-server`
+2. `PYTHON_HWPX_REPO` or `../python-hwpx`
+3. `uvx --from hwpx-mcp-server==2.2.6 hwpx-mcp-server` fallback
+
+Run `python3 scripts/sync_hwpx_plugin.py` before plugin validation whenever `SKILL.md`, `references`, `examples`, or skill scripts change.
+
 handoff 기준:
 
 - `analysis.mutated == false`
