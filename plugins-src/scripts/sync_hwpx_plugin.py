@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEST_ROOT = ROOT / "plugins" / "hwpx-plugin" / "skills" / "hwpx"
+PLUGIN_SKILL = ROOT / "plugins" / "hwpx-plugin" / "skills" / "hwpx"
 SYNC_MANIFEST = ROOT / "plugins" / "hwpx-plugin" / "plugin-sync.json"
 
 SYNC_FILES = [
@@ -44,8 +44,8 @@ def sha256(path: Path) -> str:
 
 def destination_for(source: str) -> Path:
     if source == "SKILL.md":
-        return DEST_ROOT / "SKILL.md"
-    return DEST_ROOT / source
+        return PLUGIN_SKILL / "SKILL.md"
+    return PLUGIN_SKILL / source
 
 
 def main() -> int:
