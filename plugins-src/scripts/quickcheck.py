@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """quickcheck.py
 
-Run a beginner-friendly end-to-end sanity check for hwpx-skill.
+Run a beginner-friendly end-to-end sanity check for the HWPX skill.
 
 What it verifies:
 1. Required Python packages import successfully
@@ -41,7 +41,7 @@ def _print_block(label: str, output: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run hwpx-skill sanity checks")
+    parser = argparse.ArgumentParser(description="Run HWPX skill sanity checks")
     parser.add_argument("--proposal", action="store_true", help="also run the proposal-generation preset example")
     parser.add_argument("--document-plan", action="store_true", help="also run the declarative document-plan generation example")
     parser.add_argument(

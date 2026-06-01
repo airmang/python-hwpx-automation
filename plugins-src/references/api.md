@@ -1,6 +1,6 @@
 # python-hwpx API 레퍼런스
 
-`hwpx-skill`에서 반복적으로 참조하는 `python-hwpx` API만 추렸다. 스킬 본문은 워크플로 중심이고, 이 문서는 시그니처와 사용 포인트를 빠르게 확인하는 용도다.
+`hwpx-plugins`에서 반복적으로 참조하는 `python-hwpx` API만 추렸다. 스킬 본문은 워크플로 중심이고, 이 문서는 시그니처와 사용 포인트를 빠르게 확인하는 용도다.
 
 | python-hwpx 버전 | 상태 | 비고 |
 |---|---|---|
@@ -510,7 +510,7 @@ Evidence schema:
 {
   "schemaVersion": "hwpx.visual-review.v1",
   "target": {
-    "path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/examples/out/07_operating_plan.hwpx",
+    "path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/examples/out/07_operating_plan.hwpx",
     "name": "07_operating_plan.hwpx",
     "size_bytes": 123456,
     "mtime": "2026-05-30T12:00:00Z",
@@ -536,9 +536,9 @@ Evidence schema:
     "iteration": 2,
     "status": "observed_pass",
     "timestamp": "2026-05-30T12:00:00Z",
-    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/scripts/visual_review.py",
     "review_method": "computer-use-or-human-viewer",
-    "screenshot_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/examples/out/09_visual_review_page1.png",
+    "screenshot_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/examples/out/09_visual_review_page1.png",
     "observations": [
       "Tables fit, page breaks are acceptable, and no clipped placeholders were visible."
     ],
@@ -551,7 +551,7 @@ Evidence schema:
       "iteration": 1,
       "status": "blocked",
       "timestamp": "2026-05-30T11:50:00Z",
-      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/scripts/visual_review.py",
       "review_method": "computer-use-or-human-viewer",
       "screenshot_path": null,
       "observations": [],
@@ -569,18 +569,20 @@ Evidence schema:
 }
 ```
 
-## Codex plugin bundle
+## Multi-host plugin bundles
 
-`plugins/hwpx-plugin` is the single-plugin distribution surface for this skill stack.
-It contains the `hwpx` skill assets and an MCP config for `hwpx-mcp-server`.
+`plugins/<host>/` holds generated, committed bundles for Claude Code, Codex, OpenClaw, and
+Hermes Agent, built from the repo-root skill assets by `scripts/build_hwpx_plugins.py` and
+checked by `scripts/validate_hwpx_plugin.py`.
 
-For development checkouts, the launcher resolves:
+The bundled MCP launcher (`scripts/hwpx-mcp-server` in Claude/Codex bundles) resolves, in order:
 
-1. `HWPX_MCP_SERVER_REPO` or `../hwpx-mcp-server`
-2. `PYTHON_HWPX_REPO` or `../python-hwpx`
-3. `uvx --from hwpx-mcp-server==2.2.6 hwpx-mcp-server` fallback
+1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
+2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
+3. `uvx --from hwpx-mcp-server==2.2.6 hwpx-mcp-server`
 
-Run `python3 scripts/sync_hwpx_plugin.py` before plugin validation whenever `SKILL.md`, `references`, `examples`, or skill scripts change.
+Run `python3 scripts/build_hwpx_plugins.py` after changing `SKILL.md`, `references`, `examples`,
+or skill scripts, then `python3 scripts/validate_hwpx_plugin.py`.
 
 ## Proposal preset
 

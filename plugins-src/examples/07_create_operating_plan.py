@@ -21,7 +21,7 @@ def operating_plan() -> dict:
     return {
         "schemaVersion": DOCUMENT_PLAN_SCHEMA_VERSION,
         "title": "2026 AI 중점학교 운영계획서",
-        "subtitle": "hwpx-skill operating-plan smoke",
+        "subtitle": "HWPX operating-plan smoke",
         "metadata": {
             "organization": "샘플고등학교",
             "author": "AI교육기획팀",
