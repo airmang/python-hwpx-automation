@@ -1,0 +1,22 @@
+{
+  "name": "hwpx-plugin",
+  "version": "0.1.0",
+  "description": "HWPX document generation, validation, visual-review handoff, and MCP tooling for Codex.",
+  "author": { "name": "Kohkyuhyun", "email": "kokyuhyun@hotmail.com", "url": "https://github.com/airmang" },
+  "homepage": "https://github.com/airmang/hwpx-plugins",
+  "repository": "https://github.com/airmang/hwpx-plugins",
+  "license": "Apache-2.0",
+  "keywords": ["codex", "hwpx", "mcp", "document-automation", "korean-documents"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "HWPX Plugin",
+    "shortDescription": "Create and validate HWPX documents from Codex.",
+    "longDescription": "HWPX Plugin bundles the HWPX authoring skill, local examples, visual-review handoff scripts, and a companion MCP launcher for HWPX generation and validation workflows.",
+    "developerName": "Kohkyuhyun",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": ["$hwpx create operating plan", "$hwpx inspect file quality", "$hwpx record visual review"],
+    "brandColor": "#2563EB"
+  }
+}

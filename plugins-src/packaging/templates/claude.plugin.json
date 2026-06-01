@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "hwpx-plugin",
+  "version": "0.1.0",
+  "description": "HWPX document generation, validation, visual-review handoff, and MCP tooling.",
+  "author": { "name": "Kohkyuhyun", "email": "kokyuhyun@hotmail.com", "url": "https://github.com/airmang" },
+  "homepage": "https://github.com/airmang/hwpx-plugins",
+  "repository": "https://github.com/airmang/hwpx-plugins",
+  "license": "Apache-2.0",
+  "keywords": ["claude-code", "hwpx", "mcp", "document-automation", "korean-documents"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}
