@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+find_stack_root() {
+  local dir="$1"
+  while [ "$dir" != "/" ]; do
+    if [ -f "$dir/hwpx-mcp-server/pyproject.toml" ] && [ -f "$dir/python-hwpx/pyproject.toml" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+STACK_ROOT=""
+if ! STACK_ROOT="$(find_stack_root "$SCRIPT_DIR")"; then
+  STACK_ROOT=""
+fi
+
+MCP_REPO="${HWPX_MCP_SERVER_REPO:-${STACK_ROOT:+$STACK_ROOT/hwpx-mcp-server}}"
+PYTHON_HWPX_REPO="${PYTHON_HWPX_REPO:-${STACK_ROOT:+$STACK_ROOT/python-hwpx}}"
+
+if command -v uv >/dev/null 2>&1 \
+  && [ -n "${MCP_REPO}" ] && [ -f "${MCP_REPO}/pyproject.toml" ] \
+  && [ -n "${PYTHON_HWPX_REPO}" ] && [ -f "${PYTHON_HWPX_REPO}/pyproject.toml" ]; then
+  exec uv run --project "${MCP_REPO}" --with-editable "${PYTHON_HWPX_REPO}" --with-editable "${MCP_REPO}" hwpx-mcp-server
+fi
+
+if command -v uvx >/dev/null 2>&1; then
+  exec uvx --from "hwpx-mcp-server==2.2.6" hwpx-mcp-server
+fi
+
+echo "hwpx-plugin requires uv or uvx. Install uv, or set HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO to local checkouts." >&2
+exit 127
