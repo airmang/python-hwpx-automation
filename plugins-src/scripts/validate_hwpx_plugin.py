@@ -1,16 +1,16 @@
+#!/usr/bin/env python3
+"""Validate every generated HWPX host bundle against packaging/hosts.json."""
 from __future__ import annotations
 
 import hashlib
 import json
 import os
-import re
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN = ROOT / "plugins" / "hwpx-plugin"
-PLUGIN_SKILL = PLUGIN / "skills" / "hwpx"
-PLUGIN_VERSION_RE = re.compile(r"^0\.1\.0(?:\+codex\.[A-Za-z0-9._-]+)?$")
+PACKAGING = ROOT / "packaging"
+CONFIG = PACKAGING / "hosts.json"
 
 
 def load_json(path: Path) -> dict:
@@ -32,10 +32,10 @@ def require(condition: bool, message: str) -> None:
 
 def require_file(path: Path) -> None:
     if not path.is_file():
-        raise SystemExit(f"missing file: {path.relative_to(ROOT)}")
+        raise SystemExit(f"missing file: {path}")
 
 
-def require_safe_relative_path(raw_path: str, label: str) -> Path:
+def require_safe_relative(raw_path: str, label: str) -> Path:
     posix_path = PurePosixPath(raw_path)
     windows_path = PureWindowsPath(raw_path)
     require(not posix_path.is_absolute(), f"{label} must be relative: {raw_path}")
@@ -45,113 +45,163 @@ def require_safe_relative_path(raw_path: str, label: str) -> Path:
     return ROOT / raw_path
 
 
-def require_under(path: Path, parent: Path, label: str) -> None:
-    resolved_path = path.resolve()
-    resolved_parent = parent.resolve()
-    try:
-        resolved_path.relative_to(resolved_parent)
-    except ValueError:
-        raise SystemExit(f"{label} must be under {parent.relative_to(ROOT)}: {path.relative_to(ROOT)}")
+def frontmatter_of(skill_md: Path) -> str:
+    text = skill_md.read_text(encoding="utf-8")
+    require(text.startswith("---\n"), f"SKILL.md missing frontmatter: {skill_md}")
+    return text.split("\n---\n", 1)[0]
 
 
-def validate_sync_manifest() -> None:
-    sync_manifest_path = PLUGIN / "plugin-sync.json"
-    require_file(sync_manifest_path)
+def validate_sync(host: dict, out: Path, skill_dir: Path) -> set[Path]:
+    sync_path = out / "plugin-sync.json"
+    require_file(sync_path)
+    sync = load_json(sync_path)
+    require(sync.get("schemaVersion") == "hwpx.plugin-sync.v2", f"{host['id']}: bad sync schemaVersion")
+    require(sync.get("host") == host["id"], f"{host['id']}: sync host mismatch")
 
-    sync_manifest = load_json(sync_manifest_path)
-    require(
-        sync_manifest.get("schemaVersion") == "hwpx.plugin-sync.v1",
-        "sync manifest schemaVersion is invalid",
-    )
-    require(sync_manifest.get("plugin") == "hwpx-plugin", "sync manifest plugin is invalid")
+    files = sync.get("files")
+    require(isinstance(files, list) and files, f"{host['id']}: sync files must be a non-empty list")
+    skill_dests: set[Path] = set()
+    for index, rec in enumerate(files):
+        require(isinstance(rec, dict), f"{host['id']}: sync record {index} invalid")
+        source = rec.get("source")
+        dest = rec.get("dest")
+        source_sha = rec.get("sourceSha256")
+        dest_sha = rec.get("destSha256")
+        for value, name in ((source, "source"), (dest, "dest"), (source_sha, "sourceSha256"), (dest_sha, "destSha256")):
+            require(isinstance(value, str) and value, f"{host['id']}: sync record {index} {name} invalid")
 
-    files = sync_manifest.get("files")
-    require(isinstance(files, list), "sync manifest files must be a list")
-    manifest_destinations: set[Path] = set()
-    for index, record in enumerate(files):
-        require(isinstance(record, dict), f"sync manifest file record {index} is invalid")
-        source = record.get("source")
-        destination = record.get("destination")
-        recorded_sha256 = record.get("sha256")
-        require(isinstance(source, str) and source, f"sync manifest record {index} source is invalid")
-        require(
-            isinstance(destination, str) and destination,
-            f"sync manifest record {index} destination is invalid",
-        )
-        require(
-            isinstance(recorded_sha256, str) and recorded_sha256,
-            f"sync manifest record {index} sha256 is invalid",
-        )
-
-        source_path = require_safe_relative_path(source, f"sync manifest record {index} source")
-        destination_path = require_safe_relative_path(
-            destination,
-            f"sync manifest record {index} destination",
-        )
-        require_under(
-            destination_path,
-            PLUGIN_SKILL,
-            f"sync manifest record {index} destination",
-        )
+        source_path = require_safe_relative(source, f"{host['id']} record {index} source")
+        dest_path = require_safe_relative(dest, f"{host['id']} record {index} dest")
         require_file(source_path)
-        require_file(destination_path)
-        manifest_destinations.add(destination_path.resolve())
-        require(
-            sha256(source_path) == recorded_sha256,
-            f"sync manifest source drifted: {source}",
-        )
-        require(
-            sha256(destination_path) == recorded_sha256,
-            f"sync manifest destination drifted: {destination}",
-        )
-
-    actual_destinations = {path.resolve() for path in PLUGIN_SKILL.rglob("*") if path.is_file()}
-    require(
-        actual_destinations == manifest_destinations,
-        "plugin skill files do not match sync manifest destinations",
-    )
+        require_file(dest_path)
+        require(sha256(source_path) == source_sha, f"{host['id']}: source drifted (rebuild needed): {source}")
+        require(sha256(dest_path) == dest_sha, f"{host['id']}: bundle file tampered: {dest}")
+        try:
+            dest_path.resolve().relative_to(skill_dir.resolve())
+            skill_dests.add(dest_path.resolve())
+        except ValueError:
+            pass
+    return skill_dests
 
 
-def validate_launcher_content() -> None:
-    launcher = PLUGIN / "scripts" / "hwpx-mcp-server"
+def validate_skill_files_match(host: dict, skill_dir: Path, recorded: set[Path]) -> None:
+    # When skillSubdir == "." the bundle root is the skill dir, so the bundle's own
+    # plugin-sync.json and INSTALL-mcp.md live alongside skill files. plugin-sync.json
+    # is never self-recorded; exclude it. Everything else under skill_dir must be recorded.
+    actual = {
+        p.resolve()
+        for p in skill_dir.rglob("*")
+        if p.is_file() and p.name != "plugin-sync.json"
+    }
+    require(actual == recorded, f"{host['id']}: skill files do not match sync manifest")
+
+
+def validate_no_placeholder(path: Path, host_id: str) -> None:
+    require("[PLACEHOLDER:" not in path.read_text(encoding="utf-8"), f"{host_id}: placeholder in {path}")
+
+
+def validate_launcher(out: Path, host_id: str) -> None:
+    launcher = out / "scripts" / "hwpx-mcp-server"
+    require_file(launcher)
+    require(os.access(launcher, os.X_OK), f"{host_id}: launcher not executable")
     text = launcher.read_text(encoding="utf-8")
-    required_fragments = [
+    fragments = [
+        "find_stack_root",
         "HWPX_MCP_SERVER_REPO",
         "PYTHON_HWPX_REPO",
         "uv run --project",
         'uvx --from "hwpx-mcp-server==2.2.6"',
     ]
-    missing = [fragment for fragment in required_fragments if fragment not in text]
-    require(not missing, f"launcher missing expected fragments: {missing}")
+    missing = [fragment for fragment in fragments if fragment not in text]
+    require(not missing, f"{host_id}: launcher missing fragments: {missing}")
+
+
+def validate_host(host: dict, config: dict) -> None:
+    out = ROOT / host["outputDir"]
+    require(out.is_dir(), f"{host['id']}: missing output dir {host['outputDir']}")
+    skill_dir = out if host["skillSubdir"] == "." else out / host["skillSubdir"]
+
+    skill_md = skill_dir / "SKILL.md"
+    require_file(skill_md)
+    validate_no_placeholder(skill_md, host["id"])
+    fm = frontmatter_of(skill_md)
+    require("name: hwpx" in fm, f"{host['id']}: SKILL.md missing name")
+    require("description:" in fm, f"{host['id']}: SKILL.md missing description")
+    if host.get("frontmatterExtra", "").strip():
+        require("version:" in fm, f"{host['id']}: SKILL.md missing required version")
+        require("hermes:" in fm and "tags:" in fm, f"{host['id']}: SKILL.md missing metadata.hermes.tags")
+    else:
+        require("\nversion:" not in fm, f"{host['id']}: SKILL.md must not declare version")
+
+    for rel in config["sharedAssets"]:
+        require_file(skill_dir / rel)
+
+    for manifest in host.get("manifests", []):
+        manifest_path = out / manifest["dest"]
+        require_file(manifest_path)
+        validate_no_placeholder(manifest_path, host["id"])
+        data = load_json(manifest_path)
+        if host["id"] == "claude":
+            require(data.get("name") == "hwpx-plugin", "claude: manifest name invalid")
+            require(data.get("skills") == "./skills/", "claude: manifest skills invalid")
+            require(data.get("mcpServers") == "./.mcp.json", "claude: manifest mcpServers invalid")
+        elif host["id"] == "codex":
+            require(data.get("name") == "hwpx-plugin", "codex: manifest name invalid")
+            require(data.get("skills") == "./skills/", "codex: manifest skills invalid")
+            require(data.get("mcpServers") == "./.mcp.json", "codex: manifest mcpServers invalid")
+        elif host["id"] == "openclaw":
+            require(data.get("id") == "hwpx-plugin", "openclaw: manifest id invalid")
+            require(data.get("skills") == ["./skills"], "openclaw: manifest skills invalid")
+            schema = data.get("configSchema")
+            require(isinstance(schema, dict) and schema.get("type") == "object", "openclaw: configSchema invalid")
+            require(schema.get("additionalProperties") is False, "openclaw: configSchema must set additionalProperties false")
+
+    mcp = host["mcp"]
+    mcp_path = out / mcp["dest"]
+    require_file(mcp_path)
+    if mcp["strategy"] == "bundled":
+        mcp_data = load_json(mcp_path)
+        server = mcp_data.get("mcpServers", {}).get("hwpx-mcp-server")
+        require(isinstance(server, dict), f"{host['id']}: .mcp.json missing hwpx-mcp-server")
+        command = server.get("command", "")
+        require("hwpx-mcp-server" in command, f"{host['id']}: .mcp.json command invalid")
+        if host["id"] == "claude":
+            require("${CLAUDE_PLUGIN_ROOT}" in command, "claude: .mcp.json must use ${CLAUDE_PLUGIN_ROOT}")
+        if host["id"] == "codex":
+            require(command == "./scripts/hwpx-mcp-server", "codex: .mcp.json command must be relative")
+            require(server.get("cwd") == ".", "codex: .mcp.json cwd must be '.'")
+    else:
+        text = mcp_path.read_text(encoding="utf-8")
+        require("mcp_servers" in text or "hwpx-mcp-server" in text, f"{host['id']}: INSTALL-mcp.md missing MCP guidance")
+
+    if host.get("bundleLauncher"):
+        validate_launcher(out, host["id"])
+
+    recorded = validate_sync(host, out, skill_dir)
+    validate_skill_files_match(host, skill_dir, recorded)
+
+
+def validate_marketplace(config: dict) -> None:
+    for artifact in config.get("repoRootArtifacts", []):
+        path = ROOT / artifact["dest"]
+        require_file(path)
+        if path.name == "marketplace.json":
+            data = load_json(path)
+            require(isinstance(data.get("name"), str) and data["name"], "marketplace: name invalid")
+            require(isinstance(data.get("owner"), dict), "marketplace: owner invalid")
+            plugins = data.get("plugins")
+            require(isinstance(plugins, list) and plugins, "marketplace: plugins invalid")
+            entry = plugins[0]
+            require(entry.get("name") == "hwpx-plugin", "marketplace: plugin name invalid")
+            require(entry.get("source") == "./plugins/claude/hwpx-plugin", "marketplace: plugin source invalid")
 
 
 def main() -> int:
-    manifest_path = PLUGIN / ".codex-plugin" / "plugin.json"
-    mcp_path = PLUGIN / ".mcp.json"
-    launcher = PLUGIN / "scripts" / "hwpx-mcp-server"
-    require_file(manifest_path)
-    require_file(mcp_path)
-    require_file(launcher)
-
-    manifest = load_json(manifest_path)
-    require(manifest.get("name") == "hwpx-plugin", "manifest name is invalid")
-    version = manifest.get("version")
-    require(isinstance(version, str) and PLUGIN_VERSION_RE.fullmatch(version), "manifest version is invalid")
-    require(manifest.get("skills") == "./skills/", "manifest skills path is invalid")
-    require(manifest.get("mcpServers") == "./.mcp.json", "manifest mcpServers path is invalid")
-    require("[PLACEHOLDER:" not in json.dumps(manifest), "manifest contains a placeholder")
-
-    mcp = load_json(mcp_path)
-    mcp_servers = mcp.get("mcpServers")
-    require(isinstance(mcp_servers, dict), "MCP servers config is invalid")
-    server = mcp_servers.get("hwpx-mcp-server")
-    require(isinstance(server, dict), "MCP server entry is invalid")
-    require(server.get("command") == "./scripts/hwpx-mcp-server", "MCP launcher command is invalid")
-    require(server.get("cwd") == ".", "MCP server cwd is invalid")
-    require(os.access(launcher, os.X_OK), "launcher is not executable")
-    validate_sync_manifest()
-    validate_launcher_content()
-    print("[OK] hwpx-plugin manifest and MCP launcher are valid")
+    config = load_json(CONFIG)
+    for host in config["hosts"]:
+        validate_host(host, config)
+    validate_marketplace(config)
+    print(f"[OK] validated {len(config['hosts'])} host bundles")
     return 0
 
 
