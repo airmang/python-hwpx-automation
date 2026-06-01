@@ -1,0 +1,11 @@
+{
+  "name": "hwpx",
+  "owner": { "name": "Kohkyuhyun", "url": "https://github.com/airmang" },
+  "plugins": [
+    {
+      "name": "hwpx-plugin",
+      "source": "./plugins/claude/hwpx-plugin",
+      "description": "HWPX document generation, validation, visual-review handoff, and MCP tooling."
+    }
+  ]
+}
