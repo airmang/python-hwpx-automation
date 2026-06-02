@@ -244,6 +244,74 @@ main_xml = pkg.get_xml("Contents/section0.xml")
 - `read(name)`
 - `write(name, data)`
 
+## Repair/recover tools
+
+HWPX가 한컴에서 열리지 않거나 ZIP central directory가 깨진 경우, 원본을 직접 덮어쓰지 말고 복구 복사본을 만든다.
+
+### Local CLI
+
+```bash
+# 일반 repair-repack: mimetype 첫 엔트리/ZIP_STORED 강제 + CRC/package 검증
+hwpx-repair input.hwpx repaired.hwpx
+
+# central directory 손상 등 일반 ZIP open 실패 시 Local File Header scan 복구
+hwpx-repair --recover broken.hwpx recovered.hwpx
+```
+
+### Python API
+
+```python
+from hwpx.tools.repair import repair_from_recovered, repair_repack
+from hwpx.tools.recover import recover_entries
+
+result = repair_repack("input.hwpx", "repaired.hwpx")
+assert result.crc_ok is True
+
+recovered = repair_from_recovered("broken.hwpx", "recovered.hwpx")
+assert recovered.recovered is True
+```
+
+확인할 필드:
+
+- `reordered`: `mimetype` 순서나 압축 방식이 고쳐졌는지
+- `crc_ok`: 새 ZIP의 CRC/integrity self-check 통과 여부
+- `recovered`: LFH scan 복구 경로를 썼는지
+- `entries`: 보존된 ZIP 엔트리 목록
+
+### MCP tool
+
+MCP 서버가 연결되어 있으면 `repair_hwpx`를 우선 사용한다.
+
+```json
+{
+  "source_filename": "input.hwpx",
+  "output_filename": "repaired.hwpx",
+  "recover": false,
+  "overwrite": false
+}
+```
+
+central directory 손상으로 일반 open이 실패하면:
+
+```json
+{
+  "source_filename": "broken.hwpx",
+  "output_filename": "recovered.hwpx",
+  "recover": true,
+  "overwrite": false
+}
+```
+
+MCP 응답에서 확인할 필드:
+
+- `crcOk == true`
+- `validatePackage.ok == true`
+- `reordered`
+- `recovered`
+- `entryCount`
+
+복구 후에도 최종 제출/납품 전에는 가능하면 Hancom Office HWP 또는 사용 가능한 viewer에서 실제 열람한다.
+
 ## 예외와 주의사항
 
 ```python
@@ -253,6 +321,7 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 - 손상된 ZIP/OWPML 구조를 다룰 때는 `HwpxPackageError`, `HwpxStructureError`를 잡는다.
 - `.hwp`는 대상이 아니다. `.hwpx`만 지원한다.
 - ZIP-level 문자열 치환 뒤에는 `scripts/fix_namespaces.py` 또는 `scripts/zip_replace_all.py --auto-fix-ns`로 후처리한다.
+- ZIP 자체가 열리지 않거나 `mimetype` 첫 엔트리/CRC 오류가 있으면 편집 전에 `repair_hwpx` 또는 `hwpx-repair`로 복구 복사본을 만든다.
 
 ## Document plan authoring
 

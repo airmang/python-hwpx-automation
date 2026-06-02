@@ -38,6 +38,9 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 
 ## 빠른 의사결정
 
+0. **HWPX가 깨졌거나 한컴에서 열리지 않는다**
+   원본을 직접 덮어쓰지 말고 먼저 repair/recover 복사본을 만든다. MCP 서버가 있으면 `repair_hwpx(source_filename, output_filename, recover=false)`를 실행하고, 일반 ZIP open이 실패하거나 central directory 손상이 의심되면 `recover=true`로 다시 시도한다. MCP가 없으면 `hwpx-repair input.hwpx output.hwpx` 또는 `hwpx-repair --recover broken.hwpx repaired.hwpx`를 사용한다. 반환값/출력에서 `crc_ok` 또는 `crcOk`, `validatePackage.ok`, `reordered`, `recovered`를 evidence로 기록하고, 가능하면 Hancom Office HWP에서 실제 열람한다. 자세한 API는 [`references/api.md`](references/api.md)의 repair/recover 섹션을 본다.
+
 1. **텍스트만 추출한다**
    `python3 scripts/text_extract.py input.hwpx`
    표 안 문단까지 포함하려면 `--include-nested`, 구조화된 결과가 필요하면 `--format json`을 사용한다.
@@ -97,6 +100,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 - 깨진 table은 `columns[].key`와 `rows[]`의 key를 먼저 맞춘다. 누락된 row key는 빈 셀로 생성되지만, 의도한 데이터라면 plan에서 보강한다.
 - `unknown_style_token` 같은 style warning은 지원 token(`body`, `title`, `subtitle`, `heading`, `bullet`, `table_header`, `table_cell`)으로 바꾸거나 style을 생략한다.
 - `validate_package.ok=false` 또는 `validate_document.ok=false`이면 `validation.*.issues[]`와 `recovery.repair_hints[]`를 확인하고 재저장/재생성한 뒤 다시 검사한다. 이 상태의 파일은 handoff하지 않는다.
+- ZIP 자체가 열리지 않거나 `mimetype` 첫 엔트리/CRC 문제가 의심되면 편집 전에 `repair_hwpx` 또는 `hwpx-repair`로 복구 복사본을 만든 뒤 다시 검사한다.
 - binary `.hwp`, 임의 OWPML 삽입, 복잡한 레이아웃 재현은 범위 밖이다.
 - `visual_review_required=True`는 구조 검증은 통과했지만 렌더러/픽셀 검수는 하지 않았다는 뜻이다.
 
