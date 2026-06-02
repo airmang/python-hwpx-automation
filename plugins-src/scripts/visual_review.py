@@ -72,6 +72,32 @@ def _quality_report(path: Path) -> dict[str, Any]:
     }
 
 
+def structural_acceptance(path: Path) -> dict[str, Any]:
+    """Axis A: renderer-free acceptance through open and save->reopen round-trip."""
+
+    try:
+        from hwpx.document import HwpxDocument
+    except Exception as exc:
+        return {
+            "opens": None,
+            "roundtrip_ok": None,
+            "status": "skipped",
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+
+    result: dict[str, Any] = {"opens": False, "roundtrip_ok": False, "status": "rejected"}
+    try:
+        doc = HwpxDocument.open(path)
+        result["opens"] = True
+        round_bytes = doc.to_bytes()
+        reopened = HwpxDocument.open(round_bytes)
+        result["roundtrip_ok"] = len(reopened.sections) == len(doc.sections)
+        result["status"] = "accepted" if result["roundtrip_ok"] else "rejected"
+    except Exception as exc:
+        result["reason"] = f"{type(exc).__name__}: {exc}"
+    return result
+
+
 def _viewer_command(mode: str) -> tuple[list[str] | None, str | None]:
     if mode == "none":
         return None, "viewer disabled by --viewer none"
@@ -257,6 +283,11 @@ def build_evidence(args: argparse.Namespace) -> dict[str, Any]:
         "layout_risks": layout_risks,
         "notes": args.notes or "",
         "regenerated_from": args.regenerated_from or "",
+        "structural_acceptance": (
+            {"opens": None, "roundtrip_ok": None, "status": "skipped", "reason": "--skip-structural-check"}
+            if args.skip_structural_check
+            else structural_acceptance(target)
+        ),
     }
     if fallback_reason:
         current["fallback_reason"] = fallback_reason
@@ -305,6 +336,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--layout-risk", action="append", help="remaining visual/layout risk; repeatable")
     parser.add_argument("--notes", default="", help="short reviewer note")
     parser.add_argument("--regenerated-from", default="", help="previous evidence path or source run id")
+    parser.add_argument(
+        "--skip-structural-check",
+        action="store_true",
+        help="skip axis-A renderer-free round-trip acceptance",
+    )
     return parser.parse_args(argv)
 
 
