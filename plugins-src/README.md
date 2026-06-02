@@ -138,7 +138,7 @@ uv run --with lxml --with-editable ../python-hwpx python scripts/quickcheck.py -
 Host differences (frontmatter, manifests, MCP wiring, skill paths) are declared in
 `packaging/hosts.json` with templates in `packaging/templates/`. The MCP launcher prefers local
 sibling checkouts (`../hwpx-mcp-server`, `../python-hwpx`), honors `HWPX_MCP_SERVER_REPO` /
-`PYTHON_HWPX_REPO`, and otherwise falls back to `uvx --from hwpx-mcp-server==2.2.6 hwpx-mcp-server`.
+`PYTHON_HWPX_REPO`, and otherwise falls back to `uvx --from hwpx-mcp-server==2.3.0 hwpx-mcp-server`.
 
 Claude Code installs via `claude plugin marketplace add airmang/hwpx-plugins` then
 `claude plugin install hwpx-plugin@hwpx`. Codex installs from the local marketplace as before.

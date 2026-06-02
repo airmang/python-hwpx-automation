@@ -110,7 +110,7 @@ def validate_launcher(out: Path, host_id: str) -> None:
         "HWPX_MCP_SERVER_REPO",
         "PYTHON_HWPX_REPO",
         "uv run --project",
-        'uvx --from "hwpx-mcp-server==2.2.6"',
+        'uvx --from "hwpx-mcp-server==2.3.0"',
     ]
     missing = [fragment for fragment in fragments if fragment not in text]
     require(not missing, f"{host_id}: launcher missing fragments: {missing}")

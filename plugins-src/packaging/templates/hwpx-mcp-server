@@ -30,7 +30,7 @@ if command -v uv >/dev/null 2>&1 \
 fi
 
 if command -v uvx >/dev/null 2>&1; then
-  exec uvx --from "hwpx-mcp-server==2.2.6" hwpx-mcp-server
+  exec uvx --from "hwpx-mcp-server==2.3.0" hwpx-mcp-server
 fi
 
 echo "hwpx-plugin requires uv or uvx. Install uv, or set HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO to local checkouts." >&2
