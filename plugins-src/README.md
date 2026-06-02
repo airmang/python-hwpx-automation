@@ -26,7 +26,7 @@
 
 ---
 
-`hwpx-plugins`은 `python-hwpx` 기반의 공식 에이전트 스킬이다. HWPX를 잘 모르는 사용자도 **스킬 설치 후 바로 문서 읽기, 텍스트 추출, 템플릿 치환, repair/recover, 기본 점검**까지 갈 수 있게 만드는 데 초점을 둔다. `.hwpx` 문서를 열고, 텍스트를 추출하고, 표를 포함한 양식을 채우고, 플레이스홀더를 치환하고, 깨진 ZIP 패키지를 복구하는 작업을 에이전트가 바로 수행할 수 있게 설계했다.
+`hwpx-plugins`은 `python-hwpx` 기반의 공식 에이전트 스킬이다. HWPX를 잘 모르는 사용자도 **스킬 설치 후 바로 문서 읽기, 텍스트 추출, 템플릿 치환, builder 기반 새 문서 조립, repair/recover, 기본 점검**까지 갈 수 있게 만드는 데 초점을 둔다. `.hwpx` 문서를 열고, 텍스트를 추출하고, 표를 포함한 양식을 채우고, 플레이스홀더를 치환하고, 머리글/쪽번호/병합 표가 있는 새 문서를 조립하고, 깨진 ZIP 패키지를 복구하는 작업을 에이전트가 바로 수행할 수 있게 설계했다.
 
 즉, 이 저장소는 단순 설명서가 아니다.
 - 에이전트가 따라갈 `SKILL.md`
@@ -46,6 +46,7 @@
 
 - HWPX 문서 텍스트를 빠르게 추출한다.
 - 한컴에서 열리지 않는 HWPX를 `hwpx-repair`/MCP `repair_hwpx`로 복구 복사본에 재패킹한다.
+- `hwpx.builder`로 머리글/바닥글, 쪽번호, 리치 런, 목록, 병합/음영/열너비 표, 이미지, 페이지 나눔이 있는 새 HWPX를 조립한다.
 - 표를 포함한 문서의 플레이스홀더를 일괄 치환한다.
 - 설치 직후 환경이 맞는지 한 번에 확인한다.
 - 에이전트가 HWPX 작업에서 어떤 흐름을 따라야 하는지 알려준다.
@@ -62,8 +63,9 @@ python3 -m pip install -U python-hwpx lxml
 - Python 3.10+
 - 기본 편집 최소 호환 기준: `python-hwpx >= 2.6`
 - document-plan 생성 권장 기준: `python-hwpx >= 2.9.1`
+- builder 생성 권장 기준: `python-hwpx` S-013 builder core 포함 버전 또는 로컬 checkout
 - repair/recover 권장 기준: `python-hwpx` main 또는 해당 기능이 포함된 릴리스
-- 최근 로컬 검증 기준: `python-hwpx 2.9.1`
+- 최근 로컬 검증 기준: `python-hwpx 2.9.1 + S-013 builder core`
 
 ## 5분 성공 확인
 
@@ -90,6 +92,12 @@ python3 scripts/quickcheck.py
 
 ```bash
 python3 scripts/quickcheck.py --document-plan
+```
+
+조립형 builder 생성까지 확인하려면:
+
+```bash
+python3 scripts/quickcheck.py --builder
 ```
 
 운영 계획서 품질 프로필까지 확인하려면:
@@ -124,7 +132,7 @@ then rebuild and validate:
 python3 scripts/build_hwpx_plugins.py
 python3 scripts/validate_hwpx_plugin.py
 git diff --exit-code -- plugins .claude-plugin   # build must be reproducible and committed
-uv run --with lxml --with ../python-hwpx python scripts/quickcheck.py --document-plan --operating-plan --template-formfit --visual-review
+uv run --with lxml --with-editable ../python-hwpx python scripts/quickcheck.py --builder --document-plan --operating-plan --template-formfit --visual-review
 ```
 
 Host differences (frontmatter, manifests, MCP wiring, skill paths) are declared in
@@ -169,7 +177,23 @@ python3 scripts/quickcheck.py --document-plan
 `repairHints[]`를 보고 plan을 고친 뒤 다시 검증한다. `can_create=false`인
 MCP 응답에서는 파일 생성을 진행하지 않는다.
 
-### 5) 운영 계획서 제출 후보 생성
+### 5) 조립형 builder로 새 HWPX 생성
+
+```bash
+python3 examples/10_create_with_builder.py
+python3 scripts/quickcheck.py --builder
+```
+
+`hwpx.builder`는 `Document`, `Section`, `Heading`, `Paragraph`, `Run`,
+`Bullet`, `NumberedList`, `Table`, `Image`, `Header`, `Footer`,
+`PageNumber`, `PageBreak`, `Metadata`, `PageSize`, `Margins` 노드를 제공한다.
+저장 후 `BuilderSaveReport.hard_gates`에서 `package_validation`,
+`document_errors`, `reopen`이 `pass`인지 확인한다. 스키마 warning은
+`schema_lint`로 가시화되며 hard error가 아니면 `document_errors`는 pass다.
+머리글, 쪽번호, 표, 이미지, 페이지 나눔처럼 layout-sensitive 기능을 쓰면
+`visual_review_required=true`가 되므로 최종 제출 전 열린 문서 검토 evidence가 필요하다.
+
+### 6) 운영 계획서 제출 후보 생성
 
 ```bash
 python3 examples/07_create_operating_plan.py
@@ -195,7 +219,7 @@ evidence를 남겨야 한다. `--observation`만으로는 최종 제출 가능 �
 viewer가 없는 CI/컨테이너에서는 `--viewer none --status blocked` fallback evidence를
 남기고, 최종 시각 검토 대기 상태로 handoff한다.
 
-### 6) 승인된 양식을 보존하며 운영 계획서 채우기
+### 7) 승인된 양식을 보존하며 운영 계획서 채우기
 
 ```bash
 python3 examples/08_template_formfit.py
@@ -225,6 +249,7 @@ python3 scripts/quickcheck.py --template-formfit
   - `examples/08_template_formfit.py`: template form-fit local quickcheck 예제
   - `examples/08_mcp_template_formfit.md`: MCP 양식 보존 workflow 예시
   - `examples/09_visual_review_loop.md`: ComputerUse/사람 viewer 시각 검토 반복 workflow
+  - `examples/10_create_with_builder.py`: builder 기반 레이아웃 민감 수직 슬라이스 예제
 
 ## 프로젝트 구조
 
@@ -404,6 +429,7 @@ python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
 ## 운영 메모
 
 - `save()` 대신 `save_to_path()`를 사용한다.
+- 새 문서 조립에는 `hwpx.builder`를 우선 고려하고, 저장 직후 `BuilderSaveReport`의 hard gates와 `visual_review_required`를 확인한다.
 - `replace_text_in_runs()`는 표 셀까지 항상 보장하지 않으므로, 양식 문서 전체 치환은 `zip_replace_all.py`를 우선 고려한다.
 - `set_header_text()`와 `set_footer_text()`는 문서별 호환 차이가 있을 수 있으니 자동화 파이프라인에서 결과 검수를 포함한다.
 

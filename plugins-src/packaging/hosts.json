@@ -19,6 +19,7 @@
     "examples/08_template_formfit.py",
     "examples/08_mcp_template_formfit.md",
     "examples/09_visual_review_loop.md",
+    "examples/10_create_with_builder.py",
     "scripts/fix_namespaces.py",
     "scripts/quickcheck.py",
     "scripts/text_extract.py",

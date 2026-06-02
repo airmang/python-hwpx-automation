@@ -8,7 +8,7 @@ What it verifies:
 2. Example document creation works
 3. Example inspection works on the created document
 4. CLI text extraction works on the created document
-5. Optional document-plan/proposal generation paths work when requested
+5. Optional document-plan/proposal/builder generation paths work when requested
 """
 
 from __future__ import annotations
@@ -44,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run HWPX skill sanity checks")
     parser.add_argument("--proposal", action="store_true", help="also run the proposal-generation preset example")
     parser.add_argument("--document-plan", action="store_true", help="also run the declarative document-plan generation example")
+    parser.add_argument(
+        "--builder",
+        action="store_true",
+        help="also run the hwpx.builder layout-sensitive generation example",
+    )
     parser.add_argument(
         "--operating-plan",
         action="store_true",
@@ -110,6 +115,31 @@ def main(argv: list[str] | None = None) -> int:
         commands.append((
             "document-plan",
             [sys.executable, str(EXAMPLES_DIR / "06_create_from_document_plan.py")],
+        ))
+    if args.builder:
+        commands.append((
+            "builder",
+            [sys.executable, str(EXAMPLES_DIR / "10_create_with_builder.py")],
+        ))
+        builder_output = EXAMPLES_DIR / "out" / "10_builder_vertical_slice.hwpx"
+        check_code = (
+            "from hwpx import HwpxDocument; "
+            f"doc = HwpxDocument.open({str(builder_output)!r}); "
+            "text = doc.export_text(); "
+            "checks = ["
+            "('제목: 2026 AI 교육 운영계획' in text, 'metadata title missing'), "
+            "('추진 개요' in text, 'heading missing'), "
+            "('전 학년' in text, 'rich run text missing'), "
+            "('준비' in text and '운영' in text, 'table text missing'), "
+            "('샘플 이미지' in text, 'image caption missing'), "
+            "('다음 페이지 점검' in text, 'page-break follow-up text missing')"
+            "]; "
+            "failures = [message for passed, message in checks if not passed]; "
+            "raise SystemExit('; '.join(failures) if failures else 0)"
+        )
+        commands.append((
+            "builder-readback",
+            [sys.executable, "-c", check_code],
         ))
     if args.operating_plan:
         commands.append((
@@ -184,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
         print("[OK] proposal generation workflow passed")
     if args.document_plan:
         print("[OK] document-plan generation workflow passed")
+    if args.builder:
+        print("[OK] builder generation workflow passed")
     if args.operating_plan:
         print("[OK] operating-plan document-plan workflow passed")
     if args.template_formfit:

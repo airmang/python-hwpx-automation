@@ -10,7 +10,8 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 - 기준 라이브러리: `python-hwpx` (import: `hwpx`)
 - 기본 편집 최소 호환 기준: `python-hwpx >= 2.6`
 - document-plan 생성 권장 기준: `python-hwpx >= 2.9.1` 로컬 스택
-- 최근 로컬 검증 버전: `python-hwpx 2.9.1`
+- builder 생성 권장 기준: `python-hwpx` S-013 builder core 포함 버전 또는 로컬 checkout
+- 최근 로컬 검증 버전: `python-hwpx 2.9.1 + S-013 builder core`
 - 상세 시그니처와 옵션은 [`references/api.md`](references/api.md)에서 확인한다.
 
 ## 시작
@@ -48,22 +49,25 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 2. **새 문서를 만들거나 본문을 간단히 편집한다**
    `HwpxDocument`를 사용한다. 문단 추가, 표 생성, 메모 삽입, 내보내기는 [`references/api.md`](references/api.md)와 [`examples/01_create_and_save.py`](examples/01_create_and_save.py)를 본다.
 
-3. **운영 계획서를 작성한다**
+3. **머리글·쪽번호·리치 런·병합 표가 있는 새 문서를 조립한다**
+   `hwpx.builder`의 `Document`, `Section`, `Paragraph`, `Run`, `Heading`, `Bullet`, `NumberedList`, `Table`, `Image`, `Header`, `Footer`, `PageNumber`, `PageBreak`를 사용한다. builder는 내부 XML을 직접 만들지 않고 `HwpxDocument` facade로 lowering하며, `save_to_path()`가 `BuilderSaveReport`를 반환한다. `hard_gates.package_validation`, `hard_gates.document_errors`, `hard_gates.reopen`이 `pass`인지 확인한다. `schema_lint`는 warning 가시화이고 하드 실패 기준이 아니다. `visual_review_required=True`이면 열린 문서 검토 evidence까지 남긴다. 예시는 [`examples/10_create_with_builder.py`](examples/10_create_with_builder.py), API는 [`references/api.md`](references/api.md)의 builder 섹션을 본다.
+
+4. **운영 계획서를 작성한다**
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화하고, `quality_profile="operating_plan"`을 켠다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `analyze_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `validate_document_plan()`, `create_document_from_plan()`, `inspect_document_authoring_quality(..., quality_profile="operating_plan")`, `inspect_operating_plan_quality()`를 직접 사용한다. `visual_review_required=true`이면 `scripts/visual_review.py` evidence에서 `current.status == "observed_pass"`와 `current.screenshot_path`까지 확인해야 제출 준비 완료라고 말할 수 있다. 예시는 [`examples/07_create_operating_plan.py`](examples/07_create_operating_plan.py), [`examples/07_mcp_operating_plan.md`](examples/07_mcp_operating_plan.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
-4. **승인된 양식을 보존하며 운영 계획서를 채운다**
+5. **승인된 양식을 보존하며 운영 계획서를 채운다**
    사용자가 특정 HWPX 양식이나 P6 기준선 기반 운영 계획서 작성을 요청하면 document-plan 새 문서 생성보다 template form-fit 경로를 우선한다. MCP 서버가 있으면 `analyze_template_formfit`으로 원본이 변하지 않았고 `unresolved_count == 0`인지 확인한 뒤, `apply_template_formfit(confirm=True)`로 원본과 다른 destination에만 적용한다. 결과에서 `source.preserved`, `validation.validate_package.ok`, `validation.validate_document.ok`, `residual_markers.blocking == []`를 확인한다. `visual_review_required=True`이면 최종 제출 전 열린 문서/사람 검토 evidence가 필요하며, `current.status == "observed_pass"`가 아니거나 `current.screenshot_path`가 없으면 최종 제출 가능 상태라고 주장하지 않는다. 예시는 [`examples/08_template_formfit.py`](examples/08_template_formfit.py), [`examples/08_mcp_template_formfit.md`](examples/08_mcp_template_formfit.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
-5. **자연어 요청으로 새 문서를 완성한다**
+6. **자연어 요청으로 새 문서를 완성한다**
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화한다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `create_document_from_plan()`을 직접 사용한다. 예시는 [`examples/06_create_from_document_plan.py`](examples/06_create_from_document_plan.py)를 본다.
 
-6. **문서 구조를 조사한다**
+7. **문서 구조를 조사한다**
    텍스트 노드, 표 개수, 특정 OWPML 태그 분포를 확인할 때는 `ObjectFinder`를 사용한다. 예시는 [`examples/02_extract_and_inspect.py`](examples/02_extract_and_inspect.py)를 본다.
 
-7. **플레이스홀더를 일괄 치환한다**
+8. **플레이스홀더를 일괄 치환한다**
    표 셀까지 포함한 전역 치환이면 `python3 scripts/zip_replace_all.py input.hwpx output.hwpx --replace "{기관명}=OO구청" "{담당자}=홍길동"`을 사용한다. 치환 직후 네임스페이스 정리까지 하려면 `--auto-fix-ns`를 붙인다.
 
-8. **ZIP-level 수정 후 네임스페이스만 다시 정리한다**
+9. **ZIP-level 수정 후 네임스페이스만 다시 정리한다**
    `python3 scripts/fix_namespaces.py input.hwpx --inplace --backup`
 
 ## 작업 패턴
@@ -78,6 +82,22 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 관련 예제:
 - [`examples/01_create_and_save.py`](examples/01_create_and_save.py)
 - [`references/api.md`](references/api.md)
+
+### 1-0) 조립형 builder 기반 새 문서 생성
+
+문단 몇 개를 추가하는 수준을 넘어서 머리글/바닥글, 쪽번호, 리치 런, 다단계 목록, 병합/음영/열너비 표, 이미지, 페이지 나눔을 한 번에 조립해야 하면 `hwpx.builder`를 사용한다.
+
+1. `Document(metadata=..., sections=[Section(...)])`로 객체모델을 만든다.
+2. 본문은 `Heading`, `Paragraph(children=[Run(...)])`, `Bullet`, `NumberedList`, `Table`, `Image`, `PageBreak`로 구성한다.
+3. 머리글/바닥글은 `Header`/`Footer` 안에 `Paragraph(children=[Run(...), PageNumber(...)])`를 넣는다.
+4. `report = document.save_to_path(path)`를 호출한다.
+5. `report.hard_gates["package_validation"] == "pass"`, `report.hard_gates["document_errors"] == "pass"`, `report.hard_gates["reopen"] == "pass"`를 확인한다.
+6. `report.hard_gates["schema_lint"] == "warning"`은 스키마 warning 가시화이며, hard error가 아니면 `document_errors`는 pass다.
+7. `report.visual_review_required=True`이면 Hancom Office HWP, ComputerUse, 또는 사람 viewer로 연 문서 검토 evidence를 남긴다.
+
+관련 예제:
+- [`examples/10_create_with_builder.py`](examples/10_create_with_builder.py)
+- 검증: `python3 scripts/quickcheck.py --builder`
 
 ### 1-1) 선언형 document-plan 기반 새 문서 생성
 
@@ -244,12 +264,16 @@ python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence 
 - [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)
   ComputerUse 또는 사람 viewer로 연 문서 시각 검토 evidence를 남기고, viewer가 없을 때 blocked fallback을 기록하는 반복 workflow.
 
+- [`examples/10_create_with_builder.py`](examples/10_create_with_builder.py)
+  `hwpx.builder`로 머리글/쪽번호, 리치 런, 목록, 병합/음영/열너비 표, 이미지, 페이지 나눔을 포함한 수직 슬라이스를 생성하는 예제.
+
 ## 실행 전 체크리스트
 
 - `python-hwpx`와 `lxml`이 설치되어 있는지 확인한다.
 - 결과 파일을 덮어쓸 때는 `--backup`을 사용한다.
 - 자동화 결과물은 가능한 한 한 번 다시 열어본다.
 - API 세부 옵션이나 최신 시그니처가 필요하면 항상 [`references/api.md`](references/api.md)를 먼저 읽는다.
+- builder 예제를 쓰려면 `python-hwpx`가 S-013 builder core를 포함하는지 확인한다. 확인 명령은 `python3 scripts/quickcheck.py --builder`다.
 
 ## 제안서/기획안 생성 workflow
 

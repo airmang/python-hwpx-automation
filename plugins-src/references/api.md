@@ -4,18 +4,20 @@
 
 | python-hwpx 버전 | 상태 | 비고 |
 |---|---|---|
-| 2.9.1+ | ✅ 권장 | document-plan 생성 API 포함 로컬 스택 기준 |
+| 2.9.1+ S-013 builder core | ✅ 권장 | document-plan + `hwpx.builder` 로컬 스택 기준 |
+| 2.9.1+ | ✅ 권장 | document-plan 생성 API 포함 |
 | 2.6–2.9.0 | ✅ 기본 편집 호환 | `HwpxDocument` 기반 생성/편집 가능, document-plan API는 없을 수 있음 |
 | 2.0–2.5 | ⚠️ 대부분 호환 | 일부 API 시그니처 차이 가능 |
 | 1.x | ❌ 비호환 | HwpxDocument API 미지원 |
 
 - import 이름: `hwpx`
-- 로컬 실측 버전: `python-hwpx 2.9.1`
+- 로컬 실측 버전: `python-hwpx 2.9.1 + S-013 builder core`
 
 ## 목차
 
 - 설치와 기본 import
 - `HwpxDocument`
+- `hwpx.builder`
 - `TextExtractor`
 - `ObjectFinder`
 - `HwpxPackage`
@@ -151,7 +153,168 @@ with HwpxDocument.open("input.hwpx") as doc:
 
 ### 헤더와 푸터
 
-`set_header_text()`와 `set_footer_text()`는 일부 문서에서 레이아웃이 흔들릴 수 있다. 자동화 경로에서는 적용 후 결과 파일을 다시 열어 확인하는 방식으로 쓴다.
+간단한 문자열은 `set_header_text()`와 `set_footer_text()`로 넣을 수 있다. 리치 런과
+쪽번호가 필요한 머리글/바닥글은 `hwpx.builder` 또는 아래 facade 메서드를 사용한다.
+자동화 경로에서는 적용 후 결과 파일을 다시 열어 확인하는 방식으로 쓴다.
+
+S-013 facade 확장:
+
+- `set_header_content(content, *, section_index=0) -> None`
+- `set_footer_content(content, *, section_index=0) -> None`
+- header/footer 객체의 `add_page_number_field(*, paragraph=None, format="page", position="BOTTOM_CENTER") -> Element`
+
+`content`는 paragraph spec 목록이다. 각 paragraph는 `{"children": [...]}` 형태이고,
+child는 `{"type": "run", "text": "...", "bold": True, ...}` 또는
+`{"type": "page_number", "format": "page"}`다.
+
+## hwpx.builder
+
+`hwpx.builder`는 docx-js처럼 문서를 객체 노드로 조립한 뒤 `HwpxDocument` facade를
+통해 HWPX로 lowering하는 새 문서 생성 API다. builder 내부에서 임의 XML을 직접
+만들지 않는 것이 계약이다.
+
+공개 노드:
+
+- `Document`, `Section`
+- `PageSize`, `Margins`, `Metadata`
+- `Heading`, `Paragraph`, `Run`
+- `Bullet`, `NumberedList`
+- `Table`, `Image`
+- `Header`, `Footer`, `PageNumber`, `PageBreak`
+- `BuilderSaveReport`, `ReopenReport`
+
+기본 예시:
+
+```python
+from hwpx.builder import (
+    Bullet,
+    Document,
+    Footer,
+    Header,
+    Heading,
+    Margins,
+    Metadata,
+    PageBreak,
+    PageNumber,
+    PageSize,
+    Paragraph,
+    Run,
+    Section,
+    Table,
+)
+
+report = Document(
+    metadata=Metadata(title="2026 AI 교육 운영계획", author="AI교육팀", organization="샘플학교"),
+    sections=[
+        Section(
+            page=PageSize.A4,
+            margins=Margins(top_mm=20, right_mm=20, bottom_mm=20, left_mm=20),
+            header=Header(
+                children=[
+                    Paragraph(
+                        align="right",
+                        children=[Run("샘플학교 - ", bold=True, color="C00000"), PageNumber()],
+                    )
+                ]
+            ),
+            footer=Footer(children=[Paragraph(align="center", children=[PageNumber(format="page/total")])]),
+            children=[
+                Heading(level=1, text="추진 개요"),
+                Heading(level=2, text="세부 목표"),
+                Paragraph(
+                    children=[
+                        Run("AI 활용 수업을 "),
+                        Run("전 학년", bold=True, color="1F5FBF", font="함초롬바탕", size=12),
+                        Run("으로 확산한다."),
+                    ]
+                ),
+                Bullet(items=["교원 연수", "수업 공개"]),
+                Table(
+                    header=["구분", "내용", "기한"],
+                    rows=[["준비", "환경 점검", "3월"], ["운영", "수업 적용", "4월"]],
+                    column_widths=[2, 3, 1],
+                    header_shading="EAF1FB",
+                    merges=["A2:A3"],
+                ),
+                PageBreak(),
+                Paragraph(text="다음 페이지 점검"),
+            ],
+        )
+    ],
+).save_to_path("builder-plan.hwpx")
+
+assert report.hard_gates["package_validation"] == "pass"
+assert report.hard_gates["document_errors"] == "pass"
+assert report.hard_gates["reopen"] == "pass"
+```
+
+대표 시그니처:
+
+- `Document(sections=(Section(),), metadata=None, visual_review_required=None)`
+- `Document.lower() -> HwpxDocument`
+- `Document.save_to_path(path) -> BuilderSaveReport`
+- `Section(children=(), page=None, margins=None, header=None, footer=None)`
+- `Run(text="", bold=False, italic=False, underline=False, color=None, font=None, size=None, highlight=None, strike=False)`
+- `Paragraph(text="", children=(), align=None)`
+- `Heading(level, text)` where `level` is 1-3
+- `Bullet(items, level=0)`
+- `NumberedList(items, level=0)`
+- `Table(header=(), rows=(), merges=(), header_shading=None, column_widths=())`
+- `Image(path, width_mm=None, align=None, caption=None, image_format=None)`
+- `PageNumber(format="page")`
+
+`Table.merges`는 `"A2:A3"` 같은 range token을 받는다. `column_widths`는 상대 비율로
+해석된다. `Image.path`는 파일 경로 또는 bytes를 받을 수 있다.
+
+`BuilderSaveReport` 주요 필드:
+
+- `path`
+- `validate_package`
+- `validate_document`
+- `reopened`
+- `metadata`
+- `hard_gates`
+- `visual_review_required`
+- `feature_flags`
+- `to_dict()`
+
+Hard gate 해석:
+
+- `hard_gates.package_validation == "pass"`: package validator 통과
+- `hard_gates.document_errors == "pass"`: document validator error 없음
+- `hard_gates.schema_lint == "warning"`: schema warning 존재. warning은 가시화 대상이며 hard fail이 아니다.
+- `hard_gates.reopen == "pass"`: `HwpxDocument.open(path)` 재오픈 성공
+- `hard_gates.id_integrity == "unavailable"`: 현 버전에서 별도 ID integrity gate는 아직 제공되지 않음
+
+`feature_flags`는 생성에 사용된 기능을 기록한다. `header_footer`, `page_number`,
+`table`, `image`, `page_break` 같은 layout-sensitive 기능이 있으면 기본적으로
+`visual_review_required=True`가 된다. 이 경우 최종 제출 가능 상태를 주장하려면
+`scripts/visual_review.py`로 `observed_pass` evidence와 screenshot을 남긴다.
+
+검증 예시:
+
+```bash
+python3 examples/10_create_with_builder.py
+python3 scripts/quickcheck.py --builder
+```
+
+### Builder 관련 facade 확장
+
+builder가 사용하는 신규 facade 메서드는 직접 XML을 조작하지 않고도 주요 OWPML gap을
+다룰 수 있게 한다.
+
+- `ensure_run_style(bold=False, italic=False, underline=False, color=None, font=None, size=None, highlight=None, strike=None, base_char_pr_id=None) -> str`
+- `ensure_numbering(kind="bullet", levels=None) -> list[str]`
+- `add_picture(image_data, image_format, *, width=None, height=None, width_mm=None, height_mm=None, align=None, section_index=None, ...) -> HwpxOxmlInlineObject`
+- `set_header_content(content, *, section_index=None, page_type="BOTH") -> HwpxOxmlSectionHeaderFooter`
+- `set_footer_content(content, *, section_index=None, page_type="BOTH") -> HwpxOxmlSectionHeaderFooter`
+- header/footer 객체의 `add_page_number_field(*, paragraph=None, format="page", position="BOTTOM_CENTER") -> Element`
+
+표 객체 확장:
+
+- `table.merge_cells("A2:A3")`
+- `table.set_cell_shading(row_index, col_index, "EAF1FB")`
+- `table.set_column_widths([2, 3, 1])`
 
 ## TextExtractor
 
