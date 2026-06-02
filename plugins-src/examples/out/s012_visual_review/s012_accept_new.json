@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "hwpx.visual-review.v1",
+  "target": {
+    "path": "/Users/wilycastle/Code/projects/hwpx/python-hwpx/examples/out/s012_accept_new.hwpx",
+    "name": "s012_accept_new.hwpx",
+    "size_bytes": 8111,
+    "mtime": "2026-06-02T04:42:14Z",
+    "sha256": "9cc3886ce45b59ee32e6f93dffd4717aa470756f823a7a036421677fb5b4bdd1"
+  },
+  "quality": {
+    "available": true,
+    "report_version": "operating-plan-quality-v1",
+    "status": "needs_revision",
+    "score": 2.56,
+    "pass": false,
+    "gaps": [
+      "front_matter: missing front matter metadata evidence",
+      "required_outline: missing required operating-plan sections",
+      "content_density: operating-plan content is too sparse",
+      "schedule_table: missing schedule table with enough execution rows",
+      "budget_resource_evidence: missing budget/resource evidence with amounts and calculation basis",
+      "expected_outcomes: missing expected outcomes or performance-management evidence",
+      "closing_material: missing closing, submission, review, or confirmation material"
+    ],
+    "repair_hints": [
+      {
+        "dimension": "front_matter",
+        "action": "revise",
+        "message": "Add visible document metadata near the beginning: 기관, 작성일, and 문서 유형."
+      },
+      {
+        "dimension": "required_outline",
+        "action": "revise",
+        "message": "Add the missing operating-plan headings and body content: purpose, operating_plan, schedule_budget, curriculum, expected_outcomes, closing."
+      },
+      {
+        "dimension": "content_density",
+        "action": "revise",
+        "message": "Expand section body text with school context, implementation detail, evidence, and review criteria."
+      },
+      {
+        "dimension": "schedule_table",
+        "action": "revise",
+        "message": "Add a 추진 일정 table with preparation, operation, and evaluation rows including period/activity/owner."
+      },
+      {
+        "dimension": "budget_resource_evidence",
+        "action": "revise",
+        "message": "Add a 사업비/예산 table with item, amount, ratio or calculation-basis rows."
+      },
+      {
+        "dimension": "expected_outcomes",
+        "action": "revise",
+        "message": "Add a 기대 효과/성과 관리 section with measurable outcomes and review evidence."
+      },
+      {
+        "dimension": "closing_material",
+        "action": "revise",
+        "message": "Add a closing/submission block that states review, confirmation, submission, or signature context."
+      }
+    ],
+    "visual_review_required": true
+  },
+  "viewer": {
+    "mode": "command:open -a 'Hancom Office HWP'",
+    "available": true,
+    "command": "open -a 'Hancom Office HWP'",
+    "launched": true
+  },
+  "current": {
+    "iteration": 1,
+    "status": "observed_pass",
+    "timestamp": "2026-06-02T05:06:18Z",
+    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/scripts/visual_review.py",
+    "review_method": "computer-use",
+    "screenshot_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-skill/examples/out/s012_visual_review/s012_accept_new.png",
+    "observations": [
+      "Hancom Office HWP opened s012_accept_new.hwpx without a visible repair/recovery/error dialog.",
+      "Screenshot shows the Korean paragraph 'S-012 한컴 수용성 검증' and a 2x2 table rendered on page 1.",
+      "No placeholder residue, broken glyphs, blank-page failure, or table overflow is visible."
+    ],
+    "layout_risks": [],
+    "notes": "S-012 axis A/B local Hancom acceptance evidence captured from the opened document window.",
+    "regenerated_from": "",
+    "structural_acceptance": {
+      "opens": true,
+      "roundtrip_ok": true,
+      "status": "accepted"
+    }
+  },
+  "iterations": [],
+  "summary": {
+    "resolved_visual_review_required": "observed_pass",
+    "ready_for_submission_claim": true,
+    "residual_layout_risk_count": 0
+  }
+}
