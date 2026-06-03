@@ -110,7 +110,7 @@ def validate_launcher(out: Path, host_id: str) -> None:
         "HWPX_MCP_SERVER_REPO",
         "PYTHON_HWPX_REPO",
         "uv run --project",
-        'SERVER_PACKAGE="hwpx-mcp-server==2.3.0"',
+        'SERVER_PACKAGE="hwpx-mcp-server==2.3.1"',
         ".hwpx-mcp-server-venv",
         "uv pip install",
         'uvx --from "${SERVER_PACKAGE}"',

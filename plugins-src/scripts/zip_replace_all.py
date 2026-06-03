@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import copy
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -30,6 +31,13 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from fix_namespaces import fix_namespaces
+
+
+_LINESEGARRAY_PATTERN = re.compile(
+    r"<(?P<tag>(?:[A-Za-z_][\w.-]*:)?lineSegArray)\b[^>]*>.*?</(?P=tag)>"
+    r"|<(?P<empty>(?:[A-Za-z_][\w.-]*:)?lineSegArray)\b[^>]*/>",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def _clone_zipinfo(info: zipfile.ZipInfo, *, force_stored: bool = False) -> zipfile.ZipInfo:
@@ -77,6 +85,12 @@ def warn_if_xml_like_keys(replacements: Mapping[str, str]) -> int:
     return warnings
 
 
+def _remove_layout_cache(text: str) -> tuple[str, int]:
+    """Remove HWPX paragraph line-layout caches from a changed XML part."""
+
+    return _LINESEGARRAY_PATTERN.subn("", text)
+
+
 def zip_replace_all(
     in_hwpx: str | os.PathLike[str],
     out_hwpx: str | os.PathLike[str],
@@ -89,6 +103,7 @@ def zip_replace_all(
         "xml_parts": 0,
         "changed_xml": 0,
         "replacements": 0,
+        "layout_caches_removed": 0,
         "decode_failed": 0,
     }
 
@@ -116,8 +131,10 @@ def zip_replace_all(
                             replaced_here += count
 
                     if text != original_text:
+                        text, removed_caches = _remove_layout_cache(text)
                         stats["changed_xml"] += 1
                         stats["replacements"] += replaced_here
+                        stats["layout_caches_removed"] += removed_caches
                         data = text.encode("utf-8")
 
                 zout.writestr(_clone_zipinfo(info, force_stored=info.filename == "mimetype"), data)
@@ -255,6 +272,7 @@ def main(argv: list[str]) -> int:
         "[STATS] "
         f"parts={replace_stats['parts']} xml={replace_stats['xml_parts']} "
         f"changed_xml={replace_stats['changed_xml']} replacements={replace_stats['replacements']} "
+        f"layout_caches_removed={replace_stats['layout_caches_removed']} "
         f"decode_failed={replace_stats['decode_failed']}"
     )
     if ns_stats is not None:
