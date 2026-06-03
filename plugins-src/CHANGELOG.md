@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-04
+### Fixed
+- Pin bundled MCP fallback launchers and MCP install docs to `hwpx-mcp-server==2.3.2`, which clears layout caches for placeholder form-fill text insertion paths.
+
+### Changed
+- Bump packaged plugin manifests and Codex marketplace entry to `0.1.2`.
+
 ## [0.1.1] - 2026-06-04
 ### Fixed
 - Remove stale HWPX `lineSegArray` layout caches from XML parts changed by `zip_replace_all.py` so Hancom recalculates text layout after replacements.

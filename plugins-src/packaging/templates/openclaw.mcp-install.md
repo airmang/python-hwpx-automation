@@ -11,7 +11,7 @@ Add an MCP server entry that runs the pinned package with `uvx`:
 {
   "hwpx-mcp-server": {
     "command": "uvx",
-    "args": ["--from", "hwpx-mcp-server==2.3.1", "hwpx-mcp-server"],
+    "args": ["--from", "hwpx-mcp-server==2.3.2", "hwpx-mcp-server"],
     "env": { "HWPX_MCP_ADVANCED": "0", "HWPX_MCP_AUTOBACKUP": "1" }
   }
 }
