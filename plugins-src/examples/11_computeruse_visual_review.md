@@ -82,18 +82,19 @@ title/subtitle overlap, table width, caption/unit proximity, and rendering of
 
 The local environment detected Hancom Office HWP at
 `/Applications/Hancom Office HWP.app`, and `open -a "Hancom Office HWP"` started
-the app. However, screenshot capture failed with:
-
-```text
-could not create image from display
-```
-
-Because ComputerUse/screenshot observation was unavailable, the representative
-targets were recorded as `blocked`, not `observed_pass`. The batch evidence was
-written to:
+the app. The first attempt could not capture the display, so the evidence was
+truthfully recorded as blocked:
 
 ```text
 examples/out/11_hancom_blocked_evidence/visual_review_batch_report.json
+```
+
+After the user re-requested the check from the local Mac session, screenshot
+capture succeeded. The retry evidence was written to:
+
+```text
+examples/out/11_hancom_observed_evidence_retry/
+examples/out/11_hancom_screenshots_retry/
 ```
 
 The representative set was:
@@ -107,6 +108,17 @@ The representative set was:
 - `examples/out/10_builder_vertical_slice.hwpx`
 - `examples/out/10_government_report.hwpx`
 
-All eight files had Axis A structural acceptance `accepted`; all eight remained
-Axis B `blocked` because screenshot-backed opened-document observation was not
-available.
+The retry recorded four simple one-page corpus samples as `observed_pass`:
+
+- `reader_writer__HeaderFooter.hwpx`
+- `reader_writer__SimpleTable.hwpx`
+- `reader_writer__SimplePicture.hwpx`
+- `reader_writer__SimpleEquation.hwpx`
+
+The retry recorded four multi-page or partially visible samples as
+`needs_review`, with screenshots attached and explicit layout risks:
+
+- `error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx`: only page 1 of 75 was captured
+- `error__20250523__프로젝트 계획서.hwpx`: only page 1 of 2 was captured
+- `examples/out/10_builder_vertical_slice.hwpx`: page 2 was not captured
+- `examples/out/10_government_report.hwpx`: table begins near the bottom of the captured viewport
