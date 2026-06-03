@@ -8,7 +8,7 @@ What it verifies:
 2. Example document creation works
 3. Example inspection works on the created document
 4. CLI text extraction works on the created document
-5. Optional document-plan/proposal/builder generation paths work when requested
+5. Optional document-plan/proposal/builder/government-report generation paths work when requested
 """
 
 from __future__ import annotations
@@ -53,6 +53,11 @@ def main(argv: list[str] | None = None) -> int:
         "--operating-plan",
         action="store_true",
         help="also run the operating-plan document-plan quality example",
+    )
+    parser.add_argument(
+        "--government-report",
+        action="store_true",
+        help="also run the government-report preset, parser, computed-value, and quality example",
     )
     parser.add_argument(
         "--template-formfit",
@@ -162,6 +167,41 @@ def main(argv: list[str] | None = None) -> int:
             "operating-plan-file-only-quality",
             [sys.executable, "-c", check_code],
         ))
+    if args.government_report:
+        commands.append((
+            "government-report",
+            [sys.executable, str(EXAMPLES_DIR / "10_create_government_report.py")],
+        ))
+        government_report_output = EXAMPLES_DIR / "out" / "10_government_report.hwpx"
+        check_code = (
+            "from hwpx import HwpxDocument, inspect_document_authoring_quality; "
+            "from hwpx.tools.package_validator import validate_package; "
+            "from hwpx.tools.validator import validate_document; "
+            "from hwpx.tools.report_parser import parse_government_report_text; "
+            "from hwpx.tools.report_utils import format_krw_hangul; "
+            f"path = {str(government_report_output)!r}; "
+            "doc = HwpxDocument.open(path); "
+            "text = doc.export_text(); "
+            "doc.close(); "
+            "parsed = parse_government_report_text('Ⅰ. 추진 개요\\n□ 주요 성과', title='검증 보고'); "
+            "report = inspect_document_authoring_quality(path, quality_profile='government_report'); "
+            "checks = ["
+            "(validate_package(path).ok, 'package validation failed'), "
+            "(validate_document(path).ok, 'document validation failed'), "
+            "(report.get('pass') is True, 'authoring quality did not pass'), "
+            "(report.get('visual_review_required') is True, 'visual_review_required is not true'), "
+            "('AI 활용 교육 추진 현황' in text, 'report text missing'), "
+            "('70.0' in text, 'ratio computed value missing'), "
+            "(format_krw_hangul(8750000) in text, 'KRW Hangul computed value missing'), "
+            "(parsed.get('schemaVersion') == 'hwpx.document_plan.v2', 'parser schema mismatch')"
+            "]; "
+            "failures = [message for passed, message in checks if not passed]; "
+            "raise SystemExit('; '.join(failures) if failures else 0)"
+        )
+        commands.append((
+            "government-report-readback",
+            [sys.executable, "-c", check_code],
+        ))
     if args.template_formfit:
         commands.append((
             "template-formfit",
@@ -218,6 +258,8 @@ def main(argv: list[str] | None = None) -> int:
         print("[OK] builder generation workflow passed")
     if args.operating_plan:
         print("[OK] operating-plan document-plan workflow passed")
+    if args.government_report:
+        print("[OK] government-report document-plan workflow passed")
     if args.template_formfit:
         print("[OK] template form-fit workflow passed")
     if args.visual_review:
