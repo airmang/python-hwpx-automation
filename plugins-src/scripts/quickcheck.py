@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,8 +27,9 @@ SCRIPTS_DIR = ROOT / "scripts"
 OUTPUT_PATH = EXAMPLES_DIR / "out" / "01_created.hwpx"
 
 
-def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True)
+def _run(cmd: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    run_env = None if env is None else {**os.environ, **env}
+    return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, env=run_env)
 
 
 def _print_block(label: str, output: str) -> None:
@@ -69,6 +71,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="also validate the visual-review fallback evidence shape",
     )
+    parser.add_argument(
+        "--visual-review-batch",
+        action="store_true",
+        help="also validate the visual-review batch fallback report shape",
+    )
     args = parser.parse_args(argv)
 
     print("[STEP] checking Python runtime")
@@ -96,6 +103,8 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     visual_review_evidence = EXAMPLES_DIR / "out" / "09_visual_review_fallback.json"
+    visual_review_batch_dir = EXAMPLES_DIR / "out" / "11_visual_review_batch"
+    visual_review_batch_report = visual_review_batch_dir / "visual_review_batch_report.json"
     commands = [
         (
             "create",
@@ -232,10 +241,35 @@ def main(argv: list[str] | None = None) -> int:
                 "Rendered page breaks and table fit require opened-document review.",
             ],
         ))
+    if args.visual_review_batch:
+        if visual_review_batch_dir.exists():
+            for path in visual_review_batch_dir.glob("*.json"):
+                path.unlink()
+        if not args.operating_plan and not args.visual_review:
+            commands.append((
+                "operating-plan",
+                [sys.executable, str(EXAMPLES_DIR / "07_create_operating_plan.py")],
+            ))
+        commands.append((
+            "visual-review-batch-fallback",
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "visual_review_batch.py"),
+                "--inputs",
+                str(EXAMPLES_DIR / "out" / "07_operating_plan.hwpx"),
+                "--evidence-dir",
+                str(visual_review_batch_dir),
+                "--notes",
+                "CI fallback smoke: batch viewer detection is intentionally forced to blocked.",
+            ],
+            {"HWPX_VIEWER_FORCE": "blocked"},
+        ))
 
-    for label, cmd in commands:
+    for command in commands:
+        label, cmd = command[:2]
+        env = command[2] if len(command) > 2 else None
         print(f"[STEP] running {label}: {' '.join(cmd)}")
-        result = _run(cmd)
+        result = _run(cmd, env=env)
         if result.stdout:
             _print_block(f"{label.upper()} STDOUT", result.stdout)
         if result.stderr:
@@ -289,6 +323,29 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[ERR] visual-review fallback evidence validation failed: {exc}")
             return 4
         print("[OK] visual-review fallback evidence workflow passed")
+    if args.visual_review_batch:
+        try:
+            report = json.loads(visual_review_batch_report.read_text(encoding="utf-8"))
+            rows = report.get("rows", [])
+            evidence_paths = [Path(row.get("evidence", "")) for row in rows]
+            checks = [
+                (report.get("schemaVersion") == "hwpx.visual-review-batch.v1", "batch schemaVersion mismatch"),
+                (report.get("viewer_detection", {}).get("status") == "blocked", "viewer detection is not blocked"),
+                (report.get("counts", {}).get("blocked") == len(rows) == 1, "blocked count/row count mismatch"),
+                (report.get("counts", {}).get("observed_pass") == 0, "observed_pass count is not zero"),
+                (report.get("ready_for_submission_claim") is False, "batch ready_for_submission_claim is not false"),
+                (all(path.exists() for path in evidence_paths), "per-file evidence path is missing"),
+            ]
+            for passed, message in checks:
+                if not passed:
+                    raise ValueError(message)
+            evidence = json.loads(evidence_paths[0].read_text(encoding="utf-8"))
+            if evidence.get("current", {}).get("status") != "blocked":
+                raise ValueError("per-file evidence current.status is not blocked")
+        except Exception as exc:
+            print(f"[ERR] visual-review batch fallback validation failed: {exc}")
+            return 5
+        print("[OK] visual-review batch fallback evidence workflow passed")
     print("[NEXT] try placeholder replacement:")
     print(
         "       python3 examples/03_template_replace.py examples/out/01_created.hwpx "
