@@ -51,6 +51,29 @@
 - 설치 직후 환경이 맞는지 한 번에 확인한다.
 - 에이전트가 HWPX 작업에서 어떤 흐름을 따라야 하는지 알려준다.
 
+## 이렇게 쓰세요 — 에이전트에게 말 걸기
+
+설치하고 나면 사용자가 직접 파이썬 스크립트를 칠 일은 거의 없다. Claude Code·Cursor·Codex 같은 에이전트에게 **자연어로 말하면** 스킬이 트리거되고, 에이전트가 `SKILL.md`의 의사결정 트리를 따라 알맞은 스크립트나 MCP 도구를 알아서 호출한다.
+
+| 이렇게 말하면 | 에이전트가 하는 일 |
+|---|---|
+| "이 hwpx 텍스트 전부 뽑아줘" | 문서 텍스트 추출 (표 안 문단 포함) |
+| "`{학교명}`·`{담당자}` 자리표시자 전부 바꿔줘" | 표까지 포함한 플레이스홀더 전역 치환 |
+| "머리글·쪽번호 들어간 운영 계획서 새로 만들어줘" | `hwpx.builder`로 레이아웃 민감 문서 조립 |
+| "이 양식은 그대로 두고 내용만 채워줘" | 승인된 양식 보존 form-fit |
+| "한컴에서 안 열리는 hwpx인데 복구해줘" | repair/recover 복구 복사본 생성 |
+| "이 hwpx 구조랑 표 개수 점검해줘" | 구조·품질 점검 |
+
+예를 들면 이런 식이다.
+
+> **사용자:** 첨부한 가정통신문 양식에서 학교명이랑 날짜만 우리 학교 걸로 바꿔서 새 파일로 줘.
+>
+> **에이전트:** 원본을 보존한 채 form-fit으로 플레이스홀더를 채우고, 패키지·스키마 검증을 거친 새 파일을 돌려준다.
+
+에이전트는 요청 성격에 따라 builder / document-plan / form-fit / repair 중 무엇을 쓸지 스스로 판단한다. 머리글·쪽번호·표처럼 레이아웃에 민감한 작업에서는 `visual_review_required`가 켜지므로, 에이전트는 최종 제출 전 열린 문서 시각 검토 evidence까지 같이 남긴다.
+
+> 명령줄에서 직접 같은 작업을 돌리거나 결과를 손으로 검증하고 싶으면 아래 [직접 실행하기](#직접-실행하기-수동-검증고급-사용)를 본다.
+
 ## 3분 설치
 
 기본 명령:
@@ -121,7 +144,7 @@ This repository is the canonical source for the HWPX skill and builds one bundle
 | Host | Bundle | Install entry point |
 | :--- | :--- | :--- |
 | Claude Code | `plugins/claude/hwpx-plugin` | `.claude-plugin/marketplace.json` (repo root) |
-| Codex | `plugins/codex/hwpx-plugin` | `.codex-plugin/plugin.json` |
+| Codex | `plugins/codex/hwpx-plugin` | `.agents/plugins/marketplace.json` (repo root) |
 | OpenClaw | `plugins/openclaw/hwpx-plugin` | `openclaw.plugin.json` + `INSTALL-mcp.md` |
 | Hermes Agent | `plugins/hermes/hwpx` | `hermes skills publish` + `INSTALL-mcp.md` |
 
@@ -131,145 +154,20 @@ then rebuild and validate:
 ```bash
 python3 scripts/build_hwpx_plugins.py
 python3 scripts/validate_hwpx_plugin.py
-git diff --exit-code -- plugins .claude-plugin   # build must be reproducible and committed
+git diff --exit-code -- plugins .claude-plugin .agents   # build must be reproducible and committed
 uv run --with lxml --with-editable ../python-hwpx python scripts/quickcheck.py --builder --document-plan --operating-plan --template-formfit --visual-review
 ```
 
 Host differences (frontmatter, manifests, MCP wiring, skill paths) are declared in
 `packaging/hosts.json` with templates in `packaging/templates/`. The MCP launcher prefers local
 sibling checkouts (`../hwpx-mcp-server`, `../python-hwpx`), honors `HWPX_MCP_SERVER_REPO` /
-`PYTHON_HWPX_REPO`, and otherwise falls back to `uvx --from hwpx-mcp-server==2.3.0 hwpx-mcp-server`.
+`PYTHON_HWPX_REPO`, and otherwise installs `hwpx-mcp-server==2.3.0` into a plugin-local venv
+on first MCP start before running it.
 
 Claude Code installs via `claude plugin marketplace add airmang/hwpx-plugins` then
-`claude plugin install hwpx-plugin@hwpx`. Codex installs from the local marketplace as before.
+`claude plugin install hwpx-plugin@hwpx`. Codex installs via
+`codex plugin marketplace add airmang/hwpx-plugins` then `codex plugin add hwpx-plugin@hwpx`.
 Start a fresh agent session after installing so new skills and MCP tools load.
-
-## 가장 많이 쓰는 작업
-
-### 1) 문서 텍스트 바로 추출
-
-```bash
-python3 scripts/text_extract.py input.hwpx
-python3 scripts/text_extract.py input.hwpx --format json --include-nested --out output.json
-```
-
-### 2) 플레이스홀더 전역 치환
-
-```bash
-python3 scripts/zip_replace_all.py template.hwpx output.hwpx --replace "{학교명}=테스트초" "{담당자}=홍길동" --auto-fix-ns
-```
-
-### 3) 예제 문서 생성 후 구조 확인
-
-```bash
-python3 examples/01_create_and_save.py
-python3 examples/02_extract_and_inspect.py examples/out/01_created.hwpx
-```
-
-### 4) 선언형 document-plan에서 새 HWPX 생성
-
-```bash
-python3 examples/06_create_from_document_plan.py
-python3 scripts/quickcheck.py --document-plan
-```
-
-`validate_document_plan`이 실패하면 `issues[].code`, `issues[].path`,
-`repairHints[]`를 보고 plan을 고친 뒤 다시 검증한다. `can_create=false`인
-MCP 응답에서는 파일 생성을 진행하지 않는다.
-
-### 5) 조립형 builder로 새 HWPX 생성
-
-```bash
-python3 examples/10_create_with_builder.py
-python3 scripts/quickcheck.py --builder
-```
-
-`hwpx.builder`는 `Document`, `Section`, `Heading`, `Paragraph`, `Run`,
-`Bullet`, `NumberedList`, `Table`, `Image`, `Header`, `Footer`,
-`PageNumber`, `PageBreak`, `Metadata`, `PageSize`, `Margins` 노드를 제공한다.
-저장 후 `BuilderSaveReport.hard_gates`에서 `package_validation`,
-`document_errors`, `reopen`이 `pass`인지 확인한다. 스키마 warning은
-`schema_lint`로 가시화되며 hard error가 아니면 `document_errors`는 pass다.
-머리글, 쪽번호, 표, 이미지, 페이지 나눔처럼 layout-sensitive 기능을 쓰면
-`visual_review_required=true`가 되므로 최종 제출 전 열린 문서 검토 evidence가 필요하다.
-
-### 6) 운영 계획서 제출 후보 생성
-
-```bash
-python3 examples/07_create_operating_plan.py
-python3 scripts/quickcheck.py --operating-plan
-```
-
-운영 계획서는 `hwpx.document_plan.v1`로 먼저 구조화하고
-`quality_profile="operating_plan"`을 켠다. MCP 서버가 있으면
-`validate_document_plan` → `analyze_document_plan` → `create_document_from_plan`
-→ `inspect_document_authoring_quality` 순서로 진행한다. MCP가 없으면 local
-`python-hwpx`의 `inspect_operating_plan_quality()`로 같은 품질 프로필을 확인한다.
-생성 또는 form-fit 이후에는 MCP `inspect_operating_plan_quality(filename)` 또는
-local `inspect_operating_plan_quality(path)`로 파일만 다시 열어 evidence를 남긴다.
-핵심 evidence는 `report_version`, `status`, `score`, `gaps`, `repair_hints`,
-`visual_review_required`다. `status="ready"`여도 `visual_review_required=true`이면
-최종 제출 전 별도 시각 검토가 필요하다.
-
-`visual_review_required=true`는 파일만 여는 package/schema/text 검사는 통과했지만,
-열린 문서의 페이지 나눔, 표 맞춤, 잘림 여부는 아직 확인하지 않았다는 뜻이다.
-최종 제출 가능 상태라고 말하려면 ComputerUse 또는 사람이 HWPX viewer에서 문서를
-열어본 뒤 `scripts/visual_review.py`로 `--screenshot`이 포함된 `observed_pass`
-evidence를 남겨야 한다. `--observation`만으로는 최종 제출 가능 상태가 아니다.
-viewer가 없는 CI/컨테이너에서는 `--viewer none --status blocked` fallback evidence를
-남기고, 최종 시각 검토 대기 상태로 handoff한다.
-
-### 7) 승인된 양식을 보존하며 운영 계획서 채우기
-
-```bash
-python3 examples/08_template_formfit.py
-python3 scripts/quickcheck.py --template-formfit
-```
-
-실제 P6 기준선이 있는 양식은 MCP에서 `analyze_template_formfit` →
-`apply_template_formfit` 순서로 처리한다. 분석 단계는 파일을 쓰지 않고,
-적용 단계는 원본과 다른 `destination_filename`에만 복사 후 반영한다.
-`source.preserved`, package/schema validation, `residual_markers.blocking`,
-`visual_review_required`를 handoff 근거로 확인한다.
-
-## 포함 내용
-
-- `SKILL.md`: 에이전트용 의사결정 트리와 실전 워크플로
-- `references/api.md`: `python-hwpx` API 레퍼런스
-- `scripts/quickcheck.py`: 설치 직후 첫 성공 경로를 점검하는 CLI
-- `scripts/text_extract.py`: 텍스트 추출 CLI
-- `scripts/zip_replace_all.py`: 플레이스홀더 전역 치환 CLI
-- `scripts/fix_namespaces.py`: ZIP-level 수정 후 namespace 정리
-- `scripts/visual_review.py`: 열린 문서 시각 검토 evidence 기록 CLI
-- `examples/`: 생성, 추출, 템플릿 치환 예제
-  - `examples/06_create_from_document_plan.py`: `hwpx.document_plan.v1` 생성 예제
-  - `examples/06_mcp_document_plan.md`: MCP document-plan 호출 예시
-  - `examples/07_create_operating_plan.py`: 운영 계획서 document-plan + 품질 프로필 예제
-  - `examples/07_mcp_operating_plan.md`: MCP 운영 계획서 생성/검증 호출 예시
-  - `examples/08_template_formfit.py`: template form-fit local quickcheck 예제
-  - `examples/08_mcp_template_formfit.md`: MCP 양식 보존 workflow 예시
-  - `examples/09_visual_review_loop.md`: ComputerUse/사람 viewer 시각 검토 반복 workflow
-  - `examples/10_create_with_builder.py`: builder 기반 레이아웃 민감 수직 슬라이스 예제
-
-## 프로젝트 구조
-
-```text
-hwpx-plugins/
-├── SKILL.md
-├── README.md
-├── references/
-│   └── api.md
-├── scripts/
-│   ├── fix_namespaces.py
-│   ├── quickcheck.py
-│   ├── text_extract.py
-│   ├── visual_review.py
-│   └── zip_replace_all.py
-└── examples/
-    ├── 01_create_and_save.py
-    ├── 02_extract_and_inspect.py
-    └── 03_template_replace.py
-```
 
 ## Claude Code 설치
 
@@ -345,16 +243,11 @@ Cursor에서 스킬과 룰을 함께 두면 자연어 요청과 파일 확장자
 
 ## Codex CLI 설치
 
-프로젝트 로컬 설치:
+Git marketplace 설치:
 
-```text
-.agents/skills/hwpx-plugins/
-```
-
-글로벌 설치:
-
-```text
-~/.agents/skills/hwpx-plugins/
+```bash
+codex plugin marketplace add airmang/hwpx-plugins
+codex plugin add hwpx-plugin@hwpx
 ```
 
 의존성 설치:
@@ -363,17 +256,71 @@ Cursor에서 스킬과 룰을 함께 두면 자연어 요청과 파일 확장자
 python3 -m pip install -U python-hwpx lxml
 ```
 
-Codex CLI에서는 `SKILL.md` frontmatter의 `description`이 핵심 트리거 역할을 한다. 따라서 자연어 요청과 도메인 키워드를 충분히 담은 상태로 유지하는 것이 중요하다.
+설치 또는 재설치 후에는 새 Codex 세션을 시작해야 새 skill과 MCP 도구가 로드된다.
 
-## 빠른 검증
+## 포함 내용
 
-가장 빠른 검증은 `quickcheck.py`다.
+- `SKILL.md`: 에이전트용 의사결정 트리와 실전 워크플로
+- `references/api.md`: `python-hwpx` API 레퍼런스
+- `scripts/quickcheck.py`: 설치 직후 첫 성공 경로를 점검하는 CLI
+- `scripts/text_extract.py`: 텍스트 추출 CLI
+- `scripts/zip_replace_all.py`: 플레이스홀더 전역 치환 CLI
+- `scripts/fix_namespaces.py`: ZIP-level 수정 후 namespace 정리
+- `scripts/visual_review.py`: 열린 문서 시각 검토 evidence 기록 CLI
+- `examples/`: 생성, 추출, 템플릿 치환 예제
+  - `examples/06_create_from_document_plan.py`: `hwpx.document_plan.v1` 생성 예제
+  - `examples/06_mcp_document_plan.md`: MCP document-plan 호출 예시
+  - `examples/07_create_operating_plan.py`: 운영 계획서 document-plan + 품질 프로필 예제
+  - `examples/07_mcp_operating_plan.md`: MCP 운영 계획서 생성/검증 호출 예시
+  - `examples/08_template_formfit.py`: template form-fit local quickcheck 예제
+  - `examples/08_mcp_template_formfit.md`: MCP 양식 보존 workflow 예시
+  - `examples/09_visual_review_loop.md`: ComputerUse/사람 viewer 시각 검토 반복 workflow
+  - `examples/10_create_with_builder.py`: builder 기반 레이아웃 민감 수직 슬라이스 예제
 
-```bash
-python3 scripts/quickcheck.py
+## 프로젝트 구조
+
+```text
+hwpx-plugins/
+├── SKILL.md
+├── README.md
+├── references/
+│   └── api.md
+├── scripts/
+│   ├── fix_namespaces.py
+│   ├── quickcheck.py
+│   ├── text_extract.py
+│   ├── visual_review.py
+│   └── zip_replace_all.py
+└── examples/
+    ├── 01_create_and_save.py
+    ├── 02_extract_and_inspect.py
+    └── 03_template_replace.py
 ```
 
-수동으로 최소 성공 경로를 밟으려면 아래 셋이면 충분하다.
+## 직접 실행하기 (수동 검증·고급 사용)
+
+> 아래 명령은 평소에 직접 칠 필요가 없다. 에이전트가 내부에서 같은 스크립트·MCP 도구를 호출한다. 결과를 손으로 확인하거나 CI에서 돌리거나, 에이전트 없이 라이브러리만 쓰고 싶을 때 참고한다.
+
+### 문서 텍스트 추출
+
+```bash
+python3 scripts/text_extract.py input.hwpx
+python3 scripts/text_extract.py input.hwpx --format json --include-nested --out output.json
+```
+
+### 플레이스홀더 전역 치환
+
+```bash
+python3 scripts/zip_replace_all.py template.hwpx output.hwpx --replace "{학교명}=테스트초" "{담당자}=홍길동" --auto-fix-ns
+```
+
+namespace 정리만 수행:
+
+```bash
+python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
+```
+
+### 예제로 최소 성공 경로 확인
 
 ```bash
 python3 examples/01_create_and_save.py
@@ -388,26 +335,71 @@ python3 examples/03_template_replace.py examples/out/01_created.hwpx examples/ou
 python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 ```
 
-## 빠른 사용 예시
-
-텍스트 추출:
+### 선언형 document-plan에서 새 HWPX 생성
 
 ```bash
-python3 scripts/text_extract.py input.hwpx
-python3 scripts/text_extract.py input.hwpx --format json --include-nested --out output.json
+python3 examples/06_create_from_document_plan.py
+python3 scripts/quickcheck.py --document-plan
 ```
 
-플레이스홀더 전역 치환:
+`validate_document_plan`이 실패하면 `issues[].code`, `issues[].path`,
+`repairHints[]`를 보고 plan을 고친 뒤 다시 검증한다. `can_create=false`인
+MCP 응답에서는 파일 생성을 진행하지 않는다.
+
+### 조립형 builder로 새 HWPX 생성
 
 ```bash
-python3 scripts/zip_replace_all.py template.hwpx output.hwpx --replace "{학교명}=테스트초" "{담당자}=홍길동" --auto-fix-ns
+python3 examples/10_create_with_builder.py
+python3 scripts/quickcheck.py --builder
 ```
 
-namespace 정리만 수행:
+`hwpx.builder`는 `Document`, `Section`, `Heading`, `Paragraph`, `Run`,
+`Bullet`, `NumberedList`, `Table`, `Image`, `Header`, `Footer`,
+`PageNumber`, `PageBreak`, `Metadata`, `PageSize`, `Margins` 노드를 제공한다.
+저장 후 `BuilderSaveReport.hard_gates`에서 `package_validation`,
+`document_errors`, `reopen`이 `pass`인지 확인한다. 스키마 warning은
+`schema_lint`로 가시화되며 hard error가 아니면 `document_errors`는 pass다.
+머리글, 쪽번호, 표, 이미지, 페이지 나눔처럼 layout-sensitive 기능을 쓰면
+`visual_review_required=true`가 되므로 최종 제출 전 열린 문서 검토 evidence가 필요하다.
+
+### 운영 계획서 제출 후보 생성
 
 ```bash
-python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
+python3 examples/07_create_operating_plan.py
+python3 scripts/quickcheck.py --operating-plan
 ```
+
+운영 계획서는 `hwpx.document_plan.v1`로 먼저 구조화하고
+`quality_profile="operating_plan"`을 켠다. MCP 서버가 있으면
+`validate_document_plan` → `analyze_document_plan` → `create_document_from_plan`
+→ `inspect_document_authoring_quality` 순서로 진행한다. MCP가 없으면 local
+`python-hwpx`의 `inspect_operating_plan_quality()`로 같은 품질 프로필을 확인한다.
+생성 또는 form-fit 이후에는 MCP `inspect_operating_plan_quality(filename)` 또는
+local `inspect_operating_plan_quality(path)`로 파일만 다시 열어 evidence를 남긴다.
+핵심 evidence는 `report_version`, `status`, `score`, `gaps`, `repair_hints`,
+`visual_review_required`다. `status="ready"`여도 `visual_review_required=true`이면
+최종 제출 전 별도 시각 검토가 필요하다.
+
+`visual_review_required=true`는 파일만 여는 package/schema/text 검사는 통과했지만,
+열린 문서의 페이지 나눔, 표 맞춤, 잘림 여부는 아직 확인하지 않았다는 뜻이다.
+최종 제출 가능 상태라고 말하려면 ComputerUse 또는 사람이 HWPX viewer에서 문서를
+열어본 뒤 `scripts/visual_review.py`로 `--screenshot`이 포함된 `observed_pass`
+evidence를 남겨야 한다. `--observation`만으로는 최종 제출 가능 상태가 아니다.
+viewer가 없는 CI/컨테이너에서는 `--viewer none --status blocked` fallback evidence를
+남기고, 최종 시각 검토 대기 상태로 handoff한다.
+
+### 승인된 양식을 보존하며 운영 계획서 채우기
+
+```bash
+python3 examples/08_template_formfit.py
+python3 scripts/quickcheck.py --template-formfit
+```
+
+실제 P6 기준선이 있는 양식은 MCP에서 `analyze_template_formfit` →
+`apply_template_formfit` 순서로 처리한다. 분석 단계는 파일을 쓰지 않고,
+적용 단계는 원본과 다른 `destination_filename`에만 복사 후 반영한다.
+`source.preserved`, package/schema validation, `residual_markers.blocking`,
+`visual_review_required`를 handoff 근거로 확인한다.
 
 ## 예제
 
@@ -441,7 +433,7 @@ python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
 
 ## 제안서/기획안 생성
 
-`python-hwpx`의 proposal preset이 설치된 환경에서는 자연어 요청을 `ProposalSpec`으로 정리한 뒤 HWPX 제안서를 바로 생성할 수 있다.
+에이전트에게 "이런 제안서/기획안 만들어줘"라고 하면, `python-hwpx`의 proposal preset이 설치된 환경에서 자연어 요청을 `ProposalSpec`으로 정리한 뒤 HWPX 제안서를 생성한다. 직접 돌리려면:
 
 ```bash
 python3 examples/04_create_proposal.py

@@ -110,7 +110,10 @@ def validate_launcher(out: Path, host_id: str) -> None:
         "HWPX_MCP_SERVER_REPO",
         "PYTHON_HWPX_REPO",
         "uv run --project",
-        'uvx --from "hwpx-mcp-server==2.3.0"',
+        'SERVER_PACKAGE="hwpx-mcp-server==2.3.0"',
+        ".hwpx-mcp-server-venv",
+        "uv pip install",
+        'uvx --from "${SERVER_PACKAGE}"',
     ]
     missing = [fragment for fragment in fragments if fragment not in text]
     require(not missing, f"{host_id}: launcher missing fragments: {missing}")
@@ -188,12 +191,23 @@ def validate_marketplace(config: dict) -> None:
         if path.name == "marketplace.json":
             data = load_json(path)
             require(isinstance(data.get("name"), str) and data["name"], "marketplace: name invalid")
-            require(isinstance(data.get("owner"), dict), "marketplace: owner invalid")
             plugins = data.get("plugins")
             require(isinstance(plugins, list) and plugins, "marketplace: plugins invalid")
             entry = plugins[0]
             require(entry.get("name") == "hwpx-plugin", "marketplace: plugin name invalid")
-            require(entry.get("source") == "./plugins/claude/hwpx-plugin", "marketplace: plugin source invalid")
+            if artifact["dest"].startswith(".claude-plugin/"):
+                require(isinstance(data.get("owner"), dict), "claude marketplace: owner invalid")
+                require(entry.get("source") == "./plugins/claude/hwpx-plugin", "claude marketplace: plugin source invalid")
+            elif artifact["dest"].startswith(".agents/plugins/"):
+                source = entry.get("source")
+                require(isinstance(source, dict), "codex marketplace: source invalid")
+                require(source.get("source") == "local", "codex marketplace: source type invalid")
+                require(source.get("path") == "./plugins/codex/hwpx-plugin", "codex marketplace: plugin path invalid")
+                policy = entry.get("policy")
+                require(isinstance(policy, dict), "codex marketplace: policy invalid")
+                require(policy.get("installation") == "AVAILABLE", "codex marketplace: installation policy invalid")
+                require(policy.get("authentication") == "ON_INSTALL", "codex marketplace: authentication policy invalid")
+                require(entry.get("category") == "Productivity", "codex marketplace: category invalid")
 
 
 def main() -> int:

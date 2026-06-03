@@ -27,7 +27,8 @@
     "scripts/zip_replace_all.py"
   ],
   "repoRootArtifacts": [
-    { "template": "templates/claude.marketplace.json", "dest": ".claude-plugin/marketplace.json" }
+    { "template": "templates/claude.marketplace.json", "dest": ".claude-plugin/marketplace.json" },
+    { "template": "templates/codex.marketplace.json", "dest": ".agents/plugins/marketplace.json" }
   ],
   "hosts": [
     {

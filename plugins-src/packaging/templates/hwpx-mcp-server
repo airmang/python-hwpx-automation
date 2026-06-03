@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SERVER_PACKAGE="hwpx-mcp-server==2.3.0"
 
 find_stack_root() {
   local dir="$1"
@@ -29,9 +31,24 @@ if command -v uv >/dev/null 2>&1 \
   exec uv run --project "${MCP_REPO}" --with-editable "${PYTHON_HWPX_REPO}" --with-editable "${MCP_REPO}" hwpx-mcp-server
 fi
 
-if command -v uvx >/dev/null 2>&1; then
-  exec uvx --from "hwpx-mcp-server==2.3.0" hwpx-mcp-server
+if command -v uv >/dev/null 2>&1; then
+  VENV_DIR="${HWPX_MCP_SERVER_VENV:-${PLUGIN_ROOT}/.hwpx-mcp-server-venv}"
+  VERSION_FILE="${VENV_DIR}/.hwpx-mcp-server-package"
+  SERVER_BIN="${VENV_DIR}/bin/hwpx-mcp-server"
+
+  if [ ! -x "${SERVER_BIN}" ] || [ ! -f "${VERSION_FILE}" ] || [ "$(cat "${VERSION_FILE}")" != "${SERVER_PACKAGE}" ]; then
+    rm -rf "${VENV_DIR}"
+    uv venv --quiet "${VENV_DIR}"
+    uv pip install --quiet --python "${VENV_DIR}/bin/python" "${SERVER_PACKAGE}"
+    printf '%s\n' "${SERVER_PACKAGE}" > "${VERSION_FILE}"
+  fi
+
+  exec "${SERVER_BIN}"
 fi
 
-echo "hwpx-plugin requires uv or uvx. Install uv, or set HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO to local checkouts." >&2
+if command -v uvx >/dev/null 2>&1; then
+  exec uvx --from "${SERVER_PACKAGE}" hwpx-mcp-server
+fi
+
+echo "hwpx-plugin requires uv or uvx to install and run ${SERVER_PACKAGE}. Install uv, or set HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO to local checkouts." >&2
 exit 127

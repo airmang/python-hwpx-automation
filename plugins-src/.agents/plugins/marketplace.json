@@ -1,0 +1,21 @@
+{
+  "name": "hwpx",
+  "interface": {
+    "displayName": "HWPX"
+  },
+  "plugins": [
+    {
+      "name": "hwpx-plugin",
+      "version": "0.1.0",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex/hwpx-plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
