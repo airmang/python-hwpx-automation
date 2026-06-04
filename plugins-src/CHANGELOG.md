@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-04
+### Changed
+- Pin bundled MCP fallback launchers and MCP install docs to `hwpx-mcp-server==2.3.3`, which exposes document-plan v2 and government-report MCP tools backed by `python-hwpx>=2.10.1`.
+- Bump packaged plugin manifests and Codex marketplace entry to `0.1.3`.
+
 ## [0.1.2] - 2026-06-04
 ### Fixed
 - Pin bundled MCP fallback launchers and MCP install docs to `hwpx-mcp-server==2.3.2`, which clears layout caches for placeholder form-fill text insertion paths.

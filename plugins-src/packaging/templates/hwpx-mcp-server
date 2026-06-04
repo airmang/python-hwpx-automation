@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SERVER_PACKAGE="hwpx-mcp-server==2.3.2"
+SERVER_PACKAGE="hwpx-mcp-server==2.3.3"
 
 find_stack_root() {
   local dir="$1"
