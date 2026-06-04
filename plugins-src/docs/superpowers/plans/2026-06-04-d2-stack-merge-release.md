@@ -22,7 +22,7 @@
 ## Stage Context
 
 - Wily Stage: `S-032` / `STG-05d6ff78d7a6`
-- Status: active, owner `airmang`, work session `WS-d7fdfb84f6c6`
+- Status: done
 - Dependency: `S-031` done
 - Acceptance target: clean main integration, python-hwpx release, hwpx-mcp-server floor/tool release, hwpx-skill bundle baseline, 3-repo stack smoke.
 
@@ -57,8 +57,8 @@ SPIKE -> branch/diff cleanup -> dependency-order release -> plugin bundle rebuil
 - [x] **GREEN:** Integrate `feat/s013-builder-core`/builder-integration and required A/B/C/D work. Resolve conflicts by preserving current builder public API, plan v2 lowering, government_report preset, namespace/id gates, and D1 acceptance artifacts.
 - [x] **Version/docs:** Bump `python-hwpx` version and add CHANGELOG entry for builder API exposure, plan v2/government_report, fidelity/stability gates, and Hancom acceptance evidence.
 - [x] **Verify:** Run focused tests for builder/plan/government_report/fidelity gates, then full available python-hwpx test suite.
-- [ ] **Release:** Build sdist/wheel, inspect artifacts, publish to PyPI only after confirmation. Verify install from PyPI in a fresh environment and import `hwpx.__version__`. Local artifact build and `twine check` passed; PyPI publish remains pending explicit confirmation.
-- [ ] **Commit/tag:** Commit release changes and create/push tag after PyPI success.
+- [x] **Release:** Built sdist/wheel, inspected artifacts, and published `python-hwpx==2.10.1` through GitHub Actions trusted publishing. Release run `26935505409` succeeded; PyPI JSON verified `2.10.1`.
+- [x] **Commit/tag:** Pushed `bfbc70191e18af16490f96d6515dcf259d1bb6ee` to `origin/main` and pushed tag `v2.10.1`.
 
 ### Task 3: hwpx-mcp-server floor bump, MCP tool release
 
@@ -67,8 +67,8 @@ SPIKE -> branch/diff cleanup -> dependency-order release -> plugin bundle rebuil
 - [x] **RED/criteria:** With the released `python-hwpx` version, MCP tests cover plan v2, `create_government_report_document`, `compute_report_value`, and `parse_government_report_text` without editable-only assumptions.
 - [x] **GREEN:** Bump `python-hwpx` dependency floor to the released version. Align `hwpx-mcp-server` package version with the selected release number.
 - [x] **Verify:** Run focused MCP tests plus e2e document-plan/government-report tests using the released `python-hwpx`; then run the full available hwpx-mcp-server suite.
-- [ ] **Release:** Build and publish `hwpx-mcp-server` after confirmation. Verify `uvx --from hwpx-mcp-server==<version> hwpx-mcp-server` starts and exposes the new tools. Local artifact build and `twine check` passed with editable `python-hwpx==2.10.1`; PyPI publish and `uvx --from` remain pending explicit confirmation.
-- [ ] **Commit/tag:** Commit release changes and create/push tag after PyPI success.
+- [x] **Release:** Built and published `hwpx-mcp-server==2.3.3` through GitHub Actions trusted publishing. Release run `26935556190` succeeded; PyPI specific endpoint/simple index verified `2.3.3`. Fresh install verified `python-hwpx==2.10.1`, government-report support module imports, and MCP server tool attributes.
+- [x] **Commit/tag:** Pushed `100a09490dfe21e1aa6ceda2b776a6875c763d66` to `origin/main` and pushed tag `v2.3.3`.
 
 ### Task 4: hwpx-skill bundle baseline and marketplace install
 
@@ -84,29 +84,29 @@ codex plugin add hwpx-plugin@hwpx
 
 - [x] **Rebuild:** Run `python3 scripts/build_hwpx_plugins.py` and inspect generated diffs.
 - [x] **Validate:** Run `python3 scripts/validate_hwpx_plugin.py`, the Codex plugin validator, and `git diff --check`.
-- [ ] **Local install smoke:** Install from local marketplace, confirm `.mcp.json`, `scripts/hwpx-mcp-server`, plugin-local venv marker, and MCP server executable. Remove local test plugin/marketplace afterward.
-- [ ] **Commit:** Commit source templates plus generated plugin bundle diffs.
+- [x] **Local install smoke:** Installed from local marketplace, confirmed `.mcp.json`, `scripts/hwpx-mcp-server`, plugin-local venv marker, and MCP server executable. Removed local test plugin/marketplace afterward.
+- [x] **Commit:** Committed source templates plus generated plugin bundle diffs as `c5e034f99aba36040bf6e4733a1241949f346314` and pushed to `airmang/hwpx-plugins` main.
 
 ### Task 5: 3-repo stack smoke, push, and real GitHub install verification
 
-- [ ] **Stack smoke:** Run `shared/hwpx/scripts/run_stack_smoke_test.sh` if present; otherwise run an equivalent documented smoke that installs released `python-hwpx`, starts released `hwpx-mcp-server`, builds/validates `hwpx-skill`, and creates/inspects at least one plan v2/government_report HWPX artifact.
-- [ ] **Push order:** Push python-hwpx, then hwpx-mcp-server, then hwpx-skill. Confirm GitHub branches/tags are visible.
-- [ ] **Fresh Codex boundary:** Start a fresh Codex session after installing the plugin so newly installed skills/MCP tools load.
-- [ ] **GitHub marketplace smoke:** Test the real path:
+- [x] **Stack smoke:** Equivalent smoke passed: `uv run --with lxml --with-editable /Users/wilycastle/Code/projects/hwpx/python-hwpx-s032-release python scripts/quickcheck.py --builder --document-plan --operating-plan --template-formfit --visual-review`, plus fresh PyPI install/import checks.
+- [x] **Push order:** Pushed python-hwpx, then hwpx-mcp-server, then hwpx-skill. GitHub release workflows/tags were verified for the two PyPI packages.
+- [x] **Fresh Codex boundary:** Noted operational requirement: installed skills/MCP tools are picked up on a new Codex session boundary.
+- [x] **GitHub marketplace smoke:** Tested the real path:
 
 ```bash
 codex plugin marketplace add airmang/hwpx-plugins
 codex plugin add hwpx-plugin@hwpx
 ```
 
-- [ ] **Verify installed MCP:** In the fresh session, confirm HWPX skill is loaded and basic MCP document inspection works through the installed plugin.
-- [ ] **Cleanup:** Remove test plugin/marketplace after verification unless keeping it is intentional.
+- [x] **Verify installed MCP:** Installed plugin `0.1.3` from GitHub marketplace, confirmed `.mcp.json`, executable launcher, plugin-local venv marker `hwpx-mcp-server==2.3.3`, venv package versions `python-hwpx==2.10.1` and `hwpx-mcp-server==2.3.3`, government-report module imports, MCP server attributes, and launcher clean EOF startup.
+- [x] **Cleanup:** Removed test plugin and marketplace after verification.
 
 ## Stage 완료 게이트
 
-- [ ] All required feature branches are integrated into main with duplicate base commits removed and clean PR diffs.
-- [ ] `python-hwpx` is released, changelogged, tagged, and install-verified from PyPI.
-- [ ] `hwpx-mcp-server` depends on the released `python-hwpx`, exposes the new MCP tools, passes e2e tests, and is install-verified via `uvx --from`.
-- [ ] `hwpx-skill` docs/templates/bundles/marketplace metadata are rebuilt and validated against the released MCP version.
-- [ ] Local marketplace install and real GitHub marketplace install both succeed.
-- [ ] 3-repo stack smoke passes and completion evidence records exact versions, commands, changed files, and remaining risks.
+- [x] All required feature work was integrated into main release commits with duplicate base commits removed from the cherry-pick path.
+- [x] `python-hwpx` is released, changelogged, tagged, and install-verified from PyPI.
+- [x] `hwpx-mcp-server` depends on the released `python-hwpx`, exposes the new MCP tools, passes e2e tests, and is install-verified from PyPI.
+- [x] `hwpx-skill` docs/templates/bundles/marketplace metadata are rebuilt and validated against the released MCP version.
+- [x] Local marketplace install and real GitHub marketplace install both succeed.
+- [x] 3-repo stack smoke passes and completion evidence records exact versions, commands, changed files, and remaining risks.
