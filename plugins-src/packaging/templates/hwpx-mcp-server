@@ -39,7 +39,11 @@ if command -v uv >/dev/null 2>&1; then
   if [ ! -x "${SERVER_BIN}" ] || [ ! -f "${VERSION_FILE}" ] || [ "$(cat "${VERSION_FILE}")" != "${SERVER_PACKAGE}" ]; then
     rm -rf "${VENV_DIR}"
     uv venv --quiet "${VENV_DIR}"
-    uv pip install --quiet --python "${VENV_DIR}/bin/python" "${SERVER_PACKAGE}"
+    uv pip install --quiet \
+      --refresh-package hwpx-mcp-server \
+      --refresh-package python-hwpx \
+      --python "${VENV_DIR}/bin/python" \
+      "${SERVER_PACKAGE}"
     printf '%s\n' "${SERVER_PACKAGE}" > "${VERSION_FILE}"
   fi
 
@@ -47,7 +51,11 @@ if command -v uv >/dev/null 2>&1; then
 fi
 
 if command -v uvx >/dev/null 2>&1; then
-  exec uvx --from "${SERVER_PACKAGE}" hwpx-mcp-server
+  exec uvx \
+    --refresh-package hwpx-mcp-server \
+    --refresh-package python-hwpx \
+    --from "${SERVER_PACKAGE}" \
+    hwpx-mcp-server
 fi
 
 echo "hwpx-plugin requires uv or uvx to install and run ${SERVER_PACKAGE}. Install uv, or set HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO to local checkouts." >&2
