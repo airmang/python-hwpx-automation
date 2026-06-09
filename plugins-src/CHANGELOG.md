@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-06-09
+### Fixed
+- Pin bundled MCP fallback launchers and MCP install docs to `hwpx-mcp-server==2.3.5`, which includes the editor-open safety gate backed by `python-hwpx>=2.10.3`.
+- Validate ZIP-level script outputs before replacing targets so `zip_replace_all.py` and `fix_namespaces.py` do not leave editor-unsafe HWPX files behind.
+- Make direct `zip_replace_all()` and `fix_namespaces()` helper-function calls use temporary output plus open-safety validation by default before replacing the requested target.
+- Remove the public `verify_open_safety=False` bypass from ZIP-level helper functions; unchecked writes are now private implementation details used only before a later validation gate.
+- Fail closed when ZIP-level helpers cannot import `validate_editor_open_safety`, instead of falling back to weaker legacy package/open checks.
+- Normalize section/header root namespaces and `standalone="yes"` declarations in ZIP-level script outputs, matching the hardened `python-hwpx` save surface.
+- Add explicit editor-open safety checks to `quickcheck.py` for the base output and optional proposal, document-plan, builder, operating-plan, and template form-fit outputs.
+
+### Changed
+- Bump packaged plugin manifests and Codex marketplace entry to `0.1.6`.
+
 ## [0.1.3] - 2026-06-04
 ### Changed
 - Pin bundled MCP fallback launchers and MCP install docs to `hwpx-mcp-server==2.3.3`, which exposes document-plan v2 and government-report MCP tools backed by `python-hwpx>=2.10.1`.

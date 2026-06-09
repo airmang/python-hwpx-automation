@@ -84,11 +84,11 @@ python3 -m pip install -U python-hwpx lxml
 
 현재 권장 기준:
 - Python 3.10+
-- 기본 편집 최소 호환 기준: `python-hwpx >= 2.6`
-- document-plan 생성 권장 기준: `python-hwpx >= 2.9.1`
+- 기본 편집 최소 호환 기준: `python-hwpx >= 2.10.3`
+- document-plan 생성 권장 기준: `python-hwpx >= 2.10.3`
 - builder 생성 권장 기준: `python-hwpx` S-013 builder core 포함 버전 또는 로컬 checkout
 - repair/recover 권장 기준: `python-hwpx` main 또는 해당 기능이 포함된 릴리스
-- 최근 로컬 검증 기준: `python-hwpx 2.9.1 + S-013 builder core`
+- 최근 로컬 검증 기준: `python-hwpx 2.10.3 + editor-open safety guard`
 
 ## 5분 성공 확인
 
@@ -161,7 +161,7 @@ uv run --with lxml --with-editable ../python-hwpx python scripts/quickcheck.py -
 Host differences (frontmatter, manifests, MCP wiring, skill paths) are declared in
 `packaging/hosts.json` with templates in `packaging/templates/`. The MCP launcher prefers local
 sibling checkouts (`../hwpx-mcp-server`, `../python-hwpx`), honors `HWPX_MCP_SERVER_REPO` /
-`PYTHON_HWPX_REPO`, and otherwise installs `hwpx-mcp-server==2.3.4` into a plugin-local venv
+`PYTHON_HWPX_REPO`, and otherwise installs `hwpx-mcp-server==2.3.5` into a plugin-local venv
 on first MCP start before running it.
 
 Claude Code installs via `claude plugin marketplace add airmang/hwpx-plugins` then
@@ -314,11 +314,15 @@ python3 scripts/text_extract.py input.hwpx --format json --include-nested --out 
 python3 scripts/zip_replace_all.py template.hwpx output.hwpx --replace "{학교명}=테스트초" "{담당자}=홍길동" --auto-fix-ns
 ```
 
+`zip_replace_all.py`는 임시 HWPX를 만든 뒤 `validate_editor_open_safety()`를 통과한 경우에만 output을 교체한다. 검증 실패 시 기존 output은 보존된다.
+
 namespace 정리만 수행:
 
 ```bash
 python3 scripts/fix_namespaces.py output.hwpx --inplace --backup
 ```
+
+`fix_namespaces.py`도 같은 open-safety 검증을 통과해야 대상 파일을 교체한다.
 
 ### 예제로 최소 성공 경로 확인
 

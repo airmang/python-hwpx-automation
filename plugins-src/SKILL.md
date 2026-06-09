@@ -8,10 +8,10 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 `.hwpx`는 ZIP 기반 OWPML 문서다. 기본 생성·편집은 `python-hwpx`로 처리하고, 표를 포함한 전역 치환이나 ZIP 레벨 후처리는 번들 스크립트로 처리한다.
 
 - 기준 라이브러리: `python-hwpx` (import: `hwpx`)
-- 기본 편집 최소 호환 기준: `python-hwpx >= 2.6`
-- document-plan 생성 권장 기준: `python-hwpx >= 2.9.1` 로컬 스택
+- 기본 편집 최소 호환 기준: `python-hwpx >= 2.10.3`
+- document-plan 생성 권장 기준: `python-hwpx >= 2.10.3` 로컬 스택
 - builder 생성 권장 기준: `python-hwpx` S-013 builder core 포함 버전 또는 로컬 checkout
-- 최근 로컬 검증 버전: `python-hwpx 2.9.1 + S-013 builder core`
+- 최근 로컬 검증 버전: `python-hwpx 2.10.3 + editor-open safety guard`
 - 상세 시그니처와 옵션은 [`references/api.md`](references/api.md)에서 확인한다.
 
 ## 시작
@@ -46,7 +46,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 ## 빠른 의사결정
 
 0. **HWPX가 깨졌거나 한컴에서 열리지 않는다**
-   원본을 직접 덮어쓰지 말고 먼저 repair/recover 복사본을 만든다. MCP 서버가 있으면 `repair_hwpx(source_filename, output_filename, recover=false)`를 실행하고, 일반 ZIP open이 실패하거나 central directory 손상이 의심되면 `recover=true`로 다시 시도한다. MCP가 없으면 `hwpx-repair input.hwpx output.hwpx` 또는 `hwpx-repair --recover broken.hwpx repaired.hwpx`를 사용한다. 반환값/출력에서 `crc_ok` 또는 `crcOk`, `validatePackage.ok`, `reordered`, `recovered`를 evidence로 기록하고, 가능하면 Hancom Office HWP에서 실제 열람한다. 자세한 API는 [`references/api.md`](references/api.md)의 repair/recover 섹션을 본다.
+   원본을 직접 덮어쓰지 말고 먼저 repair/recover 복사본을 만든다. MCP 서버가 있으면 `repair_hwpx(source_filename, output_filename, recover=false)`를 실행하고, 일반 ZIP open이 실패하거나 central directory 손상이 의심되면 `recover=true`로 다시 시도한다. MCP가 없으면 `hwpx-repair input.hwpx output.hwpx` 또는 `hwpx-repair --recover broken.hwpx repaired.hwpx`를 사용한다. 반환값/출력에서 `crc_ok` 또는 `crcOk`, `validatePackage.ok`, `openSafety.ok`, `reordered`, `recovered`를 evidence로 기록하고, 가능하면 Hancom Office HWP에서 실제 열람한다. 자세한 API는 [`references/api.md`](references/api.md)의 repair/recover 섹션을 본다.
 
 1. **텍스트만 추출한다**
    `python3 scripts/text_extract.py input.hwpx`
@@ -56,7 +56,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
    `HwpxDocument`를 사용한다. 문단 추가, 표 생성, 메모 삽입, 내보내기는 [`references/api.md`](references/api.md)와 [`examples/01_create_and_save.py`](examples/01_create_and_save.py)를 본다.
 
 3. **머리글·쪽번호·리치 런·병합 표가 있는 새 문서를 조립한다**
-   `hwpx.builder`의 `Document`, `Section`, `Paragraph`, `Run`, `Heading`, `Bullet`, `NumberedList`, `Table`, `Image`, `Header`, `Footer`, `PageNumber`, `PageBreak`를 사용한다. builder는 내부 XML을 직접 만들지 않고 `HwpxDocument` facade로 lowering하며, `save_to_path()`가 `BuilderSaveReport`를 반환한다. `hard_gates.package_validation`, `hard_gates.document_errors`, `hard_gates.reopen`이 `pass`인지 확인한다. `schema_lint`는 warning 가시화이고 하드 실패 기준이 아니다. `visual_review_required=True`이면 열린 문서 검토 evidence까지 남긴다. 예시는 [`examples/10_create_with_builder.py`](examples/10_create_with_builder.py), API는 [`references/api.md`](references/api.md)의 builder 섹션을 본다.
+   `hwpx.builder`의 `Document`, `Section`, `Paragraph`, `Run`, `Heading`, `Bullet`, `NumberedList`, `Table`, `Image`, `Header`, `Footer`, `PageNumber`, `PageBreak`를 사용한다. builder는 내부 XML을 직접 만들지 않고 `HwpxDocument` facade로 lowering하며, `save_to_path()`가 `BuilderSaveReport`를 반환한다. `hard_gates.package_validation`, `hard_gates.document_errors`, `hard_gates.reopen`, `hard_gates.editor_open_safety`가 `pass`인지 확인한다. `schema_lint`는 warning 가시화이고 하드 실패 기준이 아니다. `visual_review_required=True`이면 열린 문서 검토 evidence까지 남긴다. 예시는 [`examples/10_create_with_builder.py`](examples/10_create_with_builder.py), API는 [`references/api.md`](references/api.md)의 builder 섹션을 본다.
 
 4. **정부보고서·공문형 보고서를 작성한다**
    붙여넣은 텍스트는 `parse_government_report_text`로 plan v2로 바꾸고, 금액/비율/증감률/날짜는 `compute_report_value`로 계산한다. 생성은 `create_government_report_document(filename, document_plan)`을 사용해 `government_report` preset과 품질 프로필을 자동 적용한다. MCP가 없으면 local Python에서 `create_document_from_plan(plan)`에 `preset="government_report"`인 plan v2를 넘기고 `inspect_document_authoring_quality(..., quality_profile="government_report")`로 확인한다. 예시는 [`examples/10_create_government_report.py`](examples/10_create_government_report.py), [`examples/10_mcp_government_report.md`](examples/10_mcp_government_report.md)를 본다.
@@ -65,7 +65,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화하고, `quality_profile="operating_plan"`을 켠다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `analyze_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `validate_document_plan()`, `create_document_from_plan()`, `inspect_document_authoring_quality(..., quality_profile="operating_plan")`, `inspect_operating_plan_quality()`를 직접 사용한다. `visual_review_required=true`이면 `scripts/visual_review.py` evidence에서 `current.status == "observed_pass"`와 `current.screenshot_path`까지 확인해야 제출 준비 완료라고 말할 수 있다. 예시는 [`examples/07_create_operating_plan.py`](examples/07_create_operating_plan.py), [`examples/07_mcp_operating_plan.md`](examples/07_mcp_operating_plan.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
 6. **승인된 양식을 보존하며 운영 계획서를 채운다**
-   사용자가 특정 HWPX 양식이나 P6 기준선 기반 운영 계획서 작성을 요청하면 document-plan 새 문서 생성보다 template form-fit 경로를 우선한다. MCP 서버가 있으면 `analyze_template_formfit`으로 원본이 변하지 않았고 `unresolved_count == 0`인지 확인한 뒤, `apply_template_formfit(confirm=True)`로 원본과 다른 destination에만 적용한다. 결과에서 `source.preserved`, `validation.validate_package.ok`, `validation.validate_document.ok`, `residual_markers.blocking == []`를 확인한다. `visual_review_required=True`이면 최종 제출 전 열린 문서/사람 검토 evidence가 필요하며, `current.status == "observed_pass"`가 아니거나 `current.screenshot_path`가 없으면 최종 제출 가능 상태라고 주장하지 않는다. 예시는 [`examples/08_template_formfit.py`](examples/08_template_formfit.py), [`examples/08_mcp_template_formfit.md`](examples/08_mcp_template_formfit.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
+   사용자가 특정 HWPX 양식이나 P6 기준선 기반 운영 계획서 작성을 요청하면 document-plan 새 문서 생성보다 template form-fit 경로를 우선한다. MCP 서버가 있으면 `analyze_template_formfit`으로 원본이 변하지 않았고 `unresolved_count == 0`인지 확인한 뒤, `apply_template_formfit(confirm=True)`로 원본과 다른 destination에만 적용한다. 결과에서 `source.preserved`, `validation.validate_package.ok`, `validation.validate_document.ok`, `validation.openSafety.ok`, `residual_markers.blocking == []`를 확인한다. `visual_review_required=True`이면 최종 제출 전 열린 문서/사람 검토 evidence가 필요하며, `current.status == "observed_pass"`가 아니거나 `current.screenshot_path`가 없으면 최종 제출 가능 상태라고 주장하지 않는다. 예시는 [`examples/08_template_formfit.py`](examples/08_template_formfit.py), [`examples/08_mcp_template_formfit.md`](examples/08_mcp_template_formfit.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
 7. **자연어 요청으로 새 문서를 완성한다**
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화한다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `create_document_from_plan()`을 직접 사용한다. 예시는 [`examples/06_create_from_document_plan.py`](examples/06_create_from_document_plan.py)를 본다.
@@ -116,7 +116,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 2. MCP 서버가 있으면 `validate_document_plan(document_plan)`으로 비파괴 검증을 먼저 수행한다.
 3. `ok=false`이면 `issues[].code`, `issues[].path`, `repairHints[]`를 읽고 plan을 수정한 뒤 `validate_document_plan`을 다시 실행한다. `can_create=false` 상태에서는 생성하지 않는다.
 4. 검증이 통과하면 `create_document_from_plan(filename, document_plan)`으로 HWPX를 생성한다.
-5. 반환된 `quality.validation.reopened`, `validate_package.ok`, `validate_document.ok`, `visual_review_required`를 확인한다.
+5. 반환된 `quality.validation.reopened`, `validate_package.ok`, `validate_document.ok`, `verification.openSafety.ok`, `visual_review_required`를 확인한다.
 6. MCP가 없으면 local Python에서 `create_document_from_plan()`과 `inspect_document_authoring_quality()`를 사용한다.
 
 관련 예제:
@@ -128,7 +128,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 - v1은 headings, paragraphs, bullets, tables, page break 중심이다.
 - 깨진 table은 `columns[].key`와 `rows[]`의 key를 먼저 맞춘다. 누락된 row key는 빈 셀로 생성되지만, 의도한 데이터라면 plan에서 보강한다.
 - `unknown_style_token` 같은 style warning은 지원 token(`body`, `title`, `subtitle`, `heading`, `bullet`, `table_header`, `table_cell`)으로 바꾸거나 style을 생략한다.
-- `validate_package.ok=false` 또는 `validate_document.ok=false`이면 `validation.*.issues[]`와 `recovery.repair_hints[]`를 확인하고 재저장/재생성한 뒤 다시 검사한다. 이 상태의 파일은 handoff하지 않는다.
+- `validate_package.ok=false`, `validate_document.ok=false`, 또는 `verification.openSafety.ok=false`이면 `validation.*.issues[]`와 `recovery.repair_hints[]`를 확인하고 재저장/재생성한 뒤 다시 검사한다. 이 상태의 파일은 handoff하지 않는다.
 - ZIP 자체가 열리지 않거나 `mimetype` 첫 엔트리/CRC 문제가 의심되면 편집 전에 `repair_hwpx` 또는 `hwpx-repair`로 복구 복사본을 만든 뒤 다시 검사한다.
 - binary `.hwp`, 임의 OWPML 삽입, 복잡한 레이아웃 재현은 범위 밖이다.
 - `visual_review_required=True`는 구조 검증은 통과했지만 렌더러/픽셀 검수는 하지 않았다는 뜻이다.
@@ -156,6 +156,7 @@ python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
    - `quality.validation.reopened == true`
    - `quality.validation.validate_package.ok == true`
    - `quality.validation.validate_document.ok == true`
+   - `verification.openSafety.ok == true`
    - file-only `inspect_operating_plan_quality(path).report_version == "operating-plan-quality-v1"`
    - file-only `inspect_operating_plan_quality(path).status == "ready"`
    - `quality.visual_review_required == true`이면 `scripts/visual_review.py` evidence 또는 ComputerUse/사람이 연 문서 검토 evidence가 있어야 함
@@ -190,6 +191,7 @@ python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence 
    - `source.preserved == true`
    - `validation.validate_package.ok == true`
    - `validation.validate_document.ok == true`
+   - `validation.openSafety.ok == true`
    - `residual_markers.blocking == []`
    - file-only `inspect_operating_plan_quality(destination).status == "ready"` 또는 남은 gap이 제출 전 수동 보완 가능하다는 근거
 6. `visual_review_required=true`이면 `scripts/visual_review.py` evidence 또는 ComputerUse/사람이 연 문서 검토 evidence를 남긴다. evidence `schemaVersion == "hwpx.visual-review.v1"`이고 `current.status == "observed_pass"`이며 `current.screenshot_path`가 있을 때만 최종 제출 가능 상태라고 말한다. `--observation`만으로는 부족하다. HWPX viewer가 없으면 `--viewer none --status blocked` fallback evidence를 남기고, 열린 문서 검토가 필요하다고 handoff한다.
@@ -217,7 +219,7 @@ python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence 
   `replace_text_in_runs()`를 사용한다. 색상·밑줄 같은 스타일 필터도 줄 수 있다.
 
 - **표 셀까지 포함한 전역 치환이 필요하다**
-  `scripts/zip_replace_all.py`를 사용한다. 이 스크립트는 `mimetype` 엔트리를 `ZIP_STORED`로 유지하고, 입력/출력 경로가 같으면 임시 파일로 안전하게 처리한다.
+  `scripts/zip_replace_all.py`를 사용한다. 이 스크립트는 `mimetype` 엔트리를 `ZIP_STORED`로 유지하고, 임시 파일에 먼저 쓴 뒤 `validate_editor_open_safety()`를 통과한 경우에만 대상 HWPX를 교체한다. open-safety 검증이 실패하면 기존 output은 보존되며 handoff하지 않는다.
 
 - **치환 키에 XML 조각이 들어 있다**
   `<`, `>`, `</`가 포함된 치환 키는 문서를 깨뜨릴 수 있다. 태그가 아닌 텍스트 플레이스홀더로 바꾼 뒤 치환한다.

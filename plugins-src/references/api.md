@@ -4,14 +4,13 @@
 
 | python-hwpx 버전 | 상태 | 비고 |
 |---|---|---|
-| 2.9.1+ S-013 builder core | ✅ 권장 | document-plan + `hwpx.builder` 로컬 스택 기준 |
-| 2.9.1+ | ✅ 권장 | document-plan 생성 API 포함 |
-| 2.6–2.9.0 | ✅ 기본 편집 호환 | `HwpxDocument` 기반 생성/편집 가능, document-plan API는 없을 수 있음 |
-| 2.0–2.5 | ⚠️ 대부분 호환 | 일부 API 시그니처 차이 가능 |
-| 1.x | ❌ 비호환 | HwpxDocument API 미지원 |
+| 2.10.3+ | ✅ 필수 기준 | editor-open safety guard, document validation, reopen 검증, repair/recover evidence 포함 |
+| 2.10.0–2.10.2 | ⚠️ 읽기/일부 편집만 | 일부 생성·저장 경로에 최신 open-safety hard gate가 없을 수 있음 |
+| 2.9.x 이하 | ❌ handoff 금지 | 생성한 HWPX가 편집기에서 열리는지 보장할 수 없으므로 최종 산출물 작성에 사용하지 않음 |
 
 - import 이름: `hwpx`
-- 로컬 실측 버전: `python-hwpx 2.9.1 + S-013 builder core`
+- 로컬 실측 버전: `python-hwpx 2.10.3 + editor-open safety guard`
+- 최종 산출물을 만들 때는 `validate_editor_open_safety(path).ok == True` 또는 MCP 응답의 `openSafety.ok == true` / `verification.openSafety.ok == true`를 handoff evidence로 남긴다.
 
 ## 목차
 
@@ -30,6 +29,8 @@
 ```bash
 pip install -U python-hwpx lxml
 ```
+
+최종 HWPX 산출물 작성에는 `python-hwpx >= 2.10.3`이 필요하다. 더 낮은 버전은 읽기/탐색에는 쓸 수 있어도 handoff용 파일 생성에는 사용하지 않는다.
 
 ```python
 from hwpx import HwpxDocument, HwpxPackage, ObjectFinder, TextExtractor
@@ -469,6 +470,7 @@ MCP 응답에서 확인할 필드:
 
 - `crcOk == true`
 - `validatePackage.ok == true`
+- `openSafety.ok == true`
 - `reordered`
 - `recovered`
 - `entryCount`
@@ -483,7 +485,8 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 
 - 손상된 ZIP/OWPML 구조를 다룰 때는 `HwpxPackageError`, `HwpxStructureError`를 잡는다.
 - `.hwp`는 대상이 아니다. `.hwpx`만 지원한다.
-- ZIP-level 문자열 치환 뒤에는 `scripts/fix_namespaces.py` 또는 `scripts/zip_replace_all.py --auto-fix-ns`로 후처리한다.
+- ZIP-level 문자열 치환은 `scripts/zip_replace_all.py`를 사용한다. 이 helper는 임시 파일을 만든 뒤 `validate_editor_open_safety()`를 통과한 경우에만 target을 교체한다.
+- namespace 정리만 필요하면 `scripts/fix_namespaces.py`를 사용한다. 이 helper도 open-safety 검증 실패 시 기존 target을 보존한다.
 - ZIP 자체가 열리지 않거나 `mimetype` 첫 엔트리/CRC 오류가 있으면 편집 전에 `repair_hwpx` 또는 `hwpx-repair`로 복구 복사본을 만든다.
 
 ## Document plan authoring
@@ -536,10 +539,13 @@ doc = create_document_from_plan(document_plan)
 doc.save_to_path("agent-plan.hwpx")
 doc.close()
 
+from hwpx.tools import validate_editor_open_safety
+
 report = inspect_document_authoring_quality("agent-plan.hwpx", plan=document_plan)
 assert report["pass"] is True
 assert report["validation"]["validate_package"]["ok"] is True
 assert report["validation"]["validate_document"]["ok"] is True
+assert validate_editor_open_safety("agent-plan.hwpx").ok is True
 ```
 
 주요 함수:
@@ -582,6 +588,7 @@ assert report["validation"]["validate_document"]["ok"] is True
 - `validation.validate_package.issues`
 - `validation.validate_document.ok`
 - `validation.validate_document.issues`
+- MCP 생성 응답의 `verification.openSafety.ok`
 - `recovery.repair_hints`
 - `recovery.next_actions`
 - `visual_review_required`
@@ -627,6 +634,7 @@ MCP 운영 계획서 경로에서 확인할 필드:
 - `quality.validation.reopened == true`
 - `quality.validation.validate_package.ok == true`
 - `quality.validation.validate_document.ok == true`
+- `verification.openSafety.ok == true`
 - `quality.profiles.operating_plan.pass == true`
 - `visual_review_required == true`이면 최종 제출 전 렌더링 또는 사람의 시각 검토 필요
 
@@ -665,6 +673,7 @@ result = apply_template_formfit(analysis=analysis, confirm=True)
 assert result["source"]["preserved"] is True
 assert result["validation"]["validate_package"]["ok"] is True
 assert result["validation"]["validate_document"]["ok"] is True
+assert result["validation"]["openSafety"]["ok"] is True
 ```
 
 주요 함수:
@@ -686,6 +695,7 @@ handoff 기준:
 - `result.source.preserved == true`
 - `result.validation.validate_package.ok == true`
 - `result.validation.validate_document.ok == true`
+- `result.validation.openSafety.ok == true`
 - `result.residual_markers.blocking == []`
 
 제한:
@@ -811,8 +821,8 @@ The bundled MCP launcher (`scripts/hwpx-mcp-server` in Claude/Codex bundles) res
 
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
-3. a plugin-local venv populated with `hwpx-mcp-server==2.3.4` on first MCP start
-4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.3.4 hwpx-mcp-server` fallback when `uv` is unavailable
+3. a plugin-local venv populated with `hwpx-mcp-server==2.3.5` on first MCP start
+4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.3.5 hwpx-mcp-server` fallback when `uv` is unavailable
 
 Run `python3 scripts/build_hwpx_plugins.py` after changing `SKILL.md`, `references`, `examples`,
 or skill scripts, then `python3 scripts/validate_hwpx_plugin.py`.

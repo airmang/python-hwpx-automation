@@ -6,9 +6,10 @@ Run a beginner-friendly end-to-end sanity check for the HWPX skill.
 What it verifies:
 1. Required Python packages import successfully
 2. Example document creation works
-3. Example inspection works on the created document
-4. CLI text extraction works on the created document
-5. Optional document-plan/proposal/builder/government-report generation paths work when requested
+3. Generated HWPX outputs pass editor-open safety verification
+4. Example inspection works on the created document
+5. CLI text extraction works on the created document
+6. Optional document-plan/proposal/builder/government-report generation paths work when requested
 """
 
 from __future__ import annotations
@@ -40,6 +41,18 @@ def _print_block(label: str, output: str) -> None:
     else:
         print("(no output)")
     print()
+
+
+def _open_safety_command(path: Path) -> list[str]:
+    check_code = (
+        "from pathlib import Path; "
+        "from hwpx.tools.package_validator import validate_editor_open_safety; "
+        f"path = Path({str(path)!r}); "
+        "raise SystemExit(f'output missing: {path}' if not path.exists() "
+        "else (0 if validate_editor_open_safety(path).ok "
+        "else validate_editor_open_safety(path).summary))"
+    )
+    return [sys.executable, "-c", check_code]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -111,6 +124,10 @@ def main(argv: list[str] | None = None) -> int:
             [sys.executable, str(EXAMPLES_DIR / "01_create_and_save.py")],
         ),
         (
+            "create-open-safety",
+            _open_safety_command(OUTPUT_PATH),
+        ),
+        (
             "inspect",
             [sys.executable, str(EXAMPLES_DIR / "02_extract_and_inspect.py"), str(OUTPUT_PATH)],
         ),
@@ -121,14 +138,24 @@ def main(argv: list[str] | None = None) -> int:
     ]
 
     if args.proposal:
+        proposal_output = EXAMPLES_DIR / "out" / "04_proposal.hwpx"
         commands.append((
             "proposal",
             [sys.executable, str(EXAMPLES_DIR / "04_create_proposal.py")],
         ))
+        commands.append((
+            "proposal-open-safety",
+            _open_safety_command(proposal_output),
+        ))
     if args.document_plan:
+        document_plan_output = EXAMPLES_DIR / "out" / "06_document_plan.hwpx"
         commands.append((
             "document-plan",
             [sys.executable, str(EXAMPLES_DIR / "06_create_from_document_plan.py")],
+        ))
+        commands.append((
+            "document-plan-open-safety",
+            _open_safety_command(document_plan_output),
         ))
     if args.builder:
         commands.append((
@@ -136,6 +163,10 @@ def main(argv: list[str] | None = None) -> int:
             [sys.executable, str(EXAMPLES_DIR / "10_create_with_builder.py")],
         ))
         builder_output = EXAMPLES_DIR / "out" / "10_builder_vertical_slice.hwpx"
+        commands.append((
+            "builder-open-safety",
+            _open_safety_command(builder_output),
+        ))
         check_code = (
             "from hwpx import HwpxDocument; "
             f"doc = HwpxDocument.open({str(builder_output)!r}); "
@@ -156,11 +187,15 @@ def main(argv: list[str] | None = None) -> int:
             [sys.executable, "-c", check_code],
         ))
     if args.operating_plan:
+        operating_plan_output = EXAMPLES_DIR / "out" / "07_operating_plan.hwpx"
         commands.append((
             "operating-plan",
             [sys.executable, str(EXAMPLES_DIR / "07_create_operating_plan.py")],
         ))
-        operating_plan_output = EXAMPLES_DIR / "out" / "07_operating_plan.hwpx"
+        commands.append((
+            "operating-plan-open-safety",
+            _open_safety_command(operating_plan_output),
+        ))
         check_code = (
             "from hwpx import inspect_operating_plan_quality; "
             f"report = inspect_operating_plan_quality({str(operating_plan_output)!r}); "
@@ -184,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
         government_report_output = EXAMPLES_DIR / "out" / "10_government_report.hwpx"
         check_code = (
             "from hwpx import HwpxDocument, inspect_document_authoring_quality; "
-            "from hwpx.tools.package_validator import validate_package; "
+            "from hwpx.tools.package_validator import validate_editor_open_safety, validate_package; "
             "from hwpx.tools.validator import validate_document; "
             "from hwpx.tools.report_parser import parse_government_report_text; "
             "from hwpx.tools.report_utils import format_krw_hangul; "
@@ -196,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
             "report = inspect_document_authoring_quality(path, quality_profile='government_report'); "
             "checks = ["
             "(validate_package(path).ok, 'package validation failed'), "
+            "(validate_editor_open_safety(path).ok, 'editor-open safety failed'), "
             "(validate_document(path).ok, 'document validation failed'), "
             "(report.get('pass') is True, 'authoring quality did not pass'), "
             "(report.get('visual_review_required') is True, 'visual_review_required is not true'), "
@@ -212,9 +248,14 @@ def main(argv: list[str] | None = None) -> int:
             [sys.executable, "-c", check_code],
         ))
     if args.template_formfit:
+        template_formfit_output = EXAMPLES_DIR / "out" / "08_template_formfit_filled.hwpx"
         commands.append((
             "template-formfit",
             [sys.executable, str(EXAMPLES_DIR / "08_template_formfit.py")],
+        ))
+        commands.append((
+            "template-formfit-open-safety",
+            _open_safety_command(template_formfit_output),
         ))
     if args.visual_review:
         visual_review_evidence.unlink(missing_ok=True)

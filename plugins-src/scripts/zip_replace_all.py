@@ -30,7 +30,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from fix_namespaces import fix_namespaces
+from fix_namespaces import fix_namespaces, normalize_hwpml_root_bytes, validate_open_safety
 
 
 _LINESEGARRAY_PATTERN = re.compile(
@@ -98,6 +98,26 @@ def zip_replace_all(
 ) -> dict[str, int]:
     """Replace plain strings across XML parts in an HWPX package."""
 
+    output_path = Path(out_hwpx)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = Path(_make_temp_hwpx_path(output_path.parent, "hwpx-replace-"))
+    try:
+        stats = _zip_replace_all_unchecked(in_hwpx, temp_path, replacements)
+        validate_open_safety(str(temp_path))
+        os.replace(temp_path, output_path)
+        return stats
+    except BaseException:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+
+def _zip_replace_all_unchecked(
+    in_hwpx: str | os.PathLike[str],
+    out_hwpx: str | os.PathLike[str],
+    replacements: Mapping[str, str],
+) -> dict[str, int]:
+    """Write a replaced ZIP without replacing a user target."""
+
     stats = {
         "parts": 0,
         "xml_parts": 0,
@@ -135,7 +155,10 @@ def zip_replace_all(
                         stats["changed_xml"] += 1
                         stats["replacements"] += replaced_here
                         stats["layout_caches_removed"] += removed_caches
-                        data = text.encode("utf-8")
+                        data = normalize_hwpml_root_bytes(
+                            info.filename,
+                            text.encode("utf-8"),
+                        )
 
                 zout.writestr(_clone_zipinfo(info, force_stored=info.filename == "mimetype"), data)
 
@@ -208,8 +231,8 @@ def main(argv: list[str]) -> int:
     target_path = input_path if args.inplace else Path(args.output_hwpx).resolve()
     if not args.inplace:
         target_path.parent.mkdir(parents=True, exist_ok=True)
-    needs_temp_output = args.inplace or _same_path(input_path, target_path)
-    if needs_temp_output and not args.inplace:
+    same_output_path = _same_path(input_path, target_path)
+    if same_output_path and not args.inplace:
         print(
             f"[WARN] output path matches input; using a temporary file: {target_path}",
             file=sys.stderr,
@@ -217,15 +240,15 @@ def main(argv: list[str]) -> int:
 
     warn_if_xml_like_keys(replacements)
 
-    temp_dir = input_path.parent
-    replace_out = (
-        Path(_make_temp_hwpx_path(temp_dir, "hwpx-replace-"))
-        if needs_temp_output or args.auto_fix_ns
-        else target_path
-    )
+    temp_dir = input_path.parent if args.inplace else target_path.parent
+    replace_out = Path(_make_temp_hwpx_path(temp_dir, "hwpx-replace-"))
 
     try:
-        replace_stats = zip_replace_all(str(input_path), str(replace_out), replacements)
+        replace_stats = _zip_replace_all_unchecked(
+            str(input_path),
+            str(replace_out),
+            replacements,
+        )
     except Exception as exc:
         print(f"[ERR] replacement failed: {exc}", file=sys.stderr)
         if replace_out != target_path and replace_out.exists():
@@ -236,18 +259,13 @@ def main(argv: list[str]) -> int:
     ns_stats: dict[str, int] | None = None
 
     if args.auto_fix_ns:
-        ns_out = (
-            Path(_make_temp_hwpx_path(temp_dir, "hwpx-ns-"))
-            if needs_temp_output
-            else target_path
-        )
+        ns_out = Path(_make_temp_hwpx_path(temp_dir, "hwpx-ns-"))
         try:
             ns_stats = fix_namespaces(str(replace_out), str(ns_out))
         except Exception as exc:
             print(f"[ERR] namespace fix failed: {exc}", file=sys.stderr)
             replace_out.unlink(missing_ok=True)
-            if ns_out != target_path:
-                ns_out.unlink(missing_ok=True)
+            ns_out.unlink(missing_ok=True)
             return 1
         replace_out.unlink(missing_ok=True)
         produced_path = ns_out
@@ -255,14 +273,17 @@ def main(argv: list[str]) -> int:
         produced_path = replace_out
 
     try:
-        if needs_temp_output:
-            if args.backup:
-                backup_path = input_path.with_suffix(input_path.suffix + ".bak")
-                shutil.copy2(input_path, backup_path)
-                print(f"[OK] backup: {backup_path}")
-            os.replace(produced_path, final_path)
-        elif args.backup:
+        validate_open_safety(str(produced_path))
+        if args.inplace and args.backup:
+            backup_path = input_path.with_suffix(input_path.suffix + ".bak")
+            shutil.copy2(input_path, backup_path)
+            print(f"[OK] backup: {backup_path}")
+        if args.backup and not args.inplace:
             print("[WARN] --backup is ignored when output does not overwrite input", file=sys.stderr)
+        os.replace(produced_path, final_path)
+    except Exception as exc:
+        print(f"[ERR] open-safety validation failed: {exc}", file=sys.stderr)
+        return 1
     finally:
         if produced_path != final_path and Path(produced_path).exists():
             Path(produced_path).unlink(missing_ok=True)

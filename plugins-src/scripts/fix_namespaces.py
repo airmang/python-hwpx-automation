@@ -30,7 +30,26 @@ import copy
 import os
 import shutil
 import sys
+import tempfile
 import zipfile
+
+HWPML_COMPAT_ROOT_NAMESPACES = {
+    "ha": "http://www.hancom.co.kr/hwpml/2011/app",
+    "hp": "http://www.hancom.co.kr/hwpml/2011/paragraph",
+    "hp10": "http://www.hancom.co.kr/hwpml/2016/paragraph",
+    "hs": "http://www.hancom.co.kr/hwpml/2011/section",
+    "hc": "http://www.hancom.co.kr/hwpml/2011/core",
+    "hh": "http://www.hancom.co.kr/hwpml/2011/head",
+    "hhs": "http://www.hancom.co.kr/hwpml/2011/history",
+    "hm": "http://www.hancom.co.kr/hwpml/2011/master-page",
+    "hpf": "http://www.hancom.co.kr/schema/2011/hpf",
+    "dc": "http://purl.org/dc/elements/1.1/",
+    "opf": "http://www.idpf.org/2007/opf/",
+    "ooxmlchart": "http://www.hancom.co.kr/hwpml/2016/ooxmlchart",
+    "hwpunitchar": "http://www.hancom.co.kr/hwpml/2016/HwpUnitChar",
+    "epub": "http://www.idpf.org/2007/ops",
+    "config": "urn:oasis:names:tc:opendocument:xmlns:config:1.0",
+}
 
 
 def _clone_zipinfo(info: zipfile.ZipInfo, *, force_stored: bool = False) -> zipfile.ZipInfo:
@@ -40,7 +59,64 @@ def _clone_zipinfo(info: zipfile.ZipInfo, *, force_stored: bool = False) -> zipf
     return cloned
 
 
-def fix_namespaces(in_hwpx: str, out_hwpx: str) -> dict:
+def _is_hwpml_root_part(path: str) -> bool:
+    name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return (name.startswith("section") or name.startswith("header")) and name.endswith(".xml")
+
+
+def _local_name(element) -> str:
+    tag = getattr(element, "tag", "")
+    if not isinstance(tag, str):
+        return ""
+    if "}" in tag:
+        return tag.rsplit("}", 1)[1]
+    return tag
+
+
+def _serialize_xml_part(path: str, root, etree) -> bytes:
+    if _is_hwpml_root_part(path) and _local_name(root) in {"sec", "head"}:
+        wrapped = etree.Element(root.tag, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+        wrapped.attrib.update(root.attrib)
+        wrapped.text = root.text
+        wrapped.tail = root.tail
+        for child in root:
+            wrapped.append(child)
+        return etree.tostring(
+            wrapped,
+            encoding="UTF-8",
+            xml_declaration=True,
+            standalone=True,
+        )
+    return etree.tostring(
+        root,
+        encoding="utf-8",
+        xml_declaration=True,
+        standalone=None,
+    )
+
+
+def normalize_hwpml_root_bytes(path: str, data: bytes) -> bytes:
+    """Normalize section/header root declarations when the payload is parseable XML."""
+
+    if not _is_hwpml_root_part(path):
+        return data
+    try:
+        from lxml import etree  # type: ignore
+    except Exception:
+        return data
+    try:
+        root = etree.fromstring(data)
+    except Exception:
+        return data
+    if _local_name(root) not in {"sec", "head"}:
+        return data
+    return _serialize_xml_part(path, root, etree)
+
+
+def fix_namespaces(
+    in_hwpx: str,
+    out_hwpx: str,
+) -> dict:
     """Normalize namespace declarations by parsing+serializing XML parts.
 
     Returns stats:
@@ -51,6 +127,25 @@ def fix_namespaces(in_hwpx: str, out_hwpx: str) -> dict:
         "xml_failed": int,
       }
     """
+
+    final_hwpx = os.path.abspath(out_hwpx)
+    temp_dir = os.path.dirname(final_hwpx) or os.getcwd()
+    temp_hwpx = _make_temp_hwpx_path(temp_dir, "hwpx-ns-")
+    try:
+        stats = _fix_namespaces_unchecked(in_hwpx, temp_hwpx)
+        validate_open_safety(temp_hwpx)
+        os.replace(temp_hwpx, final_hwpx)
+        return stats
+    except BaseException:
+        try:
+            os.unlink(temp_hwpx)
+        except OSError:
+            pass
+        raise
+
+
+def _fix_namespaces_unchecked(in_hwpx: str, out_hwpx: str) -> dict:
+    """Write a namespace-normalized ZIP without replacing a user target."""
 
     # Import lazily so --help works without lxml installed.
     try:
@@ -74,12 +169,7 @@ def fix_namespaces(in_hwpx: str, out_hwpx: str) -> dict:
                     try:
                         # lxml accepts bytes; keep encoding as UTF-8 on output.
                         root = etree.fromstring(data)
-                        data2 = etree.tostring(
-                            root,
-                            encoding="utf-8",
-                            xml_declaration=True,
-                            standalone=None,
-                        )
+                        data2 = _serialize_xml_part(item.filename, root, etree)
                         if data2 != data:
                             stats["xml_fixed"] += 1
                         data = data2
@@ -91,6 +181,30 @@ def fix_namespaces(in_hwpx: str, out_hwpx: str) -> dict:
                 zout.writestr(_clone_zipinfo(item, force_stored=force_stored), data)
 
     return stats
+
+
+def validate_open_safety(hwpx_path: str) -> None:
+    """Raise when a generated HWPX should not replace an editor-openable file."""
+
+    try:
+        from hwpx.tools.package_validator import validate_editor_open_safety
+    except Exception as exc:
+        raise RuntimeError(
+            "python-hwpx>=2.10.3 is required for HWPX open-safety validation"
+        ) from exc
+
+    report = validate_editor_open_safety(hwpx_path)
+    if not report.ok:
+        raise RuntimeError(
+            "generated HWPX failed open-safety validation: " + report.summary
+        )
+
+
+def _make_temp_hwpx_path(directory: str, prefix: str) -> str:
+    os.makedirs(directory, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(prefix=prefix, suffix=".hwpx", dir=directory)
+    os.close(fd)
+    return temp_path
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -134,15 +248,19 @@ def main(argv: list[str]) -> int:
         print(f"[ERR] not a ZIP file (invalid HWPX): {in_hwpx}", file=sys.stderr)
         return 3
 
-    if args.inplace:
-        out_hwpx = in_hwpx + ".ns_tmp.hwpx"
-    else:
-        out_hwpx = os.path.abspath(args.out or (in_hwpx + ".fixed.hwpx"))
+    final_hwpx = in_hwpx if args.inplace else os.path.abspath(args.out or (in_hwpx + ".fixed.hwpx"))
+    temp_dir = os.path.dirname(final_hwpx) or os.getcwd()
+    out_hwpx = _make_temp_hwpx_path(temp_dir, "hwpx-ns-")
 
     try:
-        stats = fix_namespaces(in_hwpx, out_hwpx)
+        stats = _fix_namespaces_unchecked(in_hwpx, out_hwpx)
+        validate_open_safety(out_hwpx)
     except Exception as e:
         print(f"[ERR] failed: {e}", file=sys.stderr)
+        try:
+            os.unlink(out_hwpx)
+        except OSError:
+            pass
         return 1
 
     if args.inplace:
@@ -150,10 +268,11 @@ def main(argv: list[str]) -> int:
             bak = in_hwpx + ".bak"
             shutil.copy2(in_hwpx, bak)
             print(f"[OK] backup: {bak}")
-        os.replace(out_hwpx, in_hwpx)
+        os.replace(out_hwpx, final_hwpx)
         print(f"[OK] wrote (inplace): {in_hwpx}")
     else:
-        print(f"[OK] wrote: {out_hwpx}")
+        os.replace(out_hwpx, final_hwpx)
+        print(f"[OK] wrote: {final_hwpx}")
 
     print(
         "[STATS] "
