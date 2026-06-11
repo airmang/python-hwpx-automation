@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-06-12
+### Changed
+- SKILL.md를 390줄 매뉴얼 합본에서 99줄 케이스→경로 라우터(단일 라우팅 표 39행)로 재구성 — 발화당 컨텍스트 비용 약 67% 절감. 상세 워크플로는 `references/workflows-{editing,creation,forms,bulk-compare}.md`와 `references/evidence-contract.md`로 분리(증거 계약 4회 중복 → 1곳).
+- 2.4.0 도구 표면 중 미안내였던 19종(트랜잭션 편집 `apply_edits`·`undo_last_edit`·revision 가드, 서식 편집 5종, 그림 2종, 신구대조 2종, 고급 생성기 3종, `get_document_map`, `byte_preserving_patch`)의 교육을 추가하고 편집 표준 루프를 1급 케이스로 승격.
+- 평가 하니스 guidance 채점을 프로파일 태그 자기신고에서 스킬 번들 본문 검증으로 전환(태그만으로 통과 불가, 단위 테스트 보증). 평가 태스크 32→42개. 신 번들 42/42 vs 0.1.6 33/42 vs 0.1.5 25/42.
+
 ## [0.1.7] - 2026-06-12
 ### Changed
 - 플러그인 런처를 `hwpx-mcp-server==2.4.0`(+ `python-hwpx>=2.11.0`)으로 핀 갱신 — 신뢰 루프(트랜잭션 편집·렌더 프리뷰·revision 가드)·서식 편집·누름틀·공문서 lint·고급 생성기·메일머지·서식 이식 도구 전체가 설치 플러그인에 노출된다 (배포 스큐 해소).

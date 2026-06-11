@@ -42,7 +42,7 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     report = task_eval_harness.run(
         ROOT / "examples" / "eval_tasks" / "tasks.json",
         [
-            ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.8-dev.json",
+            ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.8.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
         ],
@@ -52,7 +52,7 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     )
 
     current, previous, baseline = report["profiles"]
-    assert current["profileId"] == "current-0.1.8-dev"
+    assert current["profileId"] == "current-0.1.8"
     assert current["passed"] == report["taskCount"]
     assert previous["profileId"] == "current-0.1.6"
     assert previous["failed"] > 0

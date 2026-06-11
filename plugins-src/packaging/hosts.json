@@ -32,7 +32,7 @@
     "examples/13_advanced_generators.py",
     "examples/14_mail_merge_table_compute.py",
     "examples/eval_tasks/tasks.json",
-    "examples/eval_tasks/profiles/current-0.1.8-dev.json",
+    "examples/eval_tasks/profiles/current-0.1.8.json",
     "examples/eval_tasks/profiles/current-0.1.6.json",
     "examples/eval_tasks/profiles/baseline-0.1.5.json",
     "scripts/fix_namespaces.py",
@@ -78,7 +78,7 @@
       "id": "hermes",
       "outputDir": "plugins/hermes/hwpx",
       "skillSubdir": ".",
-      "frontmatterExtra": "version: 0.1.7\nauthor: Kohkyuhyun\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
+      "frontmatterExtra": "version: 0.1.8\nauthor: Kohkyuhyun\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
       "manifests": [],
       "mcp": { "strategy": "config-doc", "template": "templates/hermes.mcp-install.md", "dest": "INSTALL-mcp.md" },
       "bundleLauncher": false

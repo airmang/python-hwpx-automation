@@ -6,7 +6,7 @@ before manual HWPX viewer review.
 ```bash
 python3 scripts/task_eval_harness.py \
   --tasks examples/eval_tasks/tasks.json \
-  --profile examples/eval_tasks/profiles/current-0.1.8-dev.json \
+  --profile examples/eval_tasks/profiles/current-0.1.8.json \
   --profile examples/eval_tasks/profiles/current-0.1.6.json \
   --profile examples/eval_tasks/profiles/baseline-0.1.5.json \
   --output examples/out/task_eval_report.json \

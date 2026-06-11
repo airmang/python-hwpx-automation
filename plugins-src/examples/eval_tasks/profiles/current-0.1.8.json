@@ -1,8 +1,8 @@
 {
   "schemaVersion": "hwpx.task-eval-profile.v1",
-  "id": "current-0.1.8-dev",
+  "id": "current-0.1.8",
   "label": "S-053 skill-router bundle (in development)",
-  "pluginVersion": "0.1.8-dev",
+  "pluginVersion": "0.1.8",
   "availableTools": ["*"],
   "brokenTools": [],
   "guidanceTags": [

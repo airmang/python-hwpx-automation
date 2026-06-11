@@ -117,7 +117,7 @@ def test_task_eval_harness_assets_are_bundled() -> None:
             / "examples"
             / "eval_tasks"
             / "profiles"
-            / "current-0.1.8-dev.json"
+            / "current-0.1.8.json"
         ).exists()
         assert (
             skill_root
