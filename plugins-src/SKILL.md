@@ -80,6 +80,28 @@ MCP 서버에 `render_preview`가 있으면 레이아웃 민감 작업마다 생
 4. **정부보고서·공문형 보고서를 작성한다**
    붙여넣은 텍스트는 `parse_government_report_text`로 plan v2로 바꾸고, 금액/비율/증감률/날짜는 `compute_report_value`로 계산한다. 생성은 `create_government_report_document(filename, document_plan)`을 사용해 `government_report` preset과 품질 프로필을 자동 적용한다. MCP가 없으면 local Python에서 `create_document_from_plan(plan)`에 `preset="government_report"`인 plan v2를 넘기고 `inspect_document_authoring_quality(..., quality_profile="government_report")`로 확인한다. 예시는 [`examples/10_create_government_report.py`](examples/10_create_government_report.py), [`examples/10_mcp_government_report.md`](examples/10_mcp_government_report.md)를 본다.
 
+4-1. **공문서 작성규정 lint와 결재란을 적용한다**
+   공문, 내부 결재문서, 가정통신문, 회의록, 품의서처럼 행정문서 성격이 강하면 생성 후 `inspect_official_document_style()`을 실행한다. MCP 서버가 있으면 `inspect_official_document_style(filename=...)`를 사용하고, MCP가 없으면 local Python에서 `inspect_official_document_style(path_or_paragraphs)`를 호출한다. 규칙 근거는 [`references/official-document-rules.md`](references/official-document-rules.md)를 본다.
+
+   확인할 항목:
+   - 항목 표시는 `1.` -> `가.` -> `1)` -> `가)` -> `(1)` -> `(가)` 순서를 건너뛰지 않는다.
+   - `끝.` 표시는 마지막 위치에 둔다. 붙임이 있으면 붙임 목록 뒤에 단독 `끝.` 문단을 둔다.
+   - 붙임은 `붙임 1. 세부계획서 1부.`처럼 문서명, 부수, 마침표를 포함한다.
+   - 날짜는 `2026. 6. 11.` 형식을 사용하고, 금액은 `1,000,000원`처럼 천 단위 구분을 둔다.
+   - 콜론과 물음표 앞에는 공백을 두지 않는다.
+
+   결재란은 builder에서는 `approval_box()`를 넣고, document-plan v2에서는 `{"type": "approval_box"}` block을 넣는다. 기본 열은 `기안`, `검토`, `결재`, `전결`이며 서명 영역은 병합 표로 생성된다.
+
+   장르 레시피:
+   - 외부 공문: `approval_box` -> `1. 관련` -> `2. 요청 사항` -> `붙임 ... 1부.` -> `끝.`
+   - 내부 결재문서: `approval_box(labels=["기안", "검토", "결재"], delegated="전결")` -> 점검 개요 -> 조치 계획 -> `끝.`
+   - 가정통신문: 안내 사항 -> 협조 요청 -> 날짜는 `2026. 6. 11.` 표기 -> `끝.`
+   - 회의록: 회의 개요 -> 주요 논의 -> 참석자/일시 문단 -> `끝.`
+   - 구입 품의서: 구입 목적 -> 소요 예산(`1,250,000원`) -> 견적서 붙임 -> `끝.`
+
+   예제 생성과 open-safety/lint 검증:
+   `python3 examples/11_official_document_recipes.py`
+
 5. **운영 계획서를 작성한다**
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화하고, `quality_profile="operating_plan"`을 켠다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `analyze_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `validate_document_plan()`, `create_document_from_plan()`, `inspect_document_authoring_quality(..., quality_profile="operating_plan")`, `inspect_operating_plan_quality()`를 직접 사용한다. `visual_review_required=true`이면 `scripts/visual_review.py` evidence에서 `current.status == "observed_pass"`와 `current.screenshot_path`까지 확인해야 제출 준비 완료라고 말할 수 있다. 예시는 [`examples/07_create_operating_plan.py`](examples/07_create_operating_plan.py), [`examples/07_mcp_operating_plan.md`](examples/07_mcp_operating_plan.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
@@ -262,6 +284,9 @@ python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence 
 - [`references/api.md`](references/api.md)
   `HwpxDocument`, `TextExtractor`, `ObjectFinder`, `HwpxPackage`의 시그니처와 주의사항만 모아둔 API 레퍼런스.
 
+- [`references/official-document-rules.md`](references/official-document-rules.md)
+  공문서 항목 표시, 끝 표시, 붙임, 날짜/금액, 문장부호, 결재란 규칙 근거.
+
 - [`scripts/text_extract.py`](scripts/text_extract.py)
   원커맨드 텍스트 추출 CLI. 에이전트가 가장 먼저 시도하기 좋은 안전한 읽기 경로.
 
@@ -300,6 +325,9 @@ python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence 
 
 - [`examples/10_create_with_builder.py`](examples/10_create_with_builder.py)
   `hwpx.builder`로 머리글/쪽번호, 리치 런, 목록, 병합/음영/열너비 표, 이미지, 페이지 나눔을 포함한 수직 슬라이스를 생성하는 예제.
+
+- [`examples/11_official_document_recipes.py`](examples/11_official_document_recipes.py)
+  외부 공문, 내부 결재문서, 가정통신문, 회의록, 품의서 예제와 open-safety/lint 검증.
 
 ## 실행 전 체크리스트
 

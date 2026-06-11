@@ -7,6 +7,7 @@
   "sharedAssets": [
     "README.md",
     "references/api.md",
+    "references/official-document-rules.md",
     "examples/01_create_and_save.py",
     "examples/02_extract_and_inspect.py",
     "examples/03_template_replace.py",
@@ -20,6 +21,7 @@
     "examples/08_mcp_template_formfit.md",
     "examples/09_visual_review_loop.md",
     "examples/10_create_with_builder.py",
+    "examples/11_official_document_recipes.py",
     "examples/12_task_eval_replay.md",
     "examples/eval_tasks/tasks.json",
     "examples/eval_tasks/profiles/current-0.1.6.json",

@@ -182,6 +182,7 @@ child는 `{"type": "run", "text": "...", "bold": True, ...}` 또는
 - `Bullet`, `NumberedList`
 - `Table`, `Image`
 - `Header`, `Footer`, `PageNumber`, `PageBreak`
+- `approval_box`
 - `BuilderSaveReport`, `ReopenReport`
 
 기본 예시:
@@ -258,6 +259,7 @@ assert report.hard_gates["reopen"] == "pass"
 - `Run(text="", bold=False, italic=False, underline=False, color=None, font=None, size=None, highlight=None, strike=False)`
 - `Paragraph(text="", children=(), align=None)`
 - `Heading(level, text)` where `level` is 1-3
+- `approval_box(labels=None, approver_rows=2, delegated=None) -> Table`
 - `Bullet(items, level=0)`
 - `NumberedList(items, level=0)`
 - `Table(header=(), rows=(), merges=(), header_shading=None, column_widths=())`
@@ -555,6 +557,7 @@ assert validate_editor_open_safety("agent-plan.hwpx").ok is True
 - `create_document_from_plan(plan, *, preset="standard_korean_business") -> HwpxDocument`
 - `inspect_document_authoring_quality(source, *, plan=None, quality_profile=None) -> dict`
 - `inspect_operating_plan_quality(source, *, plan=None, profile=None) -> dict`
+- `inspect_official_document_style(source) -> dict`
 
 `PlanValidationReport.to_dict()` 주요 필드:
 
