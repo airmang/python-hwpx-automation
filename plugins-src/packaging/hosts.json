@@ -7,7 +7,13 @@
   "sharedAssets": [
     "README.md",
     "references/api.md",
+    "references/evidence-contract.md",
+    "references/government-report-visual-review.md",
     "references/official-document-rules.md",
+    "references/workflows-bulk-compare.md",
+    "references/workflows-creation.md",
+    "references/workflows-editing.md",
+    "references/workflows-forms.md",
     "examples/01_create_and_save.py",
     "examples/02_extract_and_inspect.py",
     "examples/03_template_replace.py",

@@ -24,6 +24,7 @@
 - Document plan authoring
 - Template form-fit authoring
 - Mail merge and table compute
+- MCP 편집·서식·생성 도구 시그니처
 - 예외와 주의사항
 
 ## 설치와 기본 import
@@ -160,7 +161,7 @@ with HwpxDocument.open("input.hwpx") as doc:
 쪽번호가 필요한 머리글/바닥글은 `hwpx.builder` 또는 아래 facade 메서드를 사용한다.
 자동화 경로에서는 적용 후 결과 파일을 다시 열어 확인하는 방식으로 쓴다.
 
-S-013 facade 확장:
+2.11.0 facade 확장:
 
 - `set_header_content(content, *, section_index=0) -> None`
 - `set_footer_content(content, *, section_index=0) -> None`
@@ -293,8 +294,8 @@ Hard gate 해석:
 
 `feature_flags`는 생성에 사용된 기능을 기록한다. `header_footer`, `page_number`,
 `table`, `image`, `page_break` 같은 layout-sensitive 기능이 있으면 기본적으로
-`visual_review_required=True`가 된다. 이 경우 최종 제출 가능 상태를 주장하려면
-`scripts/visual_review.py`로 `observed_pass` evidence와 screenshot을 남긴다.
+`visual_review_required=True`가 된다. 이 경우 최종 제출 가능 주장 요건은
+[`evidence-contract.md`](evidence-contract.md)를 따른다.
 
 검증 예시:
 
@@ -569,6 +570,37 @@ MCP 응답에서 확인할 필드:
 
 복구 후에도 최종 제출/납품 전에는 가능하면 Hancom Office HWP 또는 사용 가능한 viewer에서 실제 열람한다.
 
+## MCP 편집·서식·생성 도구 시그니처
+
+`hwpx-mcp-server` 2.4.0의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약.
+사용 절차는 `workflows-editing.md` / `workflows-bulk-compare.md`를 본다. 모든 쓰기
+도구의 응답에는 `openSafety`, `verificationReport`, `document_revision`이 들어가고,
+`dry_run`/`expected_revision`을 지원한다(별도 표기 없으면 공통).
+
+| 도구 | 시그니처 (주요 인자) | 핵심 응답 키 |
+|---|---|---|
+| `apply_edits` | `(filename, operations, dry_run, expected_revision, idempotency_key)` | `ok`, `rolledBack`, `operationsApplied`, `operationResults[]`, `semanticDiff` |
+| `undo_last_edit` | `(filename)` | `restored`, `backupPath`, `openSafety`, `semanticDiff` |
+| `byte_preserving_patch` | `(filename, patches=[{sectionPath, paragraphIndex, text}], output)` | `changedParts[]`, `byteIdentical`, `skipped[]`, `openSafety` |
+| `set_paragraph_format` | `(filename, paragraph_index|paragraph_indexes, alignment, line_spacing_percent, indent_left_mm, indent_right_mm, first_line_indent_mm, spacing_before_pt, spacing_after_pt, outline_level)` | 적용 결과 + `openSafety` |
+| `set_page_setup` | `(filename, paper_size, width_mm, height_mm, orientation, margins_mm|margin_*_mm, header_margin_mm, footer_margin_mm, gutter_mm, columns, column_gap_mm, section_index)` | `pageSize.{width,height}`, `openSafety` |
+| `set_header_footer` | `(filename, kind="header"|"footer", text|content, section_index, page_type="BOTH")` | `headerFooter.{kind,pageType,id,text,pageNumberCount}` |
+| `set_page_number` | `(filename, target="footer", format="page"|"page/total", align, position, prefix, suffix, format_type, section_index)` | `headerFooter.pageNumberCount` |
+| `set_list_format` | `(filename, paragraph_index|paragraph_indexes, kind="bullet"|"number", level, bullet_char, number_format, start)` | 적용 결과 + `openSafety` |
+| `insert_picture` | `(filename, image_base64, image_format, width_mm, height_mm, section_index, align, output)` | `picture.binaryItemIDRef`, `pictureReferences[]`, `idIntegrity.ok` |
+| `replace_picture` | `(filename, image_base64, image_format, picture_index, binary_item_id_ref, remove_orphaned, output)` | `replacement.{geometryPreserved, old_binaryItemIDRef, new_binaryItemIDRef, removedOldImage}` |
+| `doc_diff` | `(old_filename, new_filename | old_paragraphs, new_paragraphs)` | `summary.counts.{changed, added, ...}` (읽기 전용) |
+| `create_comparison_table_document` | `(filename, old_*|new_*, title="신구대조표", include_equal, verbosity)` | `created`, `document_plan`, `plan_validation`, `verification.openSafety.ok` |
+| `build_image_grid` | `(images=[{path, caption}], columns, image_width_mm, title="사진대지")` | `block`, `document_plan`, `next_tool="create_document_from_plan"` |
+| `build_meeting_nameplates` | `(names, size="150x70", columns, title)` | `block`, `document_plan`, `next_tool` |
+| `build_organization_chart` | `(hierarchy={name, children}, max_depth, title)` | `block`, `document_plan`, `next_tool` |
+| `get_document_map` | `(filename, max_preview_chars=80)` | `info`, `outline`, `sections[]`, `tables`, `formFields`, `anchors`, `document_revision` (읽기 전용) |
+
+`document_revision` 개념: 모든 응답의 `document_revision`(`"sha256:..."`)은 낙관적
+동시성 토큰이다. 쓰기 도구에 `expected_revision`으로 넘기면 외부 변경 시
+`reason: "document revision mismatch"`로 차단된다. `idempotency_key`는
+`apply_edits`/`search_and_replace`/`batch_replace`의 중복 적용 방지 키다.
+
 ## 예외와 주의사항
 
 ```python
@@ -800,109 +832,9 @@ handoff 기준:
 
 ### Visual review evidence
 
-운영 계획서 품질 검사 또는 template form-fit 결과에서 `visual_review_required=True`가
-나오면, 파일 단위 검증만으로는 최종 제출 가능 상태를 주장하지 않는다.
-ComputerUse 또는 사람이 HWPX viewer에서 문서를 연 뒤 `scripts/visual_review.py`로
-`hwpx.visual-review.v1` evidence를 남긴다. `--viewer`는 `auto`, `none`,
-`command:open` 같은 viewer 실행 방식이고, ComputerUse는 `--method computer-use`로
-기록하는 관찰 방법이다.
-
-viewer가 없는 CI/컨테이너에서는 blocked fallback을 기록한다.
-
-```bash
-python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence examples/out/09_visual_review_fallback.json --viewer none --status blocked --notes "No HWPX viewer is available in this environment." --layout-risk "Rendered page breaks and table fit require opened-document review."
-```
-
-로컬 viewer 또는 ComputerUse로 확인한 경우:
-
-```bash
-python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence examples/out/09_visual_review_pass.json --viewer auto --method computer-use --status observed_pass --screenshot examples/out/09_visual_review_page1.png --notes "Opened in local HWPX viewer. Tables fit, page breaks are acceptable, and no clipped placeholders were visible."
-```
-
-허용 상태는 `observed_pass`, `needs_review`, `blocked`뿐이다. 최종 제출 가능
-시각 검토 주장은 `current.status == "observed_pass"`이고
-`current.screenshot_path`가 있으며 `summary.ready_for_submission_claim == true`인
-evidence에서만 허용한다. `observed_pass`에는 `--screenshot`이 필수이며,
-`--observation`만으로는 최종 제출 가능 상태가 아니다.
-`needs_review`는 재생성 또는 레이아웃 보완이 필요하고, `blocked`는 viewer가 없어
-열린 문서 검토가 남았다는 뜻이다. 공통 handoff 경로는 `current.timestamp`,
-`current.tool_path`, `current.screenshot_path`, `summary.ready_for_submission_claim`이며,
-viewer unavailable/disabled/failure fallback에는 `current.fallback_reason`이 추가된다.
-
-`iterations[]`는 같은 target checksum에 대해 같은 evidence 파일을 다시 쓸 때만
-이전 `current`가 이동되어 누적된다. 재생성된 HWPX는 path 또는 checksum이 달라질 수
-있으므로 새 evidence 파일을 쓰고 `--regenerated-from`에 이전 evidence 경로를 넣어
-연결한다. 이 연결은 추적성만 제공하며, 이전 JSON을 새 evidence의 `iterations[]`로
-병합하지 않는다.
-
-```bash
-python3 scripts/visual_review.py examples/out/07_operating_plan_regenerated.hwpx --evidence examples/out/09_visual_review_pass_after_regen.json --viewer command:open --method computer-use --status observed_pass --screenshot examples/out/09_visual_review_regenerated_page3.png --notes "Regenerated from the overflow evidence. Budget table now fits on page 3." --regenerated-from examples/out/09_visual_review_needs_review.json
-```
-
-Evidence schema:
-
-```json
-{
-  "schemaVersion": "hwpx.visual-review.v1",
-  "target": {
-    "path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/examples/out/07_operating_plan.hwpx",
-    "name": "07_operating_plan.hwpx",
-    "size_bytes": 123456,
-    "mtime": "2026-05-30T12:00:00Z",
-    "sha256": "hex-encoded-sha256"
-  },
-  "quality": {
-    "available": true,
-    "report_version": "operating-plan-quality-v1",
-    "status": "ready",
-    "score": 5.0,
-    "pass": true,
-    "gaps": [],
-    "repair_hints": [],
-    "visual_review_required": true
-  },
-  "viewer": {
-    "mode": "auto",
-    "available": true,
-    "command": "open",
-    "launched": false
-  },
-  "current": {
-    "iteration": 2,
-    "status": "observed_pass",
-    "timestamp": "2026-05-30T12:00:00Z",
-    "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/scripts/visual_review.py",
-    "review_method": "computer-use-or-human-viewer",
-    "screenshot_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/examples/out/09_visual_review_page1.png",
-    "observations": [
-      "Tables fit, page breaks are acceptable, and no clipped placeholders were visible."
-    ],
-    "layout_risks": [],
-    "notes": "Opened in local HWPX viewer.",
-    "regenerated_from": ""
-  },
-  "iterations": [
-    {
-      "iteration": 1,
-      "status": "blocked",
-      "timestamp": "2026-05-30T11:50:00Z",
-      "tool_path": "/Users/wilycastle/Code/projects/hwpx/hwpx-plugins/scripts/visual_review.py",
-      "review_method": "computer-use-or-human-viewer",
-      "screenshot_path": null,
-      "observations": [],
-      "layout_risks": ["Rendered page breaks and table fit require opened-document review."],
-      "notes": "No HWPX viewer is available in this environment.",
-      "regenerated_from": "",
-      "fallback_reason": "viewer disabled by --viewer none"
-    }
-  ],
-  "summary": {
-    "resolved_visual_review_required": "observed_pass",
-    "ready_for_submission_claim": true,
-    "residual_layout_risk_count": 0
-  }
-}
-```
+visual-review v1 증거 계약(상태 규칙, screenshot 요건, blocked fallback, 재생성 연결,
+`ready_for_submission_claim`)은 [`evidence-contract.md`](evidence-contract.md) 한 곳에만
+있다. `visual_review_required=true`가 나오면 그 문서의 요건을 따른다.
 
 ## Multi-host plugin bundles
 
