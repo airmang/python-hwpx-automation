@@ -23,6 +23,7 @@
     "examples/10_create_with_builder.py",
     "examples/11_official_document_recipes.py",
     "examples/12_task_eval_replay.md",
+    "examples/13_advanced_generators.py",
     "examples/eval_tasks/tasks.json",
     "examples/eval_tasks/profiles/current-0.1.6.json",
     "examples/eval_tasks/profiles/baseline-0.1.5.json",
