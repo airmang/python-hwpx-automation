@@ -86,6 +86,9 @@ MCP 서버에 `render_preview`가 있으면 레이아웃 민감 작업마다 생
 6. **승인된 양식을 보존하며 운영 계획서를 채운다**
    사용자가 특정 HWPX 양식이나 P6 기준선 기반 운영 계획서 작성을 요청하면 document-plan 새 문서 생성보다 template form-fit 경로를 우선한다. MCP 서버가 있으면 `analyze_template_formfit`으로 원본이 변하지 않았고 `unresolved_count == 0`인지 확인한 뒤, `apply_template_formfit(confirm=True)`로 원본과 다른 destination에만 적용한다. 결과에서 `source.preserved`, `validation.validate_package.ok`, `validation.validate_document.ok`, `validation.openSafety.ok`, `residual_markers.blocking == []`를 확인한다. `visual_review_required=True`이면 최종 제출 전 열린 문서/사람 검토 evidence가 필요하며, `current.status == "observed_pass"`가 아니거나 `current.screenshot_path`가 없으면 최종 제출 가능 상태라고 주장하지 않는다. 예시는 [`examples/08_template_formfit.py`](examples/08_template_formfit.py), [`examples/08_mcp_template_formfit.md`](examples/08_mcp_template_formfit.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
 
+6-1. **누름틀/FORM 양식을 채운다**
+   기존 HWPX 양식에 한글 누름틀 또는 FORM field가 있을 수 있으면 표 라벨 추론 전에 `list_form_fields`를 먼저 호출한다. 필드가 있으면 `fill_form_field` 또는 `analyze_form_fill`의 `kind="form-field"` 매핑을 우선 사용한다. `analyze_form_fill` 결과의 `confidenceGrade`가 `label-exact`이면 바로 진행할 수 있지만, `label-fuzzy` 또는 `position-guess`이면 적용 전에 사용자 확인을 받는다. `formFields.available=false`와 `fallback="table-label"`이 명시된 문서만 기존 표 라벨 경로로 처리한다.
+
 7. **자연어 요청으로 새 문서를 완성한다**
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화한다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `create_document_from_plan()`을 직접 사용한다. 예시는 [`examples/06_create_from_document_plan.py`](examples/06_create_from_document_plan.py)를 본다.
 
@@ -103,7 +106,7 @@ MCP 서버에 `render_preview`가 있으면 레이아웃 민감 작업마다 생
 ### 1) 가정통신문·공문·한글 양식 작성
 
 - 새 파일이면 `HwpxDocument.new()`로 시작한다.
-- 기존 양식을 채우는 작업이면 템플릿을 열고 문단과 표를 수정한다.
+- 기존 양식을 채우는 작업이면 먼저 `list_form_fields`로 누름틀/FORM 필드를 확인한다. 필드가 있으면 `fill_form_field` 또는 `analyze_form_fill`의 form-field 매핑을 우선하고, 필드가 없을 때만 표/문단을 수정한다.
 - 표 셀 입력은 `doc.add_table(...)`의 반환값에서 `set_cell_text(...)`를 호출한다.
 - 저장은 `save_to_path(path)`를 사용한다. `save()`는 deprecated wrapper다.
 
@@ -201,11 +204,12 @@ python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence 
 
 사용자가 승인된 AI 융합형 교육실 운영계획서 양식, P6 baseline, 또는 “기존 양식 그대로 채워줘”라고 요청하면 원본 양식을 직접 수정하지 않는다.
 
-1. 기준선 JSON과 구조화된 content를 준비한다.
-2. MCP 서버가 있으면 `analyze_template_formfit(source_filename, baseline, content, destination_filename)`을 먼저 호출한다.
-3. `mutated=false`, `source.unchanged_after_analysis=true`, `unresolved_count=0`이 아니면 apply하지 않는다.
-4. `apply_template_formfit(analysis=..., confirm=true)`를 호출한다.
-5. handoff 전 evidence를 확인한다:
+1. 먼저 `list_form_fields`로 누름틀/FORM 필드를 확인한다. 필드가 있으면 native field 채움 경로를 우선하고, `analyze_form_fill`의 `confidenceGrade`가 `label-fuzzy` 또는 `position-guess`인 항목은 사용자 확인 없이는 적용하지 않는다.
+2. 기준선 JSON과 구조화된 content를 준비한다.
+3. MCP 서버가 있으면 `analyze_template_formfit(source_filename, baseline, content, destination_filename)`을 먼저 호출한다.
+4. `mutated=false`, `source.unchanged_after_analysis=true`, `unresolved_count=0`이 아니면 apply하지 않는다.
+5. `apply_template_formfit(analysis=..., confirm=true)`를 호출한다.
+6. handoff 전 evidence를 확인한다:
    - `handoff_status == "ready"`
    - `source.preserved == true`
    - `validation.validate_package.ok == true`
@@ -213,7 +217,7 @@ python3 scripts/visual_review.py examples/out/07_operating_plan.hwpx --evidence 
    - `validation.openSafety.ok == true`
    - `residual_markers.blocking == []`
    - file-only `inspect_operating_plan_quality(destination).status == "ready"` 또는 남은 gap이 제출 전 수동 보완 가능하다는 근거
-6. `visual_review_required=true`이면 `scripts/visual_review.py` evidence 또는 ComputerUse/사람이 연 문서 검토 evidence를 남긴다. evidence `schemaVersion == "hwpx.visual-review.v1"`이고 `current.status == "observed_pass"`이며 `current.screenshot_path`가 있을 때만 최종 제출 가능 상태라고 말한다. `--observation`만으로는 부족하다. HWPX viewer가 없으면 `--viewer none --status blocked` fallback evidence를 남기고, 열린 문서 검토가 필요하다고 handoff한다.
+7. `visual_review_required=true`이면 `scripts/visual_review.py` evidence 또는 ComputerUse/사람이 연 문서 검토 evidence를 남긴다. evidence `schemaVersion == "hwpx.visual-review.v1"`이고 `current.status == "observed_pass"`이며 `current.screenshot_path`가 있을 때만 최종 제출 가능 상태라고 말한다. `--observation`만으로는 부족하다. HWPX viewer가 없으면 `--viewer none --status blocked` fallback evidence를 남기고, 열린 문서 검토가 필요하다고 handoff한다.
 
 예제:
 - [`examples/08_template_formfit.py`](examples/08_template_formfit.py)
