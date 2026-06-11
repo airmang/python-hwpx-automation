@@ -22,6 +22,7 @@
 - `HwpxPackage`
 - Document plan authoring
 - Template form-fit authoring
+- Mail merge and table compute
 - 예외와 주의사항
 
 ## 설치와 기본 import
@@ -318,6 +319,94 @@ builder가 사용하는 신규 facade 메서드는 직접 XML을 조작하지 �
 - `table.merge_cells("A2:A3")`
 - `table.set_cell_shading(row_index, col_index, "EAF1FB")`
 - `table.set_column_widths([2, 3, 1])`
+
+## Mail merge and table compute
+
+### 메일머지 대량생산
+
+템플릿 HWPX 1개와 CSV/JSON/행 데이터로 여러 산출물을 만들 때 사용한다. 지원
+placeholder 형식은 `{{field}}`, `${field}`, `<<field>>`다.
+
+```python
+from hwpx import inspect_mail_merge_placeholders, mail_merge
+
+placeholders = inspect_mail_merge_placeholders("template.hwpx")
+assert "student" in placeholders["keys"]
+
+report = mail_merge(
+    "template.hwpx",
+    [{"student": "김하나", "class_name": "1-1", "teacher": "이교사"}],
+    output_dir="out/notices",
+    filename_pattern="{index:03d}-{student}.hwpx",
+    zip_path="out/notices.zip",
+)
+
+assert report["createdCount"] == report["rowCount"]
+assert report["openSafety"]["ok"]
+```
+
+MCP가 있으면 `mail_merge(template_filename, data_rows=...|data_filename=..., output_dir=..., filename_pattern=..., zip_filename=...)`를 호출한다.
+확인할 반환값:
+
+- `createdCount`, `rowCount`, `rowsWithIssues`
+- `rows[].missingKeys`
+- `rows[].unresolvedPlaceholders`
+- `rows[].openSafety.ok`
+- `verification.openSafety.checkedCount`
+- `zip.entryCount`
+
+`strict=false`가 기본값이다. 결측 데이터가 있어도 산출물을 만들고 row report에
+문제를 남긴다. 결측 행 생성을 막아야 하면 `strict=true`를 사용한다.
+
+### 일반 표 계산
+
+`table_compute()`는 plan v2 table(`header`/`rows`), plan v1 table
+(`columns`/`rows`), list-of-dicts 표를 받아 합계·평균·소계 행/열을 추가한다.
+
+```python
+from hwpx import table_compute
+
+result = table_compute(
+    {
+        "type": "table",
+        "columns": [
+            {"key": "dept", "label": "부서"},
+            {"key": "item", "label": "항목"},
+            {"key": "amount", "label": "금액"},
+        ],
+        "rows": [
+            {"dept": "교육", "item": "연수", "amount": "1,000"},
+            {"dept": "교육", "item": "교재", "amount": "500"},
+        ],
+    },
+    value_columns=["amount"],
+    operations=["subtotal", "sum", "average"],
+    group_by="dept",
+    label_column="item",
+)
+
+computed_table = result["computedTable"]
+evidence = result["evidence"]
+```
+
+주요 옵션:
+
+- `value_columns`: 계산할 열 key/label/index. 생략하면 숫자 열을 자동 탐지한다.
+- `operations`: `sum`, `average`, `subtotal`.
+- `append`: `rows`, `columns`, `both`.
+- `group_by`: `subtotal` 기준 열.
+- `label_column`: 합계/평균/소계 label을 넣을 열.
+- `labels`: 기본 label을 바꿀 때 사용한다. 예: `{"sum": "총계"}`.
+
+반환된 `computedTable`은 document-plan table block으로 다시 사용할 수 있다.
+`evidence[]`는 operation, axis, source columns/rows, source value count, result를
+기록하므로 handoff나 검산 근거로 남긴다.
+
+검증 예시:
+
+```bash
+python3 examples/14_mail_merge_table_compute.py
+```
 
 ## TextExtractor
 
