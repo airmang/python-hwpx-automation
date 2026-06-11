@@ -84,11 +84,11 @@ python3 -m pip install -U python-hwpx lxml
 
 현재 권장 기준:
 - Python 3.10+
-- 기본 편집 최소 호환 기준: `python-hwpx >= 2.10.3`
-- document-plan 생성 권장 기준: `python-hwpx >= 2.10.3`
+- 기본 편집 최소 호환 기준: `python-hwpx >= 2.11.0`
+- document-plan 생성 권장 기준: `python-hwpx >= 2.11.0`
 - builder 생성 권장 기준: `python-hwpx` S-013 builder core 포함 버전 또는 로컬 checkout
 - repair/recover 권장 기준: `python-hwpx` main 또는 해당 기능이 포함된 릴리스
-- 최근 로컬 검증 기준: `python-hwpx 2.10.3 + editor-open safety guard`
+- 최근 로컬 검증 기준: `python-hwpx 2.11.0 + editor-open safety guard`
 
 ## 5분 성공 확인
 
@@ -161,7 +161,7 @@ uv run --with lxml --with-editable ../python-hwpx python scripts/quickcheck.py -
 Host differences (frontmatter, manifests, MCP wiring, skill paths) are declared in
 `packaging/hosts.json` with templates in `packaging/templates/`. The MCP launcher prefers local
 sibling checkouts (`../hwpx-mcp-server`, `../python-hwpx`), honors `HWPX_MCP_SERVER_REPO` /
-`PYTHON_HWPX_REPO`, and otherwise installs `hwpx-mcp-server==2.3.5` into a plugin-local venv
+`PYTHON_HWPX_REPO`, and otherwise installs `hwpx-mcp-server==2.4.0` into a plugin-local venv
 on first MCP start before running it.
 
 Claude Code installs via `claude plugin marketplace add airmang/hwpx-plugins` then

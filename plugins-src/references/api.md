@@ -4,12 +4,13 @@
 
 | python-hwpx 버전 | 상태 | 비고 |
 |---|---|---|
-| 2.10.3+ | ✅ 필수 기준 | editor-open safety guard, document validation, reopen 검증, repair/recover evidence 포함 |
+| 2.11.0+ | ✅ 필수 기준 | editor-open safety guard + 트랜잭션 편집·렌더 프리뷰·서식 편집·누름틀·공문서 lint 등 현행 도구 표면 |
+| 2.10.3 | ⚠️ open-safety만 | editor-open safety guard는 있으나 2.11.0 신규 편집·검증 표면 없음 |
 | 2.10.0–2.10.2 | ⚠️ 읽기/일부 편집만 | 일부 생성·저장 경로에 최신 open-safety hard gate가 없을 수 있음 |
 | 2.9.x 이하 | ❌ handoff 금지 | 생성한 HWPX가 편집기에서 열리는지 보장할 수 없으므로 최종 산출물 작성에 사용하지 않음 |
 
 - import 이름: `hwpx`
-- 로컬 실측 버전: `python-hwpx 2.10.3 + editor-open safety guard`
+- 로컬 실측 버전: `python-hwpx 2.11.0 + editor-open safety guard`
 - 최종 산출물을 만들 때는 `validate_editor_open_safety(path).ok == True` 또는 MCP 응답의 `openSafety.ok == true` / `verification.openSafety.ok == true`를 handoff evidence로 남긴다.
 
 ## 목차
@@ -31,7 +32,7 @@
 pip install -U python-hwpx lxml
 ```
 
-최종 HWPX 산출물 작성에는 `python-hwpx >= 2.10.3`이 필요하다. 더 낮은 버전은 읽기/탐색에는 쓸 수 있어도 handoff용 파일 생성에는 사용하지 않는다.
+최종 HWPX 산출물 작성에는 `python-hwpx >= 2.11.0`이 필요하다. 더 낮은 버전은 읽기/탐색에는 쓸 수 있어도 handoff용 파일 생성에는 사용하지 않는다.
 
 ```python
 from hwpx import HwpxDocument, HwpxPackage, ObjectFinder, TextExtractor
@@ -913,8 +914,8 @@ The bundled MCP launcher (`scripts/hwpx-mcp-server` in Claude/Codex bundles) res
 
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
-3. a plugin-local venv populated with `hwpx-mcp-server==2.3.5` on first MCP start
-4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.3.5 hwpx-mcp-server` fallback when `uv` is unavailable
+3. a plugin-local venv populated with `hwpx-mcp-server==2.4.0` on first MCP start
+4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.4.0 hwpx-mcp-server` fallback when `uv` is unavailable
 
 Run `python3 scripts/build_hwpx_plugins.py` after changing `SKILL.md`, `references`, `examples`,
 or skill scripts, then `python3 scripts/validate_hwpx_plugin.py`.

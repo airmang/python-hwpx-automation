@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-06-12
+### Changed
+- 플러그인 런처를 `hwpx-mcp-server==2.4.0`(+ `python-hwpx>=2.11.0`)으로 핀 갱신 — 신뢰 루프(트랜잭션 편집·렌더 프리뷰·revision 가드)·서식 편집·누름틀·공문서 lint·고급 생성기·메일머지·서식 이식 도구 전체가 설치 플러그인에 노출된다 (배포 스큐 해소).
+- SKILL.md·README·api.md의 호환 기준을 `python-hwpx >= 2.11.0`으로 갱신.
+
 ## [0.1.6] - 2026-06-09
 ### Fixed
 - Pin bundled MCP fallback launchers and MCP install docs to `hwpx-mcp-server==2.3.5`, which includes the editor-open safety gate backed by `python-hwpx>=2.10.3`.
