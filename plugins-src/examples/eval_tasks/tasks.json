@@ -1,0 +1,365 @@
+{
+  "schemaVersion": "hwpx.task-replay.v1",
+  "description": "Natural-language task replay specs for the HWPX plugin evaluation harness.",
+  "tasks": [
+    {
+      "id": "gen-01-basic-notice",
+      "family": "generation",
+      "instruction": "Create a short parent notice containing the meeting date.",
+      "startDocument": {"kind": "blank"},
+      "requiredTools": ["create_document", "add_paragraph"],
+      "toolCalls": [
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "Parent meeting: 2026-03-12 at 15:00"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Parent meeting"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-02-heading-agenda",
+      "family": "generation",
+      "instruction": "Create an agenda with a visible heading.",
+      "requiredTools": ["create_document", "add_heading", "add_paragraph"],
+      "toolCalls": [
+        {"tool": "add_heading", "arguments": {"filename": "{document}", "text": "Monthly Agenda", "level": 1}},
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "Review budget and staffing."}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Monthly Agenda"}, {"type": "paragraph_count_min", "value": 2}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-03-budget-table",
+      "family": "generation",
+      "instruction": "Create a budget table with two categories.",
+      "requiredTools": ["create_document", "add_table"],
+      "toolCalls": [
+        {"tool": "add_table", "arguments": {"filename": "{document}", "rows": 2, "cols": 2, "data": [["Supplies", "120"], ["Travel", "300"]]}}
+      ],
+      "oracles": [{"type": "table_count_min", "value": 1}, {"type": "table_cell_equals", "row": 1, "col": 1, "value": "300"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-04-page-break-report",
+      "family": "generation",
+      "instruction": "Create a two-section report separated by a page break.",
+      "requiredTools": ["create_document", "add_paragraph", "add_page_break"],
+      "toolCalls": [
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "Section A summary"}},
+        {"tool": "add_page_break", "arguments": {"filename": "{document}"}},
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "Section B appendix"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Section B appendix"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-05-transaction-create",
+      "family": "generation",
+      "instruction": "Create several document elements in one transaction.",
+      "requiredTools": ["create_document", "apply_edits"],
+      "toolCalls": [
+        {"tool": "apply_edits", "arguments": {"filename": "{document}", "operations": [{"type": "add_paragraph", "text": "Transaction paragraph"}, {"type": "add_table", "rows": 1, "cols": 2, "data": [["Status", "Ready"]]}]}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Transaction paragraph"}, {"type": "table_cell_equals", "row": 0, "col": 1, "value": "Ready"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-06-serial-list",
+      "family": "generation",
+      "instruction": "Create a numbered checklist.",
+      "requiredTools": ["create_document", "add_paragraph"],
+      "toolCalls": [
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "1. Collect forms"}},
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "2. Confirm signatures"}},
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "3. Archive final copy"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Confirm signatures"}, {"type": "paragraph_count_min", "value": 3}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-07-contact-sheet",
+      "family": "generation",
+      "instruction": "Create a contact table for a small project team.",
+      "requiredTools": ["create_document", "add_table", "add_paragraph"],
+      "toolCalls": [
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "Project contacts"}},
+        {"tool": "add_table", "arguments": {"filename": "{document}", "rows": 2, "cols": 3, "data": [["Name", "Role", "Phone"], ["Kim", "Lead", "010"]]}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Project contacts"}, {"type": "table_cell_equals", "row": 1, "col": 1, "value": "Lead"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-08-review-preview",
+      "family": "generation",
+      "instruction": "Generate an HTML preview artifact for quick review.",
+      "requiredGuidance": ["render-preview-review"],
+      "requiredTools": ["create_document", "add_paragraph", "render_preview"],
+      "toolCalls": [
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "Preview me"}},
+        {"tool": "render_preview", "arguments": {"filename": "{document}", "output_dir": "{outputDir}", "screenshot": "off"}}
+      ],
+      "oracles": [{"type": "file_exists", "path": "{outputDir}/manifest.json"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-01-replace-year",
+      "family": "editing",
+      "instruction": "Change the school year from 2025 to 2026.",
+      "startDocument": {"kind": "text", "paragraphs": ["2025 school operating plan"]},
+      "requiredTools": ["create_document", "search_and_replace"],
+      "toolCalls": [
+        {"tool": "search_and_replace", "arguments": {"filename": "{document}", "find_text": "2025", "replace_text": "2026"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "2026 school"}, {"type": "text_not_contains", "value": "2025 school"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-02-batch-dates",
+      "family": "editing",
+      "instruction": "Update two dates in a period string.",
+      "startDocument": {"kind": "text", "paragraphs": ["2025. 3. 1. ~ 2026. 2. 28."]},
+      "requiredTools": ["create_document", "batch_replace"],
+      "toolCalls": [
+        {"tool": "batch_replace", "arguments": {"filename": "{document}", "replacements": [{"find": "2026", "replace": "2027"}, {"find": "2025", "replace": "2026"}]}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "2026. 3. 1. ~ 2027. 2. 28."}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-03-insert-context",
+      "family": "editing",
+      "instruction": "Insert a context paragraph before the conclusion.",
+      "startDocument": {"kind": "text", "paragraphs": ["Intro", "Conclusion"]},
+      "requiredTools": ["create_document", "insert_paragraph"],
+      "toolCalls": [
+        {"tool": "insert_paragraph", "arguments": {"filename": "{document}", "paragraph_index": 1, "text": "Context paragraph"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Context paragraph"}, {"type": "paragraph_count_min", "value": 3}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-04-delete-placeholder",
+      "family": "editing",
+      "instruction": "Remove the placeholder paragraph.",
+      "startDocument": {"kind": "text", "paragraphs": ["Keep this", "DELETE ME"]},
+      "requiredTools": ["create_document", "delete_paragraph"],
+      "toolCalls": [
+        {"tool": "delete_paragraph", "arguments": {"filename": "{document}", "paragraph_index": 2}}
+      ],
+      "oracles": [{"type": "text_not_contains", "value": "DELETE ME"}, {"type": "text_contains", "value": "Keep this"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-05-partial-paragraph",
+      "family": "editing",
+      "instruction": "Replace one word in a single paragraph.",
+      "startDocument": {"kind": "text", "paragraphs": ["The draft status is pending."]},
+      "requiredTools": ["create_document", "replace_in_paragraph"],
+      "toolCalls": [
+        {"tool": "replace_in_paragraph", "arguments": {"filename": "{document}", "paragraph_index": 1, "old_text": "pending", "new_text": "approved"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "approved"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-06-update-table-cell",
+      "family": "editing",
+      "instruction": "Update an existing table cell.",
+      "startDocument": {"kind": "table", "tables": [{"data": [["Item", "Status"], ["A", "Old"]]}]},
+      "requiredTools": ["create_document", "set_table_cell_text"],
+      "toolCalls": [
+        {"tool": "set_table_cell_text", "arguments": {"filename": "{document}", "table_index": 0, "row": 1, "col": 1, "text": "New"}}
+      ],
+      "oracles": [{"type": "table_cell_equals", "row": 1, "col": 1, "value": "New"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-07-transaction-edit",
+      "family": "editing",
+      "instruction": "Apply text and table edits atomically.",
+      "startDocument": {"kind": "text", "paragraphs": ["Phase: draft"]},
+      "requiredGuidance": ["transaction-edits"],
+      "requiredTools": ["create_document", "apply_edits"],
+      "toolCalls": [
+        {"tool": "apply_edits", "arguments": {"filename": "{document}", "operations": [{"type": "replace_text", "findText": "draft", "replaceText": "final"}, {"type": "add_table", "rows": 1, "cols": 2, "data": [["Approved", "Yes"]]}]}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Phase: final"}, {"type": "table_cell_equals", "row": 0, "col": 1, "value": "Yes"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-08-add-review-memo",
+      "family": "editing",
+      "instruction": "Attach a review memo to the first body paragraph.",
+      "startDocument": {"kind": "text", "paragraphs": ["Review target"]},
+      "requiredTools": ["create_document", "add_memo"],
+      "toolCalls": [
+        {"tool": "add_memo", "arguments": {"filename": "{document}", "paragraph_index": 1, "text": "Needs principal review"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Review target"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-01-bold-title",
+      "family": "formatting",
+      "instruction": "Bold the title text.",
+      "startDocument": {"kind": "text", "paragraphs": ["Important Title"]},
+      "requiredTools": ["create_document", "format_text"],
+      "toolCalls": [
+        {"tool": "format_text", "arguments": {"filename": "{document}", "paragraph_index": 1, "start_pos": 0, "end_pos": 15, "bold": true}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Important Title"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-02-red-deadline",
+      "family": "formatting",
+      "instruction": "Color the deadline phrase red.",
+      "startDocument": {"kind": "text", "paragraphs": ["Deadline: Friday"]},
+      "requiredTools": ["create_document", "format_text"],
+      "toolCalls": [
+        {"tool": "format_text", "arguments": {"filename": "{document}", "paragraph_index": 1, "start_pos": 10, "end_pos": 16, "color": "#FF0000"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Friday"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-03-custom-style",
+      "family": "formatting",
+      "instruction": "Create a reusable emphasis style.",
+      "startDocument": {"kind": "text", "paragraphs": ["Styled content"]},
+      "requiredTools": ["create_document", "create_custom_style"],
+      "toolCalls": [
+        {"tool": "create_custom_style", "arguments": {"filename": "{document}", "style_name": "Eval Emphasis", "bold": true, "font_size": 12}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Styled content"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-04-header-row",
+      "family": "formatting",
+      "instruction": "Mark the first table row as a header row.",
+      "startDocument": {"kind": "table", "tables": [{"data": [["Name", "Score"], ["A", "90"]]}]},
+      "requiredTools": ["create_document", "format_table"],
+      "toolCalls": [
+        {"tool": "format_table", "arguments": {"filename": "{document}", "table_index": 0, "has_header_row": true}}
+      ],
+      "oracles": [{"type": "table_count_min", "value": 1}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-05-merge-cells",
+      "family": "formatting",
+      "instruction": "Merge the top row of a table.",
+      "startDocument": {"kind": "table", "tables": [{"data": [["Merged", ""], ["A", "B"]]}]},
+      "requiredTools": ["create_document", "merge_table_cells"],
+      "toolCalls": [
+        {"tool": "merge_table_cells", "arguments": {"filename": "{document}", "table_index": 0, "start_row": 0, "start_col": 0, "end_row": 0, "end_col": 1}}
+      ],
+      "oracles": [{"type": "table_count_min", "value": 1}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-06-split-cells",
+      "family": "formatting",
+      "instruction": "Merge and then split a table cell.",
+      "startDocument": {"kind": "table", "tables": [{"data": [["Merged", ""], ["A", "B"]]}]},
+      "requiredTools": ["create_document", "merge_table_cells", "split_table_cell"],
+      "toolCalls": [
+        {"tool": "merge_table_cells", "arguments": {"filename": "{document}", "table_index": 0, "start_row": 0, "start_col": 0, "end_row": 0, "end_col": 1}},
+        {"tool": "split_table_cell", "arguments": {"filename": "{document}", "table_index": 0, "row": 0, "col": 0}}
+      ],
+      "oracles": [{"type": "table_count_min", "value": 1}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-07-heading-level",
+      "family": "formatting",
+      "instruction": "Create a level-2 heading.",
+      "requiredTools": ["create_document", "add_heading"],
+      "toolCalls": [
+        {"tool": "add_heading", "arguments": {"filename": "{document}", "text": "Subsection", "level": 2}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Subsection"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-08-preview-after-formatting",
+      "family": "formatting",
+      "instruction": "Format a title and produce a preview artifact.",
+      "startDocument": {"kind": "text", "paragraphs": ["Preview Title"]},
+      "requiredGuidance": ["render-preview-review"],
+      "requiredTools": ["create_document", "format_text", "render_preview"],
+      "toolCalls": [
+        {"tool": "format_text", "arguments": {"filename": "{document}", "paragraph_index": 1, "start_pos": 0, "end_pos": 13, "bold": true}},
+        {"tool": "render_preview", "arguments": {"filename": "{document}", "output_dir": "{outputDir}", "screenshot": "off"}}
+      ],
+      "oracles": [{"type": "file_exists", "path": "{outputDir}/manifest.json"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-01-fill-name",
+      "family": "forms",
+      "instruction": "Fill the name field to the right of the Name label.",
+      "startDocument": {"kind": "form"},
+      "requiredTools": ["create_document", "fill_by_path"],
+      "toolCalls": [
+        {"tool": "fill_by_path", "arguments": {"filename": "{document}", "mappings": {"Name > right": "Kim Hana"}}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Kim Hana"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-02-fill-department",
+      "family": "forms",
+      "instruction": "Fill department and date fields.",
+      "startDocument": {"kind": "form"},
+      "requiredTools": ["create_document", "fill_by_path"],
+      "toolCalls": [
+        {"tool": "fill_by_path", "arguments": {"filename": "{document}", "mappings": {"Department > right": "Planning", "Date > right": "2026-06-11"}}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Planning"}, {"type": "text_contains", "value": "2026-06-11"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-03-direct-cell",
+      "family": "forms",
+      "instruction": "Fill a form cell by row and column.",
+      "startDocument": {"kind": "form"},
+      "requiredTools": ["create_document", "set_table_cell_text"],
+      "toolCalls": [
+        {"tool": "set_table_cell_text", "arguments": {"filename": "{document}", "table_index": 0, "row": 3, "col": 1, "text": "450"}}
+      ],
+      "oracles": [{"type": "table_cell_equals", "row": 3, "col": 1, "value": "450"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-04-find-label",
+      "family": "forms",
+      "instruction": "Locate the cell next to the Total label before filling it.",
+      "startDocument": {"kind": "form"},
+      "requiredTools": ["create_document", "find_cell_by_label", "set_table_cell_text"],
+      "toolCalls": [
+        {"tool": "find_cell_by_label", "arguments": {"filename": "{document}", "label_text": "Total", "direction": "right"}},
+        {"tool": "set_table_cell_text", "arguments": {"filename": "{document}", "table_index": 0, "row": 3, "col": 1, "text": "900"}}
+      ],
+      "oracles": [{"type": "table_cell_equals", "row": 3, "col": 1, "value": "900"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-05-transaction-form-fill",
+      "family": "forms",
+      "instruction": "Fill two form values in a transaction.",
+      "startDocument": {"kind": "form"},
+      "requiredGuidance": ["transaction-edits"],
+      "requiredTools": ["create_document", "apply_edits"],
+      "toolCalls": [
+        {"tool": "apply_edits", "arguments": {"filename": "{document}", "operations": [{"type": "set_table_cell_text", "tableIndex": 0, "row": 0, "col": 1, "text": "Lee"}, {"type": "set_table_cell_text", "tableIndex": 0, "row": 1, "col": 1, "text": "Safety"}]}}
+      ],
+      "oracles": [{"type": "table_cell_equals", "row": 0, "col": 1, "value": "Lee"}, {"type": "table_cell_equals", "row": 1, "col": 1, "value": "Safety"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-06-multiline-note",
+      "family": "forms",
+      "instruction": "Write a multi-line note into a form cell.",
+      "startDocument": {"kind": "form"},
+      "requiredTools": ["create_document", "set_table_cell_text"],
+      "toolCalls": [
+        {"tool": "set_table_cell_text", "arguments": {"filename": "{document}", "table_index": 0, "row": 2, "col": 1, "text": "Line one\nLine two", "split_paragraphs": true}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Line one"}, {"type": "text_contains", "value": "Line two"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-07-add-review-memo",
+      "family": "forms",
+      "instruction": "Add a memo to a form document for later review.",
+      "startDocument": {"kind": "form"},
+      "requiredTools": ["create_document", "add_memo"],
+      "toolCalls": [
+        {"tool": "add_memo", "arguments": {"filename": "{document}", "paragraph_index": 0, "text": "Verify form values"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Name"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "form-08-batch-fill-and-replace",
+      "family": "forms",
+      "instruction": "Fill a form value and then normalize its wording.",
+      "startDocument": {"kind": "form"},
+      "requiredTools": ["create_document", "fill_by_path", "search_and_replace"],
+      "toolCalls": [
+        {"tool": "fill_by_path", "arguments": {"filename": "{document}", "mappings": {"Name > right": "Temp User"}}},
+        {"tool": "search_and_replace", "arguments": {"filename": "{document}", "find_text": "Temp User", "replace_text": "Final User"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Final User"}, {"type": "text_not_contains", "value": "Temp User"}, {"type": "open_safety"}]
+    }
+  ]
+}
