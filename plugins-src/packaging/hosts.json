@@ -32,6 +32,7 @@
     "examples/13_advanced_generators.py",
     "examples/14_mail_merge_table_compute.py",
     "examples/eval_tasks/tasks.json",
+    "examples/eval_tasks/profiles/current-0.1.8-dev.json",
     "examples/eval_tasks/profiles/current-0.1.6.json",
     "examples/eval_tasks/profiles/baseline-0.1.5.json",
     "scripts/fix_namespaces.py",
