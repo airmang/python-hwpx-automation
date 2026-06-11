@@ -6,6 +6,7 @@ before manual HWPX viewer review.
 ```bash
 python3 scripts/task_eval_harness.py \
   --tasks examples/eval_tasks/tasks.json \
+  --profile examples/eval_tasks/profiles/current-0.1.8-dev.json \
   --profile examples/eval_tasks/profiles/current-0.1.6.json \
   --profile examples/eval_tasks/profiles/baseline-0.1.5.json \
   --output examples/out/task_eval_report.json \
@@ -31,7 +32,18 @@ older profile may list only known tools, mark `brokenTools`, or omit
 
 - `tool_absent`: a required tool is missing from the profile.
 - `tool_misbehavior`: a tool is marked broken, raises, or fails an oracle.
-- `skill_guidance_gap`: the profile lacks required task guidance.
+- `skill_guidance_gap`: the skill bundle body or the profile lacks required
+  task guidance.
+
+Guidance scoring verifies the **skill bundle body**, not just profile tags:
+every tool a task replays must literally appear in `SKILL.md` +
+`references/*.md` (`--skill-root` overrides the bundle location), and each
+`requiredGuidance` tag maps to keyword groups (`GUIDANCE_BODY_KEYWORDS` in
+`scripts/task_eval_harness.py`) that must also appear in the body. A profile
+tag without body evidence fails with `skill_guidance_gap` plus
+`missingBundleTools`/`missingGuidanceEvidence` details. Oracles can also check
+replayed call payloads with
+`{"type": "call_result_has", "callIndex": N, "key": "..."}`.
 
 To add a case, copy an existing task in `examples/eval_tasks/tasks.json`, keep
 the id stable and descriptive, add at least one oracle that would fail on a

@@ -360,6 +360,132 @@
         {"tool": "search_and_replace", "arguments": {"filename": "{document}", "find_text": "Temp User", "replace_text": "Final User"}}
       ],
       "oracles": [{"type": "text_contains", "value": "Final User"}, {"type": "text_not_contains", "value": "Temp User"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-09-line-spacing-160",
+      "family": "formatting",
+      "instruction": "Set the body paragraph line spacing to 160 percent and center it.",
+      "startDocument": {"kind": "text", "paragraphs": ["Line spacing target"]},
+      "requiredGuidance": ["format-edits"],
+      "requiredTools": ["create_document", "set_paragraph_format"],
+      "toolCalls": [
+        {"tool": "set_paragraph_format", "arguments": {"filename": "{document}", "paragraph_index": 1, "line_spacing_percent": 160, "alignment": "center"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "Line spacing target"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-10-page-setup-margins",
+      "family": "formatting",
+      "instruction": "Switch the page to A4 landscape with custom margins in millimeters.",
+      "startDocument": {"kind": "text", "paragraphs": ["Margin check"]},
+      "requiredGuidance": ["format-edits"],
+      "requiredTools": ["create_document", "set_page_setup"],
+      "toolCalls": [
+        {"tool": "set_page_setup", "arguments": {"filename": "{document}", "paper_size": "A4", "orientation": "landscape", "margin_left_mm": 20, "margin_right_mm": 15, "margin_top_mm": 12, "margin_bottom_mm": 12}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "pageSize"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-11-header-page-number",
+      "family": "formatting",
+      "instruction": "Add a confidential header and a page/total page number in the footer.",
+      "startDocument": {"kind": "text", "paragraphs": ["Header target"]},
+      "requiredGuidance": ["format-edits"],
+      "requiredTools": ["create_document", "set_header_footer", "set_page_number"],
+      "toolCalls": [
+        {"tool": "set_header_footer", "arguments": {"filename": "{document}", "kind": "header", "text": "Confidential"}},
+        {"tool": "set_page_number", "arguments": {"filename": "{document}", "target": "footer", "format": "page/total", "prefix": "Page "}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "headerFooter"}, {"type": "call_result_has", "callIndex": 1, "key": "headerFooter"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "fmt-12-bullet-list-format",
+      "family": "formatting",
+      "instruction": "Turn an existing paragraph into a bullet list item.",
+      "startDocument": {"kind": "text", "paragraphs": ["First action item"]},
+      "requiredGuidance": ["format-edits"],
+      "requiredTools": ["create_document", "set_list_format"],
+      "toolCalls": [
+        {"tool": "set_list_format", "arguments": {"filename": "{document}", "paragraph_index": 1, "kind": "bullet", "bullet_char": "※"}}
+      ],
+      "oracles": [{"type": "text_contains", "value": "First action item"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "media-01-insert-picture",
+      "family": "media",
+      "instruction": "Insert a small site photo into the document body.",
+      "startDocument": {"kind": "text", "paragraphs": ["Photo section"]},
+      "requiredGuidance": ["picture-edits"],
+      "requiredTools": ["create_document", "insert_picture"],
+      "toolCalls": [
+        {"tool": "insert_picture", "arguments": {"filename": "{document}", "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII=", "image_format": "png", "width_mm": 40, "height_mm": 30}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "pictureReferences"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "media-02-replace-picture",
+      "family": "media",
+      "instruction": "Replace an inserted picture while keeping its geometry.",
+      "startDocument": {"kind": "text", "paragraphs": ["Photo swap"]},
+      "requiredGuidance": ["picture-edits"],
+      "requiredTools": ["create_document", "insert_picture", "replace_picture"],
+      "toolCalls": [
+        {"tool": "insert_picture", "arguments": {"filename": "{document}", "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII=", "image_format": "png", "width_mm": 40, "height_mm": 30}},
+        {"tool": "replace_picture", "arguments": {"filename": "{document}", "image_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/l8EydgAAAABJRU5ErkJggg==", "image_format": "png", "picture_index": 0}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 1, "key": "replacement"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "compare-01-comparison-table",
+      "family": "compare",
+      "instruction": "Diff two clause lists and produce a comparison table document.",
+      "startDocument": {"kind": "blank"},
+      "requiredGuidance": ["doc-compare"],
+      "requiredTools": ["create_document", "doc_diff", "create_comparison_table_document"],
+      "toolCalls": [
+        {"tool": "doc_diff", "arguments": {"old_paragraphs": ["Article 1 purpose", "Article 2 budget"], "new_paragraphs": ["Article 1 purpose", "Article 2 budget revised", "Article 3 enforcement"]}},
+        {"tool": "create_comparison_table_document", "arguments": {"filename": "{workDir}/comparison.hwpx", "old_paragraphs": ["Article 1 purpose", "Article 2 budget"], "new_paragraphs": ["Article 1 purpose", "Article 2 budget revised", "Article 3 enforcement"], "include_equal": false}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "summary"}, {"type": "call_result_has", "callIndex": 1, "key": "created"}, {"type": "file_exists", "path": "{workDir}/comparison.hwpx"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "gen-09-advanced-generators",
+      "family": "generation",
+      "instruction": "Build photo-sheet, nameplate, and organization chart plans ready for creation.",
+      "startDocument": {"kind": "blank"},
+      "requiredGuidance": ["advanced-generators"],
+      "requiredTools": ["create_document", "build_image_grid", "build_meeting_nameplates", "build_organization_chart"],
+      "toolCalls": [
+        {"tool": "build_image_grid", "arguments": {"images": [{"path": "{workDir}/site.png", "caption": "Site photo"}], "columns": 1, "image_width_mm": 20}},
+        {"tool": "build_meeting_nameplates", "arguments": {"names": ["Kim Hana", "Lee Duri", "Park Sejin"], "columns": 2}},
+        {"tool": "build_organization_chart", "arguments": {"hierarchy": {"name": "Chair", "children": [{"name": "Planning", "children": [{"name": "Curriculum"}]}, {"name": "Operations"}]}}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "document_plan"}, {"type": "call_result_has", "callIndex": 1, "key": "document_plan"}, {"type": "call_result_has", "callIndex": 2, "key": "document_plan"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "map-01-document-map",
+      "family": "inspection",
+      "instruction": "Read the document map before planning edits.",
+      "startDocument": {"kind": "table", "paragraphs": ["Overview paragraph"], "tables": [{"data": [["Item", "Status"], ["A", "Ready"]]}]},
+      "requiredGuidance": ["document-map"],
+      "requiredTools": ["create_document", "get_document_map"],
+      "toolCalls": [
+        {"tool": "get_document_map", "arguments": {"filename": "{document}"}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "anchors"}, {"type": "call_result_has", "callIndex": 0, "key": "info"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "edit-09-undo-last-edit",
+      "family": "editing",
+      "instruction": "Undo the last saved edit after adding a temporary paragraph.",
+      "startDocument": {"kind": "text", "paragraphs": ["Keep paragraph"]},
+      "requiredGuidance": ["transaction-edits"],
+      "requiredTools": ["create_document", "add_paragraph", "undo_last_edit"],
+      "toolCalls": [
+        {"tool": "add_paragraph", "arguments": {"filename": "{document}", "text": "Temporary paragraph"}},
+        {"tool": "undo_last_edit", "arguments": {"filename": "{document}"}}
+      ],
+      "oracles": [{"type": "text_not_contains", "value": "Temporary paragraph"}, {"type": "text_contains", "value": "Keep paragraph"}, {"type": "open_safety"}]
     }
   ]
 }

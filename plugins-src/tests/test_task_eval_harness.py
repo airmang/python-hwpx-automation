@@ -21,9 +21,17 @@ def test_task_eval_corpus_has_required_size_and_families() -> None:
     tasks = payload["tasks"]
 
     assert payload["schemaVersion"] == "hwpx.task-replay.v1"
-    assert len(tasks) >= 30
+    assert len(tasks) >= 38
     families = {task["family"] for task in tasks}
-    assert {"generation", "editing", "formatting", "forms"} <= families
+    assert {
+        "generation",
+        "editing",
+        "formatting",
+        "forms",
+        "media",
+        "compare",
+        "inspection",
+    } <= families
     for task in tasks:
         assert task["instruction"]
         assert task["toolCalls"]
@@ -34,6 +42,7 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     report = task_eval_harness.run(
         ROOT / "examples" / "eval_tasks" / "tasks.json",
         [
+            ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.8-dev.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
         ],
@@ -42,15 +51,100 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
         tmp_path / "work",
     )
 
-    current, baseline = report["profiles"]
-    assert current["profileId"] == "current-0.1.6"
+    current, previous, baseline = report["profiles"]
+    assert current["profileId"] == "current-0.1.8-dev"
     assert current["passed"] == report["taskCount"]
+    assert previous["profileId"] == "current-0.1.6"
+    assert previous["failed"] > 0
+    assert "skill_guidance_gap" in previous["failuresByClassification"]
     assert baseline["failed"] > 0
     assert {
         "tool_absent",
         "tool_misbehavior",
         "skill_guidance_gap",
     } <= set(baseline["failuresByClassification"])
+    assert report["guidanceVerification"]["mode"] == "bundle-body"
     assert report["comparison"]["scoreDelta"] > 0
+    assert any(
+        entry["profileId"] == "current-0.1.6" and entry["passedDelta"] > 0
+        for entry in report["comparison"]["againstProfiles"]
+    )
     assert (tmp_path / "report.json").exists()
     assert (tmp_path / "report.md").exists()
+
+
+def test_preflight_fails_when_bundle_body_lacks_guidance_keywords() -> None:
+    profile = task_eval_harness.Profile(
+        profile_id="synthetic",
+        label="synthetic",
+        plugin_version="0.0.0",
+        available_tools=None,
+        broken_tools=set(),
+        guidance_tags={"transaction-edits"},
+    )
+    task = {
+        "id": "synthetic-task",
+        "family": "editing",
+        "requiredGuidance": ["transaction-edits"],
+        "requiredTools": ["apply_edits"],
+        "toolCalls": [],
+        "oracles": [],
+    }
+
+    # The profile claims the tag, but the bundle body lacks the required
+    # keywords, so the tag alone must NOT be enough to pass preflight.
+    incomplete_bundle = "apply_edits dry_run expected_revision"
+    result = task_eval_harness._preflight(task, profile, incomplete_bundle)
+    assert result is not None
+    assert result["classification"] == task_eval_harness.FAIL_SKILL_GUIDANCE_GAP
+    missing = result["missingGuidanceEvidence"]["transaction-edits"]
+    assert "idempotency_key" in missing
+    assert "undo_last_edit" in missing
+
+    complete_bundle = (
+        "apply_edits dry_run expected_revision idempotency_key undo_last_edit"
+    )
+    assert task_eval_harness._preflight(task, profile, complete_bundle) is None
+
+
+def test_preflight_fails_when_bundle_body_does_not_document_required_tools() -> None:
+    profile = task_eval_harness.Profile(
+        profile_id="synthetic",
+        label="synthetic",
+        plugin_version="0.0.0",
+        available_tools=None,
+        broken_tools=set(),
+        guidance_tags=set(),
+    )
+    task = {
+        "id": "synthetic-task",
+        "family": "editing",
+        "requiredTools": ["set_paragraph_format"],
+        "toolCalls": [],
+        "oracles": [],
+    }
+
+    result = task_eval_harness._preflight(task, profile, "no editing tools documented")
+    assert result is not None
+    assert result["classification"] == task_eval_harness.FAIL_SKILL_GUIDANCE_GAP
+    assert result["missingBundleTools"] == ["set_paragraph_format"]
+
+    # Substring mentions such as create_document_from_plan must not count as
+    # documenting create_document.
+    assert not task_eval_harness._bundle_mentions(
+        "create_document_from_plan", "create_document"
+    )
+    assert task_eval_harness._bundle_mentions(
+        "use create_document first", "create_document"
+    )
+
+
+def test_repo_skill_bundle_documents_all_replayed_tools() -> None:
+    bundle_text = task_eval_harness._load_skill_bundle_text(ROOT)
+    payload = json.loads((ROOT / "examples" / "eval_tasks" / "tasks.json").read_text(encoding="utf-8"))
+    undocumented: set[str] = set()
+    for task in payload["tasks"]:
+        for tool in task_eval_harness._tool_required_by_task(task):
+            if not task_eval_harness._bundle_mentions(bundle_text, tool):
+                undocumented.add(tool)
+    assert not undocumented, f"skill bundle does not document: {sorted(undocumented)}"

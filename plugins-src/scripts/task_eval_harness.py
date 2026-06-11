@@ -8,6 +8,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -19,6 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "examples" / "eval_tasks" / "tasks.json"
 DEFAULT_PROFILES = [
+    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.8-dev.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
 ]
@@ -27,6 +29,54 @@ DEFAULT_OUTPUT = ROOT / "examples" / "out" / "task_eval_report.json"
 FAIL_TOOL_ABSENT = "tool_absent"
 FAIL_TOOL_MISBEHAVIOR = "tool_misbehavior"
 FAIL_SKILL_GUIDANCE_GAP = "skill_guidance_gap"
+
+# Body-verification keyword groups per guidance tag. A profile claiming a tag is
+# not enough: every keyword listed here must literally appear in the skill
+# bundle body (SKILL.md + references/*.md), otherwise the task fails with
+# skill_guidance_gap. Profile guidanceTags stay as an auxiliary check.
+GUIDANCE_BODY_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "transaction-edits": (
+        "apply_edits",
+        "dry_run",
+        "expected_revision",
+        "idempotency_key",
+        "undo_last_edit",
+    ),
+    "render-preview-review": ("render_preview", "htmlPath", "visualReviewPath"),
+    "format-edits": (
+        "set_paragraph_format",
+        "line_spacing_percent",
+        "set_page_setup",
+        "set_header_footer",
+        "set_page_number",
+        "set_list_format",
+    ),
+    "picture-edits": ("insert_picture", "replace_picture"),
+    "doc-compare": ("doc_diff", "create_comparison_table_document"),
+    "advanced-generators": (
+        "build_image_grid",
+        "build_meeting_nameplates",
+        "build_organization_chart",
+    ),
+    "document-map": ("get_document_map", "document_revision"),
+}
+
+
+def _load_skill_bundle_text(skill_root: Path) -> str:
+    """Concatenate SKILL.md and references/*.md as the body to verify against."""
+    paths = [skill_root / "SKILL.md"]
+    references = skill_root / "references"
+    if references.is_dir():
+        paths.extend(sorted(references.glob("*.md")))
+    chunks = [path.read_text(encoding="utf-8") for path in paths if path.is_file()]
+    if not chunks:
+        raise FileNotFoundError(f"no skill bundle text found under {skill_root}")
+    return "\n".join(chunks)
+
+
+def _bundle_mentions(bundle_text: str, token: str) -> bool:
+    pattern = rf"(?<![0-9A-Za-z_]){re.escape(token)}(?![0-9A-Za-z_])"
+    return re.search(pattern, bundle_text) is not None
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -379,6 +429,238 @@ class _FallbackServer:
         doc = self._open_doc(filename)
         return self._get_table_data(doc, table_index)
 
+    def get_document_map(self, filename: str, max_preview_chars: int = 80) -> dict[str, Any]:
+        doc = self._open_doc(filename)
+        limit = max(0, int(max_preview_chars))
+        paragraph_anchors = [
+            {
+                "kind": "paragraph",
+                "paragraphIndex": index,
+                "textPreview": (paragraph.text or "")[:limit],
+                "anchor": {"kind": "body_paragraph", "paragraphIndex": index},
+            }
+            for index, paragraph in enumerate(doc.paragraphs)
+        ]
+        table_map = self._get_table_map_in_doc(doc)
+        return {
+            "filename": filename,
+            "info": {
+                "sections": len(doc.sections),
+                "paragraphs": len(doc.paragraphs),
+                "tables": table_map.get("count", 0),
+            },
+            "outline": [],
+            "tables": table_map,
+            "formFields": {"fields": []},
+            "anchors": {"paragraphs": paragraph_anchors, "tables": table_map.get("tables", [])},
+        }
+
+    def set_paragraph_format(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        del dry_run, expected_revision
+        result = self._mutate(filename, lambda doc: doc.set_paragraph_format(**kwargs))
+        return dict(result or {}, filename=filename)
+
+    def set_page_setup(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        del dry_run, expected_revision
+        result = self._mutate(filename, lambda doc: doc.set_page_setup(**kwargs))
+        return dict(result or {}, filename=filename)
+
+    def set_header_footer(self, filename: str, kind: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        del dry_run, expected_revision
+        wrapper = self._mutate(filename, lambda doc: doc.set_header_footer(kind=kind, **kwargs))
+        return {
+            "filename": filename,
+            "headerFooter": {"kind": kind, "text": getattr(wrapper, "text", "")},
+        }
+
+    def set_page_number(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        del dry_run, expected_revision
+        wrapper = self._mutate(filename, lambda doc: doc.set_page_number(**kwargs))
+        return {
+            "filename": filename,
+            "headerFooter": {"kind": kwargs.get("target", "footer"), "text": getattr(wrapper, "text", "")},
+        }
+
+    def set_list_format(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        del dry_run, expected_revision
+        result = self._mutate(filename, lambda doc: doc.set_list_format(**kwargs))
+        return dict(result or {}, filename=filename)
+
+    @staticmethod
+    def _decode_image(image_base64: str) -> bytes:
+        import base64
+
+        return base64.b64decode(image_base64)
+
+    def insert_picture(
+        self,
+        filename: str,
+        image_base64: str,
+        image_format: str = "png",
+        dry_run: bool = False,
+        expected_revision: str | None = None,
+        output: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        del dry_run, expected_revision, output
+        image_data = self._decode_image(image_base64)
+
+        def insert(doc: Any) -> list[dict[str, Any]]:
+            doc.add_picture(image_data, image_format, **kwargs)
+            return doc.picture_references()
+
+        picture_refs = self._mutate(filename, insert)
+        return {
+            "ok": True,
+            "filename": filename,
+            "picture": picture_refs[-1] if picture_refs else None,
+            "pictureReferences": picture_refs,
+        }
+
+    def replace_picture(
+        self,
+        filename: str,
+        image_base64: str,
+        image_format: str = "png",
+        dry_run: bool = False,
+        expected_revision: str | None = None,
+        output: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        del dry_run, expected_revision, output
+        image_data = self._decode_image(image_base64)
+
+        def replace(doc: Any) -> dict[str, Any]:
+            replacement = doc.replace_picture(image_data, image_format, **kwargs)
+            return {"replacement": replacement, "pictureReferences": doc.picture_references()}
+
+        result = self._mutate(filename, replace)
+        return {"ok": True, "filename": filename, **result}
+
+    def undo_last_edit(self, filename: str) -> dict[str, Any]:
+        from hwpx_mcp_server.core.transactions import undo_last_backup
+
+        return undo_last_backup(filename)
+
+    def doc_diff(
+        self,
+        old_filename: str | None = None,
+        new_filename: str | None = None,
+        old_paragraphs: list[str] | None = None,
+        new_paragraphs: list[str] | None = None,
+    ) -> dict[str, Any]:
+        from hwpx import doc_diff as hwpx_doc_diff
+
+        if old_filename and new_filename:
+            return hwpx_doc_diff(old_filename, new_filename)
+        if old_paragraphs is not None and new_paragraphs is not None:
+            return hwpx_doc_diff(old_paragraphs, new_paragraphs)
+        raise ValueError("provide old_filename/new_filename or old_paragraphs/new_paragraphs")
+
+    def create_comparison_table_document(
+        self,
+        filename: str,
+        old_filename: str | None = None,
+        new_filename: str | None = None,
+        old_paragraphs: list[str] | None = None,
+        new_paragraphs: list[str] | None = None,
+        title: str = "신구대조표",
+        include_equal: bool = True,
+        verbosity: str = "compact",
+    ) -> dict[str, Any]:
+        del verbosity
+        from hwpx import (
+            build_comparison_table_plan,
+            create_document_from_plan,
+            validate_document_plan,
+        )
+
+        old_source: Any
+        new_source: Any
+        if old_filename and new_filename:
+            old_source, new_source = old_filename, new_filename
+        elif old_paragraphs is not None and new_paragraphs is not None:
+            old_source, new_source = old_paragraphs, new_paragraphs
+        else:
+            raise ValueError("provide old_filename/new_filename or old_paragraphs/new_paragraphs")
+        document_plan = build_comparison_table_plan(
+            old_source, new_source, title=title, include_equal=include_equal
+        )
+        validation = validate_document_plan(document_plan)
+        if not validation.ok:
+            return {
+                "filename": filename,
+                "created": False,
+                "plan_validation": validation.to_dict(),
+            }
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
+        doc = create_document_from_plan(document_plan, preset="government_report")
+        try:
+            doc.save_to_path(filename)
+        finally:
+            doc.close()
+        return {
+            "filename": filename,
+            "created": True,
+            "document_plan": document_plan,
+            "plan_validation": validation.to_dict(),
+        }
+
+    @staticmethod
+    def _single_block_plan(block: dict[str, Any], title: str) -> dict[str, Any]:
+        return {
+            "schemaVersion": "hwpx.document_plan.v2",
+            "title": title,
+            "sections": [{"blocks": [block]}],
+        }
+
+    def build_image_grid(
+        self,
+        images: list,
+        columns: int = 2,
+        image_width_mm: float | None = None,
+        title: str = "사진대지",
+    ) -> dict[str, Any]:
+        from hwpx import build_image_grid as hwpx_build_image_grid
+
+        block = hwpx_build_image_grid(images or [], columns=columns, image_width_mm=image_width_mm)
+        return {
+            "block": block,
+            "document_plan": self._single_block_plan(block, title),
+            "next_tool": "create_document_from_plan",
+        }
+
+    def build_meeting_nameplates(
+        self,
+        names: list[str],
+        size: str = "150x70",
+        columns: int = 2,
+        title: str = "회의 명패",
+    ) -> dict[str, Any]:
+        from hwpx import build_meeting_nameplates as hwpx_build_meeting_nameplates
+
+        block = hwpx_build_meeting_nameplates(names or [], size=size, columns=columns)
+        return {
+            "block": block,
+            "document_plan": self._single_block_plan(block, title),
+            "next_tool": "create_document_from_plan",
+        }
+
+    def build_organization_chart(
+        self,
+        hierarchy: dict | list,
+        max_depth: int = 3,
+        title: str = "조직도",
+    ) -> dict[str, Any]:
+        from hwpx import build_organization_chart as hwpx_build_organization_chart
+
+        block = hwpx_build_organization_chart(hierarchy or {}, max_depth=max_depth)
+        return {
+            "block": block,
+            "document_plan": self._single_block_plan(block, title),
+            "next_tool": "create_document_from_plan",
+        }
+
 
 def _load_server_module() -> Any:
     _ensure_stack_imports()
@@ -418,25 +700,39 @@ def _available_server_tools(server: Any) -> dict[str, Any]:
         "add_table",
         "apply_edits",
         "batch_replace",
+        "build_image_grid",
+        "build_meeting_nameplates",
+        "build_organization_chart",
+        "create_comparison_table_document",
         "create_custom_style",
         "create_document",
         "delete_paragraph",
+        "doc_diff",
         "fill_by_path",
         "find_cell_by_label",
         "find_text",
         "format_table",
         "format_text",
+        "get_document_map",
         "get_document_text",
         "get_paragraphs_text",
         "get_table_map",
         "get_table_text",
         "insert_paragraph",
+        "insert_picture",
         "merge_table_cells",
         "render_preview",
         "replace_in_paragraph",
+        "replace_picture",
         "search_and_replace",
+        "set_header_footer",
+        "set_list_format",
+        "set_page_number",
+        "set_page_setup",
+        "set_paragraph_format",
         "set_table_cell_text",
         "split_table_cell",
+        "undo_last_edit",
     ]
     return {name: getattr(server, name) for name in names if hasattr(server, name)}
 
@@ -470,8 +766,36 @@ def _tool_required_by_task(task: dict[str, Any]) -> set[str]:
     return required
 
 
-def _preflight(task: dict[str, Any], profile: Profile) -> dict[str, Any] | None:
-    missing_guidance = sorted(set(task.get("requiredGuidance", [])) - profile.guidance_tags)
+def _preflight(task: dict[str, Any], profile: Profile, bundle_text: str) -> dict[str, Any] | None:
+    required_tools = _tool_required_by_task(task)
+
+    undocumented_tools = sorted(
+        tool for tool in required_tools if not _bundle_mentions(bundle_text, tool)
+    )
+    if undocumented_tools:
+        return {
+            "classification": FAIL_SKILL_GUIDANCE_GAP,
+            "reason": "skill bundle body does not document required tools",
+            "missingBundleTools": undocumented_tools,
+        }
+
+    required_guidance = set(task.get("requiredGuidance", []))
+    missing_evidence: dict[str, list[str]] = {}
+    for tag in sorted(required_guidance):
+        keywords = GUIDANCE_BODY_KEYWORDS.get(tag, ())
+        missing_keywords = [
+            keyword for keyword in keywords if not _bundle_mentions(bundle_text, keyword)
+        ]
+        if missing_keywords:
+            missing_evidence[tag] = missing_keywords
+    if missing_evidence:
+        return {
+            "classification": FAIL_SKILL_GUIDANCE_GAP,
+            "reason": "skill bundle body lacks required guidance keywords",
+            "missingGuidanceEvidence": missing_evidence,
+        }
+
+    missing_guidance = sorted(required_guidance - profile.guidance_tags)
     if missing_guidance:
         return {
             "classification": FAIL_SKILL_GUIDANCE_GAP,
@@ -479,7 +803,6 @@ def _preflight(task: dict[str, Any], profile: Profile) -> dict[str, Any] | None:
             "missingGuidance": missing_guidance,
         }
 
-    required_tools = _tool_required_by_task(task)
     missing_tools = sorted(tool for tool in required_tools if not profile.has_tool(tool))
     if missing_tools:
         return {
@@ -511,8 +834,22 @@ def _check_open_safety(document: Path) -> tuple[bool, str]:
     return bool(report.ok), getattr(report, "summary", "")
 
 
-def _evaluate_oracle(server: Any, document: Path, oracle: dict[str, Any]) -> tuple[bool, str]:
+def _evaluate_oracle(
+    server: Any,
+    document: Path,
+    oracle: dict[str, Any],
+    call_payloads: list[Any] | None = None,
+) -> tuple[bool, str]:
     oracle_type = oracle["type"]
+    if oracle_type == "call_result_has":
+        call_index = int(oracle.get("callIndex", 0))
+        key = str(oracle["key"])
+        payloads = call_payloads or []
+        if call_index >= len(payloads):
+            return False, f"call {call_index} result missing (only {len(payloads)} calls)"
+        payload = payloads[call_index]
+        ok = isinstance(payload, dict) and key in payload and payload[key] is not None
+        return ok, f"call {call_index} result has key {key!r}"
     if oracle_type == "text_contains":
         value = str(oracle["value"])
         return value in _document_text(server, document), f"text contains {value!r}"
@@ -543,8 +880,15 @@ def _evaluate_oracle(server: Any, document: Path, oracle: dict[str, Any]) -> tup
     raise ValueError(f"unknown oracle type: {oracle_type}")
 
 
-def _run_task(server: Any, tools: dict[str, Any], task: dict[str, Any], profile: Profile, work_dir: Path) -> dict[str, Any]:
-    preflight = _preflight(task, profile)
+def _run_task(
+    server: Any,
+    tools: dict[str, Any],
+    task: dict[str, Any],
+    profile: Profile,
+    work_dir: Path,
+    bundle_text: str,
+) -> dict[str, Any]:
+    preflight = _preflight(task, profile, bundle_text)
     if preflight:
         return {
             "taskId": task["id"],
@@ -562,6 +906,7 @@ def _run_task(server: Any, tools: dict[str, Any], task: dict[str, Any], profile:
     try:
         _seed_document(server, task, document)
         call_results: list[dict[str, Any]] = []
+        call_payloads: list[Any] = []
         for call in task.get("toolCalls", []):
             tool_name = call["tool"]
             tool = tools.get(tool_name)
@@ -575,12 +920,13 @@ def _run_task(server: Any, tools: dict[str, Any], task: dict[str, Any], profile:
                 }
             args = _render_value(call.get("arguments", {}), variables)
             result = tool(**args)
+            call_payloads.append(result)
             call_results.append({"tool": tool_name, "ok": True, "resultKeys": sorted(result.keys()) if isinstance(result, dict) else []})
 
         oracle_results = []
         for oracle in task.get("oracles", []):
             rendered_oracle = _render_value(oracle, variables)
-            ok, detail = _evaluate_oracle(server, document, rendered_oracle)
+            ok, detail = _evaluate_oracle(server, document, rendered_oracle, call_payloads)
             oracle_results.append({"ok": ok, "detail": detail, "type": oracle["type"]})
             if not ok:
                 return {
@@ -648,6 +994,14 @@ def _comparison(summaries: list[dict[str, Any]]) -> dict[str, Any]:
         "currentProfileId": current["profileId"],
         "scoreDelta": round(current["score"] - baseline["score"], 4),
         "passedDelta": current["passed"] - baseline["passed"],
+        "againstProfiles": [
+            {
+                "profileId": other["profileId"],
+                "scoreDelta": round(current["score"] - other["score"], 4),
+                "passedDelta": current["passed"] - other["passed"],
+            }
+            for other in summaries[1:]
+        ],
     }
 
 
@@ -679,12 +1033,21 @@ def _write_markdown(report: dict[str, Any], path: Path) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run(tasks_path: Path, profile_paths: list[Path], output: Path, markdown: Path | None, work_dir: Path | None) -> dict[str, Any]:
+def run(
+    tasks_path: Path,
+    profile_paths: list[Path],
+    output: Path,
+    markdown: Path | None,
+    work_dir: Path | None,
+    skill_root: Path | None = None,
+) -> dict[str, Any]:
     server = _load_server_module()
     tools = _available_server_tools(server)
     payload = json.loads(tasks_path.read_text(encoding="utf-8"))
     tasks = payload["tasks"]
     profiles = [Profile.from_path(path) for path in profile_paths]
+    resolved_skill_root = skill_root or ROOT
+    bundle_text = _load_skill_bundle_text(resolved_skill_root)
     temp_dir: tempfile.TemporaryDirectory[str] | None = None
     if work_dir is None:
         temp_dir = tempfile.TemporaryDirectory(prefix="hwpx_task_eval_")
@@ -697,7 +1060,10 @@ def run(tasks_path: Path, profile_paths: list[Path], output: Path, markdown: Pat
     try:
         summaries = []
         for profile in profiles:
-            results = [_run_task(server, tools, task, profile, work_dir) for task in tasks]
+            results = [
+                _run_task(server, tools, task, profile, work_dir, bundle_text)
+                for task in tasks
+            ]
             summaries.append(_summarize_profile(profile, results))
         report = {
             "schemaVersion": "hwpx.task-eval-report.v1",
@@ -705,6 +1071,11 @@ def run(tasks_path: Path, profile_paths: list[Path], output: Path, markdown: Pat
             "taskSpec": str(tasks_path),
             "taskCount": len(tasks),
             "families": sorted({task["family"] for task in tasks}),
+            "guidanceVerification": {
+                "mode": "bundle-body",
+                "skillRoot": str(resolved_skill_root),
+                "bundleChars": len(bundle_text),
+            },
             "profiles": summaries,
             "comparison": _comparison(summaries),
         }
@@ -726,10 +1097,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--markdown", type=Path, default=None)
     parser.add_argument("--work-dir", type=Path, default=None)
+    parser.add_argument("--skill-root", type=Path, default=None)
     args = parser.parse_args(argv)
 
     profile_paths = args.profiles or DEFAULT_PROFILES
-    report = run(args.tasks, profile_paths, args.output, args.markdown, args.work_dir)
+    report = run(args.tasks, profile_paths, args.output, args.markdown, args.work_dir, args.skill_root)
     current = report["profiles"][0]
     print(
         f"[OK] evaluated {report['taskCount']} tasks for {len(report['profiles'])} profiles; "

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "hwpx.task-eval-profile.v1",
+  "id": "current-0.1.8-dev",
+  "label": "S-053 skill-router bundle (in development)",
+  "pluginVersion": "0.1.8-dev",
+  "availableTools": ["*"],
+  "brokenTools": [],
+  "guidanceTags": [
+    "generation",
+    "editing",
+    "formatting",
+    "forms",
+    "media",
+    "compare",
+    "inspection",
+    "render-preview-review",
+    "transaction-edits",
+    "format-edits",
+    "picture-edits",
+    "doc-compare",
+    "advanced-generators",
+    "document-map",
+    "task-replay"
+  ]
+}
