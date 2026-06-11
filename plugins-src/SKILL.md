@@ -45,6 +45,17 @@ python3 examples/03_template_replace.py examples/out/01_created.hwpx examples/ou
 python3 examples/02_extract_and_inspect.py examples/out/03_replaced.hwpx
 ```
 
+## 레이아웃 프리뷰 self-check
+
+MCP 서버에 `render_preview`가 있으면 레이아웃 민감 작업마다 생성→프리뷰→수정
+루프를 돈다.
+
+1. 문서를 생성하거나 편집한 직후 `render_preview(filename, outputDir=..., mode="pages", screenshot="auto")`를 실행한다.
+2. 반환된 `status`, `htmlPath`, `manifestPath`, `visualReviewPath`, `pages[].screenshotPath`, `screenshotEngine.backend`를 확인한다.
+3. `status == "ok"`이면 PNG를 보고 페이지 박스, 여백, 표 테두리, 열너비, 정렬, 잘림을 확인한다. 문제가 있으면 문서를 수정하고 `render_preview`를 다시 실행한다.
+4. `status == "blocked"` 또는 `status == "partial"`이면 `htmlPath`를 열어 HTML 프리뷰를 확인하고, 필요하면 Playwright browser 또는 Chrome 경로(`HWPX_MCP_CHROME_PATH`)를 준비한 뒤 다시 실행한다.
+5. `visualReviewPath`는 `hwpx.visual-review.v1` evidence다. 이것은 빠른 렌더 프리뷰 evidence이며, 최종 제출 가능 상태를 주장할 때는 여전히 Hancom Office HWP, ComputerUse, 또는 사람 viewer의 열린 문서 검토 evidence가 필요하다.
+
 ## 라우팅 원칙
 
 - 사용자가 코드 수준 레이아웃 제어, 머리글/바닥글, 쪽번호, 리치 런, 이미지, 페이지 나눔을 요구하면 `hwpx.builder` 경로를 우선한다.
