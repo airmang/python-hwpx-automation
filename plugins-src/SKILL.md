@@ -63,6 +63,7 @@ MCP 서버에 `render_preview`가 있으면 레이아웃 민감 작업마다 생
 - 사용자가 정부보고서, 범정부오피스식 보고, 공문형 보고서, □/○/※ 불릿, 단위 표기 표를 요구하면 `government_report` preset과 `tableProfile="government"`를 우선한다. MCP가 있으면 `parse_government_report_text` → `compute_report_value` → `create_government_report_document` 경로를 사용한다.
 - 사용자가 템플릿 1개와 CSV/JSON/행 데이터를 주고 학생별 가정통신문, 상장, 수료증, 안내장처럼 N부 생성을 요구하면 반복 `fill_template` 호출 대신 `mail_merge`를 우선한다.
 - 사용자가 일반 표의 합계, 평균, 소계 행/열을 요구하면 수동 계산 대신 `table_compute`를 사용하고 `evidence[]`를 근거로 남긴다.
+- 사용자가 "이 문서 서식대로", "참조 파일과 같은 양식으로", "템플릿 등록해 둬"라고 하면 `extract_style_profile` → `apply_style_profile_to_plan` → `create_document_from_plan` → `compare_style_profiles` 흐름을 우선한다. 반복 사용할 양식은 `register_template`로 등록하고 `list_templates`/`describe_template`로 조회한다.
 
 ## 빠른 의사결정
 
@@ -111,6 +112,13 @@ MCP 서버에 `render_preview`가 있으면 레이아웃 민감 작업마다 생
 
    예제 생성과 open-safety 검증:
    `python3 examples/14_mail_merge_table_compute.py`
+
+4-3. **참조 문서 서식을 이식하거나 템플릿을 등록한다**
+   사용자가 참조 HWPX를 주며 같은 계열의 서식으로 새 문서를 만들라고 하면 MCP의 `extract_style_profile(filename)`로 페이지 크기·여백·폰트·표 열너비 프로파일을 뽑는다. 새 document-plan에 `apply_style_profile_to_plan(document_plan, style_profile=...)`을 적용한 뒤 `create_document_from_plan`으로 생성한다. 결과는 `compare_style_profiles(reference_filename=..., candidate_filename=...)`의 `pass=true`와 `verification.openSafety.ok=true`를 evidence로 남긴다.
+
+   반복 사용할 양식은 `register_template(name, source_filename, registry_path=...)`로 등록한다. `list_templates(registry_path=...)`는 목록용, `describe_template(name, values=...)`는 style profile과 placeholder 미충전 리포트 확인용이다. `placeholderReport.missingKeys`가 비어 있지 않으면 채우기 전에 사용자 또는 데이터 소스에 값을 보강한다.
+
+   문서 구조를 서식까지 읽어야 할 때만 `hwpx_extract_json(..., format_detail=true)`를 사용한다. 기본 `format_detail=false` 응답은 토큰 절약용으로 유지하며, 상세 옵션에서는 paragraph/run의 `charPrIDRef`, 글자색, underline, 표 셀 width/height/span/address 같은 format block을 확인한다.
 
 5. **운영 계획서를 작성한다**
    먼저 요청을 `hwpx.document_plan.v1` JSON으로 정규화하고, `quality_profile="operating_plan"`을 켠다. MCP 서버가 연결되어 있으면 `validate_document_plan` → `analyze_document_plan` → `create_document_from_plan` → `inspect_document_authoring_quality` 순서로 간다. MCP가 없으면 `python-hwpx`의 `validate_document_plan()`, `create_document_from_plan()`, `inspect_document_authoring_quality(..., quality_profile="operating_plan")`, `inspect_operating_plan_quality()`를 직접 사용한다. `visual_review_required=true`이면 `scripts/visual_review.py` evidence에서 `current.status == "observed_pass"`와 `current.screenshot_path`까지 확인해야 제출 준비 완료라고 말할 수 있다. 예시는 [`examples/07_create_operating_plan.py`](examples/07_create_operating_plan.py), [`examples/07_mcp_operating_plan.md`](examples/07_mcp_operating_plan.md), [`examples/09_visual_review_loop.md`](examples/09_visual_review_loop.md)를 본다.
