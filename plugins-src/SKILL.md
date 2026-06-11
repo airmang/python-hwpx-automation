@@ -16,6 +16,14 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 
 ## 시작
 
+MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 먼저 호출한다.
+확인할 값은 `version`, `pythonHwpxVersion`, `skillBundleVersion`,
+`toolSurface.status`, `toolSurface.actualFastMcpToolCount`,
+`toolSurface.expectedFastMcpToolCount`, `toolSurface.missingKeyTools`다.
+`toolSurface.status != "ok"`이거나 핵심 도구가 누락되면 플러그인 재설치
+(`codex plugin remove hwpx-plugin@hwpx` 후 `codex plugin add hwpx-plugin@hwpx`)
+또는 stale plugin venv/cache 제거 후 **새 호스트 세션**을 시작하라고 안내한다.
+
 ```bash
 pip install -U python-hwpx lxml
 ```
