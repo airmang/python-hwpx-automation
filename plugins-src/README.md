@@ -86,9 +86,18 @@ python3 -m pip install -U python-hwpx lxml
 - Python 3.10+
 - 기본 편집 최소 호환 기준: `python-hwpx >= 2.11.0`
 - document-plan 생성 권장 기준: `python-hwpx >= 2.11.0`
-- builder 생성 권장 기준: `python-hwpx` S-013 builder core 포함 버전 또는 로컬 checkout
-- repair/recover 권장 기준: `python-hwpx` main 또는 해당 기능이 포함된 릴리스
+- builder 생성 권장 기준: `python-hwpx >= 2.11.0` (builder core 포함)
+- repair/recover 권장 기준: `python-hwpx >= 2.11.0`
 - 최근 로컬 검증 기준: `python-hwpx 2.11.0 + editor-open safety guard`
+
+0.1.7 번들의 MCP 서버(`hwpx-mcp-server==2.4.0`)가 노출하는 주요 표면:
+- **신뢰 루프**: `apply_edits`(원자 적용·dry_run·revision 가드·멱등키), `undo_last_edit`, `render_preview`(페이지 PNG 자기검증)
+- **서식 편집**: `set_paragraph_format`·`set_page_setup`·`set_header_footer`·`set_page_number`·`set_list_format` (인간 단위)
+- **양식**: 누름틀 1급(`list_form_fields`/`fill_form_field`) + 매칭 신뢰도 등급
+- **공문서**: `inspect_official_document_style` lint·결재란 프리셋·장르 레시피, 신구대조표(`doc_diff`/`create_comparison_table_document`)
+- **생산성**: `mail_merge` 대량 생산·`table_compute`, 서식 이식(`extract_style_profile`)·템플릿 레지스트리, 고급 생성기(사진대지·명패·조직도)
+
+워크플로 사용법은 [SKILL.md](SKILL.md)와 [references/api.md](references/api.md)를 본다.
 
 ## 5분 성공 확인
 
