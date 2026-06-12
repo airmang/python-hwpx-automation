@@ -20,7 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "examples" / "eval_tasks" / "tasks.json"
 DEFAULT_PROFILES = [
-    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.8.json",
+    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.9.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
 ]

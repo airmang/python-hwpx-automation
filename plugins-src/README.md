@@ -84,13 +84,13 @@ python3 -m pip install -U python-hwpx lxml
 
 현재 권장 기준:
 - Python 3.10+
-- 기본 편집 최소 호환 기준: `python-hwpx >= 2.11.0`
-- document-plan 생성 권장 기준: `python-hwpx >= 2.11.0`
-- builder 생성 권장 기준: `python-hwpx >= 2.11.0` (builder core 포함)
-- repair/recover 권장 기준: `python-hwpx >= 2.11.0`
-- 최근 로컬 검증 기준: `python-hwpx 2.11.0 + editor-open safety guard`
+- 기본 편집 최소 호환 기준: `python-hwpx >= 2.11.1`
+- document-plan 생성 권장 기준: `python-hwpx >= 2.11.1`
+- builder 생성 권장 기준: `python-hwpx >= 2.11.1` (builder core 포함)
+- repair/recover 권장 기준: `python-hwpx >= 2.11.1`
+- 최근 로컬 검증 기준: `python-hwpx 2.11.1 + editor-open safety guard`
 
-0.1.8 번들의 MCP 서버(`hwpx-mcp-server==2.4.0`)가 노출하는 주요 표면:
+0.1.9 번들의 MCP 서버(`hwpx-mcp-server==2.4.1`)가 노출하는 주요 표면:
 - **신뢰 루프**: `apply_edits`(원자 적용·dry_run·revision 가드·멱등키), `undo_last_edit`, `render_preview`(페이지 PNG 자기검증)
 - **서식 편집**: `set_paragraph_format`·`set_page_setup`·`set_header_footer`·`set_page_number`·`set_list_format` (인간 단위)
 - **양식**: 누름틀 1급(`list_form_fields`/`fill_form_field`) + 매칭 신뢰도 등급
@@ -170,7 +170,7 @@ uv run --with lxml --with-editable ../python-hwpx python scripts/quickcheck.py -
 Host differences (frontmatter, manifests, MCP wiring, skill paths) are declared in
 `packaging/hosts.json` with templates in `packaging/templates/`. The MCP launcher prefers local
 sibling checkouts (`../hwpx-mcp-server`, `../python-hwpx`), honors `HWPX_MCP_SERVER_REPO` /
-`PYTHON_HWPX_REPO`, and otherwise installs `hwpx-mcp-server==2.4.0` into a plugin-local venv
+`PYTHON_HWPX_REPO`, and otherwise installs `hwpx-mcp-server==2.4.1` into a plugin-local venv
 on first MCP start before running it.
 
 Claude Code installs via `claude plugin marketplace add airmang/hwpx-plugins` then

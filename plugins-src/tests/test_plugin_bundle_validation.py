@@ -95,7 +95,7 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
 
     for reference in references:
         text = reference.read_text(encoding="utf-8")
-        assert "2.11.0+" in text
+        assert "2.11.1+" in text
         assert "validate_editor_open_safety(path).ok == True" in text
         assert "2.9.1+ | ✅ 권장" not in text
         assert "2.6–2.9.0 | ✅ 기본 편집 호환" not in text
@@ -117,7 +117,7 @@ def test_task_eval_harness_assets_are_bundled() -> None:
             / "examples"
             / "eval_tasks"
             / "profiles"
-            / "current-0.1.8.json"
+            / "current-0.1.9.json"
         ).exists()
         assert (
             skill_root

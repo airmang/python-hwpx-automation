@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-06-12
+### Fixed
+- Pin bundled Codex/Claude launchers and MCP install docs to `hwpx-mcp-server==2.4.1`, which pulls `python-hwpx>=2.11.1`.
+- Generated document-plan reports now use real `개요 N`/`Outline N` paragraph styles and visible title/heading hierarchy by default, so one-shot report creation produces structured headings without follow-up prompting.
+- Refresh skill/reference compatibility notes and task-eval current profile for the `0.1.9` bundle.
+
 ## [0.1.8] - 2026-06-12
 ### Changed
 - SKILL.md를 390줄 매뉴얼 합본에서 99줄 케이스→경로 라우터(단일 라우팅 표 39행)로 재구성 — 발화당 컨텍스트 비용 약 67% 절감. 상세 워크플로는 `references/workflows-{editing,creation,forms,bulk-compare}.md`와 `references/evidence-contract.md`로 분리(증거 계약 4회 중복 → 1곳).

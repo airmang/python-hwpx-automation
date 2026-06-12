@@ -6,7 +6,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 # hwpx (HWPX / OWPML)
 
 `.hwpx`는 ZIP 기반 OWPML 문서다. 모든 작업은 `hwpx-mcp-server`의 MCP 도구를 1차 경로로 사용한다.
-MCP가 없을 때의 local Python(`python-hwpx >= 2.11.0`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 2.11.1`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 ## 시작 체크
 
