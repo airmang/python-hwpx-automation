@@ -572,7 +572,7 @@ MCP 응답에서 확인할 필드:
 
 ## MCP 편집·서식·생성 도구 시그니처
 
-`hwpx-mcp-server` 2.4.1의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약.
+`hwpx-mcp-server` 2.5.0의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약.
 사용 절차는 `workflows-editing.md` / `workflows-bulk-compare.md`를 본다. 모든 쓰기
 도구의 응답에는 `openSafety`, `verificationReport`, `document_revision`이 들어가고,
 `dry_run`/`expected_revision`을 지원한다(별도 표기 없으면 공통).
@@ -846,8 +846,8 @@ The bundled MCP launcher (`scripts/hwpx-mcp-server` in Claude/Codex bundles) res
 
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
-3. a plugin-local venv populated with `hwpx-mcp-server==2.4.1` on first MCP start
-4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.4.1 hwpx-mcp-server` fallback when `uv` is unavailable
+3. a plugin-local venv populated with `hwpx-mcp-server==2.5.0` on first MCP start
+4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.5.0 hwpx-mcp-server` fallback when `uv` is unavailable
 
 Run `python3 scripts/build_hwpx_plugins.py` after changing `SKILL.md`, `references`, `examples`,
 or skill scripts, then `python3 scripts/validate_hwpx_plugin.py`.

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-06-25
+### Fixed
+- Pin bundled Codex/Claude launchers and MCP install docs to `hwpx-mcp-server==2.5.0` (Phase F VisualComplete quality contract — fail-closed `visualComplete` gate + capability handshake), which requires `python-hwpx>=2.12.0`.
+
 ## [0.1.9] - 2026-06-12
 ### Fixed
 - Pin bundled Codex/Claude launchers and MCP install docs to `hwpx-mcp-server==2.4.1`, which pulls `python-hwpx>=2.11.1`.
