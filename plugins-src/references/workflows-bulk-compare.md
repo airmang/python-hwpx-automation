@@ -6,12 +6,14 @@
 ## 1. 메일머지 대량생산 — `mail_merge`
 
 템플릿 HWPX 1개에 `{{student}}`, `${teacher}`, `<<class_name>>` 같은 placeholder가 있고
-CSV/JSON/행 데이터로 학생별 가정통신문, 상장, 수료증, 안내장처럼 N부를 만들 때는 반복
-치환 대신 `mail_merge`를 사용한다.
+CSV/JSON/**XLSX(명부)**/행 데이터로 학생별 가정통신문, 상장, 수료증, 안내장처럼 N부를
+만들 때는 반복 치환 대신 `mail_merge`를 사용한다. placeholder는 본문뿐 아니라 **표 셀**
+(발신·결재/안내 박스) 안에 있어도 치환된다.
 
 ```
 mail_merge(template_filename, data_rows=...|data_filename=..., output_dir=...,
-    filename_pattern="{index:03d}-{student}.hwpx", zip_filename=...)
+    filename_pattern="{index:03d}-{student}.hwpx", zip_filename=...,
+    fit_mode="keep", max_lines=1)
 ```
 
 - 사전 점검: `inspect_mail_merge_placeholders(filename)`로 placeholder key를 확인한다.
@@ -20,6 +22,12 @@ mail_merge(template_filename, data_rows=...|data_filename=..., output_dir=...,
   `verification.openSafety.checkedCount`, `zip.entryCount`.
 - 기본 `strict=false`: 결측이 있어도 산출물을 만들고 row report에 남긴다. 결측 행 생성을
   막으려면 `strict=true`.
+- **fit-aware 배치 (`fit_mode` 지정)**: 좁은 셀에 긴 값이 들어가 넘치는지 템플릿에서 한 번
+  측정해(template-once-measure) 레코드별로 격리한다. `fitAware=true`, `needsReview[]`
+  (넘침·결측 등 생성됐지만 검토 필요), `skipped[]`(strict에서 결측으로 미생성)를 확인하고,
+  `needsReview[].reasons`(`overflow`/`missing_required`/…)로 후속 조치한다. `fit_mode`는
+  keep(값 보존+넘침만 보고)·shrink(글꼴 축소)·wrap_then_shrink 등. 넘치는 행을 자동으로
+  잘라내지 않으므로 값 단축이나 `fit_mode="shrink"`로 재시도한다.
 - 한 행이라도 결측 placeholder가 있으면 `ok=false`일 수 있지만 산출물의 openSafety는
   별도로 확인한다.
 
