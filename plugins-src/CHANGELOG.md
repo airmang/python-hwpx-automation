@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-06-25
+### Added
+- Route 직인/관인 날인 → `place_seal` · `check_seal_compliance` (발신명의 끝글자에 도장, 한컴 오라클로 0.12pt 검증; 오라클 없으면 `renderChecked=false` 정직 degrade) and a new `references/workflows-forms.md` ④ 날인 경로.
+- Route fit-aware 메일머지 + 명부(CSV/XLSX) + 표 셀 placeholder → `mail_merge` `fit_mode` (셀 넘침/결측 행을 `needsReview[]`/`skipped[]`로 격리, `fitAware`).
+### Fixed
+- Pin bundled Codex/Claude/OpenClaw/Hermes launchers + MCP install docs to `hwpx-mcp-server==2.6.0` (place_seal/check_seal_compliance/mail_merge fit_mode + `[oracle]` extra), which requires `python-hwpx>=2.14.0`.
+
 ## [0.1.10] - 2026-06-25
 ### Fixed
 - Pin bundled Codex/Claude launchers and MCP install docs to `hwpx-mcp-server==2.5.0` (Phase F VisualComplete quality contract — fail-closed `visualComplete` gate + capability handshake), which requires `python-hwpx>=2.12.0`.
