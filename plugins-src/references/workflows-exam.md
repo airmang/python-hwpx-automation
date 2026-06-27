@@ -45,6 +45,10 @@
    (또는 큰 본문은 `exam_md_filename=경로`). `exam_md` 와 `exam_md_filename` 은 **정확히 하나**.
    - `verify=true`(기본): 한컴 렌더로 문항-split/overflow/placeholder를 측정한다.
    - `verify=false`: 렌더 없이 조판만(빠름, `renderChecked=false`).
+   - `role_style_names`(선택): 역할→양식 스타일 **이름** 매핑 override (예
+     `{"number":"문항번호","choice1":"답지1행"}`). 기본은 양식 표준 스타일
+     (바탕글·문항자동번호넣기·1~5행답항·(보기)박스안내용)을 쓰니 대개 생략한다.
+     `max_rounds`(기본 2): split 수렴 재렌더 횟수.
    - 응답: `{ok, outputPath, renderChecked, splits, overflow, placeholdersOk, rounds,
      needsReview, notes, openSafety}`.
 2. **정직 판정**: 응답을 **그대로** 읽는다. `renderChecked=false` 면 검증 안 된 것이고,
@@ -55,9 +59,12 @@
    신호다). 이때는 `render_preview(outputPath)` 로 렌더 이미지를 만들어 **사람/이미지로
    문항 잘림·관리박스/꼬리글 보존·placeholder 유지를 눈으로 확인**한다. **`needsReview=true`
    를 통과(verified)라고 주장하지 않는다.**
-4. **독립 재검**(선택): `verify_question_splits(outputPath, valid_question_numbers=[...])` —
-   조판한 문항 번호로 스코핑하면 양식 chrome(예: "2026." 연도)이 가짜 문항을 열지 않는다.
-   같은 정직 규칙: 오라클 없음→`renderChecked=false`, 커브-export→`splits=null`+`needsReview`.
+4. **독립 재검**(선택): `verify_question_splits(filename, valid_question_numbers=[...], marker_regex=...)`
+   — `filename` 은 조판 **출력 파일**(1단계 `output` / 응답 `outputPath`). `valid_question_numbers`
+   에 조판한 문항 번호를 주면 그 번호로 스코핑해 양식 chrome(예: "2026." 연도)이 가짜 문항을
+   열지 않는다. `marker_regex`(선택)는 문항 번호를 인식하는 정규식 override(기본은 줄 첫머리
+   `"N."` 패턴; `group(1)` 이 문항 번호). 같은 정직 규칙: 오라클 없음→`renderChecked=false`,
+   커브-export→`splits=null`+`needsReview`.
 5. **수렴**(필요 시): `splits` 가 양수면 조판기가 라운드마다 해당 문항 머리에 break를 넣어
    재렌더한다(`max_rounds`). 그래도 안 되면 `set_paragraph_format(..., page_break_before=true)`
    로 그 문항을 다음 쪽으로 직접 민다.
