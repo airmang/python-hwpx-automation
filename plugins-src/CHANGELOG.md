@@ -1,10 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+
+## [0.1.12] - 2026-06-27
 ### Added
-- Route 시험지 조판(출제 md를 학교 양식에 재조판) → `compose_exam` · `verify_question_splits` and a new `references/workflows-exam.md`: 문항 keep-together(단/쪽 경계 미분리), 관리박스·머리글/꼬리글 무손실 보존, `[그림N]`/`[표N]`은 텍스트 placeholder, 한컴 커브-export 양식의 정직 게이트(`splits=null`+`needsReview` → `render_preview` 시각 증거, 텍스트 0 사칭 금지). 4개 호스트 번들에 reference 동봉.
-### Notes
-- 이 라우팅은 `hwpx-mcp-server >= 2.7.0`(= `compose_exam`/`verify_question_splits` 노출)에서 활성화된다. 번들 런처 핀은 **여전히 `2.6.0`** 이며, 이 스킬 변경은 **릴리스하지 않는다(미발행)** — python-hwpx의 `hwpx.exam`이 휠로 출하되고 `hwpx-mcp-server 2.7.0`이 발행된 뒤에야 핀을 bump 하고 스킬 버전을 올린다(S-056 다운스트림 릴리스). leap 데모: `demo/exam-typesetting/`.
+- Route 시험지 조판(출제 md를 학교 양식에 재조판) → `compose_exam` · `verify_question_splits` and a new `references/workflows-exam.md`: 문항 keep-together(단/쪽 경계 미분리), 관리박스·머리글/꼬리글 무손실 보존, `[그림N]`/`[표N]`은 텍스트 placeholder, 한컴 커브-export 양식의 정직 게이트(`splits=null`+`needsReview` → `render_preview` 시각 증거, 텍스트 0 사칭 금지). 4개 호스트 번들에 reference 동봉. leap 데모: `demo/exam-typesetting/`.
+### Changed
+- 번들 Codex/Claude/OpenClaw/Hermes 런처 + MCP 설치 문서 핀을 `hwpx-mcp-server==2.7.0`(시험지 조판 `compose_exam`/`verify_question_splits` + keep-together)으로 갱신, `python-hwpx>=2.15.0`(`hwpx.exam`) 필요 (S-056 다운스트림 릴리스).
 
 ## [0.1.11] - 2026-06-25
 ### Added

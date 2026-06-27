@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SERVER_PACKAGE="hwpx-mcp-server==2.6.0"
-export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-0.1.11}"
+SERVER_PACKAGE="hwpx-mcp-server==2.7.0"
+export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-0.1.12}"
 export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
 
 find_stack_root() {
