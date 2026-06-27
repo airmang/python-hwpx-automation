@@ -13,6 +13,7 @@
     "references/workflows-bulk-compare.md",
     "references/workflows-creation.md",
     "references/workflows-editing.md",
+    "references/workflows-exam.md",
     "references/workflows-forms.md",
     "examples/01_create_and_save.py",
     "examples/02_extract_and_inspect.py",
