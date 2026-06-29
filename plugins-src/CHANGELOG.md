@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-06-29
+### Added
+- `references/workflows-authoring.md` + SKILL.md routing row — M3 document authoring (S-057): 공문/보고서/가정통신문 작성 루프(`create_document_from_plan` with `metadata.document_type` + `gyeolmun`), 공문 구조 hard-gate 해석, 맞춤법/각주 정직 라벨, HWPX-only. Added to `packaging/hosts.json` sharedAssets; 4 host bundles rebuilt.
+### Changed
+- Launcher pins `hwpx-mcp-server==2.8.0` (M3 surface: document_type routing, 결문 IR, 공문 hard-gate, `render_checked`; pulls `python-hwpx>=2.16.0`).
+
 ## [0.1.12] - 2026-06-27
 ### Added
 - Route 시험지 조판(출제 md를 학교 양식에 재조판) → `compose_exam` · `verify_question_splits` and a new `references/workflows-exam.md`: 문항 keep-together(단/쪽 경계 미분리), 관리박스·머리글/꼬리글 무손실 보존, `[그림N]`/`[표N]`은 텍스트 placeholder, 한컴 커브-export 양식의 정직 게이트(`splits=null`+`needsReview` → `render_preview` 시각 증거, 텍스트 0 사칭 금지). 4개 호스트 번들에 reference 동봉. leap 데모: `demo/exam-typesetting/`.
