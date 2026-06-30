@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-06-30
+### Added
+- `references/workflows-redline.md` — 변경추적(redline) 저작 워크플로 (M4/S-058). `add_tracked_edit`(insert/delete/replace + 코멘트)로 에이전트가 redline을 저작하고 사람이 한컴 검토 리본에서 수락/거부. verify 영수증(render_checked 정직 강등)·byte-identity/수락방식의 정직 한계 명시. SKILL.md 라우터 + 참조 목록에 연결.
+### Changed
+- 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.9.0`(`add_tracked_edit` redline 표면)으로 갱신, `python-hwpx>=2.17.0`(redline 저작 API + 메모 본문 픽스) 필요.
+
 ## [0.1.13] - 2026-06-29
 ### Added
 - `references/workflows-authoring.md` + SKILL.md routing row — M3 document authoring (S-057): 공문/보고서/가정통신문 작성 루프(`create_document_from_plan` with `metadata.document_type` + `gyeolmun`), 공문 구조 hard-gate 해석, 맞춤법/각주 정직 라벨, HWPX-only. Added to `packaging/hosts.json` sharedAssets; 4 host bundles rebuilt.

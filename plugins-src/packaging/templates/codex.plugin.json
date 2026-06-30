@@ -1,6 +1,6 @@
 {
   "name": "hwpx-plugin",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "HWPX document generation, validation, visual-review handoff, and MCP tooling for Codex.",
   "author": { "name": "Kohkyuhyun", "email": "kokyuhyun@hotmail.com", "url": "https://github.com/airmang" },
   "homepage": "https://github.com/airmang/hwpx-plugins",
