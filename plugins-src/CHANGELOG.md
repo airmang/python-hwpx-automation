@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-07-01
+### Added
+- `references/workflows-pii.md` — 개인정보(PII) 마스킹 워크플로 (M5/S-059). 양식채움·메일머지·추출이 기계검증 PII(주민등록번호·휴대폰·이메일·카드)를 **기본 마스킹**하고, `scan_personal_info` 로 감사. 기계세트=항상-on, 맥락형=라벨게이트 low-confidence(과마스킹 방지). SKILL.md 라우터 + 참조 목록 연결.
+### Changed
+- 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.10.0`(PII 마스킹 표면)으로 갱신, `python-hwpx>=2.18.0`(`hwpx.tools.pii`) 필요.
+
 ## [0.1.14] - 2026-06-30
 ### Added
 - `references/workflows-redline.md` — 변경추적(redline) 저작 워크플로 (M4/S-058). `add_tracked_edit`(insert/delete/replace + 코멘트)로 에이전트가 redline을 저작하고 사람이 한컴 검토 리본에서 수락/거부. verify 영수증(render_checked 정직 강등)·byte-identity/수락방식의 정직 한계 명시. SKILL.md 라우터 + 참조 목록에 연결.
