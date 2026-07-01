@@ -100,6 +100,18 @@ def validate_no_placeholder(path: Path, host_id: str) -> None:
     require("[PLACEHOLDER:" not in path.read_text(encoding="utf-8"), f"{host_id}: placeholder in {path}")
 
 
+def _canonical_server_package_line() -> str:
+    """The SERVER_PACKAGE pin read from the canonical launcher template — the single
+    source of truth. Deriving it here (instead of hardcoding a version) keeps this
+    check from drifting behind what the bundles actually ship on a version bump."""
+    template = PACKAGING / "templates" / "hwpx-mcp-server"
+    for line in template.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("SERVER_PACKAGE="):
+            return stripped
+    raise SystemExit(f"canonical launcher template missing SERVER_PACKAGE=: {template}")
+
+
 def validate_launcher(out: Path, host_id: str) -> None:
     launcher = out / "scripts" / "hwpx-mcp-server"
     require_file(launcher)
@@ -110,7 +122,7 @@ def validate_launcher(out: Path, host_id: str) -> None:
         "HWPX_MCP_SERVER_REPO",
         "PYTHON_HWPX_REPO",
         "uv run --no-project",
-        'SERVER_PACKAGE="hwpx-mcp-server==2.8.0"',
+        _canonical_server_package_line(),
         ".hwpx-mcp-server-venv",
         "uv pip install",
         "--refresh-package hwpx-mcp-server",
