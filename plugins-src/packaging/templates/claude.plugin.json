@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "hwpx-plugin",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "HWPX document generation, validation, visual-review handoff, and MCP tooling.",
   "author": { "name": "Kohkyuhyun", "email": "kokyuhyun@hotmail.com", "url": "https://github.com/airmang" },
   "homepage": "https://github.com/airmang/hwpx-plugins",
