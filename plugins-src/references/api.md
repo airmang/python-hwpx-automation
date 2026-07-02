@@ -846,8 +846,8 @@ The bundled MCP launcher (`scripts/hwpx-mcp-server` in Claude/Codex bundles) res
 
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
-3. a plugin-local venv populated with `hwpx-mcp-server==2.10.0` on first MCP start
-4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.10.0 hwpx-mcp-server` fallback when `uv` is unavailable
+3. a plugin-local venv populated with `hwpx-mcp-server==2.11.0` on first MCP start
+4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.11.0 hwpx-mcp-server` fallback when `uv` is unavailable
 
 Run `python3 scripts/build_hwpx_plugins.py` after changing `SKILL.md`, `references`, `examples`,
 or skill scripts, then `python3 scripts/validate_hwpx_plugin.py`.

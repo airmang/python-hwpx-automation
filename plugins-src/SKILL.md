@@ -24,6 +24,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 문서 구조·표·양식 필드·앵커를 한 번에 파악 | `get_document_map` | [workflows-editing](references/workflows-editing.md) |
 | 텍스트·개요·표 내용 읽기 | `get_document_text` · `get_document_outline` · `get_table_text` | [api](references/api.md) |
 | Markdown/HTML/JSON 변환·추출 | `hwpx_to_markdown` · `hwpx_to_html` · `hwpx_extract_json` | [api](references/api.md) |
+| 런서식(굵게·색·크기·글꼴) + 각주/미주 본문까지 충실 읽기 | `hwpx_extract_json` (`format_detail`·`doc.notes[]`) · `hwpx_to_markdown` (각주 부록) | [workflows-reading](references/workflows-reading.md) |
 | 텍스트 위치·라벨 옆 셀 찾기 | `find_text` · `find_cell_by_label` | [workflows-editing](references/workflows-editing.md) |
 | 본문·표 편집 (기본 경로, 2건 이상이면 필수) | `apply_edits` (dry_run → 확정) | [workflows-editing](references/workflows-editing.md) |
 | 단건 치환·문단·표 셀 편집 | `search_and_replace` · `batch_replace` · `insert_paragraph` · `set_table_cell_text` | [workflows-editing](references/workflows-editing.md) |
@@ -98,6 +99,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 - [`references/workflows-creation.md`](references/workflows-creation.md) — document-plan, builder, 정부보고서, 운영계획서, 제안서, 공문서 레시피.
 - [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`. `hwpx-mcp-server>=2.9.0`.
 - [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지·마스킹(양식채움·메일머지·추출 기본 마스킹) + 가명/비식별. `scan_personal_info` · `mask` param. `hwpx-mcp-server>=2.10.0`.
+- [`references/workflows-reading.md`](references/workflows-reading.md) — 런서식(굵게·색·크기·글꼴)+각주/미주 본문 충실 읽기. `hwpx_extract_json`(`format_detail`·`doc.notes[]`)·`hwpx_to_markdown` 각주 부록. `hwpx-mcp-server>=2.11.0`.
 - [`references/workflows-forms.md`](references/workflows-forms.md) — 양식 3경로 결정표, 누름틀, form-fit, 품질 생성.
 - [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). `hwpx-mcp-server>=2.7.0`.
 - [`references/workflows-bulk-compare.md`](references/workflows-bulk-compare.md) — 메일머지, 표 계산, 신구대조, 생성기 3종, 스타일 프로파일/템플릿.
