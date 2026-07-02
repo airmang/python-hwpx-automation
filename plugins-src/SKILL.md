@@ -42,6 +42,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 생성/편집 후 레이아웃 확인 | `render_preview` self-check 루프 | [workflows-editing](references/workflows-editing.md) |
 | 자연어 요청으로 새 문서 생성 | `validate_document_plan` → `create_document_from_plan` | [workflows-creation](references/workflows-creation.md) |
 | 공문·보고서·가정통신문 (유형별 한컴 양식 프로파일 + 공문 구조 hard-gate·결문 메타·맞춤법 정직보고) | `create_document_from_plan` (`metadata.document_type` + `gyeolmun`) | [workflows-authoring](references/workflows-authoring.md) |
+| 살아있는 목차(한컴이 재계산)·쪽 번호 상호참조 | `add_toc` · `add_cross_reference` · `verify_toc` | [workflows-toc](references/workflows-toc.md) |
 | 변경추적 redline 저작 (삽입/삭제/치환 + 코멘트, 사람이 한컴서 수락/거부) | `add_tracked_edit` (+ `add_memo_by_anchor`) | [workflows-redline](references/workflows-redline.md) |
 | 개인정보(PII) 탐지·마스킹 (양식채움·메일머지·추출 기본 마스킹, 가명/비식별) | `scan_personal_info` · `masking_policy` param | [workflows-pii](references/workflows-pii.md) |
 | 머리글·쪽번호·리치 런·병합 표 조립 생성 | `hwpx.builder` (local) | [workflows-creation](references/workflows-creation.md) |
@@ -100,6 +101,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 - [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`. `hwpx-mcp-server>=2.9.0`.
 - [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지·마스킹(양식채움·메일머지·추출 기본 마스킹) + 가명/비식별. `scan_personal_info` · `mask` param. `hwpx-mcp-server>=2.10.0`.
 - [`references/workflows-reading.md`](references/workflows-reading.md) — 런서식(굵게·색·크기·글꼴)+각주/미주 본문 충실 읽기. `hwpx_extract_json`(`format_detail`·`doc.notes[]`)·`hwpx_to_markdown` 각주 부록. `hwpx-mcp-server>=2.11.0`.
+- [`references/workflows-toc.md`](references/workflows-toc.md) — 네이티브 자동 차례·상호참조(재페이지네이션 시 한컴이 재번호). `add_toc`·`add_cross_reference`·`verify_toc`. `hwpx-mcp-server>=2.12.0`.
 - [`references/workflows-forms.md`](references/workflows-forms.md) — 양식 3경로 결정표, 누름틀, form-fit, 품질 생성.
 - [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). `hwpx-mcp-server>=2.7.0`.
 - [`references/workflows-bulk-compare.md`](references/workflows-bulk-compare.md) — 메일머지, 표 계산, 신구대조, 생성기 3종, 스타일 프로파일/템플릿.
