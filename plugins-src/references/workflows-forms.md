@@ -1,15 +1,21 @@
-# 양식 워크플로 (3경로 결정표·누름틀·form-fit·품질 생성)
+# 양식 워크플로 (4경로 결정표·누름틀·form-fit·품질 생성·구조 변경 보존 채움)
 
 기존 HWPX 양식을 채우는 요청은 아래 결정표로 경로를 먼저 고른다. 어떤 경로든
 **원본 양식은 변경하지 않고** 사본/destination에만 적용한다.
 
-## 양식 3경로 결정표
+> **철칙 (2026-07-03 교훈): 표를 절대 재생성하지 않는다.** 균등 열너비·범용
+> paraPr/charPr로 표를 새로 만들면 원본의 정교한 서식(열너비·행높이·병합·정렬·음영)이
+>파괴돼 "개판"이 된다. 채움은 **원본을 보존한 채 셀 텍스트만 바꾸고**, 구조 변경은
+> **바이트보존 프리미티브**(④)로만 한다.
+
+## 양식 4경로 결정표
 
 | 경로 | 선택 조건 | 도구 순서 |
 |---|---|---|
 | ① 누름틀/FORM 필드 채움 | `list_form_fields`에 필드가 있음 | `list_form_fields` → `fill_form_field` 또는 `analyze_form_fill` → `apply_form_fill` |
 | ② 양식 보존 채움 (form-fit) | 필드 없음 + 원본 서식·구조 보존이 핵심 요구 + 채울 내용이 구조화되어 있음(baseline 사용 가능) | `analyze_template_formfit` → `apply_template_formfit(confirm=True)` |
 | ③ 양식 + 아이디어 고품질 생성 | 필드 유무와 무관하게 내용 생성 자유도가 높음("알아서 완성도 있게") | `analyze_quality_generation` → `apply_quality_generation(confirm=True)` |
+| ④ **구조 변경 보존 채움** | 필드 없음 + 채우면서 **표 구조를 바꿔야** 함(안 쓰는 표·열 삭제, 내용에 맞춰 행 증설) | `get_document_map` → `apply_table_ops`(fill_cell + delete_column/row/table + insert_row_by_clone) → `verify_form_fill` |
 
 구분 기준:
 
@@ -17,6 +23,9 @@
   native field가 정확하다.
 - **원본 보존 요구**: "승인된 양식 그대로", "P6 기준선", "서식 변경 금지"가 있으면 ②.
 - **생성 자유도**: 사용자가 아이디어/브리프만 주고 문장 생성을 맡기면 ③.
+- **구조 변경 필요**: 양식을 채우려면 표/열/행을 **더하거나 빼야** 하면 ④. 예)
+  평가계획 "정기시험 열 삭제·안 쓰는 표 삭제·세부기준 행을 내용 수만큼 증설". ①~③이
+  다루지 못하는 유일한 경로 — 없으면 hand-XML 재생성으로 도망쳐 서식이 파괴된다.
 
 ## ① 누름틀/FORM 필드 경로
 
@@ -66,7 +75,44 @@
 [`workflows-creation.md`](workflows-creation.md) §6을 따른다. analyze 단계는 원본 양식을
 변경하지 않으며, 결과의 `validation`·`quality.gaps`·`revision_history`를 확인한다.
 
-## ④ 직인/관인 날인 경로 (`place_seal` · `check_seal_compliance`)
+## ④ 구조 변경 보존 채움 경로 (`apply_table_ops` · `verify_form_fill`)
+
+필드가 없고 **채우면서 표 구조를 바꿔야** 하는 양식(예: 도교육청 평가계획 — 정기시험 열
+삭제·안 쓰는 표 삭제·세부기준 행 증설). ②·③으로 안 되는 유일한 경로다. **표를 재생성하지
+말고** 바이트보존 프리미티브로 원본 서식을 살린 채 수술한다.
+
+1. `get_document_map(filename)`으로 표 인벤토리(table_index·행/열·병합)를 파악한다.
+2. 어떤 표를 지우고, 어떤 열을 빼고, 어떤 표에 행을 몇 개 더할지 op 리스트를 만든다.
+3. `apply_table_ops(filename, ops, output=..., render_check="auto")` — 하나의 트랜잭션으로:
+   - `{"op":"fill_cell","tableIndex":T,"row":r,"col":c,"text":"..."}` — 원본 셀 서식 보존
+     채움(빈 셀·병합 앵커 포함). 미변경 셀·표·섹션은 **바이트 동일**.
+   - `{"op":"delete_column","tableIndex":T,"cols":[1,2]}` — 열 삭제 + 남은 열에 폭 재분배 +
+     그 열 때문에 빈 행이 생기면 자동 삭제(캐스케이드).
+   - `{"op":"delete_table","tableIndex":T}` — 표 통째 삭제. **인덱스가 밀리므로 여러 표는
+     tableIndex 큰 것부터(역순) 삭제한다.**
+   - `{"op":"insert_row_by_clone","tableIndex":T,"ref_row":k,"count":n}` — 참조 행을 복제해
+     n행 증설(서식 보존·균등 재생성 금지). ref_row는 rowSpan==1 데이터 행.
+   - 모든 구조 편집은 grid 검증(overlap/hole/oob) 후 **무효면 거부**(fail-closed)하고
+     `skipped`에 사유를 남긴다.
+4. `verify_form_fill(filename, before_path=원본, require=false)` — **실제 한컴**으로 before/after를
+   렌더해 `renderChecked`·`overflowDetected`·`overlapDetected`(글자겹침)·`pageCountChanged`를
+   판정한다. **`renderChecked=false`(오라클 없음)를 "제출 가능"으로 말하지 말 것.** open-safety나
+   render_preview는 **한컴 수용의 증거가 아니다**(2026-07-03 과대포장 재발 금지). 제출 확언은
+   `renderChecked=true` + overflow/overlap 0일 때만.
+
+### 재사용 레시피 (매 학기 반복 업무)
+
+평가계획처럼 매 학기 반복되는 양식은 **입력만 갈아끼우면 되는 레시피**로 만든다:
+
+```
+빈 양식.hwpx + 섹션별 구조화 콘텐츠(md) + 규칙(수행100%·정기시험삭제·N영역)
+  → get_document_map → op 리스트 생성 → apply_table_ops → verify_form_fill
+```
+
+내용 저작(사람)과 폼 채움(기계)이 분리된다 — 다음 학기엔 콘텐츠 md와 빈 양식만 새로
+주면 같은 op 매핑으로 재실행. (시험지 조판 [`workflows-exam.md`]와 같은 패턴.)
+
+## ⑤ 직인/관인 날인 경로 (`place_seal` · `check_seal_compliance`)
 
 공문의 직인은 **발신명의(예: "행정안전부장관 홍길동") 줄의 끝글자**에 도장 중심이 오도록
 규칙대로 찍는다. 위치는 한컴이 실제로 글자를 그린 자리를 기준으로 하므로 **한컴 렌더 오라클이
