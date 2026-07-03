@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-07-03
+### Added
+- `references/workflows-forms.md` **④ 구조 변경 보존 채움** 경로 (M10/S-064): 채우며 표 구조를 바꿔야 하는 양식(안 쓰는 표·열 삭제, 내용에 맞춰 행 증설)을 `apply_table_ops`(fill_cell + delete_column/delete_row/delete_table + insert_row_by_clone)로 **원본 서식 보존한 채** 수술하고 `verify_form_fill`(실한컴 렌더 게이트)로 검증. "표 재생성 금지" 철칙 배너 + 매 학기 재사용 레시피(빈 양식 + 콘텐츠 md + 규칙). SKILL.md 라우팅 추가.
+### Changed
+- 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.13.0`(M10 form-fill 도구)으로 갱신, `python-hwpx>=2.21.0`(`hwpx.table_patch`) 필요.
+
 ## [0.1.15] - 2026-07-01
 ### Added
 - `references/workflows-pii.md` — 개인정보(PII) 마스킹 워크플로 (M5/S-059). 양식채움·메일머지·추출이 기계검증 PII(주민등록번호·휴대폰·이메일·카드)를 **기본 마스킹**하고, `scan_personal_info` 로 감사. 기계세트=항상-on, 맥락형=라벨게이트 low-confidence(과마스킹 방지). SKILL.md 라우터 + 참조 목록 연결.

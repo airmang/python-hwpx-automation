@@ -2,7 +2,7 @@
   "id": "hwpx-plugin",
   "name": "HWPX Plugin",
   "description": "HWPX document generation, validation, visual-review handoff, and MCP tooling.",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "skills": ["./skills"],
   "configSchema": { "type": "object", "additionalProperties": false, "properties": {} }
 }
