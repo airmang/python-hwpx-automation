@@ -92,6 +92,11 @@
      tableIndex 큰 것부터(역순) 삭제한다.**
    - `{"op":"insert_row_by_clone","tableIndex":T,"ref_row":k,"count":n}` — 참조 행을 복제해
      n행 증설(서식 보존·균등 재생성 금지). ref_row는 rowSpan==1 데이터 행.
+   - `{"op":"autofit_columns","tableIndex":T}` — 내용에 맞춰 **열 너비 재균형**(내용 많은
+     열 넓히고 적은 열 좁힘, 표 총폭 보존). 긴 텍스트가 좁은 열에서 촘촘히 wrap될 때 완화.
+     명시 지정은 `{"op":"set_column_widths","tableIndex":T,"widths":[..]}`. **채움 후** 별도
+     호출(autofit은 새 내용 기준 균형). 참고: 텍스트가 길면 한컴이 행 높이를 자동으로
+     늘려 넘침은 없다 — autofit은 세로 cramping을 가로 재분배로 줄이는 미용 단계.
    - 모든 구조 편집은 grid 검증(overlap/hole/oob) 후 **무효면 거부**(fail-closed)하고
      `skipped`에 사유를 남긴다.
 4. `verify_form_fill(filename, before_path=원본, require=false)` — **실제 한컴**으로 before/after를

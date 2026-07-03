@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-07-03
+### Added
+- `references/workflows-forms.md` ④ 경로에 **열 너비 조정**: `apply_table_ops`의 `autofit_columns`(내용에 맞춰 열너비 재균형, 긴 텍스트의 세로 cramping 완화)·`set_column_widths`(명시적 지정) 안내. 한컴이 행 높이는 자동으로 늘리므로 autofit은 가로 재분배 미용 단계임을 명시.
+### Changed
+- 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.14.0`(열너비 op)으로 갱신, `python-hwpx>=2.22.0` 필요.
+
 ## [0.1.18] - 2026-07-03
 ### Added
 - `references/workflows-forms.md` **④ 구조 변경 보존 채움** 경로 (M10/S-064): 채우며 표 구조를 바꿔야 하는 양식(안 쓰는 표·열 삭제, 내용에 맞춰 행 증설)을 `apply_table_ops`(fill_cell + delete_column/delete_row/delete_table + insert_row_by_clone)로 **원본 서식 보존한 채** 수술하고 `verify_form_fill`(실한컴 렌더 게이트)로 검증. "표 재생성 금지" 철칙 배너 + 매 학기 재사용 레시피(빈 양식 + 콘텐츠 md + 규칙). SKILL.md 라우팅 추가.
