@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-07-03
+### Added
+- `references/workflows-forms.md` ④ 경로에 **폰트 shrink-to-fit** 안내: `fill_cell`의 `max_lines`로 셀을 N줄 안에 맞게 폰트 축소(열 너비 부족 시 세로 축소). 폼 기본 폰트가 작으면 autofit(가로)이 주력임을 명시.
+### Changed
+- 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.15.0`(폰트 축소맞춤)으로 갱신, `python-hwpx>=2.23.0` 필요.
+- README 정비 471→178줄(5개 설치 섹션을 호스트별 1개로 통합, 긴 예제·중복 제거, 버전 최신화).
+
 ## [0.1.19] - 2026-07-03
 ### Added
 - `references/workflows-forms.md` ④ 경로에 **열 너비 조정**: `apply_table_ops`의 `autofit_columns`(내용에 맞춰 열너비 재균형, 긴 텍스트의 세로 cramping 완화)·`set_column_widths`(명시적 지정) 안내. 한컴이 행 높이는 자동으로 늘리므로 autofit은 가로 재분배 미용 단계임을 명시.

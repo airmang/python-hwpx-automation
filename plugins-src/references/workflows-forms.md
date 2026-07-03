@@ -97,6 +97,9 @@
      명시 지정은 `{"op":"set_column_widths","tableIndex":T,"widths":[..]}`. **채움 후** 별도
      호출(autofit은 새 내용 기준 균형). 참고: 텍스트가 길면 한컴이 행 높이를 자동으로
      늘려 넘침은 없다 — autofit은 세로 cramping을 가로 재분배로 줄이는 미용 단계.
+   - `{"op":"fill_cell", ..., "max_lines":N}` — 그 셀을 **N줄 안에 맞추려 폰트를 축소**
+     (하한까지). 열 너비로 부족할 때 세로 높이를 줄인다. 폼 기본 폰트가 작으면(예: 9pt)
+     축소 여지가 작으니 autofit(가로)이 주 무기, 폰트 축소는 보조.
    - 모든 구조 편집은 grid 검증(overlap/hole/oob) 후 **무효면 거부**(fail-closed)하고
      `skipped`에 사유를 남긴다.
 4. `verify_form_fill(filename, before_path=원본, require=false)` — **실제 한컴**으로 before/after를
