@@ -30,7 +30,29 @@ MCP가 없으면 local Python에서 `validate_document_plan()` → `create_docum
 예제: `examples/06_create_from_document_plan.py`, `examples/06_mcp_document_plan.md`.
 검증: `python3 scripts/quickcheck.py --document-plan`.
 
-## 2. builder 조립 생성 (코드 수준 레이아웃 제어)
+## 2. Markdown/비-HWPX 원본에서 HWPX 초안 생성
+
+사용자가 Markdown, PDF/DOCX/XLSX/HTML/TXT 같은 원본을 주고 "한글 문서로 만들어줘"라고
+하면 raw Markdown을 바로 쓰지 말고 document-plan bridge를 거친다.
+
+1. HWPX 또는 로컬 원본 파일이면 `document_to_markdown(filename)`으로 Markdown을 만든다.
+   HWPX는 `python-hwpx`, 비-HWPX는 서버가 `[ingest]` extra로 설치된 경우 MarkItDown adapter가
+   처리한다. `meta.engine`, `warnings`, `attempts[]`를 확인한다.
+2. 이미 Markdown 텍스트가 있으면 바로 `markdown_to_document_plan(markdown, title?, metadata?)`.
+   이 도구는 파일을 쓰지 않고 `document_plan`, `validation`, `can_create`, `warnings`를 반환한다.
+3. `ok=false`이면 `validation.issues[]`/`validation.repairHints[]`를 보고 Markdown 또는 plan을 고친다.
+4. `ok=true`이면 `create_document_from_plan(filename, document_plan)`으로 HWPX를 생성한다.
+5. 결과는 `document_to_markdown(filename)` 또는 `get_document_text`/`get_table_text`로 readback한다.
+
+정직 라벨:
+
+- MarkItDown adapter 결과는 레이아웃 복원이 아니라 구조 읽기용 Markdown이다.
+- `markdown_to_document_plan`은 ATX heading(`#`), 문단, 불릿/번호 목록, GFM table을 보수적으로
+  `heading`/`paragraph`/`bullets`/`table` block으로 낮춘다. 번호 목록은 bullet로 바뀌며,
+  heading level 4 이상은 document-plan level 3으로 clamp될 수 있다.
+- 제출용 파일은 생성 후 기존 openSafety/visual-review evidence 계약을 그대로 따른다.
+
+## 3. builder 조립 생성 (코드 수준 레이아웃 제어)
 
 머리글/바닥글, 쪽번호, 리치 런, 다단계 목록, 병합/음영/열너비 표, 이미지, 페이지 나눔을
 한 번에 조립해야 하면 local `hwpx.builder`를 사용한다.
@@ -47,7 +69,7 @@ builder는 내부 XML을 직접 만들지 않고 `HwpxDocument` facade로 loweri
 `set_header_footer`/`set_page_number`가 빠르다 ([`workflows-editing.md`](workflows-editing.md)).
 예제: `examples/10_create_with_builder.py`. 검증: `python3 scripts/quickcheck.py --builder`.
 
-## 3. 정부보고서·공문형 보고서
+## 4. 정부보고서·공문형 보고서
 
 □/○/※ 불릿, 단위 표기 표, 범정부오피스식 보고가 요구되면:
 
@@ -61,7 +83,7 @@ MCP가 없으면 plan v2에 `preset="government_report"`를 넣어 `create_docum
 확인한다. 예제: `examples/10_create_government_report.py`, `examples/10_mcp_government_report.md`.
 열린 문서 검토 항목은 [`government-report-visual-review.md`](government-report-visual-review.md).
 
-## 4. 운영 계획서 제출 후보
+## 5. 운영 계획서 제출 후보
 
 "운영 계획서", "사업 운영 계획", "AI 중점학교 운영계획서" 등 제출용 계획서는 generic
 plan보다 운영 계획서 프로필을 우선한다.
@@ -83,7 +105,7 @@ plan보다 운영 계획서 프로필을 우선한다.
 예제: `examples/07_create_operating_plan.py`, `examples/07_mcp_operating_plan.md`,
 `examples/09_visual_review_loop.md`. 검증: `python3 scripts/quickcheck.py --operating-plan`.
 
-## 5. 제안서/기획안 (proposal preset)
+## 6. 제안서/기획안 (proposal preset)
 
 "제안서", "기획안" 요청은 `python-hwpx` proposal preset을 사용한다.
 
@@ -100,7 +122,7 @@ plan보다 운영 계획서 프로필을 우선한다.
 
 예제: `examples/04_create_proposal.py`. 검증: `python3 scripts/quickcheck.py --proposal`.
 
-## 6. 양식 + 아이디어 고품질 생성 (quality generation)
+## 7. 양식 + 아이디어 고품질 생성 (quality generation)
 
 사용자가 양식 HWPX와 대략적 아이디어만 주고 "완성도 있게 작성해줘"라고 하면 목표 품질
 샘플을 요구하지 말고 MCP 품질 파이프라인을 사용한다.
@@ -116,7 +138,7 @@ plan보다 운영 계획서 프로필을 우선한다.
 예제 흐름: `examples/05_mcp_quality_pipeline.md`. 양식 경로 선택 기준은
 [`workflows-forms.md`](workflows-forms.md)의 3경로 결정표를 따른다.
 
-## 7. 공문서 작성규정 lint와 결재란
+## 8. 공문서 작성규정 lint와 결재란
 
 공문, 내부 결재문서, 가정통신문, 회의록, 품의서처럼 행정문서 성격이 강하면 생성 후
 `inspect_official_document_style(filename)`을 실행한다 (local 동명 함수도 동일).

@@ -595,11 +595,18 @@ MCP 응답에서 확인할 필드:
 | `build_meeting_nameplates` | `(names, size="150x70", columns, title)` | `block`, `document_plan`, `next_tool` |
 | `build_organization_chart` | `(hierarchy={name, children}, max_depth, title)` | `block`, `document_plan`, `next_tool` |
 | `get_document_map` | `(filename, max_preview_chars=80)` | `info`, `outline`, `sections[]`, `tables`, `formFields`, `anchors`, `document_revision` (읽기 전용) |
+| `document_to_markdown` | `(filename, output="full"|"chunks", chunk_strategy, max_chars_per_chunk, mask)` | `ok`, `markdown`, `meta.{source_format,engine}`, `warnings`, `attempts[]` |
+| `document_extract_json` | `(filename, output="full"|"chunks", chunk_strategy, max_chars_per_chunk, mask)` | `ok`, `doc.{markdown,sections,tables,metadata}`, `meta`, `attempts[]` |
+| `markdown_to_document_plan` | `(markdown, title, metadata, style_preset)` | `ok`, `can_create`, `document_plan`, `validation`, `warnings`, `next_tool` |
 
 `document_revision` 개념: 모든 응답의 `document_revision`(`"sha256:..."`)은 낙관적
 동시성 토큰이다. 쓰기 도구에 `expected_revision`으로 넘기면 외부 변경 시
 `reason: "document revision mismatch"`로 차단된다. `idempotency_key`는
 `apply_edits`/`search_and_replace`/`batch_replace`의 중복 적용 방지 키다.
+
+일반 문서 ingest: HWPX는 `python-hwpx` engine으로 변환된다. 비-HWPX는 서버가
+`hwpx-mcp-server[ingest]` extra로 설치되어 있을 때 MarkItDown adapter가 처리한다.
+adapter 결과는 구조 읽기용 Markdown이며 레이아웃 충실도는 주장하지 않는다.
 
 ## 예외와 주의사항
 
