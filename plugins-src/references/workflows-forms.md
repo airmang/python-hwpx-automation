@@ -108,17 +108,46 @@
    render_preview는 **한컴 수용의 증거가 아니다**(2026-07-03 과대포장 재발 금지). 제출 확언은
    `renderChecked=true` + overflow/overlap 0일 때만.
 
-### 재사용 레시피 (매 학기 반복 업무)
+### 평가계획 전용 한-방 레시피 — `apply_evalplan_fill` (교수학습운영 및 평가계획)
 
-평가계획처럼 매 학기 반복되는 양식은 **입력만 갈아끼우면 되는 레시피**로 만든다:
+도교육청 **평가계획** 양식은 ④의 op를 손으로 짜지 말고 **한 번의 호출**로 채운다. 위
+프리미티브(delete/clone/fill)를 내부에서 오케스트레이션하는 상위 도구다.
+
+> **요구 버전**: `apply_evalplan_fill` 은 `hwpx-mcp-server >= 2.16.0`. `mcp_server_health()`
+> `toolSurface` 에 없으면 아직 미설치(릴리스 대기) — 그 경우 ④ 수동 경로로 처리한다.
 
 ```
-빈 양식.hwpx + 섹션별 구조화 콘텐츠(md) + 규칙(수행100%·정기시험삭제·N영역)
-  → get_document_map → op 리스트 생성 → apply_table_ops → verify_form_fill
+apply_evalplan_fill(
+  path = 빈 양식.hwpx,                 # 도교육청 빈 평가계획 양식(2015개정 or 2022개정 자동판별)
+  reviewMd = 검토용.md,               # 아래 계약대로 구조화된 검토용 초안
+  renderCheck = "required",           # gold 확언은 실 한컴 render 게이트 필수
+  scoreGoldPath = 기제출_동일과목.hwpx  # (선택) 5축 scorecard 동봉
+) → { outputPath, contentReport, rubricNeedsReview, needsReviewNotes, renderVerdict, scorecard }
 ```
 
-내용 저작(사람)과 폼 채움(기계)이 분리된다 — 다음 학기엔 콘텐츠 md와 빈 양식만 새로
-주면 같은 op 매핑으로 재실행. (시험지 조판 [`workflows-exam.md`]와 같은 패턴.)
+한 호출이 하는 일(전부 **바이트보존**, 재생성 금지):
+- 빨간 안내문·제출표·★유의·석차등급 표 삭제, **정기시험 열 삭제**, 잉여 예시표 삭제.
+- 채움: Ⅰ 운영계획 21주 · 성취기준(상/중/하 or A~E) · 성취수준 · 성취율(3단계 or 5단계) ·
+  반영비율(영역·비율·성취기준·평가요소) · 수행평가 rubric(**채점기준 배점 ladder 포함**) ·
+  가/나/다 프로세스 섹션. 원본 표 서식(열너비·병합·테두리) 그대로.
+- **정직 보고**: `rubricNeedsReview`/`needsReviewNotes` — 검토용 MD에 바이트보존 대응이 없는
+  영역(예: 리치 rubric 하위 항목)은 **샘플로 두지 않고 needs_review로 보고**한다(무음 채움 금지).
+  선생님이 그 영역만 한글에서 마무리하면 된다.
+
+**검토용 MD 계약**(파서가 읽는 형식 — 시험지 `workflows-exam.md`와 동형):
+`# 제목(담당교사: 이름)` · `## Ⅰ. 교수학습 운영 계획`(월/주/단원/성취기준/수업방법/주안점 표) ·
+`### 1.`~`### 11.`(목적/기본방향/방침/성취기준·성취수준[가.표+나.표]/성취율/반영비율/수행평가
+세부기준[`**① 영역 (N점)**`+평가항목·채점기준 배점 `**N**` ladder]/정의적/결시자/유의사항/결과분석).
+
+**게이트(제출 확언 조건)**: `renderVerdict.renderChecked=true` + overflow 0 + `rubricNeedsReview`
+확인 + (scorecard 동봉 시) `total ≥ 90` & `render_checked=true`. open-safety나 render_preview는
+한컴 수용 증거가 아니다. 미충족이면 정직히 미확언.
+
+**재사용**: 내용 저작(사람)과 폼 채움(기계) 분리 — 다음 학기·과목·학년은 **빈 양식과 검토용
+MD만 새로** 주면 같은 recipe로 재실행(gold 품질 유지). 검증됨: 2015개정(3학년)·2022개정(2학년)
+두 form-family를 입력 교체만으로 실 한컴 오라클-clean 채움(각각 94.9·94.7/100).
+
+비-평가계획 구조변경 양식(다른 도교육청 폼 등)은 ④ 수동 `apply_table_ops` 경로를 쓴다.
 
 ## ⑤ 직인/관인 날인 경로 (`place_seal` · `check_seal_compliance`)
 

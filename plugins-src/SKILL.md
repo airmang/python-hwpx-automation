@@ -56,6 +56,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 승인된 양식 보존 채움 (baseline) | `analyze_template_formfit` → `apply_template_formfit` | [workflows-forms](references/workflows-forms.md) |
 | 양식 + 아이디어로 고품질 완성 | `analyze_quality_generation` → `apply_quality_generation` | [workflows-forms](references/workflows-forms.md) |
 | 채우며 표 구조 변경 (열/표 삭제·행 증설, **재생성 금지**·바이트보존) | `get_document_map` → `apply_table_ops`(fill_cell+delete_column/row/table+insert_row_by_clone) → `verify_form_fill` | [workflows-forms](references/workflows-forms.md) |
+| **평가계획(교수학습운영 및 평가계획) 한-방 채움** (빈 양식+검토용 md → gold 채움본, 2015/2022개정 자동·바이트보존·정직 needs_review) | `apply_evalplan_fill`(renderCheck='required'[+scoreGoldPath] → `score_form_fill`) | [workflows-forms](references/workflows-forms.md) |
 | 출제 md를 학교 시험지 양식에 재조판 (문항 keep-together, 그림은 placeholder) | `compose_exam` · `verify_question_splits` | [workflows-exam](references/workflows-exam.md) |
 | 메일머지 N부 대량생산 (상장·수료증·안내장·명부 CSV/XLSX) · 셀 넘침 격리(fit) | `mail_merge` (`fit_mode`) | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 표 합계·평균·소계 계산 | `table_compute` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
