@@ -139,9 +139,12 @@ apply_evalplan_fill(
 `### 1.`~`### 11.`(목적/기본방향/방침/성취기준·성취수준[가.표+나.표]/성취율/반영비율/수행평가
 세부기준[`**① 영역 (N점)**`+평가항목·채점기준 배점 `**N**` ladder]/정의적/결시자/유의사항/결과분석).
 
-**게이트(제출 확언 조건)**: `renderVerdict.renderChecked=true` + overflow 0 + `rubricNeedsReview`
-확인 + (scorecard 동봉 시) `total ≥ 90` & `render_checked=true`. open-safety나 render_preview는
-한컴 수용 증거가 아니다. 미충족이면 정직히 미확언.
+**게이트(제출 확언 조건)** — **scorecard의 A축(정밀 overflow-crossing 검출)이 권위 신호**:
+`renderVerdict.renderChecked=true` + scorecard `A=30`(overflow crossing 0) + `total ≥ 90` &
+`render_checked=true` + `rubricNeedsReview` 확인. open-safety·render_preview는 한컴 수용 증거가
+아니다. **주의**: `renderVerdict.overlapDetected`(verify_form_fill의 tall-band 휴리스틱)는 평가계획
+같은 **조밀한 표에서 false-positive** 하니 단독으로 실패 판정하지 말고 scorecard A축과 교차확인한다.
+미충족이면 정직히 미확언.
 
 **재사용**: 내용 저작(사람)과 폼 채움(기계) 분리 — 다음 학기·과목·학년은 **빈 양식과 검토용
 MD만 새로** 주면 같은 recipe로 재실행(gold 품질 유지). 검증됨: 2015개정(3학년)·2022개정(2학년)
