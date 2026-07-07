@@ -37,14 +37,17 @@
 
 ### ⓪-2 fill-plan 상의 절차 (판단표 합의 후, 실행 전)
 
-판단표가 합의되면 실행 계획을 **말이 아니라 기계 증거로** 승인받는다:
+**Stage 2의 본질은 "어디에 뭘 어떻게 채울지"를 사용자와 항목별로 같이 정하는 것이다.**
+방향 승인("해줘")은 계획 승인이 아니다 — 계획표 없이 실행으로 건너뛰지 마라(생략은
+사용자가 명시적으로 "계획 생략하고 바로 해"라고 할 때만).
 
-1. **fill-plan 작성(네 일)**: `apply_table_ops` ops 리스트로 계획을 표현하되, op마다
-   근거(rationale)를 한 줄씩 붙인다. 주소는 인덱스보다 **앵커**(tableAnchor/cellAnchor)
-   우선 — 삭제로 인덱스가 밀려도 살아남는다. delete_table은 역순 정렬.
-2. **dry-run**: `apply_table_ops(..., dryRun=true)` — 아무것도 쓰지 않고 동일 파이프라인
-   (해석·grid 검증·fail-closed)을 돌려 `transcript`(op별 해석·전후 dims)와 `applied`
-   (old→new 텍스트)를 받는다. refused가 있으면 계획을 수정해 다시 dry-run.
+1. **fill-plan = 항목별 결정표(네 초안, 같이 확정)**: 각 행에 위치(앵커 우선) ·
+   넣을/지울 내용(콘텐츠 초안 포함) · 서식 · op · 근거 · 상태(제안/확정)를 담아
+   사용자에게 제시한다. 사용자가 행 단위로 승인/수정/거부한다. 내용 창작이 필요한
+   항목은 초안을 넣고 **여러 라운드로 다듬는다**. delete_table은 역순 정렬.
+2. **dry-run**: 확정된 계획을 `apply_table_ops(..., dryRun=true)`로 돌려 `transcript`
+   (op별 해석·전후 dims)와 `applied`(old→new 텍스트)를 받는다. refused가 있으면
+   계획을 수정해 다시 dry-run.
 3. **승인**: transcript+old→new 표를 사용자에게 보여주고 승인받는다. 승인 없이
    본 실행 금지(특히 delete 계열).
 4. **실행·검증**: 승인된 동일 ops로 dryRun 없이 실행(output은 사본) →
