@@ -35,6 +35,21 @@
 5. **제출 확언 금지 규칙**: 스코어/verify 통과는 필요조건일 뿐이다. "제출 가능"은
    렌더 PDF를 사람이 전 페이지 확인한 뒤에만 말한다.
 
+### ⓪-2 fill-plan 상의 절차 (판단표 합의 후, 실행 전)
+
+판단표가 합의되면 실행 계획을 **말이 아니라 기계 증거로** 승인받는다:
+
+1. **fill-plan 작성(네 일)**: `apply_table_ops` ops 리스트로 계획을 표현하되, op마다
+   근거(rationale)를 한 줄씩 붙인다. 주소는 인덱스보다 **앵커**(tableAnchor/cellAnchor)
+   우선 — 삭제로 인덱스가 밀려도 살아남는다. delete_table은 역순 정렬.
+2. **dry-run**: `apply_table_ops(..., dryRun=true)` — 아무것도 쓰지 않고 동일 파이프라인
+   (해석·grid 검증·fail-closed)을 돌려 `transcript`(op별 해석·전후 dims)와 `applied`
+   (old→new 텍스트)를 받는다. refused가 있으면 계획을 수정해 다시 dry-run.
+3. **승인**: transcript+old→new 표를 사용자에게 보여주고 승인받는다. 승인 없이
+   본 실행 금지(특히 delete 계열).
+4. **실행·검증**: 승인된 동일 ops로 dryRun 없이 실행(output은 사본) →
+   `verify_form_fill`(실한컴) → 렌더 PDF 사람 확인.
+
 ## 양식 4경로 결정표
 
 | 경로 | 선택 조건 | 도구 순서 |
