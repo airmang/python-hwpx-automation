@@ -49,9 +49,12 @@
    최종 서식이면(예: 제목 17pt) 상속, 슬롯 서식이 안내 표시(파란 이탤릭 등)면
    `restyle_text`(색 교체·이탤릭 제거)로 본문화. 사람은 검정 정자로 쓴다
    (2026-07-07 신청서 실측 교훈).
-   실행 어휘: 표 안 = `apply_table_ops`, **표 밖 본문 = `apply_body_ops`**
-   (replace_text/delete_paragraph/insert_paragraph_by_clone[참조 문단 서식 상속]/
-   reorder_paragraphs) — 둘 다 바이트보존·fail-closed.
+   실행 어휘: 표 안 = `apply_table_ops`(fill_cell·delete_row/column/table·
+   insert_row/block_by_clone·**split_cell_vertical**[병합 셀을 N개 그룹으로 분할—
+   루브릭 평가항목 1×7→3×3 정렬]·set_row_heights·set_cell_line_spacing[셀 줄간격]),
+   **표 밖 본문 = `apply_body_ops`**(replace_text/delete_paragraph/
+   insert_paragraph_by_clone[참조 문단 서식 상속]/reorder_paragraphs/restyle_text).
+   전부 바이트보존·fail-closed·dryRun 지원.
 2. **dry-run**: 확정된 계획을 `apply_table_ops`/`apply_body_ops`의 `dryRun=true`로
    돌려 `transcript`(op별 해석·전후 dims)와 `applied`(old→new 텍스트)를 받는다.
    refused가 있으면 계획을 수정해 다시 dry-run.
