@@ -45,9 +45,12 @@
    넣을/지울 내용(콘텐츠 초안 포함) · 서식 · op · 근거 · 상태(제안/확정)를 담아
    사용자에게 제시한다. 사용자가 행 단위로 승인/수정/거부한다. 내용 창작이 필요한
    항목은 초안을 넣고 **여러 라운드로 다듬는다**. delete_table은 역순 정렬.
-2. **dry-run**: 확정된 계획을 `apply_table_ops(..., dryRun=true)`로 돌려 `transcript`
-   (op별 해석·전후 dims)와 `applied`(old→new 텍스트)를 받는다. refused가 있으면
-   계획을 수정해 다시 dry-run.
+   실행 어휘: 표 안 = `apply_table_ops`, **표 밖 본문 = `apply_body_ops`**
+   (replace_text/delete_paragraph/insert_paragraph_by_clone[참조 문단 서식 상속]/
+   reorder_paragraphs) — 둘 다 바이트보존·fail-closed.
+2. **dry-run**: 확정된 계획을 `apply_table_ops`/`apply_body_ops`의 `dryRun=true`로
+   돌려 `transcript`(op별 해석·전후 dims)와 `applied`(old→new 텍스트)를 받는다.
+   refused가 있으면 계획을 수정해 다시 dry-run.
 3. **승인**: transcript+old→new 표를 사용자에게 보여주고 승인받는다. 승인 없이
    본 실행 금지(특히 delete 계열).
 4. **실행·검증**: 승인된 동일 ops로 dryRun 없이 실행(output은 사본) →
