@@ -58,7 +58,8 @@
 3. **승인**: transcript+old→new 표를 사용자에게 보여주고 승인받는다. 승인 없이
    본 실행 금지(특히 delete 계열).
 4. **실행·검증**: 승인된 동일 ops로 dryRun 없이 실행(output은 사본) →
-   `verify_form_fill`(실한컴) → 렌더 PDF 사람 확인.
+   **`inspect_fill_residue(produced, blankPath=원본)`** 잔존물 zero-체크(errors 0
+   필수, needsReview는 사람 판단) → `verify_form_fill`(실한컴) → 렌더 PDF 사람 확인.
 
 ### ⓪-3 질문 설계 — 매 양식 다른 상황에 맞게 "잘" 묻기
 
