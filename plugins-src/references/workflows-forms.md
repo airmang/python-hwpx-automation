@@ -200,7 +200,7 @@
 도교육청 **평가계획** 양식은 ④의 op를 손으로 짜지 말고 **한 번의 호출**로 채운다. 위
 프리미티브(delete/clone/fill)를 내부에서 오케스트레이션하는 상위 도구다.
 
-> **요구 버전**: `apply_evalplan_fill` 은 `hwpx-mcp-server >= 2.16.0`. `mcp_server_health()`
+> **요구 버전**: `apply_evalplan_fill` 은 `hwpx-mcp-server >= 2.17.0`. `mcp_server_health()`
 > `toolSurface` 에 없으면 아직 미설치(릴리스 대기) — 그 경우 ④ 수동 경로로 처리한다.
 
 ```
