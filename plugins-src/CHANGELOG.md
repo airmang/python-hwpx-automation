@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-07-09
+### Changed
+- 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.18.0`으로 갱신.
+
+
 ## [0.1.21] - 2026-07-06
 ### Fixed
 - 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.16.0`(`python-hwpx>=2.23.0`)으로 갱신. **styled-run 글자속성 픽스**를 배포: `add_paragraph`/`insert_paragraph`/`add_table`가 새 run에 문단 스타일의 글자속성을 실어 준다(기존엔 `charPrIDRef="0"` 기본값 → 0번이 제목용 큰 글자인 양식에서 본문이 통째로 커지는 버그; 예: KACE 투고양식은 charPr 0 = 17pt라 `j-본문` 본문이 17pt로 샜음 → 이제 9pt). 회귀 가드(`_enforce_run_char_pr`)로 재확인. 부수적으로 `hwpx-mcp-server` 2.16.0의 Spec 013 document ingest + Markdown-plan bridge 포함.
