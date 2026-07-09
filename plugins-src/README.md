@@ -64,6 +64,7 @@ python3 scripts/quickcheck.py
 | "이 hwpx 텍스트 전부 뽑아줘" | 표 안 문단·각주 포함 텍스트 추출 |
 | "`{학교명}`·`{담당자}` 자리표시자 전부 바꿔줘" | 표까지 포함한 플레이스홀더 전역 치환 |
 | "이 양식은 그대로 두고 내용만 채워줘" | 바이트 보존 양식 form-fit (셀 채움·행/열 조정·한컴 검증) |
+| "이 평가계획 양식 우리 학교 걸로 채워줘" | 빈 양식+검토용 초안 → 서식 맞춤 채움본(생성 후 검토 필요) |
 | "머리글·쪽번호 들어간 운영 계획서 새로 만들어줘" | `hwpx.builder`로 레이아웃 민감 문서 조립 |
 | "한컴에서 안 열리는 hwpx인데 복구해줘" | repair/recover 복구 복사본 생성 |
 | "이 hwpx 구조랑 표 개수 점검해줘" | 구조·품질 점검 |
@@ -78,7 +79,7 @@ python3 scripts/quickcheck.py
 에이전트가 트리거하는 주요 기능을 테마별로 정리했다. 전체 도구·워크플로 목록은 [SKILL.md](SKILL.md)와 [references/](references/) 참고.
 
 - **읽기** — 텍스트/표/각주 추출, JSON·Markdown 변환, 런서식 충실 읽기 · [workflows-reading.md](references/workflows-reading.md)
-- **양식** — 누름틀(`list_form_fields`/`fill_form_field`) 1급 지원, **바이트 보존 구조적 form-fill**(셀 채움·행/열·표 삽입/삭제·열너비 자동맞춤·폰트 shrink-to-fit·실한컴 검증) · [workflows-forms.md](references/workflows-forms.md)
+- **양식** — 누름틀(`list_form_fields`/`fill_form_field`) 1급 지원, **바이트 보존 구조적 form-fill**(셀 채움·행/열·표 삽입/삭제·열너비 자동맞춤·폰트 shrink-to-fit·실한컴 검증), 처음 보는 양식은 **정찰→상의→채움** 동적 흐름, **평가계획 한-방 채움**(생성 후 검토 필요) · [workflows-forms.md](references/workflows-forms.md)
 - **생성** — `hwpx.builder`(머리글/바닥글·쪽번호·리치 런·목록·병합/음영/열너비 표·이미지·페이지 나눔), 선언형 `hwpx.document_plan.v1`, 공문·보고서·제안서 레시피 · [workflows-creation.md](references/workflows-creation.md) · [workflows-authoring.md](references/workflows-authoring.md)
 - **편집** — 원자 적용 `apply_edits`(dry_run·revision 가드·멱등키)·`undo_last_edit`, 인간 단위 서식 편집, 추적 변경(redline) · [workflows-editing.md](references/workflows-editing.md) · [workflows-redline.md](references/workflows-redline.md)
 - **공문서** — `inspect_official_document_style` lint·결재란 프리셋·장르 레시피, 신구대조표(`doc_diff`/`create_comparison_table_document`) · [official-document-rules.md](references/official-document-rules.md)

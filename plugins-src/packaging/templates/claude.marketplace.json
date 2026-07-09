@@ -5,7 +5,7 @@
     {
       "name": "hwpx-plugin",
       "source": "./plugins/claude/hwpx-plugin",
-      "description": "HWPX document generation, validation, visual-review handoff, and MCP tooling."
+      "description": "AI 에이전트가 HWPX(한글) 문서를 읽고·양식 채우고·새로 만들고·점검/복구하게 해주는 스킬. 순수 Python·한컴 불필요."
     }
   ]
 }
