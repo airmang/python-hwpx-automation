@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: hwpx-skill
+      - uses: actions/checkout@v4
+        with:
+          repository: airmang/python-hwpx
+          path: python-hwpx
+      - uses: actions/checkout@v4
+        with:
+          repository: airmang/hwpx-mcp-server
+          path: hwpx-mcp-server
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+      - run: uv pip install --system -e ./python-hwpx -e './hwpx-mcp-server[test]'
+      - name: ToolSpec generated files are current
+        run: python hwpx-mcp-server/scripts/render_tool_contract.py --check
+      - name: Skill tests
+        working-directory: hwpx-skill
+        run: python -m pytest -q
+      - name: Build and validate all host bundles
+        working-directory: hwpx-skill
+        run: |
+          python scripts/build_hwpx_plugins.py
+          python scripts/validate_hwpx_plugin.py
+          git diff --exit-code
+      - name: Plugin launcher protocol E2E (editable stack)
+        working-directory: hwpx-skill
+        run: python scripts/plugin_mcp_e2e.py --mcp-repo ../hwpx-mcp-server --core-repo ../python-hwpx
+      - name: Clean wheel 3-stack smoke
+        working-directory: hwpx-skill
+        run: python scripts/clean_install_smoke.py

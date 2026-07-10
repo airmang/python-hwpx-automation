@@ -1,0 +1,732 @@
+{
+  "schemaVersion": "hwpx.tool-contract.v1",
+  "minPythonHwpx": "2.24.0",
+  "minMcpVersion": "2.18.1",
+  "minSkillVersion": "0.1.25",
+  "tools": [
+    {
+      "name": "get_document_text",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_document_info",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_document_outline",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_document_map",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "get_paragraph_text",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_paragraphs_text",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_location_text",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_table_text",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_table_map",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "find_text",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "list_available_documents",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "hwpx_to_markdown",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "document_to_markdown",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "hwpx_to_html",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "hwpx_extract_json",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "document_extract_json",
+      "domain": "read",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "scan_form_guidance",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "apply_table_ops",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "apply_body_ops",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "inspect_fill_residue",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "verify_form_fill",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "list_form_fields",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "fill_form_field",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "find_cell_by_label",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "fill_by_path",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "analyze_form_fill",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "apply_form_fill",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "analyze_template_formfit",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "apply_template_formfit",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "analyze_quality_generation",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "apply_quality_generation",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "apply_evalplan_fill",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "score_form_fill",
+      "domain": "form_fill",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "create_document",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "create_document_from_plan",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "copy_document",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "create_government_report_document",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "create_proposal_document",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "create_comparison_table_document",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_document_plan_schema",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "validate_document_plan",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "analyze_document_plan",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "markdown_to_document_plan",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "parse_government_report_text",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "compute_report_value",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "register_template",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "list_templates",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "describe_template",
+      "domain": "author",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_heading",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_paragraph",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "insert_paragraph",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "delete_paragraph",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_page_break",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "apply_edits",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "plan_edit",
+      "domain": "edit",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "preview_edit",
+      "domain": "edit",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "apply_edit",
+      "domain": "edit",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "undo_last_edit",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "replace_by_anchor",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "replace_in_paragraph",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "search_and_replace",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "batch_replace",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "byte_preserving_patch",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "insert_picture",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "replace_picture",
+      "domain": "edit",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_table",
+      "domain": "tables",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "set_table_cell_text",
+      "domain": "tables",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "merge_table_cells",
+      "domain": "tables",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "split_table_cell",
+      "domain": "tables",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "format_table",
+      "domain": "tables",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "table_compute",
+      "domain": "tables",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "list_styles",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "create_custom_style",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "set_paragraph_format",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "set_list_format",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "format_text",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "extract_style_profile",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "apply_style_profile_to_plan",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "compare_style_profiles",
+      "domain": "styles",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "set_page_setup",
+      "domain": "layout",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "set_header_footer",
+      "domain": "layout",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "set_page_number",
+      "domain": "layout",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_toc",
+      "domain": "toc_xref",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_cross_reference",
+      "domain": "toc_xref",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "verify_toc",
+      "domain": "toc_xref",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "scan_personal_info",
+      "domain": "pii",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_tracked_edit",
+      "domain": "redline",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "compose_exam",
+      "domain": "exam",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "verify_question_splits",
+      "domain": "exam",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "place_seal",
+      "domain": "seal",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "check_seal_compliance",
+      "domain": "seal",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "mail_merge",
+      "domain": "generators",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "inspect_mail_merge_placeholders",
+      "domain": "generators",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "build_image_grid",
+      "domain": "generators",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "build_meeting_nameplates",
+      "domain": "generators",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "build_organization_chart",
+      "domain": "generators",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_memo",
+      "domain": "memo",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "add_memo_by_anchor",
+      "domain": "memo",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "remove_memo",
+      "domain": "memo",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_preview",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "repair_hwpx",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "mcp_server_health",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "describe_capabilities",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "doc_diff",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "validate_structure",
+      "domain": "verify_quality",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "lint_text_conventions",
+      "domain": "verify_quality",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "inspect_document_quality",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "inspect_document_authoring_quality",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "inspect_operating_plan_quality",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "inspect_official_document_style",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "inspect_reference_consistency",
+      "domain": "verify_quality",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "package_parts",
+      "domain": "package_io",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "package_get_text",
+      "domain": "package_io",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "package_get_xml",
+      "domain": "package_io",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "object_find_by_attr",
+      "domain": "package_io",
+      "profile": "advanced",
+      "skillRequired": false
+    },
+    {
+      "name": "object_find_by_tag",
+      "domain": "package_io",
+      "profile": "advanced",
+      "skillRequired": false
+    }
+  ],
+  "contractHash": "7f85ffd4e06b1556",
+  "defaultToolCount": 106,
+  "advancedToolCount": 116,
+  "skillRequiredTools": [
+    "add_memo_by_anchor",
+    "add_tracked_edit",
+    "apply_body_ops",
+    "apply_edits",
+    "apply_evalplan_fill",
+    "apply_table_ops",
+    "byte_preserving_patch",
+    "compose_exam",
+    "create_document_from_plan",
+    "create_government_report_document",
+    "extract_style_profile",
+    "get_document_map",
+    "inspect_fill_residue",
+    "list_templates",
+    "mail_merge",
+    "render_preview",
+    "repair_hwpx",
+    "replace_by_anchor",
+    "scan_form_guidance",
+    "score_form_fill",
+    "table_compute",
+    "undo_last_edit",
+    "verify_form_fill"
+  ]
+}

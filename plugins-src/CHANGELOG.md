@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.25] - 2026-07-10
+### Fixed
+- FastMCP 2.18.1 핫픽스를 고정해 universal form-fill 7도구가 설치 플러그인 표면에서 실제 호출되도록 복구.
+- 런처가 실제 스킬 버전 0.1.25를 capability handshake에 전달하고, clean-install smoke용
+  local-editable 비활성화/패키지 override를 지원.
+- ToolSpec에서 생성한 default/advanced/필수 도구 API 인덱스를 4호스트 번들에 포함.
+
 ## [0.1.24] - 2026-07-09
 ### Changed
 - 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.18.0`으로 갱신.

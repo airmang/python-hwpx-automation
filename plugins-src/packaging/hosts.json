@@ -10,6 +10,8 @@
     "references/evidence-contract.md",
     "references/government-report-visual-review.md",
     "references/official-document-rules.md",
+    "references/tool-contract.generated.md",
+    "references/tool-contract.generated.json",
     "references/workflows-authoring.md",
     "references/workflows-bulk-compare.md",
     "references/workflows-creation.md",
@@ -84,7 +86,7 @@
       "id": "hermes",
       "outputDir": "plugins/hermes/hwpx",
       "skillSubdir": ".",
-      "frontmatterExtra": "version: 0.1.24\nauthor: Kohkyuhyun\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
+      "frontmatterExtra": "version: 0.1.25\nauthor: Kohkyuhyun\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
       "manifests": [],
       "mcp": { "strategy": "config-doc", "template": "templates/hermes.mcp-install.md", "dest": "INSTALL-mcp.md" },
       "bundleLauncher": false

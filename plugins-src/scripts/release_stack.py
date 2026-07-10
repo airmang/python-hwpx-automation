@@ -9,7 +9,7 @@
   1. hwpx-mcp-server: pyproject/CHANGELOG bump → commit → tag vX → push
      (레포의 `.github/workflows/release.yml` 이 태그 트리거로 PyPI 게시)
   2. PyPI 에 X 전파될 때까지 대기
-  3. 마켓(이 레포): origin/main 으로 reset(★stale 가드) → 런처 핀 + 플러그인 버전 bump →
+  3. 마켓(이 레포): 최초/checkout/origin head 변경 감지 가드 → 런처 핀 + 플러그인 버전 bump →
      build_hwpx_plugins.py 재생성 → validate → CHANGELOG → commit → push
 
 사용
@@ -132,6 +132,7 @@ def main() -> None:
 
     # ---- 마켓 레포 사전점검 ----
     require_clean_main(MKT_REPO, "marketplace")
+    marketplace_start_head = git(MKT_REPO, "rev-parse", "HEAD")
     cur_pin = re.search(r"hwpx-mcp-server==(\d+\.\d+\.\d+)",
                         (MKT_REPO / "packaging/templates/hwpx-mcp-server").read_text()).group(1)
 
@@ -164,6 +165,12 @@ def main() -> None:
         git(mcp_repo, "rebase", "-q", "origin/main")
         bump_version_line(mcp_repo / "pyproject.toml", args.engine)
         finalize_changelog(mcp_repo / "CHANGELOG.md", args.engine, today)
+        subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=mcp_repo, check=True)
+        subprocess.run(
+            [sys.executable, "scripts/render_tool_contract.py", "--check", "--skip-skill"],
+            cwd=mcp_repo,
+            check=True,
+        )
         git(mcp_repo, "add", "pyproject.toml", "CHANGELOG.md")
         git(mcp_repo, "commit", "-q", "-m", f"chore: release hwpx-mcp-server {args.engine}")
         git(mcp_repo, "tag", "-a", f"v{args.engine}", "-m", f"hwpx-mcp-server {args.engine}")
@@ -179,7 +186,14 @@ def main() -> None:
     # ---- 3) 마켓 핀/버전 bump + 재빌드 + push ----
     log(f"[3/3] hwpx-plugin {args.plugin} — 핀 hwpx-mcp-server=={args.engine}")
     git(MKT_REPO, "fetch", "-q", "origin", "main")
-    git(MKT_REPO, "reset", "--hard", "-q", "origin/main")  # ★ stale 가드
+    require_clean_main(MKT_REPO, "marketplace")
+    current_head = git(MKT_REPO, "rev-parse", "HEAD")
+    remote_head = git(MKT_REPO, "rev-parse", "origin/main")
+    if current_head != marketplace_start_head or remote_head != marketplace_start_head:
+        die(
+            "PyPI 대기 중 marketplace checkout 또는 origin/main이 변경됨 — "
+            "자동 덮어쓰기 없이 중단합니다. 최신 main에서 다시 실행하세요."
+        )
     tdir = MKT_REPO / "packaging" / "templates"
     n_pin = sub_in_files(
         list(tdir.glob("*")) + [MKT_REPO / "scripts" / "validate_hwpx_plugin.py"],
@@ -189,11 +203,19 @@ def main() -> None:
         r'"version": "\d+\.\d+\.\d+"', f'"version": "{args.plugin}"')
     n_ver += sub_in_files([MKT_REPO / "packaging" / "hosts.json"],
                           r"version: \d+\.\d+\.\d+", f"version: {args.plugin}")
+    n_ver += sub_in_files(
+        [tdir / "hwpx-mcp-server"],
+        r'HWPX_SKILL_VERSION:-\d+\.\d+\.\d+',
+        f'HWPX_SKILL_VERSION:-{args.plugin}',
+    )
     print(f"  핀 치환 {n_pin}곳, 버전 치환 {n_ver}곳")
     if n_pin == 0 or n_ver == 0:
         die("핀/버전 치환 0곳 — 템플릿 구조가 바뀌었는지 확인.")
     subprocess.run([sys.executable, str(MKT_REPO / "scripts/build_hwpx_plugins.py")], check=True)
     subprocess.run([sys.executable, str(MKT_REPO / "scripts/validate_hwpx_plugin.py")], check=True)
+    subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=MKT_REPO, check=True)
+    subprocess.run([sys.executable, str(MKT_REPO / "scripts/plugin_mcp_e2e.py")], cwd=MKT_REPO, check=True)
+    subprocess.run([sys.executable, str(MKT_REPO / "scripts/clean_install_smoke.py")], cwd=MKT_REPO, check=True)
     finalize_changelog(
         MKT_REPO / "CHANGELOG.md", args.plugin, today,
         extra_body=f"### Changed\n- 번들 런처/MCP 설치 핀을 `hwpx-mcp-server=={args.engine}`으로 갱신.\n")
