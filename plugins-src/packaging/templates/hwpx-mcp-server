@@ -31,7 +31,7 @@ if [ "${HWPX_MCP_DISABLE_LOCAL_EDITABLE:-0}" != "1" ] \
   && command -v uv >/dev/null 2>&1 \
   && [ -n "${MCP_REPO}" ] && [ -f "${MCP_REPO}/pyproject.toml" ] \
   && [ -n "${PYTHON_HWPX_REPO}" ] && [ -f "${PYTHON_HWPX_REPO}/pyproject.toml" ]; then
-  exec uv run --no-project --with-editable "${PYTHON_HWPX_REPO}" --with-editable "${MCP_REPO}" hwpx-mcp-server
+  exec uv run --no-project --no-sources --with-editable "${PYTHON_HWPX_REPO}" --with-editable "${MCP_REPO}" hwpx-mcp-server
 fi
 
 if command -v uv >/dev/null 2>&1; then
