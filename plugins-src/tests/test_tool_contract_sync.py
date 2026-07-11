@@ -24,6 +24,7 @@ WORKFLOW_TOOLS = {
     "cancel_workflow",
     "resume_workflow",
 }
+RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
 
 
 def _contract() -> dict:
@@ -38,7 +39,8 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert RECOVERED_TOOLS <= names
     assert RECOVERED_TOOLS <= required
     assert WORKFLOW_TOOLS <= names
-    assert contract["defaultToolCount"] == 112
+    assert RENDER_TOOLS <= names
+    assert contract["defaultToolCount"] == 116
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
@@ -82,6 +84,8 @@ def test_skill_routes_to_generated_api_table() -> None:
         assert re.search(rf"`{re.escape(tool)}`", generated)
     for tool in WORKFLOW_TOOLS:
         assert re.search(rf"`{re.escape(tool)}`", generated)
+    for tool in RENDER_TOOLS:
+        assert re.search(rf"`{re.escape(tool)}`", generated)
 
 
 def test_skill_routes_general_work_to_one_level_autonomous_reference() -> None:
@@ -117,3 +121,21 @@ def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
     assert "start_workflow" in e2e
     assert "unknown_form_fill" in e2e
     assert "approve_workflow_decision" in e2e
+    assert "render_health" in e2e and "render_submit" in e2e and "render_status" in e2e
+    assert "--require-real-render" in e2e
+
+
+def test_skill_routes_real_hancom_render_to_one_level_reference() -> None:
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    autonomous = (ROOT / "references" / "workflows-autonomous.md").read_text(encoding="utf-8")
+    render = (ROOT / "references" / "workflows-real-hancom-render.md").read_text(encoding="utf-8")
+
+    assert "references/workflows-real-hancom-render.md" in skill
+    assert "`render_health` → `render_submit` → `render_status`" in skill
+    assert "policy.require_real_hancom_render=true" in autonomous
+    assert "`VERIFY`" in autonomous and "`resume_workflow`" in autonomous
+    for tool in ("render_health", "render_submit", "render_status", "render_cancel"):
+        assert f"`{tool}" in render
+    assert "output_dir" in render
+    assert "render_checked == true" in render
+    assert "local `render_preview`" in render

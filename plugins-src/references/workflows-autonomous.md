@@ -11,6 +11,11 @@
 모든 mutation은 원본과 다른 `output_path`를 사용한다. `DISPATCH_IN_DOUBT`, capability skew, stale revision,
 예산 초과, 불충분한 openSafety는 우회하지 않는다.
 
+실한컴 검증이 필수인 work order에는 `policy.require_real_hancom_render=true`를 설정한다. 서버는 `VERIFY`에서
+렌더 job을 한 번만 제출하고, `queued`/`running` 동안 상태를 `VERIFY`에 둔 채 즉시 반환한다. 긴 호출로
+기다리지 말고 이후 `continue_workflow` 또는 재시작 뒤 `resume_workflow`로 폴링한다. 일치하는 실한컴
+성공 receipt가 없으면 `completed`로 우회하지 않고 `needs_review`/unverified를 그대로 보고한다.
+
 ## 5개 family 입력
 
 공통 필드는 `family`, 8자 이상의 `idempotency_key`, 선택적 `budget`·`policy`다. 기존 문서 작업은
@@ -56,5 +61,5 @@
 - `decision`: `decisions`/계획의 `actionHash`를 확인한다. 사용자 또는 정책 소유자의 승인을 추정하지 않는다.
 - `needs_review`: `stopReason`과 `unresolvedFindings`를 그대로 보고하고 primitive로 우회하지 않는다.
 - `completed`: `artifacts`, `semanticDiff`, `openSafety`, `verificationStatus`, `versions`, `toolSpecHash`를 확인한다.
-- S-067의 모든 영수증은 `openSafety.renderChecked=false`다. 이는 구조적 열림 안전 증거일 뿐 실한컴 렌더
-  검수가 아니다. `renderChecked=false`인 결과를 시각 검수 완료 또는 최종 제출 가능이라고 주장하지 않는다.
+- `policy.require_real_hancom_render=false`인 영수증의 `openSafety.renderChecked=false`는 구조적 열림 안전
+  증거일 뿐 실한컴 검수가 아니다. `renderChecked=false`인 결과를 시각 검수 완료라고 주장하지 않는다.

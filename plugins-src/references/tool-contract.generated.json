@@ -1,9 +1,33 @@
 {
   "schemaVersion": "hwpx.tool-contract.v1",
-  "minPythonHwpx": "2.24.0",
-  "minMcpVersion": "2.18.1",
-  "minSkillVersion": "0.1.25",
+  "minPythonHwpx": "2.25.0",
+  "minMcpVersion": "2.19.0",
+  "minSkillVersion": "0.1.26",
   "tools": [
+    {
+      "name": "render_submit",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_status",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_cancel",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_health",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
     {
       "name": "start_workflow",
       "domain": "workflow",
@@ -737,9 +761,9 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "ae6c43e059183d1b",
-  "defaultToolCount": 112,
-  "advancedToolCount": 122,
+  "contractHash": "e218039d9708e1b6",
+  "defaultToolCount": 116,
+  "advancedToolCount": 126,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",

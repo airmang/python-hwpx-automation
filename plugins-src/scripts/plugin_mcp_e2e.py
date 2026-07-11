@@ -50,6 +50,7 @@ WORKFLOW_TOOLS = {
     "cancel_workflow",
     "resume_workflow",
 }
+RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
 
 
 def _structured(result: Any) -> dict[str, Any]:
@@ -116,6 +117,9 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                 missing_workflow = sorted(WORKFLOW_TOOLS - names)
                 if missing_workflow:
                     raise RuntimeError(f"installed plugin missing workflow tools: {missing_workflow}")
+                missing_render = sorted(RENDER_TOOLS - names)
+                if missing_render:
+                    raise RuntimeError(f"installed plugin missing async render tools: {missing_render}")
 
                 document = sandbox / "unfamiliar-form.hwpx"
                 output = sandbox / "unfamiliar-form-filled.hwpx"
@@ -208,17 +212,62 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                 health = _structured(await session.call_tool("mcp_server_health", {}, read_timeout_seconds=timeout))
                 if health.get("toolSurface", {}).get("status") != "ok":
                     raise RuntimeError(f"plugin health is not ok: {health}")
+                render_health = _structured(
+                    await session.call_tool("render_health", {}, read_timeout_seconds=timeout)
+                )
+                render_receipt = _structured(
+                    await session.call_tool(
+                        "render_submit",
+                        {
+                            "filename": str(output),
+                            "idempotency_key": "plugin-e2e-render",
+                        },
+                        read_timeout_seconds=timeout,
+                    )
+                )
+                if args.require_real_render:
+                    receipt_payload = render_receipt.get("receipt") or {}
+                    job_id = receipt_payload.get("job_id")
+                    if not isinstance(job_id, str):
+                        raise RuntimeError(f"real render did not return a job id: {render_receipt}")
+                    render_dir = sandbox / "real-hancom-render"
+                    for _ in range(120):
+                        render_receipt = _structured(
+                            await session.call_tool(
+                                "render_status",
+                                {"job_id": job_id, "output_dir": str(render_dir)},
+                                read_timeout_seconds=timeout,
+                            )
+                        )
+                        status = (render_receipt.get("receipt") or {}).get("status")
+                        if status not in {"queued", "running"}:
+                            break
+                        await anyio.sleep(1)
+                    payload = render_receipt.get("receipt") or {}
+                    if payload.get("status") != "succeeded" or payload.get("render_checked") is not True:
+                        raise RuntimeError(f"installed real-Hancom render failed: {render_receipt}")
+                    saved = render_receipt.get("savedArtifacts") or []
+                    if not saved or not all(Path(item["path"]).is_file() for item in saved):
+                        raise RuntimeError(f"installed render artifacts missing: {render_receipt}")
+                else:
+                    payload = render_receipt.get("receipt") or {}
+                    if payload.get("status") != "unavailable" or payload.get("render_checked") is not False:
+                        raise RuntimeError(f"unconfigured render must be honestly unavailable: {render_receipt}")
                 return {
                     "ok": True,
                     "toolCount": len(names),
                     "contractHash": contract["contractHash"],
                     "requiredTools": sorted(required),
                     "workflowTools": sorted(WORKFLOW_TOOLS),
+                    "renderTools": sorted(RENDER_TOOLS),
                     "workflowStates": states,
                     "workflowTerminalState": receipt.get("state"),
                     "workflowStopReason": receipt.get("stopReason"),
                     "outputCopy": str(output),
                     "openSafety": open_safety,
+                    "renderHealth": render_health,
+                    "renderReceipt": render_receipt,
+                    "realRenderRequired": args.require_real_render,
                     "versions": health.get("capability", {}).get("versions"),
                 }
 
@@ -239,8 +288,9 @@ def main() -> int:
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--server-package")
     parser.add_argument("--server-venv", type=Path)
-    parser.add_argument("--skill-version", default="0.1.25")
+    parser.add_argument("--skill-version", default="0.1.26")
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--require-real-render", action="store_true")
     args = parser.parse_args()
     if not args.launcher.is_file():
         parser.error(f"launcher not found: {args.launcher}")

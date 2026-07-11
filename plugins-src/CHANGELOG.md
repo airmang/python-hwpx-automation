@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- 비동기 실한컴 `render_health` → `render_submit` → `render_status`/`render_cancel` 라우팅과
+  입력·출력 hash, Hancom build, worker provenance, PDF/페이지 PNG 검증 절차.
+- 설치 플러그인 MCP E2E에 4개 render 도구와 honest unavailable/선택적 real-render 게이트 추가.
+
+### Changed
+- 번들 기준을 `python-hwpx==2.25.0`, `hwpx-mcp-server==2.19.0`, 스킬 `0.1.26`으로 갱신.
+
 ## [0.1.25] - 2026-07-10
 ### Fixed
 - FastMCP 2.18.1 핫픽스를 고정해 universal form-fill 7도구가 설치 플러그인 표면에서 실제 호출되도록 복구.
