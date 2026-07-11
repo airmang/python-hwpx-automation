@@ -34,6 +34,7 @@ def main() -> int:
     parser.add_argument("--mcp-repo", type=Path, default=STACK / "hwpx-mcp-server")
     parser.add_argument("--skill-root", type=Path, default=ROOT)
     parser.add_argument("--python", default=sys.executable)
+    parser.add_argument("--report", type=Path)
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory(prefix="hwpx-3stack-smoke-") as tmp:
@@ -67,8 +68,7 @@ def main() -> int:
         launcher = args.skill_root / "plugins" / "codex" / "hwpx-plugin" / "scripts" / "hwpx-mcp-server"
         contract = args.skill_root / "references" / "tool-contract.generated.json"
         env = dict(os.environ)
-        _run(
-            [
+        e2e_command = [
                 str(plugin_venv / "bin" / "python"),
                 str(args.skill_root / "scripts" / "plugin_mcp_e2e.py"),
                 "--launcher", str(launcher),
@@ -76,7 +76,11 @@ def main() -> int:
                 "--server-package", marker_value,
                 "--server-venv", str(plugin_venv),
                 "--skill-version", "0.1.25",
-            ],
+            ]
+        if args.report:
+            e2e_command.extend(["--report", str(args.report.resolve())])
+        _run(
+            e2e_command,
             cwd=args.skill_root,
             env=env,
         )

@@ -42,6 +42,14 @@ except ModuleNotFoundError:
 
 
 ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW_TOOLS = {
+    "start_workflow",
+    "get_workflow",
+    "continue_workflow",
+    "approve_workflow_decision",
+    "cancel_workflow",
+    "resume_workflow",
+}
 
 
 def _structured(result: Any) -> dict[str, Any]:
@@ -73,6 +81,7 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                 "HWPX_MCP_SANDBOX_ROOT": str(sandbox),
                 "HWPX_SKILL_VERSION": args.skill_version,
                 "HWPX_MCP_ADVANCED": "0",
+                "HWPX_WORKFLOW_STORE": str(sandbox / "workflow.sqlite3"),
                 "LOG_LEVEL": "ERROR",
             }
         )
@@ -104,8 +113,12 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                     raise RuntimeError(
                         f"installed plugin tool count {len(names)} != contract {contract['defaultToolCount']}"
                     )
+                missing_workflow = sorted(WORKFLOW_TOOLS - names)
+                if missing_workflow:
+                    raise RuntimeError(f"installed plugin missing workflow tools: {missing_workflow}")
 
-                document = sandbox / "plugin-e2e.hwpx"
+                document = sandbox / "unfamiliar-form.hwpx"
+                output = sandbox / "unfamiliar-form-filled.hwpx"
                 timeout = timedelta(seconds=90)
                 _structured(
                     await session.call_tool(
@@ -114,31 +127,84 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 _structured(
                     await session.call_tool(
-                        "add_paragraph",
-                        {"filename": str(document), "text": "PLUGIN_E2E"},
-                        read_timeout_seconds=timeout,
-                    )
-                )
-                dry_run = _structured(
-                    await session.call_tool(
-                        "apply_body_ops",
+                        "add_table",
                         {
                             "filename": str(document),
-                            "ops": [
-                                {
-                                    "op": "replace_text",
-                                    "find": "PLUGIN_E2E",
-                                    "replace": "PLUGIN_E2E_OK",
-                                    "count": 1,
-                                }
-                            ],
-                            "dry_run": True,
+                            "rows": 2,
+                            "cols": 2,
+                            "data": [["처음 보는 양식", ""], ["성명", "[작성]"]],
                         },
                         read_timeout_seconds=timeout,
                     )
                 )
-                if dry_run.get("dryRun") is not True:
-                    raise RuntimeError(f"apply_body_ops dry-run contract failed: {dry_run}")
+                receipt = _structured(
+                    await session.call_tool(
+                        "start_workflow",
+                        {
+                            "family": "unknown_form_fill",
+                            "idempotency_key": "plugin-e2e-unknown-form",
+                            "source_path": str(document),
+                            "output_path": str(output),
+                            "parameters": {
+                                "operationKind": "table",
+                                "operations": [
+                                    {
+                                        "op": "fill_cell",
+                                        "table_index": 0,
+                                        "row": 1,
+                                        "col": 1,
+                                        "text": "홍길동",
+                                    }
+                                ],
+                            },
+                        },
+                        read_timeout_seconds=timeout,
+                    )
+                )
+                workflow_id = receipt.get("workflowId")
+                if not isinstance(workflow_id, str):
+                    raise RuntimeError(f"workflow did not start: {receipt}")
+                states = [receipt.get("state")]
+                for _ in range(12):
+                    if receipt.get("state") == "decision":
+                        receipt = _structured(
+                            await session.call_tool(
+                                "approve_workflow_decision",
+                                {"workflow_id": workflow_id, "approved": True},
+                                read_timeout_seconds=timeout,
+                            )
+                        )
+                    elif receipt.get("terminal") is True:
+                        break
+                    else:
+                        receipt = _structured(
+                            await session.call_tool(
+                                "continue_workflow",
+                                {"workflow_id": workflow_id},
+                                read_timeout_seconds=timeout,
+                            )
+                        )
+                    states.append(receipt.get("state"))
+                receipt = _structured(
+                    await session.call_tool(
+                        "get_workflow", {"workflow_id": workflow_id}, read_timeout_seconds=timeout
+                    )
+                )
+                if receipt.get("state") not in {"completed", "needs_review"}:
+                    raise RuntimeError(f"workflow did not reach an honest terminal state: {receipt}")
+                if receipt.get("state") == "needs_review" and receipt.get("stopReason") != "VERIFICATION_EVIDENCE_REQUIRED":
+                    raise RuntimeError(f"unexpected needs_review reason: {receipt}")
+                if not output.is_file() or output.resolve() == document.resolve():
+                    raise RuntimeError(f"workflow did not create a distinct output copy: {receipt}")
+                artifacts = receipt.get("artifacts") or []
+                output_artifact = next((item for item in artifacts if item.get("role") == "output"), None)
+                if not output_artifact or not output_artifact.get("contentHash"):
+                    raise RuntimeError(f"output artifact receipt is incomplete: {receipt}")
+                open_safety = receipt.get("openSafety") or {}
+                if receipt.get("state") == "completed" and open_safety.get("ok") is not True:
+                    raise RuntimeError(f"completed workflow lacks openSafety: {receipt}")
+                if open_safety.get("renderChecked") is not False:
+                    raise RuntimeError(f"pre-render receipt must remain renderChecked=false: {receipt}")
                 health = _structured(await session.call_tool("mcp_server_health", {}, read_timeout_seconds=timeout))
                 if health.get("toolSurface", {}).get("status") != "ok":
                     raise RuntimeError(f"plugin health is not ok: {health}")
@@ -147,7 +213,12 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                     "toolCount": len(names),
                     "contractHash": contract["contractHash"],
                     "requiredTools": sorted(required),
-                    "applyBodyOpsDryRun": True,
+                    "workflowTools": sorted(WORKFLOW_TOOLS),
+                    "workflowStates": states,
+                    "workflowTerminalState": receipt.get("state"),
+                    "workflowStopReason": receipt.get("stopReason"),
+                    "outputCopy": str(output),
+                    "openSafety": open_safety,
                     "versions": health.get("capability", {}).get("versions"),
                 }
 
@@ -169,10 +240,17 @@ def main() -> int:
     parser.add_argument("--server-package")
     parser.add_argument("--server-venv", type=Path)
     parser.add_argument("--skill-version", default="0.1.25")
+    parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     if not args.launcher.is_file():
         parser.error(f"launcher not found: {args.launcher}")
     report = anyio.run(_run, args)
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 

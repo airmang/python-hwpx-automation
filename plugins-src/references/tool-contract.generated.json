@@ -5,6 +5,42 @@
   "minSkillVersion": "0.1.25",
   "tools": [
     {
+      "name": "start_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "continue_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "approve_workflow_decision",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "cancel_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "resume_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
       "name": "get_document_text",
       "domain": "read",
       "profile": "default",
@@ -701,9 +737,9 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "7f85ffd4e06b1556",
-  "defaultToolCount": 106,
-  "advancedToolCount": 116,
+  "contractHash": "ae6c43e059183d1b",
+  "defaultToolCount": 112,
+  "advancedToolCount": 122,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",

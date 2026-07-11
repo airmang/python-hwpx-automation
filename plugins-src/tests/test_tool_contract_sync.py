@@ -16,6 +16,14 @@ RECOVERED_TOOLS = {
     "apply_evalplan_fill",
     "score_form_fill",
 }
+WORKFLOW_TOOLS = {
+    "start_workflow",
+    "get_workflow",
+    "continue_workflow",
+    "approve_workflow_decision",
+    "cancel_workflow",
+    "resume_workflow",
+}
 
 
 def _contract() -> dict:
@@ -29,6 +37,8 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
 
     assert RECOVERED_TOOLS <= names
     assert RECOVERED_TOOLS <= required
+    assert WORKFLOW_TOOLS <= names
+    assert contract["defaultToolCount"] == 112
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
@@ -70,3 +80,40 @@ def test_skill_routes_to_generated_api_table() -> None:
     assert "references/tool-contract.generated.md" in skill
     for tool in RECOVERED_TOOLS:
         assert re.search(rf"`{re.escape(tool)}`", generated)
+    for tool in WORKFLOW_TOOLS:
+        assert re.search(rf"`{re.escape(tool)}`", generated)
+
+
+def test_skill_routes_general_work_to_one_level_autonomous_reference() -> None:
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    reference = (ROOT / "references" / "workflows-autonomous.md").read_text(encoding="utf-8")
+
+    assert "references/workflows-autonomous.md" in skill
+    assert "primitive 도구는 workflow가 지원하지 않는 전문 작업" in skill
+    assert "unknown_form_fill" in reference
+    assert "renderChecked=false" in reference
+    assert all(tool in reference for tool in WORKFLOW_TOOLS)
+
+
+def test_every_host_bundle_carries_autonomous_reference_and_routing() -> None:
+    canonical = (ROOT / "references" / "workflows-autonomous.md").read_bytes()
+    bundled = sorted((ROOT / "plugins").glob("**/workflows-autonomous.md"))
+
+    assert len(bundled) == 4
+    assert all(path.read_bytes() == canonical for path in bundled)
+    bundled_skills = sorted((ROOT / "plugins").glob("**/SKILL.md"))
+    assert len(bundled_skills) == 4
+    assert all("references/workflows-autonomous.md" in path.read_text(encoding="utf-8") for path in bundled_skills)
+
+
+def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
+    smoke = (ROOT / "scripts" / "clean_install_smoke.py").read_text(encoding="utf-8")
+    e2e = (ROOT / "scripts" / "plugin_mcp_e2e.py").read_text(encoding="utf-8")
+
+    assert "plugin_mcp_e2e.py" in smoke
+    assert "--server-package" in smoke and "--server-venv" in smoke
+    assert 'parser.add_argument("--report", type=Path)' in smoke
+    assert 'parser.add_argument("--report", type=Path)' in e2e
+    assert "start_workflow" in e2e
+    assert "unknown_form_fill" in e2e
+    assert "approve_workflow_decision" in e2e
