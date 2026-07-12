@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "hwpx-plugin",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "description": "AI 에이전트가 HWPX(한글) 문서를 읽고·양식 채우고·새로 만들고·점검/복구하게 해주는 스킬. 순수 Python·한컴 불필요.",
   "author": { "name": "Kohkyuhyun", "email": "kokyuhyun@hotmail.com", "url": "https://github.com/airmang" },
   "homepage": "https://github.com/airmang/hwpx-plugins",

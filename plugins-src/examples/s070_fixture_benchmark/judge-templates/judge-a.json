@@ -1,0 +1,11 @@
+{
+  "humanLabels": false,
+  "independentInvocationRequired": true,
+  "judgeType": "agent_judge",
+  "judgments": [],
+  "manifestHash": "d52ad3b3886d69da32fddbb35ec4e248a78f41bd604db1e74352521769af340d",
+  "passId": "judge-a",
+  "rubricVersion": "1.0.0",
+  "schemaVersion": "hwpx.agent-judge-pass.v1",
+  "status": "unscored_template"
+}

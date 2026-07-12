@@ -1,0 +1,33 @@
+{
+  "artifactCount": 216,
+  "benchmarkVersion": "1.0.0",
+  "clientProfileCount": 3,
+  "familyCounts": {
+    "batch_comparison": 12,
+    "known_form_fill": 12,
+    "reading_extraction": 12,
+    "transactional_editing": 12,
+    "typed_authoring": 12,
+    "unfamiliar_form_fill": 12
+  },
+  "fixture": true,
+  "humanControls": false,
+  "humanJudges": false,
+  "humanLabels": false,
+  "judgePassesAccepted": 0,
+  "manifestHash": "d52ad3b3886d69da32fddbb35ec4e248a78f41bd604db1e74352521769af340d",
+  "metrics": null,
+  "mustAbstainCount": 12,
+  "realAgentClients": false,
+  "realAgentClientsVerified": false,
+  "realHancomVerified": false,
+  "releaseVersions": {
+    "hwpx-mcp-server": "2.21.0",
+    "hwpx-skill": "0.1.28",
+    "python-hwpx": "2.27.0"
+  },
+  "replacementClaimAllowed": false,
+  "schemaVersion": "hwpx.fixture-result-manifest.v1",
+  "status": "awaiting_two_independent_agent_judge_passes",
+  "workOrderCount": 72
+}

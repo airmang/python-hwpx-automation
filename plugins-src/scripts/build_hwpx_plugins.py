@@ -76,6 +76,16 @@ def build_host(host: dict, config: dict) -> None:
         copy_file(src, dest)
         records.append(record(rel, src, dest, transformed=False))
 
+    for tree_rel in config.get("sharedAssetTrees", []):
+        tree = ROOT / tree_rel
+        if not tree.is_dir():
+            raise SystemExit(f"missing shared asset tree: {tree_rel}")
+        for src in sorted(path for path in tree.rglob("*") if path.is_file()):
+            rel = src.relative_to(ROOT).as_posix()
+            dest = skill_dir / rel
+            copy_file(src, dest)
+            records.append(record(rel, src, dest, transformed=False))
+
     for manifest in host.get("manifests", []):
         src = PACKAGING / manifest["template"]
         if not src.is_file():

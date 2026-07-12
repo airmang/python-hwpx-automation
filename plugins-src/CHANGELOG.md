@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.28 — 2026-07-12
+
+- S-070 합성 블라인드 qualification fixture를 추가했다: 6개 family의 work order 72개,
+  must-abstain 12개, 동일 workflow 계약의 versioned fixture profile 3개, 익명 artifact 216개.
+- 독립 `agent_judge` 2회용 빈 템플릿과 단일 result manifest 기반 report/gallery/scorecard
+  projection 및 drift gate를 추가했다. 사람/실제 agent/실한컴/대체 주장은 모두 fail-closed다.
+- 설치 MCP 표면의 `run_fixture_benchmark`와 `export_fixture_benchmark`를 검증하는 E2E를 추가했다.
+- 번들 기준을 `python-hwpx==2.27.0`, `hwpx-mcp-server==2.21.0`, 스킬 `0.1.28`로 갱신했다.
+
 ## [Unreleased]
 
 ### Added

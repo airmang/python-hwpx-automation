@@ -1,8 +1,8 @@
 {
   "schemaVersion": "hwpx.tool-contract.v1",
-  "minPythonHwpx": "2.26.0",
-  "minMcpVersion": "2.20.0",
-  "minSkillVersion": "0.1.27",
+  "minPythonHwpx": "2.27.0",
+  "minMcpVersion": "2.21.0",
+  "minSkillVersion": "0.1.28",
   "tools": [
     {
       "name": "render_submit",
@@ -75,6 +75,18 @@
       "domain": "visual_qa",
       "profile": "default",
       "skillRequired": false
+    },
+    {
+      "name": "run_fixture_benchmark",
+      "domain": "blind_eval",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "export_fixture_benchmark",
+      "domain": "blind_eval",
+      "profile": "default",
+      "skillRequired": true
     },
     {
       "name": "get_document_text",
@@ -773,9 +785,9 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "036066a2a4c20cbb",
-  "defaultToolCount": 118,
-  "advancedToolCount": 128,
+  "contractHash": "c9c81b79aa1feaf9",
+  "defaultToolCount": 120,
+  "advancedToolCount": 130,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",
@@ -787,6 +799,7 @@
     "compose_exam",
     "create_document_from_plan",
     "create_government_report_document",
+    "export_fixture_benchmark",
     "extract_style_profile",
     "get_document_map",
     "inspect_fill_residue",
@@ -795,6 +808,7 @@
     "render_preview",
     "repair_hwpx",
     "replace_by_anchor",
+    "run_fixture_benchmark",
     "scan_form_guidance",
     "score_form_fill",
     "table_compute",

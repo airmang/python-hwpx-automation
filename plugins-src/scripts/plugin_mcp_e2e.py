@@ -288,7 +288,7 @@ def main() -> int:
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--server-package")
     parser.add_argument("--server-venv", type=Path)
-    parser.add_argument("--skill-version", default="0.1.27")
+    parser.add_argument("--skill-version", default="0.1.28")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--require-real-render", action="store_true")
     args = parser.parse_args()

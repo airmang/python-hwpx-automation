@@ -25,6 +25,7 @@ WORKFLOW_TOOLS = {
     "resume_workflow",
 }
 RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
+FIXTURE_BENCHMARK_TOOLS = {"run_fixture_benchmark", "export_fixture_benchmark"}
 
 
 def _contract() -> dict:
@@ -40,7 +41,8 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert RECOVERED_TOOLS <= required
     assert WORKFLOW_TOOLS <= names
     assert RENDER_TOOLS <= names
-    assert contract["defaultToolCount"] == 118
+    assert FIXTURE_BENCHMARK_TOOLS <= names
+    assert contract["defaultToolCount"] == 120
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
