@@ -46,7 +46,7 @@ def test_installed_fixture_harness_checks_three_categories_and_ledger_signals() 
         "findings": [
             {"category": "text_overlap"},
             {"category": "leftover_guidance"},
-            {"category": "seal_misplacement"},
+            {"category": "seal_misplacement", "severity": "critical", "target": None},
         ],
         "ledger": {
             "applied": [{"action": "replace_text"}],
@@ -57,6 +57,7 @@ def test_installed_fixture_harness_checks_three_categories_and_ledger_signals() 
     assert len(module._categories(payload)) == 3
     assert module._has_ledger_signal(payload, {"applied"})
     assert module._has_ledger_signal(payload, {"escalations"})
+    assert module._has_unsafe_finding(payload)
 
 
 def test_installed_fixture_harness_rejects_any_fixture_promotion() -> None:

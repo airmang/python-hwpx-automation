@@ -76,6 +76,20 @@ def _has_ledger_signal(payload: dict[str, Any], wanted: set[str]) -> bool:
     return False
 
 
+def _has_unsafe_finding(payload: dict[str, Any]) -> bool:
+    for value in _walk(payload):
+        if not isinstance(value, dict) or not isinstance(value.get("category"), str):
+            continue
+        repair = value.get("repair")
+        if (
+            value.get("severity") == "critical"
+            or value.get("target") is None
+            or (isinstance(repair, dict) and repair.get("type") != "replace_text")
+        ):
+            return True
+    return False
+
+
 def _assert_fixture_honesty(payload: dict[str, Any], label: str) -> None:
     if payload.get("renderChecked") is not False:
         raise RuntimeError(f"{label} must explicitly keep renderChecked=false: {payload}")
@@ -204,7 +218,7 @@ async def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             applied = _has_ledger_signal(
                 repair, {"applied", "repaired", "safefixes", "saferepairs", "completed"}
             )
-            escalated = _has_ledger_signal(
+            escalated = _has_unsafe_finding(repair) and _has_ledger_signal(
                 repair,
                 {"unsafe", "escalated", "escalations", "unresolved", "needsreview", "rejected"},
             )
