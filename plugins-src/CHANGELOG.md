@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Added
+- 페이지 PNG fixture의 전 페이지 결함 검수, append-only evidence ledger, 최대 3회 안전수정과
+  unsafe/unmapped escalation을 안내하는 스킬 라우팅 및 설치 MCP leap-demo 하네스.
+- fixture 영수증은 절대 `renderChecked=true` 또는 실한컴 검증으로 승격하지 않는 hard rule.
 - 비동기 실한컴 `render_health` → `render_submit` → `render_status`/`render_cancel` 라우팅과
   입력·출력 hash, Hancom build, worker provenance, PDF/페이지 PNG 검증 절차.
 - 설치 플러그인 MCP E2E에 4개 render 도구와 honest unavailable/선택적 real-render 게이트 추가.

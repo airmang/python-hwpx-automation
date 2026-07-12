@@ -29,6 +29,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 |---|---|---|
 | 일반 복합 HWPX 읽기·편집·양식 채움·생성 | `start_workflow` → `continue_workflow` → 필요 시 `approve_workflow_decision` | [workflows-autonomous](references/workflows-autonomous.md) |
 | 최종 산출물을 실제 한컴으로 렌더·검증 | `render_health` → `render_submit` → `render_status` | [workflows-real-hancom-render](references/workflows-real-hancom-render.md) |
+| 페이지 PNG fixture 전 페이지 결함 검수·제한적 자동수정 | `visual_review_fixture` → 안전한 항목만 `visual_repair_fixture` | [workflows-visual-fixture-qa](references/workflows-visual-fixture-qa.md) |
 | 문서 구조·표·양식 필드·앵커를 한 번에 파악 | `get_document_map` | [workflows-editing](references/workflows-editing.md) |
 | 텍스트·개요·표 내용 읽기 | `get_document_text` · `get_document_outline` · `get_table_text` | [api](references/api.md) |
 | Markdown/HTML/JSON 변환·추출 | `hwpx_to_markdown` · `hwpx_to_html` · `hwpx_extract_json` · `document_to_markdown` · `document_extract_json` | [api](references/api.md) |
@@ -109,6 +110,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 
 - [`references/workflows-autonomous.md`](references/workflows-autonomous.md) — 서버 강제 5-family workflow, decision/재개/needs_review/사전 렌더 영수증 계약.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
+- [`references/workflows-visual-fixture-qa.md`](references/workflows-visual-fixture-qa.md) — fixture 전 페이지 검수, 원시 finding·evidence ledger, 최대 3회 안전수정, unsafe/unmapped escalation. **fixture는 절대 `renderChecked=true`가 아니다.**
 - [`references/workflows-editing.md`](references/workflows-editing.md) — 트랜잭션 편집 루프, 서식 5종, 그림, byte patch, render_preview.
 - [`references/workflows-creation.md`](references/workflows-creation.md) — document-plan, builder, 정부보고서, 운영계획서, 제안서, 공문서 레시피.
 - [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`. `hwpx-mcp-server>=2.9.0`.
