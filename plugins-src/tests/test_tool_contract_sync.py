@@ -40,7 +40,7 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert RECOVERED_TOOLS <= required
     assert WORKFLOW_TOOLS <= names
     assert RENDER_TOOLS <= names
-    assert contract["defaultToolCount"] == 116
+    assert contract["defaultToolCount"] == 118
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )

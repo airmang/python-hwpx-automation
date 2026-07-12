@@ -75,7 +75,7 @@ def main() -> int:
                 "--contract", str(contract),
                 "--server-package", marker_value,
                 "--server-venv", str(plugin_venv),
-                "--skill-version", "0.1.26",
+                "--skill-version", "0.1.27",
             ]
         if args.report:
             e2e_command.extend(["--report", str(args.report.resolve())])

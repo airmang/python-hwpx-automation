@@ -1,8 +1,8 @@
 {
   "schemaVersion": "hwpx.tool-contract.v1",
-  "minPythonHwpx": "2.25.0",
-  "minMcpVersion": "2.19.0",
-  "minSkillVersion": "0.1.26",
+  "minPythonHwpx": "2.26.0",
+  "minMcpVersion": "2.20.0",
+  "minSkillVersion": "0.1.27",
   "tools": [
     {
       "name": "render_submit",
@@ -61,6 +61,18 @@
     {
       "name": "resume_workflow",
       "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "visual_review_fixture",
+      "domain": "visual_qa",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "visual_repair_fixture",
+      "domain": "visual_qa",
       "profile": "default",
       "skillRequired": false
     },
@@ -761,9 +773,9 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "e218039d9708e1b6",
-  "defaultToolCount": 116,
-  "advancedToolCount": 126,
+  "contractHash": "036066a2a4c20cbb",
+  "defaultToolCount": 118,
+  "advancedToolCount": 128,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",

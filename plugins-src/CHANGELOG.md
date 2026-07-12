@@ -11,7 +11,7 @@
 - 설치 플러그인 MCP E2E에 4개 render 도구와 honest unavailable/선택적 real-render 게이트 추가.
 
 ### Changed
-- 번들 기준을 `python-hwpx==2.25.0`, `hwpx-mcp-server==2.19.0`, 스킬 `0.1.26`으로 갱신.
+- 번들 기준을 `python-hwpx==2.26.0`, `hwpx-mcp-server==2.20.0`, 스킬 `0.1.27`으로 갱신.
 
 ## [0.1.25] - 2026-07-10
 ### Fixed
