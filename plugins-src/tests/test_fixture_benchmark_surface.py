@@ -46,17 +46,41 @@ def test_fixture_never_claims_human_real_agent_hancom_or_replacement() -> None:
         assert value["realAgentClientsVerified"] is False
         assert value["realHancomVerified"] is False
         assert value["replacementClaimAllowed"] is False
-    assert result["metrics"] is None
-    assert result["judgePassesAccepted"] == 0
-    assert result["status"] == "awaiting_two_independent_agent_judge_passes"
+    assert result["metrics"]["releaseGatePassed"] is False
+    assert result["metrics"]["replacementClaimAllowed"] is False
+    assert len(result["judgments"]) == 432
 
 
-def test_judge_passes_are_empty_independent_templates_not_fabricated_labels() -> None:
+def test_judge_passes_are_independent_agent_labels_not_human_labels() -> None:
     passes = [json.loads(path.read_text()) for path in sorted((FIXTURE / "judge-templates").glob("*.json"))]
     assert [value["passId"] for value in passes] == ["judge-a", "judge-b"]
     assert all(value["judgeType"] == "agent_judge" for value in passes)
     assert all(value["independentInvocationRequired"] is True for value in passes)
-    assert all(value["status"] == "unscored_template" and value["judgments"] == [] for value in passes)
+    assert all(value["status"] == "scored" and len(value["judgments"]) == 216 for value in passes)
+    assert all(value["humanLabels"] is False for value in passes)
+    assert all(row["humanLabels"] is False and row["humanLabel"] is False for value in passes for row in value["judgments"])
+
+
+def test_final_result_uses_core_metrics_and_preserves_release_boundary() -> None:
+    result = json.loads((FIXTURE / "result-manifest.json").read_text())
+    metrics = result["metrics"]
+    adjudication = result["adjudication"]
+
+    assert metrics["counts"] == {
+        "workOrders": 72,
+        "fixtureClients": 3,
+        "artifacts": 216,
+        "agentJudgments": 432,
+        "criticalFailures": 0,
+    }
+    assert metrics["routineFirstPassAcceptance"]["rate"] == 1.0
+    assert metrics["mustAbstainQuality"]["rate"] == 1.0
+    assert metrics["agreement"] == {"pairCount": 216, "exactAcceptanceAgreement": 1.0}
+    assert metrics["benchmarkGatePassed"] is True
+    assert metrics["releaseGatePassed"] is False
+    assert metrics["replacementClaimAllowed"] is False
+    assert adjudication["acceptanceDisagreements"] == 0
+    assert adjudication["scoreDisagreements"] == 36
 
 
 def test_hash_tamper_and_projection_drift_fail_closed(tmp_path: Path) -> None:

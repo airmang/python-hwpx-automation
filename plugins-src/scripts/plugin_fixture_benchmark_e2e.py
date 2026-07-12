@@ -62,7 +62,15 @@ async def run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         generated = Path(temporary.name)
         import fixture_benchmark
         fixture_benchmark.build(generated)
-        manifest = generated / "manifest.json"
+        generated_manifest = json.loads((generated / "manifest.json").read_text(encoding="utf-8"))
+        if payload.get("judgments"):
+            generated_manifest["judgments"] = payload["judgments"]
+            generated_manifest.pop("manifestHash", None)
+            generated_manifest["manifestHash"] = fixture_benchmark.digest(generated_manifest)
+            fixture_benchmark.write_json(generated / "final-manifest.json", generated_manifest)
+            manifest = generated / "final-manifest.json"
+        else:
+            manifest = generated / "manifest.json"
     env = dict(os.environ, HWPX_MCP_SANDBOX_ROOT=str(args.sandbox_root.resolve()), LOG_LEVEL="ERROR")
     if args.mcp_repo:
         env["HWPX_MCP_SERVER_REPO"] = str(args.mcp_repo.resolve())

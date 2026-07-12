@@ -227,7 +227,11 @@ def build(root: Path) -> dict[str, Any]:
     # Private routing is explicitly excluded from blind judge packets and public projections.
     write_json(root / "private-routing.json", {"schemaVersion": "hwpx.fixture-routing.v1", "judgeVisible": False, "routes": routing})
     for pass_id in ("judge-a", "judge-b"):
-        write_json(root / "judge-templates" / f"{pass_id}.json", {
+        judge_path = root / "judge-templates" / f"{pass_id}.json"
+        existing = _load(judge_path) if judge_path.is_file() else {}
+        if existing.get("status") == "scored":
+            continue
+        write_json(judge_path, {
             "schemaVersion": "hwpx.agent-judge-pass.v1",
             "passId": pass_id,
             "judgeType": "agent_judge",
@@ -257,6 +261,146 @@ def build(root: Path) -> dict[str, Any]:
     write_json(root / "result-manifest.json", result)
     project(root / "result-manifest.json", root / "public")
     return manifest
+
+
+def finalize(root: Path, judge_paths: list[Path]) -> dict[str, Any]:
+    """Bind two independently produced judge passes and compute core metrics."""
+    from hwpx.benchmark import build_result_projections, measure_fixture_benchmark
+
+    manifest = _load(root / "manifest.json")
+    manifest_hash = manifest.get("manifestHash")
+    artifact_ids = {item["artifactId"] for item in manifest["artifacts"]}
+    if len(judge_paths) != 2:
+        raise ValueError("exactly two independent agent judge passes are required")
+    passes = [_load(path) for path in judge_paths]
+    pass_ids = {item.get("passId") for item in passes}
+    if len(pass_ids) != 2:
+        raise ValueError("judge pass ids must be distinct")
+    judgments: list[dict[str, Any]] = []
+    for item in passes:
+        if item.get("status") != "scored" or item.get("manifestHash") != manifest_hash:
+            raise ValueError("judge pass is not scored against the frozen manifest")
+        rows = item.get("judgments", [])
+        if {row.get("artifactId") for row in rows} != artifact_ids or len(rows) != len(artifact_ids):
+            raise ValueError("judge pass must cover every anonymized artifact exactly once")
+        for row in rows:
+            if row.get("humanLabel") is not False or row.get("humanLabels") is not False:
+                raise ValueError("agent judge pass cannot contain human labels")
+            if row.get("provenanceVisible") is not False:
+                raise ValueError("agent judge pass was not blind")
+            normalized = dict(row)
+            normalized["reviewerType"] = "fixture_agent_judge"
+            normalized["judgeType"] = "agent_judge"
+            normalized["reviewerId"] = str(row.get("reviewerId") or row.get("judgeId"))
+            normalized["judgeId"] = normalized["reviewerId"]
+            normalized["opaqueArtifactId"] = row["artifactId"]
+            normalized["humanLabel"] = False
+            normalized["humanLabels"] = False
+            normalized["provenanceVisible"] = False
+            normalized["rubricScores"] = dict(row["scores"])
+            judgments.append(normalized)
+
+    final_manifest = dict(manifest)
+    final_manifest["judgments"] = judgments
+    final_manifest.pop("manifestHash", None)
+    final_manifest["manifestHash"] = digest(final_manifest)
+    write_json(root / "final-manifest.json", final_manifest)
+
+    route_by_artifact = {
+        item["anonymizationEvidence"]["opaqueArtifactId"]: item["clientId"]
+        for item in manifest["runs"]
+    }
+    order_external = {item["workOrderId"]: item for item in _load(root / "work-orders.json")["orders"]}
+    protocol_orders = []
+    for item in manifest["workOrders"]:
+        source = order_external[item["workOrderId"]]
+        protocol_orders.append({
+            "workOrderId": item["workOrderId"],
+            "family": item["family"],
+            "difficulty": "must_abstain" if source["mustAbstain"] else source["difficulty"],
+            "prompt": source["brief"],
+        })
+    protocol = {
+        "schema": "hwpx.blind-real-work-eval/v1",
+        "benchmarkId": manifest["benchmarkId"],
+        "protocolVersion": VERSION,
+        "promptVersion": VERSION,
+        "rubricVersion": VERSION,
+        "provenanceRandomizationSeed": "s070-fixture-v1",
+        "assurance": "fixture",
+        "executionKind": "fixture_simulation",
+        "workOrders": protocol_orders,
+        "clients": [
+            {"clientId": item["clientId"], "clientType": "fixture_agent_client", "hostSpecificHints": False}
+            for item in manifest["clients"]
+        ],
+        **HONEST_FLAGS,
+    }
+    artifacts = []
+    for item in manifest["artifacts"]:
+        order = order_external[item["workOrderId"]]
+        artifacts.append({
+            "artifactId": item["artifactId"],
+            "blindId": item["artifactId"],
+            "workOrderId": item["workOrderId"],
+            "clientId": route_by_artifact[item["artifactId"]],
+            "provenanceHiddenFromJudges": True,
+            "filenameMetadataStripped": True,
+            "transcriptExcludedFromJudges": True,
+            "status": "abstained" if order["mustAbstain"] else "completed",
+            "repairRounds": 0,
+            "reviewMinutes": None,
+            "editMinutes": None,
+            "cost": None,
+        })
+    core_judgments = [
+        {key: row[key] for key in ("artifactId", "judgeId", "judgeType", "humanLabel", "acceptedWithoutManualHwpxEdit", "criticalFailure", "scores")}
+        for row in judgments
+    ]
+    result = {
+        "schema": "hwpx.blind-real-work-eval-result/v1",
+        "assurance": "fixture",
+        "executionKind": "fixture_simulation",
+        "protocol": protocol,
+        "artifacts": artifacts,
+        "judgments": core_judgments,
+        **HONEST_FLAGS,
+    }
+    metrics = measure_fixture_benchmark(result, strict=True)
+    projections = build_result_projections(metrics)
+    by_artifact: dict[str, list[dict[str, Any]]] = {}
+    for row in core_judgments:
+        by_artifact.setdefault(row["artifactId"], []).append(row)
+    adjudicated = []
+    score_disagreements = 0
+    for artifact_id, rows in sorted(by_artifact.items()):
+        accepted = [bool(row["acceptedWithoutManualHwpxEdit"]) for row in rows]
+        score_equal = rows[0]["scores"] == rows[1]["scores"]
+        score_disagreements += not score_equal
+        adjudicated.append({
+            "artifactId": artifact_id,
+            "acceptedWithoutManualHwpxEdit": all(accepted),
+            "criticalFailure": any(row["criticalFailure"] for row in rows),
+            "acceptanceAgreement": len(set(accepted)) == 1,
+            "scoreAgreement": score_equal,
+        })
+    adjudication = {
+        "schemaVersion": "hwpx.fixture-adjudication.v1",
+        "reviewerType": "agent_judge",
+        "humanLabels": False,
+        "artifactCount": len(adjudicated),
+        "acceptanceDisagreements": sum(not row["acceptanceAgreement"] for row in adjudicated),
+        "scoreDisagreements": score_disagreements,
+        "adjudicated": adjudicated,
+    }
+    result["metrics"] = metrics
+    result["projections"] = projections
+    result["adjudication"] = adjudication
+    result["sourceMcpManifest"] = "final-manifest.json"
+    write_json(root / "result-manifest.json", result)
+    write_json(root / "adjudication.json", adjudication)
+    project(root / "result-manifest.json", root / "public")
+    return {"ok": True, "metrics": metrics, "agreement": metrics["agreement"], "adjudication": adjudication}
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -305,13 +449,16 @@ def project(result_path: Path, output_dir: Path) -> None:
     for key, expected in HONEST_FLAGS.items():
         if result.get(key) is not expected:
             raise ValueError(f"result promoted fixture evidence through {key}")
+    metrics = result.get("metrics")
+    projections = result.get("projections")
     summary = {
         "schemaVersion": "hwpx.fixture-public-projection.v1",
         "sourceManifestSha256": digest(result),
-        "status": result["status"],
-        "coverage": {k: result[k] for k in ("workOrderCount", "artifactCount", "clientProfileCount", "familyCounts", "mustAbstainCount")},
-        "metrics": result["metrics"],
-        "releaseVersions": result["releaseVersions"],
+        "status": result.get("status", "scored_fixture_only"),
+        "coverage": metrics.get("counts") if isinstance(metrics, dict) else {k: result[k] for k in ("workOrderCount", "artifactCount", "clientProfileCount", "familyCounts", "mustAbstainCount")},
+        "metrics": metrics,
+        "projections": projections,
+        "releaseVersions": result.get("releaseVersions", {"python-hwpx": "2.27.0", "hwpx-mcp-server": "2.21.0", "hwpx-skill": "0.1.28"}),
         **HONEST_FLAGS,
     }
     write_json(output_dir / "fixture-scorecard.json", summary)
@@ -319,8 +466,8 @@ def project(result_path: Path, output_dir: Path) -> None:
     lines = [
         "# S-070 synthetic fixture qualification",
         "",
-        f"Status: `{result['status']}`",
-        f"Frozen work orders: {result['workOrderCount']}; anonymized artifacts: {result['artifactCount']}.",
+        f"Status: `{summary['status']}`",
+        f"Frozen work orders: {summary['coverage'].get('workOrders', result.get('workOrderCount'))}; anonymized artifacts: {summary['coverage'].get('artifacts', result.get('artifactCount'))}.",
         "",
         "This is synthetic fixture evidence. Human controls, human judges, three real agent clients, real Hancom, and any human-replacement claim remain unverified.",
         "",
@@ -352,6 +499,9 @@ def main() -> int:
     item = sub.add_parser("check-drift")
     item.add_argument("result", type=Path)
     item.add_argument("output", type=Path)
+    item = sub.add_parser("finalize")
+    item.add_argument("root", type=Path)
+    item.add_argument("judges", type=Path, nargs=2)
     args = parser.parse_args()
     if args.command == "build":
         report = build(args.root)
@@ -360,9 +510,11 @@ def main() -> int:
     elif args.command == "project":
         project(args.result, args.output)
         report = {"ok": True}
-    else:
+    elif args.command == "check-drift":
         check_drift(args.result, args.output)
         report = {"ok": True}
+    else:
+        report = finalize(args.root, args.judges)
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     return 0
 

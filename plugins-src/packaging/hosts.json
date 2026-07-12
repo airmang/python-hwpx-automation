@@ -51,6 +51,8 @@
     "examples/s070_fixture_benchmark/judge-templates/judge-a.json",
     "examples/s070_fixture_benchmark/judge-templates/judge-b.json",
     "examples/s070_fixture_benchmark/result-manifest.json",
+    "examples/s070_fixture_benchmark/final-manifest.json",
+    "examples/s070_fixture_benchmark/adjudication.json",
     "examples/s070_fixture_benchmark/public/fixture-report.md",
     "examples/s070_fixture_benchmark/public/fixture-gallery.json",
     "examples/s070_fixture_benchmark/public/fixture-scorecard.json",
