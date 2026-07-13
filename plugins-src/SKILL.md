@@ -11,7 +11,8 @@ MCP가 없을 때의 local Python(`python-hwpx >= 2.27.0`) 대안과 번들 스�
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
 `decision`에서만 `approve_workflow_decision`을 호출한다. 중단·재개는 `cancel_workflow`·`resume_workflow`를
-쓴다. typed 입력과 영수증 계약은 [workflows-autonomous](references/workflows-autonomous.md)를 본다.
+쓴다. 큰 결과의 `resultRef`는 `get_workflow_result`로 회수한다. typed 입력과 영수증 계약은
+[workflows-autonomous](references/workflows-autonomous.md)를 본다.
 primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단용 escape hatch다.
 
 ## 시작 체크

@@ -5,6 +5,13 @@
 
 ## 절차
 
+원격 큐의 기본 transport는 mTLS다. MCP 쪽에 `HWPX_RENDER_QUEUE_URL`,
+`HWPX_RENDER_QUEUE_SECRET`, `HWPX_RENDER_CA_FILE`, `HWPX_RENDER_CLIENT_CERT_FILE`,
+`HWPX_RENDER_CLIENT_KEY_FILE`을 설정한다. 큐 서비스는 서버 인증서/키와 `--client-ca`를 받아
+클라이언트 인증서를 필수 검증하며 private/loopback 주소에만 bind한다. mTLS를 쓸 수 없는 명시적
+대안만 `HWPX_RENDER_TRANSPORT_AUTH=signed_https`와 서버 `--transport-auth signed_https`를 함께 쓴다.
+단순 HTTPS를 mTLS라고 보고하지 않는다.
+
 1. `render_health()`를 호출한다. `available=true`, `degraded=false`와 fresh worker/Hancom 정보를 확인한다.
    미구성, stale heartbeat, queue 장애이면 결과를 `unverified`로 보류하고 아래 degraded 절차를 따른다.
 2. `render_submit(filename, idempotency_key, workflow_id?, dpi=144)`를 한 번 호출한다. 응답의
