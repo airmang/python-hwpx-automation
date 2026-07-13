@@ -99,7 +99,8 @@ def wait_for_pypi(version: str, tries: int = 40, interval: int = 15) -> None:
         py = venv / "bin" / "python"
         for i in range(1, tries + 1):
             r = subprocess.run(
-                ["uv", "pip", "install", "-q", "--python", str(py),
+                ["uv", "pip", "install", "-q", "--refresh-package", "hwpx-mcp-server",
+                 "--python", str(py),
                  f"hwpx-mcp-server=={version}"],
                 capture_output=True, text=True,
             )

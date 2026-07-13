@@ -168,7 +168,7 @@ def main() -> int:
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--server-package")
     parser.add_argument("--server-venv", type=Path)
-    parser.add_argument("--skill-version", default="0.1.25")
+    parser.add_argument("--skill-version", default="0.1.26")
     args = parser.parse_args()
     if not args.launcher.is_file():
         parser.error(f"launcher not found: {args.launcher}")
