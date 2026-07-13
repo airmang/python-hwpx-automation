@@ -26,6 +26,7 @@ WORKFLOW_TOOLS = {
 }
 RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
 FIXTURE_BENCHMARK_TOOLS = {"run_fixture_benchmark", "export_fixture_benchmark"}
+PRACTICE_TOOLS = {"start_practice_scenario", "apply_practice_scenario"}
 
 
 def _contract() -> dict:
@@ -42,7 +43,9 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert WORKFLOW_TOOLS <= names
     assert RENDER_TOOLS <= names
     assert FIXTURE_BENCHMARK_TOOLS <= names
-    assert contract["defaultToolCount"] == 120
+    assert PRACTICE_TOOLS <= names
+    assert PRACTICE_TOOLS <= required
+    assert contract["defaultToolCount"] == 123
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
@@ -88,6 +91,8 @@ def test_skill_routes_to_generated_api_table() -> None:
         assert re.search(rf"`{re.escape(tool)}`", generated)
     for tool in RENDER_TOOLS:
         assert re.search(rf"`{re.escape(tool)}`", generated)
+    for tool in PRACTICE_TOOLS:
+        assert re.search(rf"`{re.escape(tool)}`", generated)
 
 
 def test_skill_routes_general_work_to_one_level_autonomous_reference() -> None:
@@ -110,6 +115,20 @@ def test_every_host_bundle_carries_autonomous_reference_and_routing() -> None:
     bundled_skills = sorted((ROOT / "plugins").glob("**/SKILL.md"))
     assert len(bundled_skills) == 4
     assert all("references/workflows-autonomous.md" in path.read_text(encoding="utf-8") for path in bundled_skills)
+
+
+def test_every_host_bundle_carries_private_practice_reference_and_routing() -> None:
+    canonical = (ROOT / "references" / "workflows-private-practice.md").read_bytes()
+    bundled = sorted((ROOT / "plugins").glob("**/workflows-private-practice.md"))
+
+    assert len(bundled) == 4
+    assert all(path.read_bytes() == canonical for path in bundled)
+    bundled_skills = sorted((ROOT / "plugins").glob("**/SKILL.md"))
+    assert len(bundled_skills) == 4
+    assert all(
+        "references/workflows-private-practice.md" in path.read_text(encoding="utf-8")
+        for path in bundled_skills
+    )
 
 
 def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:

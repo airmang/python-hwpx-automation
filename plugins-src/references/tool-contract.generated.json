@@ -5,6 +5,18 @@
   "minSkillVersion": "0.1.28",
   "tools": [
     {
+      "name": "start_practice_scenario",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "apply_practice_scenario",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
       "name": "render_submit",
       "domain": "real_hancom_render",
       "profile": "default",
@@ -36,6 +48,12 @@
     },
     {
       "name": "get_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_workflow_result",
       "domain": "workflow",
       "profile": "default",
       "skillRequired": false
@@ -785,15 +803,16 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "c9c81b79aa1feaf9",
-  "defaultToolCount": 120,
-  "advancedToolCount": 130,
+  "contractHash": "38e17939aeed17d2",
+  "defaultToolCount": 123,
+  "advancedToolCount": 133,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",
     "apply_body_ops",
     "apply_edits",
     "apply_evalplan_fill",
+    "apply_practice_scenario",
     "apply_table_ops",
     "byte_preserving_patch",
     "compose_exam",
@@ -811,6 +830,7 @@
     "run_fixture_benchmark",
     "scan_form_guidance",
     "score_form_fill",
+    "start_practice_scenario",
     "table_compute",
     "undo_last_edit",
     "verify_form_fill"
