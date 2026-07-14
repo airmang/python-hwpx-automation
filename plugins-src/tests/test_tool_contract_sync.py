@@ -35,6 +35,11 @@ PRACTICE_CAMPAIGN_TOOLS = {
     "export_practice_campaign",
 }
 PRACTICE_TOOLS = PRACTICE_SCENARIO_TOOLS | PRACTICE_CAMPAIGN_TOOLS
+AGENT_DOCUMENT_TOOLS = {
+    "get_document_node",
+    "query_document_nodes",
+    "apply_document_commands",
+}
 
 
 def _contract() -> dict:
@@ -52,8 +57,10 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert RENDER_TOOLS <= names
     assert FIXTURE_BENCHMARK_TOOLS <= names
     assert PRACTICE_TOOLS <= names
+    assert AGENT_DOCUMENT_TOOLS <= names
+    assert AGENT_DOCUMENT_TOOLS <= required
     assert PRACTICE_SCENARIO_TOOLS <= required
-    assert contract["defaultToolCount"] == 128
+    assert contract["defaultToolCount"] == 131
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
@@ -102,6 +109,46 @@ def test_skill_routes_to_generated_api_table() -> None:
         assert re.search(rf"`{re.escape(tool)}`", generated)
     for tool in PRACTICE_TOOLS:
         assert re.search(rf"`{re.escape(tool)}`", generated)
+    for tool in AGENT_DOCUMENT_TOOLS:
+        assert re.search(rf"`{re.escape(tool)}`", generated)
+
+
+def test_skill_routes_unfamiliar_structure_to_shared_agent_document_contract() -> None:
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    reference_path = ROOT / "references" / "workflows-agent-document.md"
+    reference = reference_path.read_text(encoding="utf-8")
+
+    assert "references/workflows-agent-document.md" in skill
+    assert "낯선 기존 문서" in skill
+    assert "여러 후보 중 첫 항목을 임의 선택" in skill
+    assert "전문 도구를 유지" in skill
+    for tool in AGENT_DOCUMENT_TOOLS:
+        assert f"`{tool}`" in skill
+        assert f"`{tool}" in reference
+    for term in (
+        "canonical path",
+        "volatilePath",
+        "dry-run과 commit",
+        "같은 idempotency key를 재사용하지 않는다",
+        "rolledBack == true",
+        "real-Hancom",
+        "hwpx batch commands.json",
+    ):
+        assert term in reference
+
+
+def test_every_host_bundle_carries_agent_document_reference_and_routing() -> None:
+    canonical = (ROOT / "references" / "workflows-agent-document.md").read_bytes()
+    bundled = sorted((ROOT / "plugins").glob("**/workflows-agent-document.md"))
+    bundled_skills = sorted((ROOT / "plugins").glob("**/SKILL.md"))
+
+    assert len(bundled) == 4
+    assert all(path.read_bytes() == canonical for path in bundled)
+    assert len(bundled_skills) == 4
+    assert all(
+        "references/workflows-agent-document.md" in path.read_text(encoding="utf-8")
+        for path in bundled_skills
+    )
 
 
 def test_skill_routes_general_work_to_one_level_autonomous_reference() -> None:

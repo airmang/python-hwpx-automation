@@ -5,6 +5,24 @@
   "minSkillVersion": "0.1.28",
   "tools": [
     {
+      "name": "get_document_node",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "query_document_nodes",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "apply_document_commands",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
       "name": "start_practice_scenario",
       "domain": "private_practice",
       "profile": "default",
@@ -833,13 +851,14 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "deb70fde01619b61",
-  "defaultToolCount": 128,
-  "advancedToolCount": 138,
+  "contractHash": "4149bf5b5621c9d3",
+  "defaultToolCount": 131,
+  "advancedToolCount": 141,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",
     "apply_body_ops",
+    "apply_document_commands",
     "apply_edits",
     "apply_evalplan_fill",
     "apply_practice_scenario",
@@ -851,9 +870,11 @@
     "export_fixture_benchmark",
     "extract_style_profile",
     "get_document_map",
+    "get_document_node",
     "inspect_fill_residue",
     "list_templates",
     "mail_merge",
+    "query_document_nodes",
     "render_preview",
     "repair_hwpx",
     "replace_by_anchor",

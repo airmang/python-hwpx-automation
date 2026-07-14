@@ -13,7 +13,9 @@ MCP가 없을 때의 local Python(`python-hwpx >= 2.27.0`) 대안과 번들 스�
 `decision`에서만 `approve_workflow_decision`을 호출한다. 중단·재개는 `cancel_workflow`·`resume_workflow`를
 쓴다. 큰 결과의 `resultRef`는 `get_workflow_result`로 회수한다. typed 입력과 영수증 계약은
 [workflows-autonomous](references/workflows-autonomous.md)를 본다.
-primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단용 escape hatch다.
+primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단용 escape hatch다. 단, 처음 보는
+기존 문서의 semantic 구조를 탐색하고 블록 이동·복사를 포함한 이종 편집을 한 번에 적용하는 요청은
+`get_document_node` → `query_document_nodes` → `apply_document_commands` 경로를 쓴다.
 
 ## 시작 체크
 
@@ -28,18 +30,19 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 
 | 사용자 요청 패턴 | 1차 경로 (MCP 도구) | 상세 참조 |
 |---|---|---|
+| 낯선 기존 문서의 구조 탐색 + 본문·표·블록 이종 편집·이동·복사 | `get_document_node` → `query_document_nodes` → `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
 | 일반 복합 HWPX 읽기·편집·양식 채움·생성 | `start_workflow` → `continue_workflow` → 필요 시 `approve_workflow_decision` | [workflows-autonomous](references/workflows-autonomous.md) |
 | 비공개 코퍼스의 단일 합성 문서편집 연습 | `start_practice_scenario` → `apply_practice_scenario(confirm=false)` → 검토 후 `confirm=true` | [workflows-private-practice](references/workflows-private-practice.md) |
 | 비공개 코퍼스의 내구성 합성 캠페인 연습 | `start_practice_campaign` · `get_practice_campaign` · `continue_practice_campaign` · `cancel_practice_campaign` · `export_practice_campaign` | [workflows-private-practice](references/workflows-private-practice.md) |
 | 최종 산출물을 실제 한컴으로 렌더·검증 | `render_health` → `render_submit` → `render_status` | [workflows-real-hancom-render](references/workflows-real-hancom-render.md) |
 | 페이지 PNG fixture 전 페이지 결함 검수·제한적 자동수정 | `visual_review_fixture` → 안전한 항목만 `visual_repair_fixture` | [workflows-visual-fixture-qa](references/workflows-visual-fixture-qa.md) |
 | 합성 fixture 블라인드 실무평가·공개 projection | `run_fixture_benchmark` → 독립 `agent_judge` 2회 → `export_fixture_benchmark` | [workflows-fixture-benchmark](references/workflows-fixture-benchmark.md) |
-| 문서 구조·표·양식 필드·앵커를 한 번에 파악 | `get_document_map` | [workflows-editing](references/workflows-editing.md) |
+| 양식 채움·기존 좌표 편집용 구조·표·필드·앵커 지도 | `get_document_map` | [workflows-editing](references/workflows-editing.md) |
 | 텍스트·개요·표 내용 읽기 | `get_document_text` · `get_document_outline` · `get_table_text` | [api](references/api.md) |
 | Markdown/HTML/JSON 변환·추출 | `hwpx_to_markdown` · `hwpx_to_html` · `hwpx_extract_json` · `document_to_markdown` · `document_extract_json` | [api](references/api.md) |
 | 런서식(굵게·색·크기·글꼴) + 각주/미주 본문까지 충실 읽기 | `hwpx_extract_json` (`format_detail`·`doc.notes[]`) · `hwpx_to_markdown` (각주 부록) | [workflows-reading](references/workflows-reading.md) |
 | 텍스트 위치·라벨 옆 셀 찾기 | `find_text` · `find_cell_by_label` | [workflows-editing](references/workflows-editing.md) |
-| 본문·표 편집 (기본 경로, 2건 이상이면 필수) | `apply_edits` (dry_run → 확정) | [workflows-editing](references/workflows-editing.md) |
+| 이미 인덱스·앵커가 확정된 본문·표 좌표 편집 (2건 이상) | `apply_edits` (dry_run → 확정) | [workflows-editing](references/workflows-editing.md) |
 | 단건 치환·문단·표 셀 편집 | `search_and_replace` · `batch_replace` · `insert_paragraph` · `set_table_cell_text` | [workflows-editing](references/workflows-editing.md) |
 | 직전 편집 되돌리기 | `undo_last_edit` | [workflows-editing](references/workflows-editing.md) |
 | 줄간격·정렬·들여쓰기·문단 간격 변경 | `set_paragraph_format` | [workflows-editing](references/workflows-editing.md) |
@@ -98,7 +101,20 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 - 깨졌거나 열리지 않는 파일은 편집 전에 `repair_hwpx`로 복구 복사본을 만든다.
 - 치환 키에 `<`, `>` 같은 XML 조각을 넣지 않는다. 태그가 아닌 텍스트 플레이스홀더만 치환한다.
 
-## 편집 표준 루프
+## 낯선 문서 구조 편집 루프
+
+1. `get_document_node(filename, path="/", depth=2)`로 bounded 구조와 `revision`을 얻는다.
+2. `query_document_nodes(..., limit=<bounded>)`로 후보를 좁히고 한 canonical path를 확정한다.
+   여러 후보 중 첫 항목을 임의 선택하거나 `volatilePath`를 다른 revision에서 재사용하지 않는다.
+3. 관련 변경을 한 `apply_document_commands(..., dry_run=true)` batch로 검토한다.
+4. diff가 맞으면 **새 idempotency key**로 commit한다. commit 재시도에만 같은 key를 쓴다.
+5. `ok`, `rolledBack == false`, `openSafety.ok`, 선언한 검증 영수증을 확인한다.
+
+스키마·오류 복구·CLI replay는
+[`references/workflows-agent-document.md`](references/workflows-agent-document.md)를 본다. 양식·시험·PII·
+메일머지·lint 같은 도메인 작업은 이 generic 경로로 낮추지 않고 전문 도구를 유지한다.
+
+## 확정 좌표 편집 표준 루프
 
 1. `get_document_map(filename)` — 개요·표·양식 필드·앵커와 `document_revision`을 확보한다.
 2. `apply_edits(filename, operations, dry_run=true)` — `semanticDiff`와 `openSafety.ok`를 확인한다.
@@ -113,6 +129,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 ## 참조 인덱스
 
 - [`references/workflows-autonomous.md`](references/workflows-autonomous.md) — 서버 강제 5-family workflow, decision/재개/needs_review/사전 렌더 영수증 계약.
+- [`references/workflows-agent-document.md`](references/workflows-agent-document.md) — 낯선 문서 semantic view/query, canonical path, 원자 set/add/remove/move/copy batch, structured failure와 CLI replay.
 - [`references/workflows-private-practice.md`](references/workflows-private-practice.md) — 비공개 원본 경로·평가 gold를 노출하지 않는 단일 scenario와 내구성 campaign 실행. `needs_review`·`unverified`를 성공으로 올리지 않으며 개선안 자동 채택·게시·병합·릴리스를 하지 않는다.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
 - [`references/workflows-visual-fixture-qa.md`](references/workflows-visual-fixture-qa.md) — fixture 전 페이지 검수, 원시 finding·evidence ledger, 최대 3회 안전수정, unsafe/unmapped escalation. **fixture는 절대 `renderChecked=true`가 아니다.**
