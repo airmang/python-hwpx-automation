@@ -12,6 +12,9 @@
 ## [Unreleased]
 
 ### Added
+- typed `.hwpxbp` dump/inspect/repack와 portable/source-bound atomic replay를 안내하는
+  `workflows-agent-blueprint` 라우팅. strict fidelity, rollback, lossless/openSafety, 실제 한컴 영수증을
+  요구하고 raw XML·resident/watch·OfficeCLI fallback을 금지한다.
 - 문서 투영·조회·원자 명령을 하나의 경로로 묶는 agent document workflow와
   `get_document_node`, `query_document_nodes`, `apply_document_commands` 3도구 라우팅.
 - 페이지 PNG fixture의 전 페이지 결함 검수, append-only evidence ledger, 최대 3회 안전수정과
@@ -22,6 +25,8 @@
 - 설치 플러그인 MCP E2E에 4개 render 도구와 honest unavailable/선택적 real-render 게이트 추가.
 
 ### Changed
+- 다음 설치 후보 결속을 `python-hwpx==2.29.0`, `hwpx-mcp-server==2.23.0`,
+  스킬 `0.1.30`으로 올리고 default ToolSpec을 133개로 갱신했다.
 - 다음 설치 후보 결속을 `python-hwpx==2.28.0`, `hwpx-mcp-server==2.22.0`,
   스킬 `0.1.29`로 올려 새 통합 계약보다 낮은 구성은 capability handshake에서 거부한다.
 - 번들 기준을 `python-hwpx==2.26.0`, `hwpx-mcp-server==2.20.0`, 스킬 `0.1.27`으로 갱신.

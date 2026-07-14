@@ -14,6 +14,7 @@
     "references/tool-contract.generated.json",
     "references/workflows-autonomous.md",
     "references/workflows-agent-document.md",
+    "references/workflows-agent-blueprint.md",
     "references/workflows-real-hancom-render.md",
     "references/workflows-visual-fixture-qa.md",
     "references/workflows-fixture-benchmark.md",
@@ -109,7 +110,7 @@
       "id": "hermes",
       "outputDir": "plugins/hermes/hwpx",
       "skillSubdir": ".",
-      "frontmatterExtra": "version: 0.1.29\nauthor: Kohkyuhyun\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
+      "frontmatterExtra": "version: 0.1.30\nauthor: Kohkyuhyun\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
       "manifests": [],
       "mcp": { "strategy": "config-doc", "template": "templates/hermes.mcp-install.md", "dest": "INSTALL-mcp.md" },
       "bundleLauncher": false

@@ -1,8 +1,8 @@
 {
   "schemaVersion": "hwpx.tool-contract.v1",
-  "minPythonHwpx": "2.28.0",
-  "minMcpVersion": "2.22.0",
-  "minSkillVersion": "0.1.29",
+  "minPythonHwpx": "2.29.0",
+  "minMcpVersion": "2.23.0",
+  "minSkillVersion": "0.1.30",
   "tools": [
     {
       "name": "get_document_node",
@@ -18,6 +18,18 @@
     },
     {
       "name": "apply_document_commands",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "dump_document_blueprint",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "replay_document_blueprint",
       "domain": "agent_document",
       "profile": "default",
       "skillRequired": true
@@ -851,9 +863,9 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "48714f1b31a6b9e9",
-  "defaultToolCount": 131,
-  "advancedToolCount": 141,
+  "contractHash": "a3f7bb2b0b78416d",
+  "defaultToolCount": 133,
+  "advancedToolCount": 143,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",
@@ -867,6 +879,7 @@
     "compose_exam",
     "create_document_from_plan",
     "create_government_report_document",
+    "dump_document_blueprint",
     "export_fixture_benchmark",
     "extract_style_profile",
     "get_document_map",
@@ -878,6 +891,7 @@
     "render_preview",
     "repair_hwpx",
     "replace_by_anchor",
+    "replay_document_blueprint",
     "run_fixture_benchmark",
     "scan_form_guidance",
     "score_form_fill",

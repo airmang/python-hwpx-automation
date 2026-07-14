@@ -6,7 +6,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 # hwpx (HWPX / OWPML)
 
 `.hwpx`는 ZIP 기반 OWPML 문서다. 모든 작업은 `hwpx-mcp-server`의 MCP 도구를 1차 경로로 사용한다.
-MCP가 없을 때의 local Python(`python-hwpx >= 2.28.0`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 2.29.0`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
@@ -16,6 +16,9 @@ MCP가 없을 때의 local Python(`python-hwpx >= 2.28.0`) 대안과 번들 스�
 primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단용 escape hatch다. 단, 처음 보는
 기존 문서의 semantic 구조를 탐색하고 블록 이동·복사를 포함한 이종 편집을 한 번에 적용하는 요청은
 `get_document_node` → `query_document_nodes` → `apply_document_commands` 경로를 쓴다.
+지원되는 문서·하위 트리를 다른 HWPX로 이식할 때는 같은 경로로 source/target canonical path를
+확정한 뒤 `dump_document_blueprint` → manifest의 unsupported/fidelity 검토 →
+`replay_document_blueprint`(dry-run → commit)를 쓴다.
 
 ## 시작 체크
 
@@ -31,6 +34,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 사용자 요청 패턴 | 1차 경로 (MCP 도구) | 상세 참조 |
 |---|---|---|
 | 낯선 기존 문서의 구조 탐색 + 본문·표·블록 이종 편집·이동·복사 | `get_document_node` → `query_document_nodes` → `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
+| 지원 문서·결재/양식 블록을 다른 HWPX로 안전하게 이식 | `get_document_node`/`query_document_nodes` → `dump_document_blueprint` → `replay_document_blueprint` (dry-run → commit) | [workflows-agent-blueprint](references/workflows-agent-blueprint.md) |
 | 일반 복합 HWPX 읽기·편집·양식 채움·생성 | `start_workflow` → `continue_workflow` → 필요 시 `approve_workflow_decision` | [workflows-autonomous](references/workflows-autonomous.md) |
 | 비공개 코퍼스의 단일 합성 문서편집 연습 | `start_practice_scenario` → `apply_practice_scenario(confirm=false)` → 검토 후 `confirm=true` | [workflows-private-practice](references/workflows-private-practice.md) |
 | 비공개 코퍼스의 내구성 합성 캠페인 연습 | `start_practice_campaign` · `get_practice_campaign` · `continue_practice_campaign` · `cancel_practice_campaign` · `export_practice_campaign` | [workflows-private-practice](references/workflows-private-practice.md) |
@@ -94,6 +98,8 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 - **openSafety**: 모든 쓰기 도구 응답의 `openSafety.ok == true`
   (또는 `verification.openSafety.ok == true`)를 확인한다. false인 파일은 handoff하지 않는다.
 - **dry_run 우선**: 쓰기 도구는 `dry_run=true`로 `semanticDiff`를 먼저 확인한 뒤 확정 저장한다.
+- **blueprint 정직성**: `unsupported`가 비었고 strict `fidelity.ok == true`인 replayable bundle만
+  이식한다. raw XML·ZIP 내부 XML·package path를 직접 편집하거나 degraded를 exact로 부르지 않는다.
 - **증거 계약**: `visual_review_required=true`이면
   [`references/evidence-contract.md`](references/evidence-contract.md)의 요건
   (`current.status == "observed_pass"` + `current.screenshot_path`)을 충족하기 전에는
@@ -114,6 +120,27 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 [`references/workflows-agent-document.md`](references/workflows-agent-document.md)를 본다. 양식·시험·PII·
 메일머지·lint 같은 도메인 작업은 이 generic 경로로 낮추지 않고 전문 도구를 유지한다.
 
+## 블루프린트 이식 루프
+
+1. source와 target을 각각 `get_document_node`/`query_document_nodes`로 읽어 revision-bound canonical
+   path를 확정한다. 여러 후보 중 첫 항목을 임의 선택하지 않는다.
+2. 교차 문서 이식은 `mode="portable"`로 `dump_document_blueprint`를 호출한다. 같은 source fingerprint에만
+   재생할 때만 `source-bound`를 쓴다.
+3. 반환 manifest의 `unsupported`, `fidelity`, dependency/resource 수, `blueprintHash`를 검토한다.
+   inspect/edit가 필요하면 `hwpx dump --inspect`로 typed JSON만 꺼내고 `hwpx dump --repack`으로 안전하게
+   재포장한다. ZIP/XML을 직접 고치지 않는다.
+4. `replay_document_blueprint`에 bundle hash, target input/output, targetParent, position, mode,
+   `expectedRevision`, strict mapping, idempotency key, 검증 요구사항을 모두 넣고 먼저 `dryRun=true`로 실행한다.
+5. dry-run의 node/dependency map, `exact|mapped|degraded|unsupported` fidelity와 semantic diff를 확인한다.
+   commit에는 새 idempotency key를 쓰고, 동일 요청 재시도에만 같은 key를 쓴다.
+6. commit에서 `rolledBack == false`, package/reopen/reference/resource/byte preservation,
+   `openSafety.ok`, domain 영수증을 확인한다. 실패하면 output이 보존됐는지 확인하고 성공으로 간주하지 않는다.
+7. 실제 한컴 검증이 요구되면 `render_health` → `render_submit` → `render_status`의 matching full-page
+   영수증까지 받아야 한다. oracle unavailable/mismatch는 `unverified`다.
+
+전체 envelope·CLI·실패 처리와 전문 workflow 경계는
+[`references/workflows-agent-blueprint.md`](references/workflows-agent-blueprint.md)를 본다.
+
 ## 확정 좌표 편집 표준 루프
 
 1. `get_document_map(filename)` — 개요·표·양식 필드·앵커와 `document_revision`을 확보한다.
@@ -130,6 +157,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 
 - [`references/workflows-autonomous.md`](references/workflows-autonomous.md) — 서버 강제 5-family workflow, decision/재개/needs_review/사전 렌더 영수증 계약.
 - [`references/workflows-agent-document.md`](references/workflows-agent-document.md) — 낯선 문서 semantic view/query, canonical path, 원자 set/add/remove/move/copy batch, structured failure와 CLI replay.
+- [`references/workflows-agent-blueprint.md`](references/workflows-agent-blueprint.md) — typed `.hwpxbp` dump/inspect/repack, portable/source-bound dependency mapping, atomic replay, strict fidelity와 real-Hancom 검증.
 - [`references/workflows-private-practice.md`](references/workflows-private-practice.md) — 비공개 원본 경로·평가 gold를 노출하지 않는 단일 scenario와 내구성 campaign 실행. `needs_review`·`unverified`를 성공으로 올리지 않으며 개선안 자동 채택·게시·병합·릴리스를 하지 않는다.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
 - [`references/workflows-visual-fixture-qa.md`](references/workflows-visual-fixture-qa.md) — fixture 전 페이지 검수, 원시 finding·evidence ledger, 최대 3회 안전수정, unsafe/unmapped escalation. **fixture는 절대 `renderChecked=true`가 아니다.**

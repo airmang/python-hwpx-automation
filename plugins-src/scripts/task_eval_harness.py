@@ -59,6 +59,24 @@ GUIDANCE_BODY_KEYWORDS: dict[str, tuple[str, ...]] = {
         "build_organization_chart",
     ),
     "document-map": ("get_document_map", "document_revision"),
+    "blueprint-routing": (
+        "dump_document_blueprint",
+        "replay_document_blueprint",
+        "portable",
+        "source-bound",
+        "unsupported",
+        "exact|mapped",
+        "hwpx dump --inspect",
+        "hwpx dump --repack",
+    ),
+    "blueprint-refusals": (
+        "raw XML",
+        "resident session",
+        "watch",
+        "OfficeCLI adapter",
+        "전문 workflow",
+        "unverified",
+    ),
 }
 
 

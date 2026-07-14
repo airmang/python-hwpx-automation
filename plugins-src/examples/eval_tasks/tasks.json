@@ -486,6 +486,30 @@
         {"tool": "undo_last_edit", "arguments": {"filename": "{document}"}}
       ],
       "oracles": [{"type": "text_not_contains", "value": "Temporary paragraph"}, {"type": "text_contains", "value": "Keep paragraph"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "blueprint-01-portable-transplant-routing",
+      "family": "inspection",
+      "instruction": "Route a supported cross-document block transplant through typed portable blueprint dump and atomic replay, including inspect/repack and fidelity review.",
+      "startDocument": {"kind": "text", "paragraphs": ["Approval block source"]},
+      "requiredGuidance": ["blueprint-routing"],
+      "requiredTools": ["dump_document_blueprint", "replay_document_blueprint"],
+      "toolCalls": [
+        {"tool": "get_document_text", "arguments": {"filename": "{document}"}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "text"}, {"type": "open_safety"}]
+    },
+    {
+      "id": "blueprint-02-refuse-rich-session-watch-officecli",
+      "family": "inspection",
+      "instruction": "Refuse raw XML, resident-session, watch, and OfficeCLI shortcuts; keep domain-rich workflows and real-Hancom unverified states honest.",
+      "startDocument": {"kind": "text", "paragraphs": ["Refusal routing check"]},
+      "requiredGuidance": ["blueprint-refusals"],
+      "requiredTools": ["dump_document_blueprint", "replay_document_blueprint"],
+      "toolCalls": [
+        {"tool": "get_document_text", "arguments": {"filename": "{document}"}}
+      ],
+      "oracles": [{"type": "call_result_has", "callIndex": 0, "key": "text"}, {"type": "open_safety"}]
     }
   ]
 }
