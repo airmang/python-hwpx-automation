@@ -6,6 +6,13 @@ PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SERVER_PACKAGE="${HWPX_MCP_SERVER_PACKAGE:-hwpx-mcp-server==2.21.0}"
 export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-0.1.28}"
 export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
+if [ -z "${HWPX_SKILL_ROOT:-}" ]; then
+  if [ -f "${PLUGIN_ROOT}/skills/hwpx/SKILL.md" ]; then
+    export HWPX_SKILL_ROOT="${PLUGIN_ROOT}/skills/hwpx"
+  elif [ -f "${PLUGIN_ROOT}/SKILL.md" ]; then
+    export HWPX_SKILL_ROOT="${PLUGIN_ROOT}"
+  fi
+fi
 
 find_stack_root() {
   local dir="$1"

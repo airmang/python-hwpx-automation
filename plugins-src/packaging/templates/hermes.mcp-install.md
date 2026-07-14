@@ -35,3 +35,12 @@ mcp_servers:
 
 The launcher discovers sibling `hwpx-mcp-server` and `python-hwpx` checkouts automatically when
 the env vars are unset and the repos sit under a common parent.
+
+## Private practice campaign (opt-in)
+
+The Leap B campaign runner additionally requires `HWPX_CORPUS_SOURCE`,
+`HWPX_PRACTICE_ROOT`, and `HWPX_SKILL_ROOT` in the private MCP host environment.
+Inject their local values through the host configuration or secret store; never put
+them in tool arguments, prompts, receipts, or published plugin files. The source root
+must stay read-only and separate from the mutable practice root. This configuration
+enables local execution only; it does not authorize publication, adoption, merge, or release.

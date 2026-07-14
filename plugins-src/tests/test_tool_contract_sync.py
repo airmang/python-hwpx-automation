@@ -26,7 +26,15 @@ WORKFLOW_TOOLS = {
 }
 RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
 FIXTURE_BENCHMARK_TOOLS = {"run_fixture_benchmark", "export_fixture_benchmark"}
-PRACTICE_TOOLS = {"start_practice_scenario", "apply_practice_scenario"}
+PRACTICE_SCENARIO_TOOLS = {"start_practice_scenario", "apply_practice_scenario"}
+PRACTICE_CAMPAIGN_TOOLS = {
+    "start_practice_campaign",
+    "get_practice_campaign",
+    "continue_practice_campaign",
+    "cancel_practice_campaign",
+    "export_practice_campaign",
+}
+PRACTICE_TOOLS = PRACTICE_SCENARIO_TOOLS | PRACTICE_CAMPAIGN_TOOLS
 
 
 def _contract() -> dict:
@@ -44,8 +52,8 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert RENDER_TOOLS <= names
     assert FIXTURE_BENCHMARK_TOOLS <= names
     assert PRACTICE_TOOLS <= names
-    assert PRACTICE_TOOLS <= required
-    assert contract["defaultToolCount"] == 123
+    assert PRACTICE_SCENARIO_TOOLS <= required
+    assert contract["defaultToolCount"] == 128
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
@@ -67,6 +75,7 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
     )
     assert f"hwpx-mcp-server=={contract['minMcpVersion']}" in launcher
     assert f'HWPX_SKILL_VERSION:-{contract["minSkillVersion"]}' in launcher
+    assert 'export HWPX_SKILL_ROOT="${PLUGIN_ROOT}/skills/hwpx"' in launcher
 
     for manifest in (
         ROOT / "packaging" / "templates" / "claude.plugin.json",
@@ -129,6 +138,48 @@ def test_every_host_bundle_carries_private_practice_reference_and_routing() -> N
         "references/workflows-private-practice.md" in path.read_text(encoding="utf-8")
         for path in bundled_skills
     )
+
+
+def test_private_practice_routes_durable_campaign_without_claim_inflation() -> None:
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    reference = (ROOT / "references" / "workflows-private-practice.md").read_text(
+        encoding="utf-8"
+    )
+
+    for tool in PRACTICE_CAMPAIGN_TOOLS:
+        assert f"`{tool}`" in skill
+        assert f"`{tool}" in reference
+    assert 'campaign `state == "completed"`' in reference
+    assert "전부 성공했다는 뜻이 아니다" in reference
+    assert '`needs_review`' in reference and '`unverified`' in reference
+    assert re.search(r"자동\s+`adopt`하지 않는다", reference)
+    assert "게시·push·병합·릴리스" in reference
+    assert "raw source와 sanitized source는 직접 수정하지 않는다" in reference
+    assert re.search(r"중복\s+mutation 없이 terminal receipt가 run마다 하나", reference)
+
+
+def test_private_campaign_packaging_binds_skill_bytes_without_shipping_roots() -> None:
+    launcher = (ROOT / "packaging" / "templates" / "hwpx-mcp-server").read_text(
+        encoding="utf-8"
+    )
+    assert '${PLUGIN_ROOT}/skills/hwpx/SKILL.md' in launcher
+    assert 'export HWPX_SKILL_ROOT="${PLUGIN_ROOT}/skills/hwpx"' in launcher
+
+    for template in (
+        ROOT / "packaging" / "templates" / "openclaw.mcp-install.md",
+        ROOT / "packaging" / "templates" / "hermes.mcp-install.md",
+    ):
+        text = template.read_text(encoding="utf-8")
+        assert "Private practice campaign (opt-in)" in text
+        assert all(
+            name in text
+            for name in (
+                "HWPX_CORPUS_SOURCE",
+                "HWPX_PRACTICE_ROOT",
+                "HWPX_SKILL_ROOT",
+            )
+        )
+        assert "never put" in text and "publication, adoption, merge, or release" in text
 
 
 def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:

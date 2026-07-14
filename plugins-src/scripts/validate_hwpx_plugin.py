@@ -123,6 +123,8 @@ def validate_launcher(out: Path, host_id: str) -> None:
         "PYTHON_HWPX_REPO",
         "uv run --no-project",
         _canonical_server_package_line(),
+        "HWPX_SKILL_ROOT",
+        "${PLUGIN_ROOT}/skills/hwpx/SKILL.md",
         ".hwpx-mcp-server-venv",
         "uv pip install",
         "--refresh-package hwpx-mcp-server",

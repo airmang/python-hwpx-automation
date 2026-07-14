@@ -29,7 +29,8 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 사용자 요청 패턴 | 1차 경로 (MCP 도구) | 상세 참조 |
 |---|---|---|
 | 일반 복합 HWPX 읽기·편집·양식 채움·생성 | `start_workflow` → `continue_workflow` → 필요 시 `approve_workflow_decision` | [workflows-autonomous](references/workflows-autonomous.md) |
-| 비공개 코퍼스의 합성 문서편집 연습 | `start_practice_scenario` → `apply_practice_scenario(confirm=false)` → 검토 후 `confirm=true` | [workflows-private-practice](references/workflows-private-practice.md) |
+| 비공개 코퍼스의 단일 합성 문서편집 연습 | `start_practice_scenario` → `apply_practice_scenario(confirm=false)` → 검토 후 `confirm=true` | [workflows-private-practice](references/workflows-private-practice.md) |
+| 비공개 코퍼스의 내구성 합성 캠페인 연습 | `start_practice_campaign` · `get_practice_campaign` · `continue_practice_campaign` · `cancel_practice_campaign` · `export_practice_campaign` | [workflows-private-practice](references/workflows-private-practice.md) |
 | 최종 산출물을 실제 한컴으로 렌더·검증 | `render_health` → `render_submit` → `render_status` | [workflows-real-hancom-render](references/workflows-real-hancom-render.md) |
 | 페이지 PNG fixture 전 페이지 결함 검수·제한적 자동수정 | `visual_review_fixture` → 안전한 항목만 `visual_repair_fixture` | [workflows-visual-fixture-qa](references/workflows-visual-fixture-qa.md) |
 | 합성 fixture 블라인드 실무평가·공개 projection | `run_fixture_benchmark` → 독립 `agent_judge` 2회 → `export_fixture_benchmark` | [workflows-fixture-benchmark](references/workflows-fixture-benchmark.md) |
@@ -112,7 +113,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 ## 참조 인덱스
 
 - [`references/workflows-autonomous.md`](references/workflows-autonomous.md) — 서버 강제 5-family workflow, decision/재개/needs_review/사전 렌더 영수증 계약.
-- [`references/workflows-private-practice.md`](references/workflows-private-practice.md) — 비공개 원본 경로·평가 gold를 노출하지 않는 합성 scenario 실행, 확인 게이트, 별도 destination, 구조 검증과 실한컴 상태의 정직 보고.
+- [`references/workflows-private-practice.md`](references/workflows-private-practice.md) — 비공개 원본 경로·평가 gold를 노출하지 않는 단일 scenario와 내구성 campaign 실행. `needs_review`·`unverified`를 성공으로 올리지 않으며 개선안 자동 채택·게시·병합·릴리스를 하지 않는다.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
 - [`references/workflows-visual-fixture-qa.md`](references/workflows-visual-fixture-qa.md) — fixture 전 페이지 검수, 원시 finding·evidence ledger, 최대 3회 안전수정, unsafe/unmapped escalation. **fixture는 절대 `renderChecked=true`가 아니다.**
 - [`references/workflows-fixture-benchmark.md`](references/workflows-fixture-benchmark.md) — 72개 합성 work order, 동일 workflow 계약의 세 fixture profile, 익명 artifact, 독립 agent-judge 서식과 단일 manifest projection. **사람·실제 agent·실한컴·대체 주장 증거가 아니다.**

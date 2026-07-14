@@ -17,6 +17,36 @@
       "skillRequired": true
     },
     {
+      "name": "start_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "continue_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "cancel_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "export_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
       "name": "render_submit",
       "domain": "real_hancom_render",
       "profile": "default",
@@ -803,9 +833,9 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "38e17939aeed17d2",
-  "defaultToolCount": 123,
-  "advancedToolCount": 133,
+  "contractHash": "deb70fde01619b61",
+  "defaultToolCount": 128,
+  "advancedToolCount": 138,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",

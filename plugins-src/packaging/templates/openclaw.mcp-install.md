@@ -28,3 +28,12 @@ export PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx
 ```
 
 The skill itself loads from `./skills` as declared in `openclaw.plugin.json`.
+
+## Private practice campaign (opt-in)
+
+The Leap B campaign runner additionally requires `HWPX_CORPUS_SOURCE`,
+`HWPX_PRACTICE_ROOT`, and `HWPX_SKILL_ROOT` in the private MCP host environment.
+Inject their local values through the host configuration or secret store; never put
+them in tool arguments, prompts, receipts, or published plugin files. The source root
+must stay read-only and separate from the mutable practice root. This configuration
+enables local execution only; it does not authorize publication, adoption, merge, or release.
