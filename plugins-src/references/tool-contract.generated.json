@@ -1,6 +1,6 @@
 {
   "schemaVersion": "hwpx.tool-contract.v1",
-  "minPythonHwpx": "2.24.0",
+  "minPythonHwpx": "2.24.1",
   "minMcpVersion": "2.18.1",
   "minSkillVersion": "0.1.25",
   "tools": [
@@ -701,7 +701,7 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "7f85ffd4e06b1556",
+  "contractHash": "e3580529fa9f2da5",
   "defaultToolCount": 106,
   "advancedToolCount": 116,
   "skillRequiredTools": [

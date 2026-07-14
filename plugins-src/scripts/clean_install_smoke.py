@@ -75,7 +75,7 @@ def main() -> int:
                 "--contract", str(contract),
                 "--server-package", marker_value,
                 "--server-venv", str(plugin_venv),
-                "--skill-version", "0.1.26",
+                "--skill-version", "0.1.27",
             ],
             cwd=args.skill_root,
             env=env,
