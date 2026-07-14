@@ -2,15 +2,51 @@
 
 ## [Unreleased]
 
+## [0.1.30] - 2026-07-15
+
+### Added
+- typed `.hwpxbp` dump/inspect/repack와 portable/source-bound atomic replay를 안내하는
+  `workflows-agent-blueprint` 라우팅. strict fidelity, rollback, lossless/openSafety, 실제 한컴 영수증을
+  요구하고 raw XML·resident/watch·OfficeCLI fallback을 금지한다.
+- 문서 투영·조회·원자 명령을 하나의 경로로 묶는 agent document workflow와
+  `get_document_node`, `query_document_nodes`, `apply_document_commands` 3도구 라우팅.
+- 페이지 PNG fixture의 전 페이지 결함 검수, append-only evidence ledger, 최대 3회 안전수정과
+  unsafe/unmapped escalation을 안내하는 스킬 라우팅 및 설치 MCP leap-demo 하네스.
+- fixture 영수증은 절대 `renderChecked=true` 또는 실한컴 검증으로 승격하지 않는 hard rule.
+- 비동기 실한컴 `render_health` → `render_submit` → `render_status`/`render_cancel` 라우팅과
+  입력·출력 hash, Hancom build, worker provenance, PDF/페이지 PNG 검증 절차.
+- 설치 플러그인 MCP E2E에 4개 render 도구와 honest unavailable/선택적 real-render 게이트 추가.
+- S-070 합성 블라인드 qualification fixture: 6개 family의 work order 72개, must-abstain 12개,
+  versioned fixture profile 3개와 익명 artifact 216개. 독립 `agent_judge` 2회용 템플릿과 단일 result
+  manifest 기반 report/gallery/scorecard projection 및 drift gate를 포함한다.
+
+### Changed
+- 공개 결속을 `python-hwpx==2.29.0`, `hwpx-mcp-server==2.23.0`, 스킬 `0.1.30`으로 올리고
+  default/advanced ToolSpec을 133/143개로 갱신했다. 이보다 낮은 구성은 capability handshake에서
+  fail closed 한다.
+- Claude, Codex, Hermes, OpenClaw 번들을 같은 정본 계약과 핀에서 재생성한다.
+
+### Fixed
+- 공개 0.1.26/0.1.27이 고정했던 병적인 음수 자간 복구와 SQUEEZE 셀 wrap 안전성을 새 3-stack
+  결속에서도 유지한다.
+
+### Note
+- 0.1.28/0.1.29는 단계별 로컬 후보였으며 공개 배포 이력이 아니다. 해당 누적 변경은 이 0.1.30
+  공개 항목으로 통합한다.
+
 ## [0.1.27] - 2026-07-14
 ### Fixed
-- 표 양식의 `SQUEEZE` 셀에 긴 텍스트를 채울 때 한컴이 글자 폭을 겹칠 정도로 압축하던 문제를 고친 `hwpx-mcp-server==2.18.3`(`python-hwpx>=2.24.1`)을 모든 호스트 런처와 설치 문서에 고정.
+- 표 양식의 `SQUEEZE` 셀에 긴 텍스트를 채울 때 한컴이 글자 폭을 겹칠 정도로 압축하던 문제를
+  고친 `hwpx-mcp-server==2.18.3`(`python-hwpx>=2.24.1`)을 모든 호스트 런처와 설치 문서에 고정.
 
 ## [0.1.26] - 2026-07-13
 ### Fixed
-- 텍스트 교체·문단 추가·표 셀 채움에서 병적인 음수 자간이 새 내용에 전파되어 글자가 겹치던 문제를 고친 `hwpx-mcp-server==2.18.2`를 번들 런처와 설치 문서에 고정.
-- PyPI 릴리스 직후 `uv` 메타데이터 캐시 때문에 스택 릴리스가 전파 대기에서 멈추지 않도록 패키지 메타데이터를 강제 새로고침.
-- 릴리스 계약 검증이 최소 호환 버전과 현재 번들 버전을 동일값으로 오인하지 않고, 현재 버전이 최소값 이상인지 비교하도록 수정.
+- 텍스트 교체·문단 추가·표 셀 채움에서 병적인 음수 자간이 새 내용에 전파되어 글자가 겹치던
+  문제를 고친 `hwpx-mcp-server==2.18.2`를 번들 런처와 설치 문서에 고정.
+- PyPI 릴리스 직후 `uv` 메타데이터 캐시 때문에 스택 릴리스가 전파 대기에서 멈추지 않도록
+  패키지 메타데이터를 강제 새로고침.
+- 릴리스 계약 검증이 최소 호환 버전과 현재 번들 버전을 동일값으로 오인하지 않고, 현재 버전이
+  최소값 이상인지 비교하도록 수정.
 
 ## [0.1.25] - 2026-07-10
 ### Fixed

@@ -102,3 +102,16 @@ Evidence schema 전문과 필드 설명은 `examples/09_visual_review_loop.md`,
   `residual_markers.blocking == []`
 
 하나라도 미충족이면 "제출 준비 완료"가 아니라 미충족 항목을 명시한 상태로 handoff한다.
+
+## 5. fixture visual-QA 영수증
+
+`visual_review_fixture`/`visual_repair_fixture`의 페이지 PNG는 탐지·수정 회귀를 재현하는 테스트
+evidence다. 실한컴 렌더 evidence와 스키마·provenance를 분리하며 다음 hard rule을 적용한다.
+
+- fixture 영수증은 항상 `renderChecked == false`, `real_hancom_verified == false`다.
+- fixture review/repair 성공만으로 `observed_pass`, `ready_for_submission_claim`, `visualComplete`를
+  주장하지 않는다.
+- page별 verdict, 원시 finding, evidence crop/hash, detector provenance와 disagreement, target mapping,
+  applied/rejected action, rollback을 append-only ledger에 남긴다.
+- unsafe/unmapped/critical finding은 `needs_review`로 유지한다. primitive 편집으로 우회하지 않는다.
+- 실제 한컴 완료 주장이 필요하면 fixture ledger와 별도로 §2 또는 실한컴 render receipt를 확보한다.

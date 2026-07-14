@@ -20,6 +20,8 @@
     "doc-compare",
     "advanced-generators",
     "document-map",
-    "task-replay"
+    "task-replay",
+    "blueprint-routing",
+    "blueprint-refusals"
   ]
 }

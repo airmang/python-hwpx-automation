@@ -38,6 +38,26 @@ def test_task_eval_corpus_has_required_size_and_families() -> None:
         assert task["oracles"]
 
 
+def test_explicit_stack_checkouts_precede_sibling_defaults(tmp_path: Path, monkeypatch) -> None:
+    skill_root = tmp_path / "workspace" / "hwpx-skill-s076"
+    explicit_mcp = tmp_path / "release" / "hwpx-mcp-server-s076"
+    explicit_core = tmp_path / "release" / "python-hwpx-s076"
+    default_mcp = skill_root.parent / "hwpx-mcp-server" / "src"
+    default_core = skill_root.parent / "python-hwpx" / "src"
+    for source in (explicit_mcp / "src", explicit_core / "src", default_mcp, default_core):
+        source.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(task_eval_harness, "ROOT", skill_root)
+    monkeypatch.setenv("HWPX_MCP_SERVER_REPO", str(explicit_mcp))
+    monkeypatch.setenv("PYTHON_HWPX_REPO", str(explicit_core))
+    monkeypatch.setattr(sys, "path", list(sys.path))
+
+    task_eval_harness._ensure_stack_imports()
+
+    assert sys.path.index(str((explicit_mcp / "src").resolve())) < sys.path.index(str(default_mcp.resolve()))
+    assert sys.path.index(str((explicit_core / "src").resolve())) < sys.path.index(str(default_core.resolve()))
+
+
 def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path) -> None:
     report = task_eval_harness.run(
         ROOT / "examples" / "eval_tasks" / "tasks.json",

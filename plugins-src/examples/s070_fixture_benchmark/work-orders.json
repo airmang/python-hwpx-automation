@@ -1,0 +1,1445 @@
+{
+  "orders": [
+    {
+      "brief": "reading_extraction 합성 사례 1: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-01",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 2: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-02",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 3: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-03",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 4: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-04",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 5: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "reading_extraction",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-05",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 6: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-06",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 7: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-07",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 8: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-08",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 9: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-09",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 10: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-10",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 11: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "reading_extraction",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-11",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "reading_extraction 합성 사례 12: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "reading_extraction",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-01-12",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 1: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-01",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 2: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-02",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 3: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-03",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 4: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-04",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 5: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "transactional_editing",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-05",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 6: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-06",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 7: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-07",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 8: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-08",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 9: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-09",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 10: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-10",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 11: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "transactional_editing",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-11",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "transactional_editing 합성 사례 12: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "transactional_editing",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-02-12",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 1: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-01",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 2: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-02",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 3: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-03",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 4: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-04",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 5: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "known_form_fill",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-05",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 6: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-06",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 7: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-07",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 8: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-08",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 9: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-09",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 10: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-10",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 11: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "known_form_fill",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-11",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "known_form_fill 합성 사례 12: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "known_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-03-12",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 1: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-01",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 2: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-02",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 3: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-03",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 4: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-04",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 5: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-05",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 6: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-06",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 7: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-07",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 8: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-08",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 9: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-09",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 10: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-10",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 11: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-11",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "unfamiliar_form_fill 합성 사례 12: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "unfamiliar_form_fill",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-04-12",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 1: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-01",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 2: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-02",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 3: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-03",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 4: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-04",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 5: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "typed_authoring",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-05",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 6: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-06",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 7: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-07",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 8: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-08",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 9: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-09",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 10: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-10",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 11: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "typed_authoring",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-11",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "typed_authoring 합성 사례 12: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "typed_authoring",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-05-12",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 1: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-01",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 2: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-02",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 3: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-03",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 4: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-04",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 5: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "batch_comparison",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-05",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 6: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-06",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 7: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-07",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 8: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "routine",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-08",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 9: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-09",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 10: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-10",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 11: 필수 근거가 의도적으로 누락된 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "ambiguous",
+      "expectedDisposition": "needs_review",
+      "family": "batch_comparison",
+      "mustAbstain": true,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-11",
+      "workflowContract": "server-enforced-workflow.v1"
+    },
+    {
+      "brief": "batch_comparison 합성 사례 12: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라.",
+      "difficulty": "advanced",
+      "expectedDisposition": "complete",
+      "family": "batch_comparison",
+      "mustAbstain": false,
+      "privateData": false,
+      "requiredApi": [
+        "start_workflow",
+        "get_workflow",
+        "continue_workflow",
+        "approve_workflow_decision",
+        "resume_workflow",
+        "cancel_workflow"
+      ],
+      "schemaVersion": "hwpx.fixture-work-order.v1",
+      "sourcePolicy": "synthetic_only",
+      "workOrderId": "wo-06-12",
+      "workflowContract": "server-enforced-workflow.v1"
+    }
+  ],
+  "schemaVersion": "hwpx.fixture-work-orders.v1"
+}

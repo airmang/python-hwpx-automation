@@ -1,9 +1,171 @@
 {
   "schemaVersion": "hwpx.tool-contract.v1",
-  "minPythonHwpx": "2.24.1",
-  "minMcpVersion": "2.18.1",
-  "minSkillVersion": "0.1.25",
+  "minPythonHwpx": "2.29.0",
+  "minMcpVersion": "2.23.0",
+  "minSkillVersion": "0.1.30",
   "tools": [
+    {
+      "name": "get_document_node",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "query_document_nodes",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "apply_document_commands",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "dump_document_blueprint",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "replay_document_blueprint",
+      "domain": "agent_document",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "start_practice_scenario",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "apply_practice_scenario",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "start_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "continue_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "cancel_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "export_practice_campaign",
+      "domain": "private_practice",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_submit",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_status",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_cancel",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "render_health",
+      "domain": "real_hancom_render",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "start_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "get_workflow_result",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "continue_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "approve_workflow_decision",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "cancel_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "resume_workflow",
+      "domain": "workflow",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "visual_review_fixture",
+      "domain": "visual_qa",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "visual_repair_fixture",
+      "domain": "visual_qa",
+      "profile": "default",
+      "skillRequired": false
+    },
+    {
+      "name": "run_fixture_benchmark",
+      "domain": "blind_eval",
+      "profile": "default",
+      "skillRequired": true
+    },
+    {
+      "name": "export_fixture_benchmark",
+      "domain": "blind_eval",
+      "profile": "default",
+      "skillRequired": true
+    },
     {
       "name": "get_document_text",
       "domain": "read",
@@ -701,30 +863,39 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "e3580529fa9f2da5",
-  "defaultToolCount": 106,
-  "advancedToolCount": 116,
+  "contractHash": "a3f7bb2b0b78416d",
+  "defaultToolCount": 133,
+  "advancedToolCount": 143,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",
     "apply_body_ops",
+    "apply_document_commands",
     "apply_edits",
     "apply_evalplan_fill",
+    "apply_practice_scenario",
     "apply_table_ops",
     "byte_preserving_patch",
     "compose_exam",
     "create_document_from_plan",
     "create_government_report_document",
+    "dump_document_blueprint",
+    "export_fixture_benchmark",
     "extract_style_profile",
     "get_document_map",
+    "get_document_node",
     "inspect_fill_residue",
     "list_templates",
     "mail_merge",
+    "query_document_nodes",
     "render_preview",
     "repair_hwpx",
     "replace_by_anchor",
+    "replay_document_blueprint",
+    "run_fixture_benchmark",
     "scan_form_guidance",
     "score_form_fill",
+    "start_practice_scenario",
     "table_compute",
     "undo_last_edit",
     "verify_form_fill"

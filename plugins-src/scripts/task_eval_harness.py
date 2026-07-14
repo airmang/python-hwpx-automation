@@ -59,6 +59,24 @@ GUIDANCE_BODY_KEYWORDS: dict[str, tuple[str, ...]] = {
         "build_organization_chart",
     ),
     "document-map": ("get_document_map", "document_revision"),
+    "blueprint-routing": (
+        "dump_document_blueprint",
+        "replay_document_blueprint",
+        "portable",
+        "source-bound",
+        "unsupported",
+        "exact|mapped",
+        "hwpx dump --inspect",
+        "hwpx dump --repack",
+    ),
+    "blueprint-refusals": (
+        "raw XML",
+        "resident session",
+        "watch",
+        "OfficeCLI adapter",
+        "전문 workflow",
+        "unverified",
+    ),
 }
 
 
@@ -109,18 +127,28 @@ class Profile:
 
 
 def _ensure_stack_imports() -> None:
-    candidates = []
+    candidates: list[Path] = []
     env_repo = os.environ.get("HWPX_MCP_SERVER_REPO")
     if env_repo:
         candidates.append(Path(env_repo) / "src")
-    candidates.append(ROOT.parent / "hwpx-mcp-server" / "src")
     env_hwpx = os.environ.get("PYTHON_HWPX_REPO")
     if env_hwpx:
         candidates.append(Path(env_hwpx) / "src")
-    candidates.append(ROOT.parent / "python-hwpx" / "src")
-    for candidate in candidates:
+    candidates.extend(
+        [
+            ROOT.parent / "hwpx-mcp-server" / "src",
+            ROOT.parent / "python-hwpx" / "src",
+        ]
+    )
+    # Insert in reverse so the explicit release-candidate checkouts remain
+    # ahead of sibling defaults.  The old forward insert(0) loop silently put
+    # the defaults first and could grade a different stack than requested.
+    for candidate in reversed(candidates):
         if candidate.exists():
-            sys.path.insert(0, str(candidate))
+            source = str(candidate.resolve())
+            while source in sys.path:
+                sys.path.remove(source)
+            sys.path.insert(0, source)
 
 
 class _FallbackServer:

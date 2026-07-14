@@ -1,0 +1,1086 @@
+{
+  "judgeVisible": false,
+  "routes": [
+    {
+      "artifactId": "artifact-1c50083fddce4403cfb1",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a7aa9294d512143a8f1a",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-41324bc66606f6fdcccd",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-34a77ba0b60596e3086f",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-60468bc4760c892d976e",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-060f63afc4380b5d225e",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cde3a079328cedc778bc",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-8ae48f3d7c74ad5c2756",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e8c311ca60d66882bb18",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d0da3bd03e1d3c416537",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-8cca532db978d3df143a",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cc0f56766a25bf965f46",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-2c40db8dfb9fe0279524",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f3f115cc3e947862aa65",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0141842905799e227c09",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cd58e1a406118b2a06cd",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cb1d591ae30507a1480a",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ee76758f3c7f40deae9a",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a98c4a33f84d4f5d72d0",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d9f4dc1fad37ccda9a33",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ee4943b7a46f493b0da8",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9c2b0dad5ea71b5839fd",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-88819a4e9ef8b6750a1b",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9b2f3a4a65425530cd3a",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-86758cb871ca13782113",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-37760974ea1ab3056339",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cfb66de7c856659ecd39",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-165a40d6e75faaa4a754",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-26c8b9c48ba5879dd60a",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-00b8a2f1fe5a236b9297",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5348cee5bc0b0bc94b4a",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5f9883413413d5c3994f",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-2f52d9ac457a241cf015",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cbc6f04ce91d09737498",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c6fecccef40c2f530c2f",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-99faf25de65a4de1931f",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5e960e582bd36ca15770",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-7e10624493fd52f57890",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-1075df209b89e302eaf5",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-533a8957b82fdc0bea24",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-3aaf7c5c2ad01f8f0e09",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-2499e2d8852a06f71162",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-03a0b2c877d9f3db520a",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-81c5b5afbbbcaf140316",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ae56e42b83f2cf311712",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c467cb463d4570ed328c",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-fbe547dfebfc49daebfb",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-4214c1f7a5907a1b9068",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-793657ff163ca8e3340e",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e7d216517323a419e489",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-8c0b3b8ecf9517ea8d75",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0015a6d4acb1844697fe",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f91ff57c3f11defc8d67",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-863231dee6e1136a80fe",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-8e628f99db6dfc888ad9",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-75a539ff919c1643d911",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-6b34aba08d738012ae8f",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ee0471adad6c9cff9925",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-8fddb95496bc1913bd12",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-11baf4e8c041a4ddbe72",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-eff8f7dc6a0272cf1276",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cec97bcfaddfb7ae8752",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d9719dab69136a12208b",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-7f20489c1ab81d43bb86",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f90724d7b5ff3819539f",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e5ec91e4af10efb83511",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-b162ade8861a4f748163",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-1d89634fae59814cbd44",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9eeec0e75af606cbd148",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-b456ec81906bfbc10894",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-bbe3449fa2eaa8bc947e",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ad3be0f5c321fcec30eb",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9aba421b62ab45ab0cf5",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a107eb495243b70def1e",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d57ddd6eb1c4cbd202e9",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-b4f6ef88fb2e9aa43a66",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-357be4513941e94623ed",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a3c606344fb5a9184e0a",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-b60a467c90681ab1bcd4",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-67ef51a5e1d15a36096c",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-383092096e483ebc030a",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-70b0f369da86e32d1882",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9b8a0a58a96c203e841c",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-93557cc66a3d3465105a",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-85692ddf97cc3b586ca1",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-000ea24146b068a9533f",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9ba776c3fafad3f8abc6",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a376faac1dd5767d6919",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-3f67486e88dfd87d83ae",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a12bb1f7c69c0df01dea",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0c509c38ed8f989ea646",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-702a7a9e27dc0e339597",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-124cc0091685dcab980a",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-350ca989e9d47da3dd9e",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-6e24534046841883855b",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-2a5c202c536d3eff5dd4",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-56b9e8b70a3603741595",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c697f1f5d283d966760c",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-80bff119f07494cf0daa",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-21d489f8fa0562728273",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0e567995bf926677d83a",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-fd9840e40669894b88ed",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-81429299fe6e21e07237",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d202df40d1fcd9a06cea",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f03e6d22d9fbf71c67dd",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-839f787eb31ffd5bed14",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-abf5bf01ea3379b639b2",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-16d20e132872621df1b8",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-57ac08c2b083efa94209",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0fc2e7c1c7b73ee710f0",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e308328d4855363283b1",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a8e00e28b78faa959a33",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5e5a20766d521c6ecf50",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0f805ce0bb67f55ce359",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e09d207d0469bc850b13",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-50b435fb2affb30759fd",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-26a13caa205b9ebbe51e",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f5fbdb55f5a283d3bcb0",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5ef1c3265fc5e10fa48a",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ed7f70a29e42885bd42e",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-6f8803d1b0aff550e2c6",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-055c5e804071abf8300c",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-66b73741822c599fcc13",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c575ebb839156717814e",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-422c70face400cf6c620",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-679184e261d1b3a0b315",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-b75d9c25679ec7285d51",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-dfc24e7ae7023f08afc9",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-53c869db306beaf2b710",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-eee8ccf4e75bf3f60dfe",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-374332d158c04f6316ac",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-45d52dfe6ae8b5cda921",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-653a5518b87630a7dbd6",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e738c80bfa1a9e7fde52",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cd6ef28af0f008c9a952",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-256fc47391bb5ea068c1",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-aff877dc28fe7164c67c",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cbf3051613f776821dc4",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-184c63e2488ca5c82978",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-17302aede3da1fae8d99",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c8ca93a5c1ac425b915c",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5f610837cc84c03622c9",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-1e95c2581c13d8e2c418",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-57700a7fefb0a250f138",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-affc21a151ec0836a158",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ec6fee7c772c73c80c15",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-73a57a18f68d4ae7dcc0",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-b60871acea7f9ba881da",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ca0fbda95d86e8c428f1",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0e3992ef867868a9d830",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-58d2cb765b1ca18a1dba",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e9a6c1338bf5c30466a0",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-896e9f6df5cb68ee0f63",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5cdde90065026f84eb07",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c4de075c9457993aae6e",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-dd783a0b541f73abcdd4",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-7da5e40cd7363eac7bb5",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5857ccd78d474e6279ac",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-7c0cc4f69506eab56b6c",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-82cfbde0c6e12f92deb3",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d745c8a1c29baece99fc",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a5e89c5231bbbb94febf",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a93df106831fdfc16abc",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d659b3c60ee789e9ed65",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-44b86525db9cd922fbeb",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-47eaf067c441670875a0",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ec23ede5169c6fabe739",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-051a0b343f2311bf19ac",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-1d4fb9219e63e1f0505f",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f1e374f7d8348521615e",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-810f4dc59b79b9838bbd",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-bf71b15ab09bf5589c51",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-2231ebcf3ca48977095e",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d64e570da6d63ae57596",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-cfbc7fb16e432eb816de",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-a5709b9f22626111011b",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ad612ddb81ddda1b49fb",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9b91d72a8d9d3e7330b3",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-835cf9463ad2a12f45ef",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-affd38bbd4beb57ced71",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ec5a99c4b41e34f98730",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-8b2f1f16d560fc412353",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-1c20043a70d7819c0849",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c40a6b02512ffe7c0d6b",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f5d815f681270234778f",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-186ac833c1361674f51b",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0cf0ad552831d17739f7",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-7b07125b435bf346e8c5",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-f088c2414770706b58a5",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-47ee00f9b060c8695a19",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-0a59e1608466d54e4f79",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-3acfec042314a806096f",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-13a2af17ff0f37e3c9fc",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c7bed39d4fef40039e37",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-35644d5521a2555efe32",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-ffcab732b4f6fe8f08f4",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-38406db20368d45750c7",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-efbd880d2242752d78f6",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-923f167862bf75661dd3",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-5798d0369a0f74b16d3c",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-eda479b1b301be6f1340",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-9566a99b1c30b3408f9d",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-1deb017dfc7facdfa3cf",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-abb16fd24c8eb48ccdc1",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-aef1441ecc1316b07856",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d65990ee7b75a22cafa1",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-d09396b8cc8922b46f03",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-c7f7e36f74f9e16cddfe",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-78c6eef494b6ede3126d",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-e129f21cc6f41ed9f857",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-02f3c25d89e6edbe077c",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-36d2693c4fddad158251",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-acb68d7707ec421efd42",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-1cf9aa4c7fbaee2cc55b",
+      "profileId": "fixture-client-cautious",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-8ddf537fe9f0b970d278",
+      "profileId": "fixture-client-direct",
+      "profileVersion": "1.0.0"
+    },
+    {
+      "artifactId": "artifact-87f49a1ce1d6c08130fd",
+      "profileId": "fixture-client-resume",
+      "profileVersion": "1.0.0"
+    }
+  ],
+  "schemaVersion": "hwpx.fixture-routing.v1"
+}

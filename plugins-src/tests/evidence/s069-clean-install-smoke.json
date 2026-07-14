@@ -1,0 +1,99 @@
+{
+  "ok": true,
+  "toolCount": 118,
+  "contractHash": "036066a2a4c20cbb",
+  "requiredTools": [
+    "add_memo_by_anchor",
+    "add_tracked_edit",
+    "apply_body_ops",
+    "apply_edits",
+    "apply_evalplan_fill",
+    "apply_table_ops",
+    "byte_preserving_patch",
+    "compose_exam",
+    "create_document_from_plan",
+    "create_government_report_document",
+    "extract_style_profile",
+    "get_document_map",
+    "inspect_fill_residue",
+    "list_templates",
+    "mail_merge",
+    "render_preview",
+    "repair_hwpx",
+    "replace_by_anchor",
+    "scan_form_guidance",
+    "score_form_fill",
+    "table_compute",
+    "undo_last_edit",
+    "verify_form_fill"
+  ],
+  "workflowTools": [
+    "approve_workflow_decision",
+    "cancel_workflow",
+    "continue_workflow",
+    "get_workflow",
+    "resume_workflow",
+    "start_workflow"
+  ],
+  "renderTools": [
+    "render_cancel",
+    "render_health",
+    "render_status",
+    "render_submit"
+  ],
+  "workflowStates": [
+    "intake",
+    "recon",
+    "plan",
+    "decision",
+    "execute",
+    "verify",
+    "completed"
+  ],
+  "workflowTerminalState": "completed",
+  "workflowStopReason": "VERIFIED_COMPLETION",
+  "outputCopy": "/var/folders/jt/sdwtj3bs31j9084n_bx85fsh0000gn/T/hwpx-plugin-e2e-4h378g4e/unfamiliar-form-filled.hwpx",
+  "openSafety": {
+    "ok": true,
+    "renderChecked": false
+  },
+  "renderHealth": {
+    "schemaVersion": "hwpx.render-health.v1",
+    "available": false,
+    "degraded": true,
+    "degradedReason": "NOT_CONFIGURED",
+    "queueDepth": 0,
+    "runningJobs": 0,
+    "oldestQueuedAgeSeconds": 0.0,
+    "lastSuccessfulRealRender": null,
+    "workerVersion": null,
+    "hancomBuild": null
+  },
+  "renderReceipt": {
+    "ok": false,
+    "receipt": {
+      "schema_version": "hwpx.render.v2",
+      "job_id": "render-3d2f0a07e932cac5d695465e",
+      "workflow_id": "direct-3d2f0a07e932cac5d695465e",
+      "input_content_hash": "sha256:2604c5ebd04019ff1918964c64363f14351828cb4f06733f8dcb33dbc0a3bfee",
+      "status": "unavailable",
+      "backend": null,
+      "hancom_build": null,
+      "worker_version": null,
+      "queued_at": "2026-07-12T09:20:58.776964Z",
+      "started_at": null,
+      "completed_at": "2026-07-12T09:20:58.776964Z",
+      "artifacts": [],
+      "page_count": null,
+      "retry_count": 0,
+      "terminal_reason": "REAL_HANCOM_BACKEND_UNAVAILABLE",
+      "render_checked": false
+    }
+  },
+  "realRenderRequired": false,
+  "versions": {
+    "core": "2.26.0",
+    "mcp": "2.20.0",
+    "plugin": "0.1.27"
+  }
+}

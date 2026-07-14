@@ -29,7 +29,7 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
         text = launcher.read_text(encoding="utf-8")
         assert "uv run --no-project" in text
         assert "uv run --project" not in text
-        assert '--with-editable "${PYTHON_HWPX_REPO}"' in text
+        assert '--with-editable "${PYTHON_HWPX_REPO}[visual]"' in text
         assert '--with-editable "${MCP_REPO}"' in text
 
 

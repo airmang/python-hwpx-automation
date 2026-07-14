@@ -1,0 +1,17 @@
+{
+  "artifactId": "artifact-d9f4dc1fad37ccda9a33",
+  "fixture": true,
+  "fixtureOutput": {
+    "disposition": "complete",
+    "synthetic": true
+  },
+  "humanControls": false,
+  "humanJudges": false,
+  "humanLabels": false,
+  "realAgentClients": false,
+  "realAgentClientsVerified": false,
+  "realHancomVerified": false,
+  "replacementClaimAllowed": false,
+  "schemaVersion": "hwpx.blind-artifact.v1",
+  "taskBrief": "reading_extraction 합성 사례 7: 완결된 합성 한국 행정문서 요청. 제공된 fixture만 사용하라."
+}

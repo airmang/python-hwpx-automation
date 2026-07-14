@@ -1,0 +1,495 @@
+{
+  "artifactDisplay": "anonymized_only",
+  "coverage": {
+    "agentJudgments": 432,
+    "artifacts": 216,
+    "criticalFailures": 0,
+    "fixtureClients": 3,
+    "workOrders": 72
+  },
+  "fixture": true,
+  "humanControls": false,
+  "humanJudges": false,
+  "humanLabels": false,
+  "metrics": {
+    "agreement": {
+      "exactAcceptanceAgreement": 1.0,
+      "pairCount": 216
+    },
+    "assurance": "fixture",
+    "benchmarkGatePassed": true,
+    "claimBoundary": "Fixture clients and agent judges validate the rail only; no human replacement claim is allowed.",
+    "cost": {
+      "currency": null,
+      "measured": false,
+      "total": null
+    },
+    "counts": {
+      "agentJudgments": 432,
+      "artifacts": 216,
+      "criticalFailures": 0,
+      "fixtureClients": 3,
+      "workOrders": 72
+    },
+    "executionKind": "fixture_simulation",
+    "humanControls": false,
+    "humanInvolvement": {
+      "editMinutes": null,
+      "measured": false,
+      "reviewMinutes": null
+    },
+    "humanJudges": false,
+    "humanLabels": false,
+    "mustAbstainQuality": {
+      "rate": 1.0,
+      "rate95CI": [
+        0.9035813714055363,
+        1.0
+      ],
+      "successes": 36,
+      "total": 36
+    },
+    "perClient": {
+      "fixture-client-cautious": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.7308929306946451,
+          0.9020062875743832
+        ],
+        "successes": 60,
+        "total": 72
+      },
+      "fixture-client-direct": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.7308929306946451,
+          0.9020062875743832
+        ],
+        "successes": 60,
+        "total": 72
+      },
+      "fixture-client-resume": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.7308929306946451,
+          0.9020062875743832
+        ],
+        "successes": 60,
+        "total": 72
+      }
+    },
+    "perFamily": {
+      "batch_comparison": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.6810920568872054,
+          0.9212955240498188
+        ],
+        "successes": 30,
+        "total": 36
+      },
+      "known_form_fill": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.6810920568872054,
+          0.9212955240498188
+        ],
+        "successes": 30,
+        "total": 36
+      },
+      "reading_extraction": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.6810920568872054,
+          0.9212955240498188
+        ],
+        "successes": 30,
+        "total": 36
+      },
+      "transactional_editing": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.6810920568872054,
+          0.9212955240498188
+        ],
+        "successes": 30,
+        "total": 36
+      },
+      "typed_authoring": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.6810920568872054,
+          0.9212955240498188
+        ],
+        "successes": 30,
+        "total": 36
+      },
+      "unfamiliar_form_fill": {
+        "rate": 0.8333333333333334,
+        "rate95CI": [
+          0.6810920568872054,
+          0.9212955240498188
+        ],
+        "successes": 30,
+        "total": 36
+      }
+    },
+    "realAgentClients": false,
+    "realHancomVerified": false,
+    "releaseGatePassed": false,
+    "replacementClaimAllowed": false,
+    "routineAcceptanceAfterAutonomousRepair": {
+      "rate": 1.0,
+      "rate95CI": [
+        0.9704142355178014,
+        0.9999999999999998
+      ],
+      "successes": 126,
+      "total": 126
+    },
+    "routineFirstPassAcceptance": {
+      "rate": 1.0,
+      "rate95CI": [
+        0.9704142355178014,
+        0.9999999999999998
+      ],
+      "successes": 126,
+      "total": 126
+    },
+    "schema": "hwpx.blind-real-work-eval-metrics/v1",
+    "thresholds": {
+      "criticalFailures": 0,
+      "routineFirstPassAcceptance": 0.9
+    }
+  },
+  "projections": {
+    "gallery": {
+      "assurance": "fixture",
+      "counts": {
+        "agentJudgments": 432,
+        "artifacts": 216,
+        "criticalFailures": 0,
+        "fixtureClients": 3,
+        "workOrders": 72
+      },
+      "perFamily": {
+        "batch_comparison": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "known_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "reading_extraction": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "transactional_editing": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "typed_authoring": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "unfamiliar_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        }
+      },
+      "realHancomVerified": false,
+      "releaseGatePassed": false,
+      "replacementClaimAllowed": false,
+      "routineFirstPassAcceptance": {
+        "rate": 1.0,
+        "rate95CI": [
+          0.9704142355178014,
+          0.9999999999999998
+        ],
+        "successes": 126,
+        "total": 126
+      },
+      "schema": "hwpx.gallery-benchmark-projection/v1"
+    },
+    "releaseMetrics": {
+      "assurance": "fixture",
+      "counts": {
+        "agentJudgments": 432,
+        "artifacts": 216,
+        "criticalFailures": 0,
+        "fixtureClients": 3,
+        "workOrders": 72
+      },
+      "perFamily": {
+        "batch_comparison": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "known_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "reading_extraction": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "transactional_editing": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "typed_authoring": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "unfamiliar_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        }
+      },
+      "realHancomVerified": false,
+      "releaseGatePassed": false,
+      "replacementClaimAllowed": false,
+      "routineFirstPassAcceptance": {
+        "rate": 1.0,
+        "rate95CI": [
+          0.9704142355178014,
+          0.9999999999999998
+        ],
+        "successes": 126,
+        "total": 126
+      },
+      "schema": "hwpx.release-benchmark-projection/v1"
+    },
+    "roadmap": {
+      "assurance": "fixture",
+      "counts": {
+        "agentJudgments": 432,
+        "artifacts": 216,
+        "criticalFailures": 0,
+        "fixtureClients": 3,
+        "workOrders": 72
+      },
+      "perFamily": {
+        "batch_comparison": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "known_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "reading_extraction": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "transactional_editing": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "typed_authoring": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "unfamiliar_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        }
+      },
+      "realHancomVerified": false,
+      "releaseGatePassed": false,
+      "replacementClaimAllowed": false,
+      "routineFirstPassAcceptance": {
+        "rate": 1.0,
+        "rate95CI": [
+          0.9704142355178014,
+          0.9999999999999998
+        ],
+        "successes": 126,
+        "total": 126
+      },
+      "schema": "hwpx.roadmap-benchmark-projection/v1"
+    },
+    "scorecard": {
+      "assurance": "fixture",
+      "counts": {
+        "agentJudgments": 432,
+        "artifacts": 216,
+        "criticalFailures": 0,
+        "fixtureClients": 3,
+        "workOrders": 72
+      },
+      "perFamily": {
+        "batch_comparison": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "known_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "reading_extraction": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "transactional_editing": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "typed_authoring": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        },
+        "unfamiliar_form_fill": {
+          "rate": 0.8333333333333334,
+          "rate95CI": [
+            0.6810920568872054,
+            0.9212955240498188
+          ],
+          "successes": 30,
+          "total": 36
+        }
+      },
+      "realHancomVerified": false,
+      "releaseGatePassed": false,
+      "replacementClaimAllowed": false,
+      "routineFirstPassAcceptance": {
+        "rate": 1.0,
+        "rate95CI": [
+          0.9704142355178014,
+          0.9999999999999998
+        ],
+        "successes": 126,
+        "total": 126
+      },
+      "schema": "hwpx.scorecard-benchmark-projection/v1"
+    }
+  },
+  "realAgentClients": false,
+  "realAgentClientsVerified": false,
+  "realHancomVerified": false,
+  "releaseVersions": {
+    "hwpx-mcp-server": "2.21.0",
+    "hwpx-skill": "0.1.28",
+    "python-hwpx": "2.27.0"
+  },
+  "replacementClaimAllowed": false,
+  "schemaVersion": "hwpx.fixture-public-projection.v1",
+  "sourceManifestSha256": "b7d309bf3bff32092ef6bd2d0b3d2769d454874dfb5e7448c7d442a42d8fe90c",
+  "status": "scored_fixture_only"
+}

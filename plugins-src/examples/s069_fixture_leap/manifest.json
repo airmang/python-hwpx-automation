@@ -1,0 +1,29 @@
+{
+  "schema": "hwpx.visual-fixture-manifest/v1",
+  "taxonomyVersion": "hwpx-visual-defects/1.0",
+  "assurance": "fixture",
+  "cases": [
+    {
+      "id": "installed-leap-3-defects",
+      "classification": "injected",
+      "expectedPageCount": 3,
+      "pages": [
+        {"page": 0, "path": "page-0-overprint.png", "sha256": "573c2b47df1e69f744fc584d29fe5ebf46ed599592ea5684c6509fe3acd5931c"},
+        {"page": 1, "path": "page-1-blank.png", "sha256": "76441e504c8cda7db9a81b369ee9a1e4dfd9ffb39f78b6352981527cd5cb05dd"},
+        {"page": 2, "path": "page-2-placeholder.png", "sha256": "fdd2b5adde15795e723a43af5e8f7da9da706be1a85c77308794c48ca3fd89f9"}
+      ],
+      "annotations": [
+        {"page": 0, "category": "text_clipping_overlap", "severity": "critical", "bbox": [0.116, 0.587, 0.818, 0.638], "labelStatus": "pending", "labelers": []},
+        {"page": 1, "category": "unexpected_blank_page", "severity": "critical", "bbox": [0.0, 0.0, 1.0, 1.0], "labelStatus": "pending", "labelers": []},
+        {"page": 2, "category": "leftover_guidance_placeholder_sample", "severity": "warning", "bbox": [0.158, 0.45, 0.842, 0.532], "labelStatus": "pending", "labelers": []}
+      ],
+      "provenance": {
+        "kind": "installed-integration-fixture",
+        "frozenMetricsEligible": false,
+        "realHancom": false,
+        "sourceDocument": "leap-source.hwpx",
+        "sourceSha256": "24dcf391686bb1e3860e278cf77ebfe3f0f079855a73758c0fb3bae0b226b388"
+      }
+    }
+  ]
+}
