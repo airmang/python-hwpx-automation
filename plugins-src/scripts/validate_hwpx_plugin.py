@@ -123,8 +123,8 @@ def validate_launcher(out: Path, host_id: str) -> None:
         "PYTHON_HWPX_REPO",
         "uv run --no-project",
         _canonical_server_package_line(),
-        "HWPX_SKILL_ROOT",
-        "${PLUGIN_ROOT}/skills/hwpx/SKILL.md",
+        "HWPX_SKILL_VERSION",
+        "HWPX_PLUGIN_ROOT",
         ".hwpx-mcp-runtime",
         "HWPX_MCP_RUNTIME_ROOT",
         ".hwpx-stack-fingerprint",
@@ -194,8 +194,8 @@ def validate_host(host: dict, config: dict) -> None:
             args = server.get("args", [])
             require(command == "uvx", "codex: .mcp.json command must be root-independent uvx")
             require("cwd" not in server, "codex: .mcp.json must preserve the thread workspace cwd")
-            require("hwpx-mcp-server==2.23.1" in args, "codex: MCP package pin missing")
-            require("python-hwpx[visual]==2.29.2" in args, "codex: core package pin missing")
+            require("hwpx-mcp-server==3.0.0" in args, "codex: MCP package pin missing")
+            require("python-hwpx[visual]==3.0.0" in args, "codex: core package pin missing")
     else:
         text = mcp_path.read_text(encoding="utf-8")
         require("mcp_servers" in text or "hwpx-mcp-server" in text, f"{host['id']}: INSTALL-mcp.md missing MCP guidance")

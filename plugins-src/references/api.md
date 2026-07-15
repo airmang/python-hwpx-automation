@@ -854,7 +854,7 @@ The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
 3. an immutable plugin-local runtime fingerprinted by the exact
-   `hwpx-mcp-server==2.23.1`, `python-hwpx[visual]==2.29.2`, skill, Python ABI,
+   `hwpx-mcp-server==3.0.0`, `python-hwpx[visual]==3.0.0`, skill, Python ABI,
    and platform values
 4. an exact-version `uvx` fallback when `uv` is unavailable
 

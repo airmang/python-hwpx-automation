@@ -18,7 +18,6 @@
     "references/workflows-real-hancom-render.md",
     "references/workflows-visual-fixture-qa.md",
     "references/workflows-fixture-benchmark.md",
-    "references/workflows-private-practice.md",
     "references/workflows-authoring.md",
     "references/workflows-bulk-compare.md",
     "references/workflows-creation.md",
@@ -94,7 +93,7 @@
       "id": "hermes",
       "outputDir": "plugins/hermes/hwpx",
       "skillSubdir": ".",
-      "frontmatterExtra": "version: 0.1.31\nauthor: airmang\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
+      "frontmatterExtra": "version: 0.2.0\nauthor: airmang\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
       "manifests": [],
       "mcp": { "strategy": "config-doc", "template": "templates/hermes.mcp-install.md", "dest": "INSTALL-mcp.md" },
       "bundleLauncher": false

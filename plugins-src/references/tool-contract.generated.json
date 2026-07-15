@@ -1,8 +1,8 @@
 {
   "schemaVersion": "hwpx.tool-contract.v1",
-  "minPythonHwpx": "2.29.2",
-  "minMcpVersion": "2.23.1",
-  "minSkillVersion": "0.1.31",
+  "minPythonHwpx": "3.0.0",
+  "minMcpVersion": "3.0.0",
+  "minSkillVersion": "0.2.0",
   "tools": [
     {
       "name": "get_document_node",
@@ -33,48 +33,6 @@
       "domain": "agent_document",
       "profile": "default",
       "skillRequired": true
-    },
-    {
-      "name": "start_practice_scenario",
-      "domain": "private_practice",
-      "profile": "default",
-      "skillRequired": true
-    },
-    {
-      "name": "apply_practice_scenario",
-      "domain": "private_practice",
-      "profile": "default",
-      "skillRequired": true
-    },
-    {
-      "name": "start_practice_campaign",
-      "domain": "private_practice",
-      "profile": "default",
-      "skillRequired": false
-    },
-    {
-      "name": "get_practice_campaign",
-      "domain": "private_practice",
-      "profile": "default",
-      "skillRequired": false
-    },
-    {
-      "name": "continue_practice_campaign",
-      "domain": "private_practice",
-      "profile": "default",
-      "skillRequired": false
-    },
-    {
-      "name": "cancel_practice_campaign",
-      "domain": "private_practice",
-      "profile": "default",
-      "skillRequired": false
-    },
-    {
-      "name": "export_practice_campaign",
-      "domain": "private_practice",
-      "profile": "default",
-      "skillRequired": false
     },
     {
       "name": "render_submit",
@@ -863,9 +821,9 @@
       "skillRequired": false
     }
   ],
-  "contractHash": "0f9e1dcb7c646202",
-  "defaultToolCount": 133,
-  "advancedToolCount": 143,
+  "contractHash": "76d143ccc0787828",
+  "defaultToolCount": 126,
+  "advancedToolCount": 136,
   "skillRequiredTools": [
     "add_memo_by_anchor",
     "add_tracked_edit",
@@ -873,7 +831,6 @@
     "apply_document_commands",
     "apply_edits",
     "apply_evalplan_fill",
-    "apply_practice_scenario",
     "apply_table_ops",
     "byte_preserving_patch",
     "compose_exam",
@@ -895,7 +852,6 @@
     "run_fixture_benchmark",
     "scan_form_guidance",
     "score_form_fill",
-    "start_practice_scenario",
     "table_compute",
     "undo_last_edit",
     "verify_form_fill"

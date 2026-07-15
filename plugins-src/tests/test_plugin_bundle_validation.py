@@ -43,8 +43,8 @@ def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> Non
     )["mcpServers"]["hwpx-mcp-server"]
     assert config["command"] == "uvx"
     assert "cwd" not in config
-    assert "hwpx-mcp-server==2.23.1" in config["args"]
-    assert "python-hwpx[visual]==2.29.2" in config["args"]
+    assert "hwpx-mcp-server==3.0.0" in config["args"]
+    assert "python-hwpx[visual]==3.0.0" in config["args"]
 
 
 def test_claude_mcp_command_preserves_project_cwd() -> None:

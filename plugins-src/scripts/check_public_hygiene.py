@@ -12,6 +12,41 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Internal corpus-practice machinery is preserved outside the public repositories.
+# Keep this denylist exact: public fixture/oracle and real-Hancom verification
+# language remains supported product surface, and release-only contract-delta
+# records may intentionally name removed tools outside these runtime paths.
+_REMOVED_PRIVATE_PRACTICE_MARKERS = (
+    "private_practice",
+    "workflows-private-practice",
+    "start_practice_scenario",
+    "apply_practice_scenario",
+    "start_practice_campaign",
+    "get_practice_campaign",
+    "continue_practice_campaign",
+    "cancel_practice_campaign",
+    "export_practice_campaign",
+    "CAMPAIGN_UNAVAILABLE",
+    "PRACTICE_SCENARIO_UNAVAILABLE",
+    "HWPX_CORPUS_SOURCE",
+    "HWPX_PRACTICE_ROOT",
+    "HWPX_PRACTICE_RUNNER_MANIFEST",
+    "HWPX_SKILL_ROOT",
+    "private practice campaign",
+)
+_PUBLIC_RUNTIME_EXACT_PATHS = {
+    "README.md",
+    "SKILL.md",
+    "packaging/hosts.json",
+}
+_PUBLIC_RUNTIME_PREFIXES = (
+    ".agents/plugins/",
+    ".claude-plugin/",
+    "packaging/templates/",
+    "plugins/",
+    "references/",
+)
+
 
 def _git_paths(*args: str) -> list[str]:
     result = subprocess.run(
@@ -63,6 +98,45 @@ def _text_bytes(path: Path) -> bytes | None:
     if b"\0" in data[:8192]:
         return None
     return data
+
+
+def _is_public_runtime_surface(path: str) -> bool:
+    return path in _PUBLIC_RUNTIME_EXACT_PATHS or path.startswith(
+        _PUBLIC_RUNTIME_PREFIXES
+    )
+
+
+def _private_practice_surface_failures(tracked: list[str]) -> list[str]:
+    failures: list[str] = []
+    folded_markers = {
+        marker: marker.casefold() for marker in _REMOVED_PRIVATE_PRACTICE_MARKERS
+    }
+    for rel in tracked:
+        if not _is_public_runtime_surface(rel):
+            continue
+
+        folded_path = rel.casefold()
+        path_hits = sorted(
+            marker
+            for marker, folded in folded_markers.items()
+            if folded in folded_path
+        )
+        data = _text_bytes(ROOT / rel)
+        text_hits: list[str] = []
+        if data is not None:
+            folded_text = data.decode("utf-8", "replace").casefold()
+            text_hits = sorted(
+                marker
+                for marker, folded in folded_markers.items()
+                if folded in folded_text
+            )
+        hits = sorted(set(path_hits + text_hits))
+        if hits:
+            failures.append(
+                "removed internal-QA marker(s) "
+                f"{', '.join(hits)} in public runtime surface: {rel}"
+            )
+    return failures
 
 
 def _wheel_failures() -> list[str]:
@@ -166,6 +240,7 @@ def main() -> int:
     failures.extend(_hwpx_member_failures(tracked, workstation_path, private_markers))
     failures.extend(_action_pin_failures(tracked))
     failures.extend(_wheel_failures())
+    failures.extend(_private_practice_surface_failures(tracked))
     if failures:
         for failure in failures:
             print(f"[FAIL] {failure}")

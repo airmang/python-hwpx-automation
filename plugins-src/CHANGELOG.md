@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-16
+
+### Removed
+- Removes the seven private-practice scenario/campaign tools from the public plugin without compatibility
+  aliases. Internal campaign work now belongs to the workspace-private QA harness.
+
+### Changed
+- Binds the plugin to `python-hwpx==3.0.0` and `hwpx-mcp-server==3.0.0`. Public document work should use
+  `apply_document_commands`, `apply_evalplan_fill`, `scan_form_guidance`, `apply_table_ops`, `apply_body_ops`,
+  or `verify_form_fill`; exam, evalplan, form-fill, authoring, editing, verification, workflow, and render routes
+  remain public.
+
 ## [0.1.31] - 2026-07-15
 
 ### Security

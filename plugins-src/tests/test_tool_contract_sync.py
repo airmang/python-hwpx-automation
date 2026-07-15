@@ -26,15 +26,15 @@ WORKFLOW_TOOLS = {
 }
 RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
 FIXTURE_BENCHMARK_TOOLS = {"run_fixture_benchmark", "export_fixture_benchmark"}
-PRACTICE_SCENARIO_TOOLS = {"start_practice_scenario", "apply_practice_scenario"}
-PRACTICE_CAMPAIGN_TOOLS = {
+REMOVED_PRIVATE_PRACTICE_TOOLS = {
+    "start_practice_scenario",
+    "apply_practice_scenario",
     "start_practice_campaign",
     "get_practice_campaign",
     "continue_practice_campaign",
     "cancel_practice_campaign",
     "export_practice_campaign",
 }
-PRACTICE_TOOLS = PRACTICE_SCENARIO_TOOLS | PRACTICE_CAMPAIGN_TOOLS
 AGENT_DOCUMENT_TOOLS = {
     "get_document_node",
     "query_document_nodes",
@@ -57,13 +57,13 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert WORKFLOW_TOOLS <= names
     assert RENDER_TOOLS <= names
     assert FIXTURE_BENCHMARK_TOOLS <= names
-    assert PRACTICE_TOOLS <= names
+    assert REMOVED_PRIVATE_PRACTICE_TOOLS.isdisjoint(names)
+    assert all(tool["domain"] != "private_practice" for tool in contract["tools"])
     assert AGENT_DOCUMENT_TOOLS <= names
     assert AGENT_DOCUMENT_TOOLS <= required
     assert BLUEPRINT_TOOLS <= names
     assert BLUEPRINT_TOOLS <= required
-    assert PRACTICE_SCENARIO_TOOLS <= required
-    assert contract["defaultToolCount"] == 133
+    assert REMOVED_PRIVATE_PRACTICE_TOOLS.isdisjoint(required)
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
@@ -85,7 +85,7 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
     )
     assert f"hwpx-mcp-server=={contract['minMcpVersion']}" in launcher
     assert f"HWPX_SKILL_VERSION:-{contract['minSkillVersion']}" in launcher
-    assert 'export HWPX_SKILL_ROOT="${PLUGIN_ROOT}/skills/hwpx"' in launcher
+    assert 'export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"' in launcher
 
     for manifest in (
         ROOT / "packaging" / "templates" / "claude.plugin.json",
@@ -111,8 +111,9 @@ def test_skill_routes_to_generated_api_table() -> None:
         assert re.search(rf"`{re.escape(tool)}`", generated)
     for tool in RENDER_TOOLS:
         assert re.search(rf"`{re.escape(tool)}`", generated)
-    for tool in PRACTICE_TOOLS:
-        assert re.search(rf"`{re.escape(tool)}`", generated)
+    assert "private_practice" not in generated
+    for tool in REMOVED_PRIVATE_PRACTICE_TOOLS:
+        assert not re.search(rf"`{re.escape(tool)}`", generated)
     for tool in AGENT_DOCUMENT_TOOLS:
         assert re.search(rf"`{re.escape(tool)}`", generated)
     for tool in BLUEPRINT_TOOLS:
@@ -222,62 +223,52 @@ def test_every_host_bundle_carries_autonomous_reference_and_routing() -> None:
     )
 
 
-def test_every_host_bundle_carries_private_practice_reference_and_routing() -> None:
-    canonical = (ROOT / "references" / "workflows-private-practice.md").read_bytes()
+def test_every_host_bundle_excludes_private_practice_reference_and_routing() -> None:
+    canonical = ROOT / "references" / "workflows-private-practice.md"
     bundled = sorted((ROOT / "plugins").glob("**/workflows-private-practice.md"))
 
-    assert len(bundled) == 4
-    assert all(path.read_bytes() == canonical for path in bundled)
+    assert not canonical.exists()
+    assert not bundled
     bundled_skills = sorted((ROOT / "plugins").glob("**/SKILL.md"))
     assert len(bundled_skills) == 4
     assert all(
-        "references/workflows-private-practice.md" in path.read_text(encoding="utf-8")
+        "references/workflows-private-practice.md"
+        not in path.read_text(encoding="utf-8")
         for path in bundled_skills
     )
+    for path in bundled_skills:
+        text = path.read_text(encoding="utf-8")
+        assert all(tool not in text for tool in REMOVED_PRIVATE_PRACTICE_TOOLS)
+    for sync_path in sorted((ROOT / "plugins").glob("**/plugin-sync.json")):
+        assert "workflows-private-practice.md" not in sync_path.read_text(
+            encoding="utf-8"
+        )
 
 
-def test_private_practice_routes_durable_campaign_without_claim_inflation() -> None:
+def test_canonical_skill_excludes_private_practice_routing() -> None:
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-    reference = (ROOT / "references" / "workflows-private-practice.md").read_text(
-        encoding="utf-8"
-    )
-
-    for tool in PRACTICE_CAMPAIGN_TOOLS:
-        assert f"`{tool}`" in skill
-        assert f"`{tool}" in reference
-    assert 'campaign `state == "completed"`' in reference
-    assert "전부 성공했다는 뜻이 아니다" in reference
-    assert "`needs_review`" in reference and "`unverified`" in reference
-    assert re.search(r"자동\s+`adopt`하지 않는다", reference)
-    assert "게시·push·병합·릴리스" in reference
-    assert "raw source와 sanitized source는 직접 수정하지 않는다" in reference
-    assert re.search(r"중복\s+mutation 없이 terminal receipt가 run마다 하나", reference)
+    assert "references/workflows-private-practice.md" not in skill
+    assert "private_practice" not in skill
+    assert all(tool not in skill for tool in REMOVED_PRIVATE_PRACTICE_TOOLS)
 
 
-def test_private_campaign_packaging_binds_skill_bytes_without_shipping_roots() -> None:
+def test_public_packaging_excludes_private_practice_configuration() -> None:
     launcher = (ROOT / "packaging" / "templates" / "hwpx-mcp-server").read_text(
         encoding="utf-8"
     )
-    assert "${PLUGIN_ROOT}/skills/hwpx/SKILL.md" in launcher
-    assert 'export HWPX_SKILL_ROOT="${PLUGIN_ROOT}/skills/hwpx"' in launcher
+    hosts = (ROOT / "packaging" / "hosts.json").read_text(encoding="utf-8")
+    assert 'export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"' in launcher
+    assert "HWPX_SKILL_VERSION" in launcher
+    assert "workflows-private-practice.md" not in hosts
 
     for template in (
         ROOT / "packaging" / "templates" / "openclaw.mcp-install.md",
         ROOT / "packaging" / "templates" / "hermes.mcp-install.md",
     ):
         text = template.read_text(encoding="utf-8")
-        assert "Private practice campaign (opt-in)" in text
-        assert all(
-            name in text
-            for name in (
-                "HWPX_CORPUS_SOURCE",
-                "HWPX_PRACTICE_ROOT",
-                "HWPX_SKILL_ROOT",
-            )
-        )
-        assert (
-            "never put" in text and "publication, adoption, merge, or release" in text
-        )
+        assert "Private practice campaign (opt-in)" not in text
+        assert "HWPX_CORPUS_SOURCE" not in text
+        assert "HWPX_PRACTICE_ROOT" not in text
 
 
 def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:

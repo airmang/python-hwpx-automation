@@ -6,7 +6,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 # hwpx (HWPX / OWPML)
 
 `.hwpx`는 ZIP 기반 OWPML 문서다. 모든 작업은 `hwpx-mcp-server`의 MCP 도구를 1차 경로로 사용한다.
-MCP가 없을 때의 local Python(`python-hwpx >= 2.29.2`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 3.0.0`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
@@ -36,8 +36,6 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 낯선 기존 문서의 구조 탐색 + 본문·표·블록 이종 편집·이동·복사 | `get_document_node` → `query_document_nodes` → `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
 | 지원 문서·결재/양식 블록을 다른 HWPX로 안전하게 이식 | `get_document_node`/`query_document_nodes` → `dump_document_blueprint` → `replay_document_blueprint` (dry-run → commit) | [workflows-agent-blueprint](references/workflows-agent-blueprint.md) |
 | 일반 복합 HWPX 읽기·편집·양식 채움·생성 | `start_workflow` → `continue_workflow` → 필요 시 `approve_workflow_decision` | [workflows-autonomous](references/workflows-autonomous.md) |
-| 비공개 코퍼스의 단일 합성 문서편집 연습 | `start_practice_scenario` → `apply_practice_scenario(confirm=false)` → 검토 후 `confirm=true` | [workflows-private-practice](references/workflows-private-practice.md) |
-| 비공개 코퍼스의 내구성 합성 캠페인 연습 | `start_practice_campaign` · `get_practice_campaign` · `continue_practice_campaign` · `cancel_practice_campaign` · `export_practice_campaign` | [workflows-private-practice](references/workflows-private-practice.md) |
 | 최종 산출물을 실제 한컴으로 렌더·검증 | `render_health` → `render_submit` → `render_status` | [workflows-real-hancom-render](references/workflows-real-hancom-render.md) |
 | 페이지 PNG fixture 전 페이지 결함 검수·제한적 자동수정 | `visual_review_fixture` → 안전한 항목만 `visual_repair_fixture` | [workflows-visual-fixture-qa](references/workflows-visual-fixture-qa.md) |
 | 합성 fixture 블라인드 실무평가·공개 projection | `run_fixture_benchmark` → 독립 `agent_judge` 2회 → `export_fixture_benchmark` | [workflows-fixture-benchmark](references/workflows-fixture-benchmark.md) |
@@ -158,7 +156,6 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 - [`references/workflows-autonomous.md`](references/workflows-autonomous.md) — 서버 강제 5-family workflow, decision/재개/needs_review/사전 렌더 영수증 계약.
 - [`references/workflows-agent-document.md`](references/workflows-agent-document.md) — 낯선 문서 semantic view/query, canonical path, 원자 set/add/remove/move/copy batch, structured failure와 CLI replay.
 - [`references/workflows-agent-blueprint.md`](references/workflows-agent-blueprint.md) — typed `.hwpxbp` dump/inspect/repack, portable/source-bound dependency mapping, atomic replay, strict fidelity와 real-Hancom 검증.
-- [`references/workflows-private-practice.md`](references/workflows-private-practice.md) — 비공개 원본 경로·평가 gold를 노출하지 않는 단일 scenario와 내구성 campaign 실행. `needs_review`·`unverified`를 성공으로 올리지 않으며 개선안 자동 채택·게시·병합·릴리스를 하지 않는다.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
 - [`references/workflows-visual-fixture-qa.md`](references/workflows-visual-fixture-qa.md) — fixture 전 페이지 검수, 원시 finding·evidence ledger, 최대 3회 안전수정, unsafe/unmapped escalation. **fixture는 절대 `renderChecked=true`가 아니다.**
 - [`references/workflows-fixture-benchmark.md`](references/workflows-fixture-benchmark.md) — 72개 합성 work order, 동일 workflow 계약의 세 fixture profile, 익명 artifact, 독립 agent-judge 서식과 단일 manifest projection. **사람·실제 agent·실한컴·대체 주장 증거가 아니다.**
