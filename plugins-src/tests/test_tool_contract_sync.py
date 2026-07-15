@@ -84,7 +84,7 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
         encoding="utf-8"
     )
     assert f"hwpx-mcp-server=={contract['minMcpVersion']}" in launcher
-    assert f'HWPX_SKILL_VERSION:-{contract["minSkillVersion"]}' in launcher
+    assert f"HWPX_SKILL_VERSION:-{contract['minSkillVersion']}" in launcher
     assert 'export HWPX_SKILL_ROOT="${PLUGIN_ROOT}/skills/hwpx"' in launcher
 
     for manifest in (
@@ -92,9 +92,10 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
         ROOT / "packaging" / "templates" / "codex.plugin.json",
         ROOT / "packaging" / "templates" / "openclaw.plugin.json",
     ):
-        assert json.loads(manifest.read_text(encoding="utf-8"))["version"] == contract[
-            "minSkillVersion"
-        ]
+        assert (
+            json.loads(manifest.read_text(encoding="utf-8"))["version"]
+            == contract["minSkillVersion"]
+        )
 
 
 def test_skill_routes_to_generated_api_table() -> None:
@@ -196,7 +197,9 @@ def test_every_host_bundle_carries_blueprint_reference_and_routing() -> None:
 
 def test_skill_routes_general_work_to_one_level_autonomous_reference() -> None:
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-    reference = (ROOT / "references" / "workflows-autonomous.md").read_text(encoding="utf-8")
+    reference = (ROOT / "references" / "workflows-autonomous.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "references/workflows-autonomous.md" in skill
     assert "primitive 도구는 workflow가 지원하지 않는 전문 작업" in skill
@@ -213,7 +216,10 @@ def test_every_host_bundle_carries_autonomous_reference_and_routing() -> None:
     assert all(path.read_bytes() == canonical for path in bundled)
     bundled_skills = sorted((ROOT / "plugins").glob("**/SKILL.md"))
     assert len(bundled_skills) == 4
-    assert all("references/workflows-autonomous.md" in path.read_text(encoding="utf-8") for path in bundled_skills)
+    assert all(
+        "references/workflows-autonomous.md" in path.read_text(encoding="utf-8")
+        for path in bundled_skills
+    )
 
 
 def test_every_host_bundle_carries_private_practice_reference_and_routing() -> None:
@@ -241,7 +247,7 @@ def test_private_practice_routes_durable_campaign_without_claim_inflation() -> N
         assert f"`{tool}" in reference
     assert 'campaign `state == "completed"`' in reference
     assert "전부 성공했다는 뜻이 아니다" in reference
-    assert '`needs_review`' in reference and '`unverified`' in reference
+    assert "`needs_review`" in reference and "`unverified`" in reference
     assert re.search(r"자동\s+`adopt`하지 않는다", reference)
     assert "게시·push·병합·릴리스" in reference
     assert "raw source와 sanitized source는 직접 수정하지 않는다" in reference
@@ -252,7 +258,7 @@ def test_private_campaign_packaging_binds_skill_bytes_without_shipping_roots() -
     launcher = (ROOT / "packaging" / "templates" / "hwpx-mcp-server").read_text(
         encoding="utf-8"
     )
-    assert '${PLUGIN_ROOT}/skills/hwpx/SKILL.md' in launcher
+    assert "${PLUGIN_ROOT}/skills/hwpx/SKILL.md" in launcher
     assert 'export HWPX_SKILL_ROOT="${PLUGIN_ROOT}/skills/hwpx"' in launcher
 
     for template in (
@@ -269,7 +275,9 @@ def test_private_campaign_packaging_binds_skill_bytes_without_shipping_roots() -
                 "HWPX_SKILL_ROOT",
             )
         )
-        assert "never put" in text and "publication, adoption, merge, or release" in text
+        assert (
+            "never put" in text and "publication, adoption, merge, or release" in text
+        )
 
 
 def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
@@ -277,7 +285,9 @@ def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
     e2e = (ROOT / "scripts" / "plugin_mcp_e2e.py").read_text(encoding="utf-8")
 
     assert "plugin_mcp_e2e.py" in smoke
-    assert "--server-package" in smoke and "--server-venv" in smoke
+    assert "--server-package" in smoke and "--server-runtime" in smoke
+    assert "_probe_concurrent_cold_start" in smoke
+    assert "HWPX_MCP_WORKSPACE_ROOTS" in e2e
     assert 'parser.add_argument("--report", type=Path)' in smoke
     assert 'parser.add_argument("--report", type=Path)' in e2e
     assert "start_workflow" in e2e
@@ -289,8 +299,12 @@ def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
 
 def test_skill_routes_real_hancom_render_to_one_level_reference() -> None:
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
-    autonomous = (ROOT / "references" / "workflows-autonomous.md").read_text(encoding="utf-8")
-    render = (ROOT / "references" / "workflows-real-hancom-render.md").read_text(encoding="utf-8")
+    autonomous = (ROOT / "references" / "workflows-autonomous.md").read_text(
+        encoding="utf-8"
+    )
+    render = (ROOT / "references" / "workflows-real-hancom-render.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "references/workflows-real-hancom-render.md" in skill
     assert "`render_health` → `render_submit` → `render_status`" in skill

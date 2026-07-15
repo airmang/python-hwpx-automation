@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """zip_replace_all.py
 
-Replace plain-text placeholders across XML parts in an HWPX container.
+Replace plain-text placeholders across XML/HPF parts in an HWPX container.
 
 This script is intended for template-style replacements where placeholders
 exist as text nodes across the package, including table cells.
@@ -96,7 +96,7 @@ def zip_replace_all(
     out_hwpx: str | os.PathLike[str],
     replacements: Mapping[str, str],
 ) -> dict[str, int]:
-    """Replace plain strings across XML parts in an HWPX package."""
+    """Replace plain strings across XML/HPF parts in an HWPX package."""
 
     output_path = Path(out_hwpx)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +133,7 @@ def _zip_replace_all_unchecked(
                 stats["parts"] += 1
                 data = zin.read(info.filename)
 
-                if info.filename.lower().endswith(".xml"):
+                if info.filename.lower().endswith((".xml", ".hpf")):
                     stats["xml_parts"] += 1
                     try:
                         text = data.decode("utf-8")

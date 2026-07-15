@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import glob
-import json
 import shlex
 import sys
 from pathlib import Path

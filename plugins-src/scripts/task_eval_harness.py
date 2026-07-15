@@ -96,6 +96,7 @@ def _bundle_mentions(bundle_text: str, token: str) -> bool:
     pattern = rf"(?<![0-9A-Za-z_]){re.escape(token)}(?![0-9A-Za-z_])"
     return re.search(pattern, bundle_text) is not None
 
+
 logging.basicConfig(level=logging.ERROR)
 
 
@@ -173,8 +174,15 @@ class _FallbackServer:
             split_cell_in_table,
         )
         from hwpx_mcp_server.core.document import create_blank, open_doc, save_doc
-        from hwpx_mcp_server.core.formatting import create_style_in_doc, format_text_range
-        from hwpx_mcp_server.core.search import batch_replace_in_doc, find_in_doc, replace_in_doc
+        from hwpx_mcp_server.core.formatting import (
+            create_style_in_doc,
+            format_text_range,
+        )
+        from hwpx_mcp_server.core.search import (
+            batch_replace_in_doc,
+            find_in_doc,
+            replace_in_doc,
+        )
 
         self._add_heading_to_doc = add_heading_to_doc
         self._add_memo_to_doc = add_memo_to_doc
@@ -206,24 +214,47 @@ class _FallbackServer:
         self._save_doc(doc, filename)
         return result
 
-    def create_document(self, filename: str, title: str | None = None, author: str | None = None) -> dict[str, Any]:
+    def create_document(
+        self, filename: str, title: str | None = None, author: str | None = None
+    ) -> dict[str, Any]:
         del title, author
         verification = self._create_blank(filename)
-        return {"filename": filename, "created": True, "openSafety": verification.get("openSafety")}
+        return {
+            "filename": filename,
+            "created": True,
+            "openSafety": verification.get("openSafety"),
+        }
 
-    def add_paragraph(self, filename: str, text: str, style: str | None = None, dry_run: bool = False) -> dict[str, Any]:
+    def add_paragraph(
+        self, filename: str, text: str, style: str | None = None, dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
-        index = self._mutate(filename, lambda doc: self._add_paragraph_to_doc(doc, text, style))
+        index = self._mutate(
+            filename, lambda doc: self._add_paragraph_to_doc(doc, text, style)
+        )
         return {"paragraph_index": index}
 
-    def add_heading(self, filename: str, text: str, level: int = 1, dry_run: bool = False) -> dict[str, Any]:
+    def add_heading(
+        self, filename: str, text: str, level: int = 1, dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
-        index = self._mutate(filename, lambda doc: self._add_heading_to_doc(doc, text, level))
+        index = self._mutate(
+            filename, lambda doc: self._add_heading_to_doc(doc, text, level)
+        )
         return {"paragraph_index": index}
 
-    def add_table(self, filename: str, rows: int, cols: int, data: list[list[str]] | None = None, dry_run: bool = False) -> dict[str, Any]:
+    def add_table(
+        self,
+        filename: str,
+        rows: int,
+        cols: int,
+        data: list[list[str]] | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
         del dry_run
-        index = self._mutate(filename, lambda doc: self._add_table_to_doc(doc, rows, cols, data))
+        index = self._mutate(
+            filename, lambda doc: self._add_table_to_doc(doc, rows, cols, data)
+        )
         return {"table_index": index}
 
     def add_page_break(self, filename: str, dry_run: bool = False) -> dict[str, Any]:
@@ -231,23 +262,47 @@ class _FallbackServer:
         self._mutate(filename, self._add_page_break_to_doc)
         return {"success": True}
 
-    def search_and_replace(self, filename: str, find_text: str, replace_text: str, dry_run: bool = False) -> dict[str, Any]:
+    def search_and_replace(
+        self, filename: str, find_text: str, replace_text: str, dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
-        count = self._mutate(filename, lambda doc: self._replace_in_doc(doc, find_text, replace_text))
+        count = self._mutate(
+            filename, lambda doc: self._replace_in_doc(doc, find_text, replace_text)
+        )
         return {"replaced_count": count}
 
-    def batch_replace(self, filename: str, replacements: list[dict[str, str]], dry_run: bool = False) -> dict[str, Any]:
+    def batch_replace(
+        self, filename: str, replacements: list[dict[str, str]], dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
-        return self._mutate(filename, lambda doc: self._batch_replace_in_doc(doc, replacements))
+        return self._mutate(
+            filename, lambda doc: self._batch_replace_in_doc(doc, replacements)
+        )
 
-    def insert_paragraph(self, filename: str, paragraph_index: int, text: str, style: str | None = None, dry_run: bool = False) -> dict[str, Any]:
+    def insert_paragraph(
+        self,
+        filename: str,
+        paragraph_index: int,
+        text: str,
+        style: str | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
         del dry_run
-        index = self._mutate(filename, lambda doc: self._insert_paragraph_to_doc(doc, paragraph_index, text, style))
+        index = self._mutate(
+            filename,
+            lambda doc: self._insert_paragraph_to_doc(
+                doc, paragraph_index, text, style
+            ),
+        )
         return {"inserted_index": index}
 
-    def delete_paragraph(self, filename: str, paragraph_index: int, dry_run: bool = False) -> dict[str, Any]:
+    def delete_paragraph(
+        self, filename: str, paragraph_index: int, dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
-        remaining = self._mutate(filename, lambda doc: self._delete_paragraph_from_doc(doc, paragraph_index))
+        remaining = self._mutate(
+            filename, lambda doc: self._delete_paragraph_from_doc(doc, paragraph_index)
+        )
         return {"remaining_paragraphs": remaining}
 
     def replace_in_paragraph(
@@ -299,9 +354,13 @@ class _FallbackServer:
         )
         return {"ok": True}
 
-    def fill_by_path(self, filename: str, mappings: dict[str, str], dry_run: bool = False) -> dict[str, Any]:
+    def fill_by_path(
+        self, filename: str, mappings: dict[str, str], dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
-        return self._mutate(filename, lambda doc: self._fill_by_path_in_doc(doc, mappings))
+        return self._mutate(
+            filename, lambda doc: self._fill_by_path_in_doc(doc, mappings)
+        )
 
     def format_text(
         self,
@@ -360,9 +419,20 @@ class _FallbackServer:
             ),
         )
 
-    def format_table(self, filename: str, table_index: int, has_header_row: bool | None = None, dry_run: bool = False) -> dict[str, Any]:
+    def format_table(
+        self,
+        filename: str,
+        table_index: int,
+        has_header_row: bool | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
         del dry_run
-        self._mutate(filename, lambda doc: self._format_table_in_doc(doc, table_index, has_header_row=has_header_row))
+        self._mutate(
+            filename,
+            lambda doc: self._format_table_in_doc(
+                doc, table_index, has_header_row=has_header_row
+            ),
+        )
         return {"formatted": True}
 
     def merge_table_cells(
@@ -376,36 +446,75 @@ class _FallbackServer:
         dry_run: bool = False,
     ) -> dict[str, Any]:
         del dry_run
-        self._mutate(filename, lambda doc: self._merge_cells_in_table(doc, table_index, start_row, start_col, end_row, end_col))
+        self._mutate(
+            filename,
+            lambda doc: self._merge_cells_in_table(
+                doc, table_index, start_row, start_col, end_row, end_col
+            ),
+        )
         return {"merged": True}
 
-    def split_table_cell(self, filename: str, table_index: int, row: int, col: int, dry_run: bool = False) -> dict[str, Any]:
+    def split_table_cell(
+        self, filename: str, table_index: int, row: int, col: int, dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
-        span = self._mutate(filename, lambda doc: self._split_cell_in_table(doc, table_index, row, col))
+        span = self._mutate(
+            filename, lambda doc: self._split_cell_in_table(doc, table_index, row, col)
+        )
         return {"split": True, "original_span": span}
 
-    def add_memo(self, filename: str, paragraph_index: int | None = None, text: str = "", dry_run: bool = False) -> dict[str, Any]:
+    def add_memo(
+        self,
+        filename: str,
+        paragraph_index: int | None = None,
+        text: str = "",
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
         del dry_run
-        return self._mutate(filename, lambda doc: self._add_memo_to_doc(doc, paragraph_index, text))
+        return self._mutate(
+            filename, lambda doc: self._add_memo_to_doc(doc, paragraph_index, text)
+        )
 
-    def find_text(self, filename: str, text_to_find: str, match_case: bool = True, max_results: int = 50) -> dict[str, Any]:
+    def find_text(
+        self,
+        filename: str,
+        text_to_find: str,
+        match_case: bool = True,
+        max_results: int = 50,
+    ) -> dict[str, Any]:
         doc = self._open_doc(filename)
-        return self._find_in_doc(doc, text_to_find=text_to_find, match_case=match_case, max_results=max_results)
+        return self._find_in_doc(
+            doc,
+            text_to_find=text_to_find,
+            match_case=match_case,
+            max_results=max_results,
+        )
 
-    def find_cell_by_label(self, filename: str, label_text: str, direction: str = "right") -> dict[str, Any]:
+    def find_cell_by_label(
+        self, filename: str, label_text: str, direction: str = "right"
+    ) -> dict[str, Any]:
         doc = self._open_doc(filename)
         return self._find_cell_by_label_in_doc(doc, label_text, direction=direction)
 
-    def apply_edits(self, filename: str, operations: list[dict[str, Any]], dry_run: bool = False) -> dict[str, Any]:
+    def apply_edits(
+        self, filename: str, operations: list[dict[str, Any]], dry_run: bool = False
+    ) -> dict[str, Any]:
         del dry_run
         for operation in operations:
             op_type = operation["type"]
             if op_type == "add_paragraph":
                 self.add_paragraph(filename, operation.get("text", ""))
             elif op_type == "replace_text":
-                self.search_and_replace(filename, operation["findText"], operation.get("replaceText", ""))
+                self.search_and_replace(
+                    filename, operation["findText"], operation.get("replaceText", "")
+                )
             elif op_type == "add_table":
-                self.add_table(filename, int(operation["rows"]), int(operation["cols"]), operation.get("data"))
+                self.add_table(
+                    filename,
+                    int(operation["rows"]),
+                    int(operation["cols"]),
+                    operation.get("data"),
+                )
             elif op_type == "set_table_cell_text":
                 self.set_table_cell_text(
                     filename,
@@ -431,9 +540,19 @@ class _FallbackServer:
         out.mkdir(parents=True, exist_ok=True)
         html_path = out / "preview.html"
         manifest_path = out / "manifest.json"
-        html_path.write_text("<!doctype html><meta charset='utf-8'><p>fallback preview</p>\n", encoding="utf-8")
-        manifest_path.write_text(json.dumps({"status": "html_only", "sourcePath": filename}) + "\n", encoding="utf-8")
-        return {"status": "html_only", "htmlPath": str(html_path), "manifestPath": str(manifest_path)}
+        html_path.write_text(
+            "<!doctype html><meta charset='utf-8'><p>fallback preview</p>\n",
+            encoding="utf-8",
+        )
+        manifest_path.write_text(
+            json.dumps({"status": "html_only", "sourcePath": filename}) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "status": "html_only",
+            "htmlPath": str(html_path),
+            "manifestPath": str(manifest_path),
+        }
 
     def get_document_text(self, filename: str) -> dict[str, Any]:
         doc = self._open_doc(filename)
@@ -443,11 +562,22 @@ class _FallbackServer:
             text = "\n".join(paragraph.text or "" for paragraph in doc.paragraphs)
         return {"text": text}
 
-    def get_paragraphs_text(self, filename: str, start_index: int = 0, end_index: int | None = None, max_chars: int | None = None) -> dict[str, Any]:
+    def get_paragraphs_text(
+        self,
+        filename: str,
+        start_index: int = 0,
+        end_index: int | None = None,
+        max_chars: int | None = None,
+    ) -> dict[str, Any]:
         del max_chars
         doc = self._open_doc(filename)
         paragraphs = doc.paragraphs[start_index:end_index]
-        return {"paragraphs": [{"index": start_index + index, "text": paragraph.text or ""} for index, paragraph in enumerate(paragraphs)]}
+        return {
+            "paragraphs": [
+                {"index": start_index + index, "text": paragraph.text or ""}
+                for index, paragraph in enumerate(paragraphs)
+            ]
+        }
 
     def get_table_map(self, filename: str) -> dict[str, Any]:
         doc = self._open_doc(filename)
@@ -457,7 +587,9 @@ class _FallbackServer:
         doc = self._open_doc(filename)
         return self._get_table_data(doc, table_index)
 
-    def get_document_map(self, filename: str, max_preview_chars: int = 80) -> dict[str, Any]:
+    def get_document_map(
+        self, filename: str, max_preview_chars: int = 80
+    ) -> dict[str, Any]:
         doc = self._open_doc(filename)
         limit = max(0, int(max_preview_chars))
         paragraph_anchors = [
@@ -480,36 +612,75 @@ class _FallbackServer:
             "outline": [],
             "tables": table_map,
             "formFields": {"fields": []},
-            "anchors": {"paragraphs": paragraph_anchors, "tables": table_map.get("tables", [])},
+            "anchors": {
+                "paragraphs": paragraph_anchors,
+                "tables": table_map.get("tables", []),
+            },
         }
 
-    def set_paragraph_format(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    def set_paragraph_format(
+        self,
+        filename: str,
+        dry_run: bool = False,
+        expected_revision: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         del dry_run, expected_revision
         result = self._mutate(filename, lambda doc: doc.set_paragraph_format(**kwargs))
         return dict(result or {}, filename=filename)
 
-    def set_page_setup(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    def set_page_setup(
+        self,
+        filename: str,
+        dry_run: bool = False,
+        expected_revision: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         del dry_run, expected_revision
         result = self._mutate(filename, lambda doc: doc.set_page_setup(**kwargs))
         return dict(result or {}, filename=filename)
 
-    def set_header_footer(self, filename: str, kind: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    def set_header_footer(
+        self,
+        filename: str,
+        kind: str,
+        dry_run: bool = False,
+        expected_revision: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         del dry_run, expected_revision
-        wrapper = self._mutate(filename, lambda doc: doc.set_header_footer(kind=kind, **kwargs))
+        wrapper = self._mutate(
+            filename, lambda doc: doc.set_header_footer(kind=kind, **kwargs)
+        )
         return {
             "filename": filename,
             "headerFooter": {"kind": kind, "text": getattr(wrapper, "text", "")},
         }
 
-    def set_page_number(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    def set_page_number(
+        self,
+        filename: str,
+        dry_run: bool = False,
+        expected_revision: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         del dry_run, expected_revision
         wrapper = self._mutate(filename, lambda doc: doc.set_page_number(**kwargs))
         return {
             "filename": filename,
-            "headerFooter": {"kind": kwargs.get("target", "footer"), "text": getattr(wrapper, "text", "")},
+            "headerFooter": {
+                "kind": kwargs.get("target", "footer"),
+                "text": getattr(wrapper, "text", ""),
+            },
         }
 
-    def set_list_format(self, filename: str, dry_run: bool = False, expected_revision: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    def set_list_format(
+        self,
+        filename: str,
+        dry_run: bool = False,
+        expected_revision: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         del dry_run, expected_revision
         result = self._mutate(filename, lambda doc: doc.set_list_format(**kwargs))
         return dict(result or {}, filename=filename)
@@ -560,7 +731,10 @@ class _FallbackServer:
 
         def replace(doc: Any) -> dict[str, Any]:
             replacement = doc.replace_picture(image_data, image_format, **kwargs)
-            return {"replacement": replacement, "pictureReferences": doc.picture_references()}
+            return {
+                "replacement": replacement,
+                "pictureReferences": doc.picture_references(),
+            }
 
         result = self._mutate(filename, replace)
         return {"ok": True, "filename": filename, **result}
@@ -583,7 +757,9 @@ class _FallbackServer:
             return hwpx_doc_diff(old_filename, new_filename)
         if old_paragraphs is not None and new_paragraphs is not None:
             return hwpx_doc_diff(old_paragraphs, new_paragraphs)
-        raise ValueError("provide old_filename/new_filename or old_paragraphs/new_paragraphs")
+        raise ValueError(
+            "provide old_filename/new_filename or old_paragraphs/new_paragraphs"
+        )
 
     def create_comparison_table_document(
         self,
@@ -610,7 +786,9 @@ class _FallbackServer:
         elif old_paragraphs is not None and new_paragraphs is not None:
             old_source, new_source = old_paragraphs, new_paragraphs
         else:
-            raise ValueError("provide old_filename/new_filename or old_paragraphs/new_paragraphs")
+            raise ValueError(
+                "provide old_filename/new_filename or old_paragraphs/new_paragraphs"
+            )
         document_plan = build_comparison_table_plan(
             old_source, new_source, title=title, include_equal=include_equal
         )
@@ -651,7 +829,9 @@ class _FallbackServer:
     ) -> dict[str, Any]:
         from hwpx import build_image_grid as hwpx_build_image_grid
 
-        block = hwpx_build_image_grid(images or [], columns=columns, image_width_mm=image_width_mm)
+        block = hwpx_build_image_grid(
+            images or [], columns=columns, image_width_mm=image_width_mm
+        )
         return {
             "block": block,
             "document_plan": self._single_block_plan(block, title),
@@ -773,7 +953,11 @@ def _seed_document(server: Any, task: dict[str, Any], document: Path) -> None:
         server.add_paragraph(str(document), paragraph)
     for table in seed.get("tables", []):
         rows = int(table.get("rows", len(table.get("data", [])) or 1))
-        cols = int(table.get("cols", max((len(row) for row in table.get("data", [])), default=1)))
+        cols = int(
+            table.get(
+                "cols", max((len(row) for row in table.get("data", [])), default=1)
+            )
+        )
         server.add_table(str(document), rows, cols, table.get("data"))
     if kind == "form":
         if not seed.get("tables"):
@@ -794,7 +978,9 @@ def _tool_required_by_task(task: dict[str, Any]) -> set[str]:
     return required
 
 
-def _preflight(task: dict[str, Any], profile: Profile, bundle_text: str) -> dict[str, Any] | None:
+def _preflight(
+    task: dict[str, Any], profile: Profile, bundle_text: str
+) -> dict[str, Any] | None:
     required_tools = _tool_required_by_task(task)
 
     undocumented_tools = sorted(
@@ -812,7 +998,9 @@ def _preflight(task: dict[str, Any], profile: Profile, bundle_text: str) -> dict
     for tag in sorted(required_guidance):
         keywords = GUIDANCE_BODY_KEYWORDS.get(tag, ())
         missing_keywords = [
-            keyword for keyword in keywords if not _bundle_mentions(bundle_text, keyword)
+            keyword
+            for keyword in keywords
+            if not _bundle_mentions(bundle_text, keyword)
         ]
         if missing_keywords:
             missing_evidence[tag] = missing_keywords
@@ -831,7 +1019,9 @@ def _preflight(task: dict[str, Any], profile: Profile, bundle_text: str) -> dict
             "missingGuidance": missing_guidance,
         }
 
-    missing_tools = sorted(tool for tool in required_tools if not profile.has_tool(tool))
+    missing_tools = sorted(
+        tool for tool in required_tools if not profile.has_tool(tool)
+    )
     if missing_tools:
         return {
             "classification": FAIL_TOOL_ABSENT,
@@ -874,7 +1064,10 @@ def _evaluate_oracle(
         key = str(oracle["key"])
         payloads = call_payloads or []
         if call_index >= len(payloads):
-            return False, f"call {call_index} result missing (only {len(payloads)} calls)"
+            return (
+                False,
+                f"call {call_index} result missing (only {len(payloads)} calls)",
+            )
         payload = payloads[call_index]
         ok = isinstance(payload, dict) and key in payload and payload[key] is not None
         return ok, f"call {call_index} result has key {key!r}"
@@ -883,7 +1076,9 @@ def _evaluate_oracle(
         return value in _document_text(server, document), f"text contains {value!r}"
     if oracle_type == "text_not_contains":
         value = str(oracle["value"])
-        return value not in _document_text(server, document), f"text does not contain {value!r}"
+        return value not in _document_text(
+            server, document
+        ), f"text does not contain {value!r}"
     if oracle_type == "paragraph_count_min":
         paragraphs = server.get_paragraphs_text(str(document)).get("paragraphs", [])
         expected = int(oracle["value"])
@@ -899,7 +1094,10 @@ def _evaluate_oracle(
         expected = str(oracle["value"])
         data = server.get_table_text(str(document), table_index).get("data", [])
         actual = data[row][col] if row < len(data) and col < len(data[row]) else None
-        return actual == expected, f"table {table_index} cell ({row}, {col}) == {expected!r}"
+        return (
+            actual == expected,
+            f"table {table_index} cell ({row}, {col}) == {expected!r}",
+        )
     if oracle_type == "file_exists":
         path = Path(str(oracle["path"]).replace("{workDir}", str(document.parent)))
         return path.exists(), f"file exists: {path}"
@@ -929,7 +1127,11 @@ def _run_task(
     task_dir.mkdir(parents=True, exist_ok=True)
     document = task_dir / "document.hwpx"
     output_dir = task_dir / "preview"
-    variables = {"document": str(document), "workDir": str(task_dir), "outputDir": str(output_dir)}
+    variables = {
+        "document": str(document),
+        "workDir": str(task_dir),
+        "outputDir": str(output_dir),
+    }
 
     try:
         _seed_document(server, task, document)
@@ -949,12 +1151,22 @@ def _run_task(
             args = _render_value(call.get("arguments", {}), variables)
             result = tool(**args)
             call_payloads.append(result)
-            call_results.append({"tool": tool_name, "ok": True, "resultKeys": sorted(result.keys()) if isinstance(result, dict) else []})
+            call_results.append(
+                {
+                    "tool": tool_name,
+                    "ok": True,
+                    "resultKeys": sorted(result.keys())
+                    if isinstance(result, dict)
+                    else [],
+                }
+            )
 
         oracle_results = []
         for oracle in task.get("oracles", []):
             rendered_oracle = _render_value(oracle, variables)
-            ok, detail = _evaluate_oracle(server, document, rendered_oracle, call_payloads)
+            ok, detail = _evaluate_oracle(
+                server, document, rendered_oracle, call_payloads
+            )
             oracle_results.append({"ok": ok, "detail": detail, "type": oracle["type"]})
             if not ok:
                 return {
@@ -986,7 +1198,9 @@ def _run_task(
         }
 
 
-def _summarize_profile(profile: Profile, task_results: list[dict[str, Any]]) -> dict[str, Any]:
+def _summarize_profile(
+    profile: Profile, task_results: list[dict[str, Any]]
+) -> dict[str, Any]:
     passed = sum(1 for result in task_results if result["passed"])
     total = len(task_results)
     families: dict[str, dict[str, int]] = {}
@@ -997,7 +1211,9 @@ def _summarize_profile(profile: Profile, task_results: list[dict[str, Any]]) -> 
         families[family]["passed" if result["passed"] else "failed"] += 1
         classification = result.get("classification")
         if classification:
-            failures_by_class[classification] = failures_by_class.get(classification, 0) + 1
+            failures_by_class[classification] = (
+                failures_by_class.get(classification, 0) + 1
+            )
     return {
         "profileId": profile.profile_id,
         "label": profile.label,
@@ -1069,8 +1285,6 @@ def run(
     work_dir: Path | None,
     skill_root: Path | None = None,
 ) -> dict[str, Any]:
-    server = _load_server_module()
-    tools = _available_server_tools(server)
     payload = json.loads(tasks_path.read_text(encoding="utf-8"))
     tasks = payload["tasks"]
     profiles = [Profile.from_path(path) for path in profile_paths]
@@ -1085,7 +1299,23 @@ def run(
             shutil.rmtree(work_dir)
         work_dir.mkdir(parents=True)
 
+    previous_workspace_roots = os.environ.get("HWPX_MCP_WORKSPACE_ROOTS")
+    previous_sandbox_root = os.environ.pop("HWPX_MCP_SANDBOX_ROOT", None)
+    os.environ["HWPX_MCP_WORKSPACE_ROOTS"] = json.dumps([str(work_dir.resolve())])
     try:
+        server = _load_server_module()
+        if hasattr(server, "_OPS"):
+            from hwpx_mcp_server.hwpx_ops import HwpxOps
+            from hwpx_mcp_server.storage import LocalDocumentStorage
+            from hwpx_mcp_server.workspace import WorkspaceResolver
+
+            server._OPS = HwpxOps(
+                storage=LocalDocumentStorage(
+                    workspace_resolver=WorkspaceResolver.from_environment(),
+                    auto_backup=False,
+                )
+            )
+        tools = _available_server_tools(server)
         summaries = []
         for profile in profiles:
             results = [
@@ -1108,18 +1338,28 @@ def run(
             "comparison": _comparison(summaries),
         }
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        output.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         if markdown is not None:
             markdown.parent.mkdir(parents=True, exist_ok=True)
             _write_markdown(report, markdown)
         return report
     finally:
+        if previous_workspace_roots is None:
+            os.environ.pop("HWPX_MCP_WORKSPACE_ROOTS", None)
+        else:
+            os.environ["HWPX_MCP_WORKSPACE_ROOTS"] = previous_workspace_roots
+        if previous_sandbox_root is not None:
+            os.environ["HWPX_MCP_SANDBOX_ROOT"] = previous_sandbox_root
         if temp_dir is not None:
             temp_dir.cleanup()
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Replay and score HWPX task evaluation specs")
+    parser = argparse.ArgumentParser(
+        description="Replay and score HWPX task evaluation specs"
+    )
     parser.add_argument("--tasks", type=Path, default=DEFAULT_TASKS)
     parser.add_argument("--profile", type=Path, action="append", dest="profiles")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -1129,7 +1369,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     profile_paths = args.profiles or DEFAULT_PROFILES
-    report = run(args.tasks, profile_paths, args.output, args.markdown, args.work_dir, args.skill_root)
+    report = run(
+        args.tasks,
+        profile_paths,
+        args.output,
+        args.markdown,
+        args.work_dir,
+        args.skill_root,
+    )
     current = report["profiles"][0]
     print(
         f"[OK] evaluated {report['taskCount']} tasks for {len(report['profiles'])} profiles; "

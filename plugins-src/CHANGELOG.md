@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.1.31] - 2026-07-15
+
+### Security
+- Codex no longer fixes MCP `cwd` to the plugin cache. Its root-independent `uvx` command preserves the
+  active thread workspace; Claude keeps its absolute plugin-root launcher while preserving project CWD.
+- The bundled launcher builds an exact `python-hwpx==2.29.2` / `hwpx-mcp-server==2.23.1` runtime behind a
+  stale-aware concurrency lock, verifies both installed versions, and atomically promotes a full
+  plugin/MCP/core/Python-ABI/platform fingerprint. Parallel cold starts cannot observe a partial venv.
+- Public bundles drop private/generated benchmark state, generated evidence, and workstation metadata;
+  GitHub Actions use immutable commits with CodeQL, dependency review, Dependabot, and runtime SBOM gates.
+
+### Changed
+- Raises the bundle contract to `python-hwpx==2.29.2`, `hwpx-mcp-server==2.23.1`, and skill `0.1.31`
+  without changing the 133 default / 143 advanced tool names.
+- S070 benchmark outputs are generated in disposable workspaces. Installed host bundles no longer carry
+  duplicate blind packets, routing, scored passes, or result projections.
+
 ## [0.1.30] - 2026-07-15
 
 ### Added

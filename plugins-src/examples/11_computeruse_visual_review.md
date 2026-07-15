@@ -30,7 +30,7 @@ Run a batch preflight before opened-document observation:
 
 ```bash
 python3 scripts/visual_review_batch.py \
-  --inputs "/Users/wilycastle/Code/projects/hwpx/python-hwpx/tests/fixtures/hwpxlib_corpus/*.hwpx" \
+  --inputs "${PYTHON_HWPX_ROOT}/tests/fixtures/hwpxlib_corpus/*.hwpx" \
   --evidence-dir examples/out/11_corpus_batch
 ```
 

@@ -19,11 +19,18 @@ def _module():
     return module
 
 
-def test_frozen_fixture_has_six_families_three_profiles_and_abstentions() -> None:
+def _built_fixture(tmp_path: Path) -> tuple[object, Path]:
     module = _module()
-    report = module.validate(FIXTURE)
-    manifest = json.loads((FIXTURE / "manifest.json").read_text())
-    orders = json.loads((FIXTURE / "work-orders.json").read_text())["orders"]
+    root = tmp_path / "fixture"
+    module.build(root)
+    return module, root
+
+
+def test_frozen_fixture_has_six_families_three_profiles_and_abstentions(tmp_path: Path) -> None:
+    module, root = _built_fixture(tmp_path)
+    report = module.validate(root)
+    manifest = json.loads((root / "manifest.json").read_text())
+    orders = json.loads((root / "work-orders.json").read_text())["orders"]
 
     assert report == {
         "ok": True,
@@ -36,9 +43,10 @@ def test_frozen_fixture_has_six_families_three_profiles_and_abstentions() -> Non
     assert len(manifest["profilePaths"]) == 3
 
 
-def test_fixture_never_claims_human_real_agent_hancom_or_replacement() -> None:
-    manifest = json.loads((FIXTURE / "manifest.json").read_text())
-    result = json.loads((FIXTURE / "result-manifest.json").read_text())
+def test_fixture_never_claims_human_real_agent_hancom_or_replacement(tmp_path: Path) -> None:
+    _, root = _built_fixture(tmp_path)
+    manifest = json.loads((root / "manifest.json").read_text())
+    result = json.loads((root / "result-manifest.json").read_text())
     for value in (manifest, result):
         assert value["humanLabels"] is False
         assert value["humanControls"] is False
@@ -46,48 +54,35 @@ def test_fixture_never_claims_human_real_agent_hancom_or_replacement() -> None:
         assert value["realAgentClientsVerified"] is False
         assert value["realHancomVerified"] is False
         assert value["replacementClaimAllowed"] is False
-    assert result["metrics"]["releaseGatePassed"] is False
-    assert result["metrics"]["replacementClaimAllowed"] is False
-    assert len(result["judgments"]) == 432
+    assert result["status"] == "awaiting_two_independent_agent_judge_passes"
+    assert result["metrics"] is None
+    assert result["judgePassesAccepted"] == 0
 
 
-def test_judge_passes_are_independent_agent_labels_not_human_labels() -> None:
-    passes = [json.loads(path.read_text()) for path in sorted((FIXTURE / "judge-templates").glob("*.json"))]
+def test_committed_seed_matches_generated_inputs_and_has_blank_judges(tmp_path: Path) -> None:
+    _, root = _built_fixture(tmp_path)
+    relatives = [
+        Path("rubric-v1.json"),
+        Path("work-orders.json"),
+        *(path.relative_to(FIXTURE) for path in sorted((FIXTURE / "profiles").glob("*.json"))),
+    ]
+    for relative in relatives:
+        assert (FIXTURE / relative).read_bytes() == (root / relative).read_bytes()
+
+    passes = [json.loads(path.read_text()) for path in sorted((root / "judge-templates").glob("*.json"))]
     assert [value["passId"] for value in passes] == ["judge-a", "judge-b"]
     assert all(value["judgeType"] == "agent_judge" for value in passes)
     assert all(value["independentInvocationRequired"] is True for value in passes)
-    assert all(value["status"] == "scored" and len(value["judgments"]) == 216 for value in passes)
+    assert all(value["status"] == "unscored_template" and value["judgments"] == [] for value in passes)
     assert all(value["humanLabels"] is False for value in passes)
-    assert all(row["humanLabels"] is False and row["humanLabel"] is False for value in passes for row in value["judgments"])
-
-
-def test_final_result_uses_core_metrics_and_preserves_release_boundary() -> None:
-    result = json.loads((FIXTURE / "result-manifest.json").read_text())
-    metrics = result["metrics"]
-    adjudication = result["adjudication"]
-
-    assert metrics["counts"] == {
-        "workOrders": 72,
-        "fixtureClients": 3,
-        "artifacts": 216,
-        "agentJudgments": 432,
-        "criticalFailures": 0,
-    }
-    assert metrics["routineFirstPassAcceptance"]["rate"] == 1.0
-    assert metrics["mustAbstainQuality"]["rate"] == 1.0
-    assert metrics["agreement"] == {"pairCount": 216, "exactAcceptanceAgreement": 1.0}
-    assert metrics["benchmarkGatePassed"] is True
-    assert metrics["releaseGatePassed"] is False
-    assert metrics["replacementClaimAllowed"] is False
-    assert adjudication["acceptanceDisagreements"] == 0
-    assert adjudication["scoreDisagreements"] == 36
+    for relative in (Path("judge-templates/judge-a.json"), Path("judge-templates/judge-b.json")):
+        committed = json.loads((FIXTURE / relative).read_text())
+        assert committed["status"] == "unscored_template"
+        assert committed["judgments"] == []
 
 
 def test_hash_tamper_and_projection_drift_fail_closed(tmp_path: Path) -> None:
-    module = _module()
-    copied = tmp_path / "fixture"
-    import shutil
-    shutil.copytree(FIXTURE, copied)
+    module, copied = _built_fixture(tmp_path)
     manifest = json.loads((copied / "manifest.json").read_text())
     manifest["workOrderCount"] = 71
     (copied / "manifest.json").write_text(json.dumps(manifest))
@@ -108,14 +103,13 @@ def test_skill_and_installed_runner_use_generated_fixture_tools() -> None:
     assert '"export_fixture_benchmark"' in runner
 
 
-def test_every_host_bundle_contains_compact_fixture_generator_and_runner() -> None:
+def test_host_bundles_exclude_repository_only_fixture_corpus_and_runner() -> None:
     bundles = sorted((ROOT / "plugins").glob("*/hwpx*"))
     assert len(bundles) == 4
     for bundle in bundles:
         skill_root = bundle / "skills/hwpx"
         if not skill_root.exists():
             skill_root = bundle
-        assert (skill_root / "scripts/plugin_fixture_benchmark_e2e.py").is_file()
-        assert (skill_root / "scripts/fixture_benchmark.py").is_file()
-        assert not (skill_root / "examples/s070_fixture_benchmark/private-routing.json").exists()
-        assert not (skill_root / "examples/s070_fixture_benchmark/blind").exists()
+        assert not (skill_root / "scripts/plugin_fixture_benchmark_e2e.py").exists()
+        assert not (skill_root / "scripts/fixture_benchmark.py").exists()
+        assert not (skill_root / "examples/s070_fixture_benchmark").exists()

@@ -849,12 +849,20 @@ visual-review v1 증거 계약(상태 규칙, screenshot 요건, blocked fallbac
 Hermes Agent, built from the repo-root skill assets by `scripts/build_hwpx_plugins.py` and
 checked by `scripts/validate_hwpx_plugin.py`.
 
-The bundled MCP launcher (`scripts/hwpx-mcp-server` in Claude/Codex bundles) resolves, in order:
+The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
 
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
-3. a plugin-local venv populated with `hwpx-mcp-server==2.12.0` on first MCP start
-4. `uvx --refresh-package hwpx-mcp-server --refresh-package python-hwpx --from hwpx-mcp-server==2.12.0 hwpx-mcp-server` fallback when `uv` is unavailable
+3. an immutable plugin-local runtime fingerprinted by the exact
+   `hwpx-mcp-server==2.23.1`, `python-hwpx[visual]==2.29.2`, skill, Python ABI,
+   and platform values
+4. an exact-version `uvx` fallback when `uv` is unavailable
+
+Codex uses the same exact package pair directly through `uvx`. Neither host
+template sets `cwd`, so the server inherits the user's active workspace. For a
+deterministic single or multi-root policy, set `HWPX_MCP_WORKSPACE_ROOTS` to a
+JSON array of absolute directories. Relative tool paths resolve under the first
+root; absolute paths are accepted under any listed root.
 
 Run `python3 scripts/build_hwpx_plugins.py` after changing `SKILL.md`, `references`, `examples`,
 or skill scripts, then `python3 scripts/validate_hwpx_plugin.py`.

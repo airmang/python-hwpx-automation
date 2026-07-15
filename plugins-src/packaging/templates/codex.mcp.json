@@ -1,10 +1,19 @@
 {
   "mcpServers": {
     "hwpx-mcp-server": {
-      "command": "./scripts/hwpx-mcp-server",
-      "args": [],
-      "cwd": ".",
-      "env": { "HWPX_MCP_ADVANCED": "0", "HWPX_MCP_AUTOBACKUP": "1" }
+      "command": "uvx",
+      "args": [
+        "--refresh-package", "hwpx-mcp-server",
+        "--refresh-package", "python-hwpx",
+        "--with", "python-hwpx[visual]==2.29.2",
+        "--from", "hwpx-mcp-server==2.23.1",
+        "hwpx-mcp-server"
+      ],
+      "env": {
+        "HWPX_MCP_ADVANCED": "0",
+        "HWPX_MCP_AUTOBACKUP": "1",
+        "HWPX_SKILL_VERSION": "0.1.31"
+      }
     }
   }
 }

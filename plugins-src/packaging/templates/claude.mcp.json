@@ -3,7 +3,11 @@
     "hwpx-mcp-server": {
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/hwpx-mcp-server",
       "args": [],
-      "env": { "HWPX_MCP_ADVANCED": "0", "HWPX_MCP_AUTOBACKUP": "1" }
+      "env": {
+        "HWPX_MCP_ADVANCED": "0",
+        "HWPX_MCP_AUTOBACKUP": "1",
+        "HWPX_SKILL_VERSION": "0.1.31"
+      }
     }
   }
 }

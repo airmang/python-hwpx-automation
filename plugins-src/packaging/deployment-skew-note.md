@@ -8,8 +8,8 @@ are reported by `mcp_server_health().toolSurface`.
 
 ## Likely Causes
 
-- The plugin-local `.hwpx-mcp-server-venv` was created with an older
-  `hwpx-mcp-server` pin and reused.
+- The host is still using a legacy `.hwpx-mcp-server-venv`, or a runtime whose
+  package/Python fingerprint does not match the current bundle.
 - The host loaded a cached plugin bundle before a marketplace/plugin reinstall.
 - The host session was not restarted after installing the plugin, so newly
   generated skills and MCP tool schemas were not reloaded.
@@ -31,5 +31,8 @@ Expected:
 - `toolSurface.missingKeyTools == []`
 - `version`, `pythonHwpxVersion`, and `skillBundleVersion` are present
 
-If skew is reported, remove the plugin, remove the stale plugin-local venv if
-present, reinstall the plugin, and start a fresh host session.
+Current launchers store immutable, fingerprinted environments under
+`.hwpx-mcp-runtime/envs/`; concurrent cold starts share an installation lock and
+never replace a valid environment in place. If skew is reported, reinstall the
+plugin and start a fresh host session. A legacy `.hwpx-mcp-server-venv` can be
+archived after confirming that no older plugin installation uses it.

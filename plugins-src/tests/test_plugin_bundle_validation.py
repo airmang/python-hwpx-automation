@@ -31,6 +31,30 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
         assert "uv run --project" not in text
         assert '--with-editable "${PYTHON_HWPX_REPO}[visual]"' in text
         assert '--with-editable "${MCP_REPO}"' in text
+        assert "HWPX_MCP_RUNTIME_ROOT" in text
+        assert 'rm -rf "${VENV_DIR}"' not in text
+
+
+def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> None:
+    import json
+
+    config = json.loads(
+        (ROOT / "plugins/codex/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
+    )["mcpServers"]["hwpx-mcp-server"]
+    assert config["command"] == "uvx"
+    assert "cwd" not in config
+    assert "hwpx-mcp-server==2.23.1" in config["args"]
+    assert "python-hwpx[visual]==2.29.2" in config["args"]
+
+
+def test_claude_mcp_command_preserves_project_cwd() -> None:
+    import json
+
+    config = json.loads(
+        (ROOT / "plugins/claude/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
+    )["mcpServers"]["hwpx-mcp-server"]
+    assert config["command"].startswith("${CLAUDE_PLUGIN_ROOT}/")
+    assert "cwd" not in config
 
 
 def test_quickcheck_verifies_editor_open_safety_for_generated_outputs() -> None:

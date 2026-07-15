@@ -11,8 +11,13 @@ Add an MCP server entry that runs the pinned package with `uvx`:
 {
   "hwpx-mcp-server": {
     "command": "uvx",
-    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--from", "hwpx-mcp-server==2.23.0", "hwpx-mcp-server"],
-    "env": { "HWPX_MCP_ADVANCED": "0", "HWPX_MCP_AUTOBACKUP": "1" }
+    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==2.29.2", "--from", "hwpx-mcp-server==2.23.1", "hwpx-mcp-server"],
+    "env": {
+      "HWPX_MCP_ADVANCED": "0",
+      "HWPX_MCP_AUTOBACKUP": "1",
+      "HWPX_SKILL_VERSION": "0.1.31",
+      "HWPX_MCP_WORKSPACE_ROOTS": "[\"/absolute/path/to/workspace\"]"
+    }
   }
 }
 ```
@@ -28,6 +33,8 @@ export PYTHON_HWPX_REPO=/absolute/path/to/python-hwpx
 ```
 
 The skill itself loads from `./skills` as declared in `openclaw.plugin.json`.
+Use more than one absolute entry in `HWPX_MCP_WORKSPACE_ROOTS` only when the
+agent must work across explicitly authorized directories.
 
 ## Private practice campaign (opt-in)
 

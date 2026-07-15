@@ -3,13 +3,35 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TASKS = ROOT / "tests" / "fixtures" / "agent_interface_baseline_tasks.json"
 RUNNER_PATH = ROOT / "tests" / "agent_interface_gap_baseline.py"
-SERVER_SRC = ROOT.parent / "hwpx-mcp-server-s074" / "src"
+
+
+def _server_src() -> Path:
+    explicit = os.environ.get("HWPX_MCP_SERVER_REPO")
+    if explicit:
+        candidate = Path(explicit).expanduser().resolve() / "src"
+        if candidate.is_dir():
+            return candidate
+
+    installed = importlib.util.find_spec("hwpx_mcp_server")
+    if installed and installed.submodule_search_locations:
+        return Path(next(iter(installed.submodule_search_locations))).resolve().parent
+
+    candidate = ROOT.parent / "hwpx-mcp-server" / "src"
+    if candidate.is_dir():
+        return candidate.resolve()
+    raise RuntimeError(
+        "hwpx-mcp-server source not found; install it or set HWPX_MCP_SERVER_REPO"
+    )
+
+
+SERVER_SRC = _server_src()
 
 spec = importlib.util.spec_from_file_location("agent_interface_gap_baseline", RUNNER_PATH)
 runner = importlib.util.module_from_spec(spec)

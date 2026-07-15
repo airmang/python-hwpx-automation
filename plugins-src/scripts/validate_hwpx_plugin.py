@@ -125,7 +125,10 @@ def validate_launcher(out: Path, host_id: str) -> None:
         _canonical_server_package_line(),
         "HWPX_SKILL_ROOT",
         "${PLUGIN_ROOT}/skills/hwpx/SKILL.md",
-        ".hwpx-mcp-server-venv",
+        ".hwpx-mcp-runtime",
+        "HWPX_MCP_RUNTIME_ROOT",
+        ".hwpx-stack-fingerprint",
+        "install.lock",
         "uv pip install",
         "--refresh-package hwpx-mcp-server",
         "--refresh-package python-hwpx",
@@ -183,12 +186,16 @@ def validate_host(host: dict, config: dict) -> None:
         server = mcp_data.get("mcpServers", {}).get("hwpx-mcp-server")
         require(isinstance(server, dict), f"{host['id']}: .mcp.json missing hwpx-mcp-server")
         command = server.get("command", "")
-        require("hwpx-mcp-server" in command, f"{host['id']}: .mcp.json command invalid")
         if host["id"] == "claude":
+            require("hwpx-mcp-server" in command, "claude: .mcp.json command invalid")
             require("${CLAUDE_PLUGIN_ROOT}" in command, "claude: .mcp.json must use ${CLAUDE_PLUGIN_ROOT}")
+            require("cwd" not in server, "claude: .mcp.json must preserve project cwd")
         if host["id"] == "codex":
-            require(command == "./scripts/hwpx-mcp-server", "codex: .mcp.json command must be relative")
-            require(server.get("cwd") == ".", "codex: .mcp.json cwd must be '.'")
+            args = server.get("args", [])
+            require(command == "uvx", "codex: .mcp.json command must be root-independent uvx")
+            require("cwd" not in server, "codex: .mcp.json must preserve the thread workspace cwd")
+            require("hwpx-mcp-server==2.23.1" in args, "codex: MCP package pin missing")
+            require("python-hwpx[visual]==2.29.2" in args, "codex: core package pin missing")
     else:
         text = mcp_path.read_text(encoding="utf-8")
         require("mcp_servers" in text or "hwpx-mcp-server" in text, f"{host['id']}: INSTALL-mcp.md missing MCP guidance")

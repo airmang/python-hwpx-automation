@@ -48,6 +48,31 @@ def test_zip_replace_all_removes_layout_cache_from_changed_xml(tmp_path: Path) -
     assert stats["layout_caches_removed"] == 1
 
 
+def test_zip_replace_all_includes_hpf_metadata_parts(tmp_path: Path) -> None:
+    source = tmp_path / "source.hwpx"
+    target = tmp_path / "target.hwpx"
+    with zipfile.ZipFile(source, "w") as archive:
+        archive.writestr("mimetype", "application/hwp+zip")
+        archive.writestr("Contents/section0.xml", "<root/>")
+        archive.writestr(
+            "Contents/content.hpf",
+            '<opf:package xmlns:opf="urn:opf"><opf:meta>OLD AUTHOR</opf:meta></opf:package>',
+        )
+
+    stats = zip_replace_all_module._zip_replace_all_unchecked(
+        source,
+        target,
+        {"OLD AUTHOR": "synthetic-fixture-author"},
+    )
+
+    with zipfile.ZipFile(target) as archive:
+        metadata = archive.read("Contents/content.hpf").decode("utf-8")
+
+    assert "synthetic-fixture-author" in metadata
+    assert "OLD AUTHOR" not in metadata
+    assert stats["replacements"] == 1
+
+
 def test_zip_replace_all_public_api_does_not_accept_open_safety_bypass(tmp_path: Path) -> None:
     source = tmp_path / "source.hwpx"
     target = tmp_path / "target.hwpx"
