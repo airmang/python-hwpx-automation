@@ -54,7 +54,7 @@ if command -v uv >/dev/null 2>&1; then
       --refresh-package python-hwpx \
       --python "${VENV_DIR}/bin/python" \
       "${SERVER_PACKAGE}" \
-      "python-hwpx[visual]>=2.29.0"
+      "python-hwpx[visual]>=2.29.1"
     printf '%s\n' "${SERVER_PACKAGE}" > "${VERSION_FILE}"
   fi
 
@@ -65,7 +65,7 @@ if command -v uvx >/dev/null 2>&1; then
   exec uvx \
     --refresh-package hwpx-mcp-server \
     --refresh-package python-hwpx \
-    --with "python-hwpx[visual]>=2.29.0" \
+    --with "python-hwpx[visual]>=2.29.1" \
     --from "${SERVER_PACKAGE}" \
     hwpx-mcp-server
 fi

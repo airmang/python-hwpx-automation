@@ -44,7 +44,7 @@
 python3 -m pip install -U python-hwpx lxml
 ```
 
-권장 기준: Python 3.10+ · `python-hwpx >= 2.29.0` · `hwpx-mcp-server >= 2.23.0` · 스킬 번들 `0.1.30`.
+권장 기준: Python 3.10+ · `python-hwpx >= 2.29.1` · `hwpx-mcp-server >= 2.23.0` · 스킬 번들 `0.1.30`.
 
 설치 직후 첫 성공 경로를 한 번에 확인:
 

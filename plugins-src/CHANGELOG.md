@@ -21,7 +21,7 @@
   manifest 기반 report/gallery/scorecard projection 및 drift gate를 포함한다.
 
 ### Changed
-- 공개 결속을 `python-hwpx==2.29.0`, `hwpx-mcp-server==2.23.0`, 스킬 `0.1.30`으로 올리고
+- 공개 결속을 `python-hwpx==2.29.1`, `hwpx-mcp-server==2.23.0`, 스킬 `0.1.30`으로 올리고
   default/advanced ToolSpec을 133/143개로 갱신했다. 이보다 낮은 구성은 capability handshake에서
   fail closed 한다.
 - Claude, Codex, Hermes, OpenClaw 번들을 같은 정본 계약과 핀에서 재생성한다.
@@ -31,6 +31,8 @@
   결속에서도 유지한다.
 
 ### Note
+- core `v2.29.0`은 prepublish 실패 태그로만 보존되고 PyPI/GitHub Release가 없으므로, 실제 공개
+  결속은 수정 릴리스 `python-hwpx==2.29.1`을 사용한다.
 - 0.1.28/0.1.29는 단계별 로컬 후보였으며 공개 배포 이력이 아니다. 해당 누적 변경은 이 0.1.30
   공개 항목으로 통합한다.
 
