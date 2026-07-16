@@ -52,9 +52,9 @@ python3 -m pip install -U python-hwpx lxml
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 릴리스 후보 | 아직 공개되지 않은 S-079 후보 구성요소 버전 | `python-hwpx 3.1.0` · `hwpx-mcp-server 4.0.0` · `hwpx-plugin 0.3.0` |
-| 최소 호환 버전 | 이 후보 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.1.0` · `hwpx-mcp-server >= 4.0.0` · skill `>= 0.3.0` |
-| 플러그인 설치 핀 | 후보 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.1.0` · `hwpx-mcp-server==4.0.0` |
+| 공개 릴리스 | 현재 공개된 S-079 구성요소 버전 | `python-hwpx 3.1.0` · `hwpx-mcp-server 4.0.0` · `hwpx-plugin 0.3.0` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.1.0` · `hwpx-mcp-server >= 4.0.0` · skill `>= 0.3.0` |
+| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.1.0` · `hwpx-mcp-server==4.0.0` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않는다.
@@ -150,7 +150,7 @@ alwaysApply: false
 | OpenClaw | `plugins/openclaw/hwpx-plugin` | `openclaw.plugin.json` + `INSTALL-mcp.md` |
 | Hermes Agent | `plugins/hermes/hwpx` | `hermes skills publish` + `INSTALL-mcp.md` |
 
-> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 후보 좌표 `hwpx-mcp-server==4.0.0`과 `python-hwpx[visual]==3.1.0`을 fingerprinted runtime에 설치한다. 이 좌표는 별도 승인 전까지 공개 패키지 설치 가능성을 뜻하지 않는다.
+> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 공개 좌표 `hwpx-mcp-server==4.0.0`과 `python-hwpx[visual]==3.1.0`을 fingerprinted runtime에 설치한다.
 
 ## 직접 실행하기 (수동 검증·고급 사용)
 

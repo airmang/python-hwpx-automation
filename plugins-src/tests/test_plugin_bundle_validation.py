@@ -184,7 +184,7 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
     for reference in references:
         text = reference.read_text(encoding="utf-8")
         assert "`python-hwpx 3.1.0`" in text
-        assert "릴리스 후보" in text
+        assert "공개 릴리스" in text
         assert "최소 호환 버전" in text
         assert "플러그인 설치 핀" in text
         assert "validate_editor_open_safety(path).ok == True" in text
@@ -241,7 +241,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v1"
-    assert identity["releaseState"] == "candidate"
+    assert identity["releaseState"] == "released"
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts
     assert identity["firstPartyLabelKo"] in readme

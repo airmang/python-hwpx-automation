@@ -5,7 +5,7 @@ server is registered through your OpenClaw MCP configuration.
 
 ## Pinned release package
 
-After this candidate is published, add an MCP server entry that runs the pinned package with `uvx`:
+Add an MCP server entry that runs the released pinned package with `uvx`:
 
 ```json
 {

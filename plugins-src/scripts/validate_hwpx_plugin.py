@@ -123,7 +123,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         identity.get("schemaVersion") == "hwpx.product-identity.v1",
         "product identity schemaVersion mismatch",
     )
-    require(identity.get("releaseState") == "candidate", "product identity must remain candidate before release approval")
+    require(identity.get("releaseState") == "released", "product identity must describe the approved public release")
     components = identity.get("components")
     require(isinstance(components, dict), "product identity components missing")
     for component_name in ("core", "mcp", "plugin"):
@@ -182,7 +182,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         [
             first_party,
             visual_note,
-            "릴리스 후보",
+            "공개 릴리스",
             "최소 호환 버전",
             "플러그인 설치 핀",
             "Development Status :: 3 - Alpha",
@@ -197,7 +197,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
     _require_fragments(
         api,
         [
-            "릴리스 후보",
+            "공개 릴리스",
             "최소 호환 버전",
             "플러그인 설치 핀",
             f"`{core['distribution']} {core['currentVersion']}`",
