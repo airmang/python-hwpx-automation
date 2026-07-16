@@ -5825,7 +5825,8 @@
           }
         ],
         "description": "Canonical receipt or the retained two-file render verifier response.",
-        "title": "VerifyFormFillOutput"
+        "title": "VerifyFormFillOutput",
+        "type": "object"
       }
     },
     {
@@ -7645,7 +7646,8 @@
           }
         ],
         "description": "Canonical analysis or the retained ``hwpx.formfill.v1`` response.",
-        "title": "AnalyzeFormFillOutput"
+        "title": "AnalyzeFormFillOutput",
+        "type": "object"
       }
     },
     {
@@ -9966,7 +9968,8 @@
           }
         ],
         "description": "Canonical atomic apply or the retained ``hwpx.formfill.v1`` response.",
-        "title": "ApplyFormFillOutput"
+        "title": "ApplyFormFillOutput",
+        "type": "object"
       }
     },
     {
@@ -22266,7 +22269,7 @@
       }
     ]
   },
-  "contractHash": "71661f4118e020c4",
+  "contractHash": "e1af9e16bacc52d7",
   "defaultToolCount": 121,
   "advancedToolCount": 132,
   "baselineToolCount": 136,
