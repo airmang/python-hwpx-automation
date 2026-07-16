@@ -1,6 +1,6 @@
 {
   "dryRun": false,
-  "expectedRevision": "sha256:839e09368c23bb69ff1f370b53d5824a38079691159bbb2facfcf2e1b2621209",
+  "expectedRevision": "sha256:b3186f5870a6d8fc013594f8450aa9390fd140f723ef44af5f565caa0117db4c",
   "idempotencyKey": "s079-mixed-anchor-reference-v1",
   "operations": [
     {

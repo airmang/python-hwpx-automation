@@ -42,6 +42,12 @@ EXPECTED_NAME = EXPECTED_PATH.name
 PLAN_SCHEMA = "hwpx.mixed-form-plan/v1"
 SOURCE_SPEC_SCHEMA = "hwpx.demo.mixed-form-source/v1"
 RECEIPT_SCHEMA = "hwpx.demo.mixed-form-receipt/v1"
+TABLE_CELL_MARGIN = {
+    "left": "510",
+    "right": "510",
+    "top": "141",
+    "bottom": "141",
+}
 
 
 def _json_bytes(value: Mapping[str, Any]) -> bytes:
@@ -140,6 +146,7 @@ def _load_source_spec() -> dict[str, Any]:
         table,
         {
             "anchor",
+            "anchorParagraphId",
             "cellParagraphIds",
             "columnCount",
             "paragraphId",
@@ -157,6 +164,8 @@ def _load_source_spec() -> dict[str, Any]:
         raise ValueError("the reference fixture must retain a one-page intent")
     if table["rowCount"] != 2 or table["columnCount"] != 2:
         raise ValueError("the P1-frozen table must remain 2 by 2")
+    if table["anchor"] != "담당 부서":
+        raise ValueError("the P1-frozen table anchor changed")
     if table["rows"] != [["사업명", ""], ["담당 부서", ""]]:
         raise ValueError("the P1-frozen table text changed")
     if table["cellParagraphIds"] != [
@@ -164,6 +173,12 @@ def _load_source_spec() -> dict[str, Any]:
         ["240034", "240035"],
     ]:
         raise ValueError("the deterministic table-cell paragraph IDs changed")
+    if (
+        table["anchorParagraphId"] != "240029"
+        or table["paragraphId"] != "240030"
+        or table["tableId"] != "240031"
+    ):
+        raise ValueError("the deterministic table anchor/host paragraph IDs changed")
     return value
 
 
@@ -243,7 +258,9 @@ def _build_source(spec: Mapping[str, Any]) -> None:
 
         _add_native_field(document, spec["nativeField"])
 
-        table_paragraph = document.add_paragraph(str(table_spec["anchor"]))
+        table_anchor = document.add_paragraph(str(table_spec["anchor"]))
+        table_anchor.element.set("id", str(table_spec["anchorParagraphId"]))
+        table_paragraph = document.add_paragraph("", include_run=False)
         table_paragraph.element.set("id", str(table_spec["paragraphId"]))
         table = table_paragraph.add_table(
             int(table_spec["rowCount"]), int(table_spec["columnCount"])
@@ -253,6 +270,11 @@ def _build_source(spec: Mapping[str, Any]) -> None:
             for column_index, value in enumerate(row):
                 cell = table.rows[row_index].cells[column_index]
                 cell.text = str(value)
+                cell.element.set("hasMargin", "1")
+                cell_margin = cell.element.find(f"{HP}cellMargin")
+                if cell_margin is None:
+                    raise AssertionError("generated table cell is missing cellMargin")
+                cell_margin.attrib.update(TABLE_CELL_MARGIN)
                 cell.paragraphs[0].element.set(
                     "id", str(table_spec["cellParagraphIds"][row_index][column_index])
                 )
@@ -267,7 +289,10 @@ def _build_source(spec: Mapping[str, Any]) -> None:
         document.save_to_path(SOURCE_PATH)
 
 
-def _public_plan(source_revision: str) -> dict[str, Any]:
+def _public_plan(
+    source_revision: str,
+    spec: Mapping[str, Any],
+) -> dict[str, Any]:
     return {
         "schemaVersion": PLAN_SCHEMA,
         "source": SOURCE_NAME,
@@ -294,7 +319,7 @@ def _public_plan(source_revision: str) -> dict[str, Any]:
                 "target": {
                     "kind": "labelCell",
                     "sectionPath": "/section[1]",
-                    "tableAnchor": "담당 부서",
+                    "tableAnchor": str(spec["table"]["anchor"]),
                     "cellAnchor": {
                         "label": "담당 부서",
                         "direction": "right",
@@ -418,7 +443,7 @@ def build_reference() -> dict[str, Any]:
     _safe_unlink(FAILURE_OUTPUT_PATH)
     _build_source(spec)
     source_revision = _sha256_file(SOURCE_PATH)
-    public_plan = _public_plan(source_revision)
+    public_plan = _public_plan(source_revision, spec)
     if public_plan["schemaVersion"] != MIXED_FORM_PLAN_SCHEMA:
         raise AssertionError("the public plan schema drifted")
     validate_mixed_form_request(public_plan)

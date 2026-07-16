@@ -1,24 +1,24 @@
 {
   "artifacts": {
     "output": {
-      "bytes": 8386,
+      "bytes": 8401,
       "path": "expected.hwpx",
-      "sha256": "sha256:d201f6d48912e628674328d73a86055cd0a8b4a3efdfce78f01bdbb32446e6ae"
+      "sha256": "sha256:ec09fb9b6ff6e96bbcc270d314ceaea35357f2c5d150cafa41efbb238c2ded29"
     },
     "plan": {
       "bytes": 1425,
       "path": "expected-plan.json",
-      "sha256": "sha256:66993fd162653976736357d91b52ab1e7fe9134998dadfa1a4f4cf5048f357b8"
+      "sha256": "sha256:a793a6d3862efda716fddf83427b31a71e05205f884a482330944113baf1c206"
     },
     "source": {
-      "bytes": 8353,
+      "bytes": 8369,
       "path": "source.hwpx",
-      "sha256": "sha256:839e09368c23bb69ff1f370b53d5824a38079691159bbb2facfcf2e1b2621209"
+      "sha256": "sha256:b3186f5870a6d8fc013594f8450aa9390fd140f723ef44af5f565caa0117db4c"
     },
     "sourceSpec": {
-      "bytes": 1151,
+      "bytes": 1186,
       "path": "source-spec.json",
-      "sha256": "sha256:01c26d20750aa38bb1bfa70fd7cf47f0655f687255192d74a2ac2a02d1659d3e"
+      "sha256": "sha256:fac2ca759acceab80814be3818313effd72652bfe9e09e14d97fc3e3050d76cf"
     }
   },
   "checks": {
@@ -59,8 +59,8 @@
         {
           "identical": false,
           "name": "Contents/section0.xml",
-          "outputSha256": "sha256:e80f14de4198f17d838f67a0c3ccc287e34f0d4c880424ad819b2c3f5d8b0c72",
-          "sourceSha256": "sha256:388476c1c482b6e27344c233c1fe381bf7c678e62248c7315ba578e8454fdcd0"
+          "outputSha256": "sha256:a059a603f3b2dd9e6bac3b06ef56611cf07353124922437681e41f03ba053313",
+          "sourceSha256": "sha256:e9d486cadfe64ed4d90ab0afa34e1fdd8fb23165d2e3662ed181764ebc214085"
         },
         {
           "identical": true,
@@ -189,9 +189,9 @@
     }
   },
   "contract": {
-    "compiledPlanHash": "sha256:177f000f7903c7075ee97af5cc567e3a3f22cf21785478c8f9815ce48ee6285c",
-    "compiledRequestHash": "sha256:eb13ab3c70f3d257ad712f409c2f292138e9c200b256c62541212b71986f9567",
-    "inputRevision": "sha256:839e09368c23bb69ff1f370b53d5824a38079691159bbb2facfcf2e1b2621209",
+    "compiledPlanHash": "sha256:688bc55259cfb30125b52d6fef45bfe98efc9b70807e441aae9c8a436ad8b159",
+    "compiledRequestHash": "sha256:f56ee5c9dad607a90c7dac9c54f1b1b1415ab972dfa4a4a1d7a1ad421c8e5a4c",
+    "inputRevision": "sha256:b3186f5870a6d8fc013594f8450aa9390fd140f723ef44af5f565caa0117db4c",
     "operationCount": 4,
     "publicPlanSchema": "hwpx.mixed-form-plan/v1",
     "resolutions": [

@@ -115,3 +115,47 @@ def test_demo_024_uses_hancom_native_click_here_field_shape() -> None:
         assert fields[0]["field_id"] == native["controlId"]
         assert fields[0]["fieldid"] == native["fieldId"]
         assert fields[0]["name"] == native["name"]
+
+
+def test_demo_024_table_anchor_is_separate_from_frozen_table_host() -> None:
+    source_spec = json.loads((DEMO / "source-spec.json").read_text(encoding="utf-8"))
+    table_spec = source_spec["table"]
+
+    for package_name in ("source.hwpx", "expected.hwpx"):
+        section = _xml_member(DEMO / package_name, "Contents/section0.xml")
+        table = next(
+            element
+            for element in section.iter(f"{{{HP}}}tbl")
+            if element.attrib.get("id") == table_spec["tableId"]
+        )
+        host_paragraph = next(
+            paragraph
+            for paragraph in section.iter(f"{{{HP}}}p")
+            if table in list(paragraph.iter())
+        )
+        anchor_paragraph = next(
+            paragraph
+            for paragraph in section.iter(f"{{{HP}}}p")
+            if paragraph.attrib.get("id") == table_spec["anchorParagraphId"]
+        )
+        direct_text = "".join(
+            text.text or ""
+            for text in host_paragraph.findall(
+                f"./{{{HP}}}run/{{{HP}}}t"
+            )
+        )
+
+        assert table_spec["anchor"] == "담당 부서"
+        assert anchor_paragraph.attrib["id"] == "240029"
+        assert host_paragraph.attrib["id"] == table_spec["paragraphId"] == "240030"
+        assert table.attrib["id"] == table_spec["tableId"] == "240031"
+        assert direct_text == ""
+        assert "".join(anchor_paragraph.itertext()) == table_spec["anchor"]
+        for cell in table.findall(f"./{{{HP}}}tr/{{{HP}}}tc"):
+            assert cell.attrib["hasMargin"] == "1"
+            assert cell.find(f"{{{HP}}}cellMargin").attrib == {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141",
+            }

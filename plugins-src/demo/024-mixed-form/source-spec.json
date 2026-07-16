@@ -23,6 +23,7 @@
   },
   "table": {
     "anchor": "담당 부서",
+    "anchorParagraphId": "240029",
     "cellParagraphIds": [
       [
         "240032",

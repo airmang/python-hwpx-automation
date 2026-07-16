@@ -53,10 +53,10 @@ PYTHONPATH=../python-hwpx-s079/src \
 
 | 파일 | SHA-256 |
 |---|---|
-| `source-spec.json` | `sha256:01c26d20750aa38bb1bfa70fd7cf47f0655f687255192d74a2ac2a02d1659d3e` |
-| `source.hwpx` | `sha256:839e09368c23bb69ff1f370b53d5824a38079691159bbb2facfcf2e1b2621209` |
-| `expected-plan.json` | `sha256:66993fd162653976736357d91b52ab1e7fe9134998dadfa1a4f4cf5048f357b8` |
-| `expected.hwpx` | `sha256:d201f6d48912e628674328d73a86055cd0a8b4a3efdfce78f01bdbb32446e6ae` |
-| `receipt.json` | `sha256:25f46e4280b0de8954920a7a3a1b8eae331da93b385ba925ad20e20bfefb378f` |
+| `source-spec.json` | `sha256:fac2ca759acceab80814be3818313effd72652bfe9e09e14d97fc3e3050d76cf` |
+| `source.hwpx` | `sha256:b3186f5870a6d8fc013594f8450aa9390fd140f723ef44af5f565caa0117db4c` |
+| `expected-plan.json` | `sha256:a793a6d3862efda716fddf83427b31a71e05205f884a482330944113baf1c206` |
+| `expected.hwpx` | `sha256:ec09fb9b6ff6e96bbcc270d314ceaea35357f2c5d150cafa41efbb238c2ded29` |
+| `receipt.json` | `sha256:3ce04278e29d944a7b1424fa0e33941b4b61f2c28eff1f62eb42257c4da0f8ea` |
 
 `receipt.json`에도 source/plan/output 해시와 compiled plan/request 해시가 기록되어 있다.
