@@ -134,5 +134,6 @@ LibreOffice 결과를 real-Hancom evidence로 승격하지 않는다.
   target 접근 전에 거부한다.
 - schema/help/ToolSpec/skill/demo에 raw XML, namespace, package path, private coordinate, opaque native object를
   넣지 않는다.
-- MCP는 stateless facade 두 개뿐이다. resident session, open/save/close lifecycle, watch, OfficeCLI adapter는
-  이 workflow 범위 밖이다.
+- 이 blueprint의 두 MCP 도구는 문서 핸들을 세션에 보존하지 않는 요청 단위 facade다. MCP 서버 전체는
+  재시작 가능한 workflow 상태를 관리하므로 서버 전체를 stateless라고 부르지 않는다. resident session,
+  open/save/close lifecycle, watch, OfficeCLI adapter는 이 blueprint workflow 범위 밖이다.

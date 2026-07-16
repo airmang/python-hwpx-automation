@@ -94,11 +94,11 @@ def test_hash_tamper_and_projection_drift_fail_closed(tmp_path: Path) -> None:
         module.check_drift(copied / "result-manifest.json", copied / "public")
 
 
-def test_skill_and_installed_runner_use_generated_fixture_tools() -> None:
+def test_fixture_benchmark_tools_remain_repository_internal() -> None:
     skill = (ROOT / "SKILL.md").read_text()
     runner = (ROOT / "scripts/plugin_fixture_benchmark_e2e.py").read_text()
-    assert "`run_fixture_benchmark`" in skill
-    assert "`export_fixture_benchmark`" in skill
+    assert "`run_fixture_benchmark`" not in skill
+    assert "`export_fixture_benchmark`" not in skill
     assert '"run_fixture_benchmark"' in runner
     assert '"export_fixture_benchmark"' in runner
 
@@ -113,3 +113,4 @@ def test_host_bundles_exclude_repository_only_fixture_corpus_and_runner() -> Non
         assert not (skill_root / "scripts/plugin_fixture_benchmark_e2e.py").exists()
         assert not (skill_root / "scripts/fixture_benchmark.py").exists()
         assert not (skill_root / "examples/s070_fixture_benchmark").exists()
+        assert not (skill_root / "references/workflows-fixture-benchmark.md").exists()

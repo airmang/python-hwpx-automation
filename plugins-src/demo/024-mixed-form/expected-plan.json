@@ -1,0 +1,57 @@
+{
+  "dryRun": false,
+  "expectedRevision": "sha256:5e81a9bcea08a9932ccc712d5bf2accbc9c64ebc5cc48c78b5d4154af1ab4e0b",
+  "idempotencyKey": "s079-mixed-anchor-reference-v1",
+  "operations": [
+    {
+      "operationId": "native-project-name",
+      "target": {
+        "fieldId": "240021",
+        "kind": "nativeField"
+      },
+      "value": "AI 수업 나눔의 날"
+    },
+    {
+      "operationId": "label-department",
+      "target": {
+        "cellAnchor": {
+          "direction": "right",
+          "label": "담당 부서"
+        },
+        "kind": "labelCell",
+        "sectionPath": "/section[1]",
+        "tableAnchor": "담당 부서"
+      },
+      "value": "교육연구부"
+    },
+    {
+      "operationId": "canonical-purpose",
+      "target": {
+        "kind": "canonicalPath",
+        "path": "/section[1]/paragraph[@id=\"240050\"]"
+      },
+      "value": "행사 목적: 교내 AI 활용 사례 공유"
+    },
+    {
+      "operationId": "body-owner",
+      "target": {
+        "anchor": "{{담당자}}",
+        "expectedCount": 1,
+        "kind": "bodyAnchor",
+        "sectionPath": "/section[1]"
+      },
+      "value": "김서현"
+    }
+  ],
+  "output": "expected.hwpx",
+  "overwrite": true,
+  "quality": "transparent",
+  "schemaVersion": "hwpx.mixed-form-plan/v1",
+  "source": "source.hwpx",
+  "verificationRequirements": [
+    "package",
+    "reopen",
+    "bytePreservation",
+    "openSafety"
+  ]
+}

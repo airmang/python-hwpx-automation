@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Replay HWPX natural-language task specs and score automatic oracles."""
+"""Deterministically replay preselected HWPX tool calls and score automatic oracles.
+
+This harness does not ask an agent to select tools from natural-language instructions.
+It is therefore regression evidence, never live-agent routing or recovery evidence.
+"""
 
 from __future__ import annotations
 
@@ -20,11 +24,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "examples" / "eval_tasks" / "tasks.json"
 DEFAULT_PROFILES = [
-    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.9.json",
+    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.3.0.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
 ]
-DEFAULT_OUTPUT = ROOT / "examples" / "out" / "task_eval_report.json"
+DEFAULT_OUTPUT = ROOT / "examples" / "out" / "deterministic_task_replay_report.json"
 
 FAIL_TOOL_ABSENT = "tool_absent"
 FAIL_TOOL_MISBEHAVIOR = "tool_misbehavior"
@@ -81,11 +85,20 @@ GUIDANCE_BODY_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 
 def _load_skill_bundle_text(skill_root: Path) -> str:
-    """Concatenate SKILL.md and references/*.md as the body to verify against."""
+    """Load authored guidance, excluding the generated inventory table.
+
+    Tool availability comes from the generated JSON contract. Counting that generated
+    name table as authored guidance would make every registered tool look intentionally
+    routed even when no user-facing workflow mentions it.
+    """
     paths = [skill_root / "SKILL.md"]
     references = skill_root / "references"
     if references.is_dir():
-        paths.extend(sorted(references.glob("*.md")))
+        paths.extend(
+            path
+            for path in sorted(references.glob("*.md"))
+            if path.name != "tool-contract.generated.md"
+        )
     chunks = [path.read_text(encoding="utf-8") for path in paths if path.is_file()]
     if not chunks:
         raise FileNotFoundError(f"no skill bundle text found under {skill_root}")
@@ -113,7 +126,23 @@ class Profile:
     def from_path(cls, path: Path) -> "Profile":
         data = json.loads(path.read_text(encoding="utf-8"))
         tools = data.get("availableTools", ["*"])
-        available = None if "*" in tools else set(tools)
+        if isinstance(tools, dict):
+            if tools != {"source": "generated-contract", "profile": "default"}:
+                raise ValueError(f"unsupported availableTools source in {path}: {tools}")
+            contract_path = next(
+                (
+                    parent / "references" / "tool-contract.generated.json"
+                    for parent in path.parents
+                    if (parent / "references" / "tool-contract.generated.json").is_file()
+                ),
+                ROOT / "references" / "tool-contract.generated.json",
+            )
+            contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            available = {
+                tool["name"] for tool in contract["tools"] if tool["profile"] == "default"
+            }
+        else:
+            available = None if "*" in tools else set(tools)
         return cls(
             profile_id=data["id"],
             label=data.get("label", data["id"]),
@@ -899,49 +928,13 @@ def _render_value(value: Any, variables: dict[str, str]) -> Any:
     return value
 
 
-def _available_server_tools(server: Any) -> dict[str, Any]:
-    names = [
-        "add_heading",
-        "add_memo",
-        "add_page_break",
-        "add_paragraph",
-        "add_table",
-        "apply_edits",
-        "batch_replace",
-        "build_image_grid",
-        "build_meeting_nameplates",
-        "build_organization_chart",
-        "create_comparison_table_document",
-        "create_custom_style",
-        "create_document",
-        "delete_paragraph",
-        "doc_diff",
-        "fill_by_path",
-        "find_cell_by_label",
-        "find_text",
-        "format_table",
-        "format_text",
-        "get_document_map",
-        "get_document_text",
-        "get_paragraphs_text",
-        "get_table_map",
-        "get_table_text",
-        "insert_paragraph",
-        "insert_picture",
-        "merge_table_cells",
-        "render_preview",
-        "replace_in_paragraph",
-        "replace_picture",
-        "search_and_replace",
-        "set_header_footer",
-        "set_list_format",
-        "set_page_number",
-        "set_page_setup",
-        "set_paragraph_format",
-        "set_table_cell_text",
-        "split_table_cell",
-        "undo_last_edit",
-    ]
+def _available_server_tools(server: Any, tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    names = {"create_document", "add_paragraph", "add_table"}
+    names.update(
+        call["tool"]
+        for task in tasks
+        for call in task.get("toolCalls", [])
+    )
     return {name: getattr(server, name) for name in names if hasattr(server, name)}
 
 
@@ -1251,7 +1244,9 @@ def _comparison(summaries: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _write_markdown(report: dict[str, Any], path: Path) -> None:
     lines = [
-        "# HWPX Task Evaluation Report",
+        "# HWPX Deterministic Direct-Call Replay Report",
+        "",
+        "> This is deterministic replay of preselected calls. It is not live-agent tool-selection, routing, recovery, or unnecessary-call evidence.",
         "",
         f"- Generated: {report['generatedAt']}",
         f"- Tasks: {report['taskCount']}",
@@ -1315,7 +1310,7 @@ def run(
                     auto_backup=False,
                 )
             )
-        tools = _available_server_tools(server)
+        tools = _available_server_tools(server, tasks)
         summaries = []
         for profile in profiles:
             results = [
@@ -1324,7 +1319,13 @@ def run(
             ]
             summaries.append(_summarize_profile(profile, results))
         report = {
-            "schemaVersion": "hwpx.task-eval-report.v1",
+            "schemaVersion": "hwpx.deterministic-task-replay-report.v1",
+            "evaluationKind": "deterministic-direct-tool-replay",
+            "instructionSelectionUsed": False,
+            "liveAgentEvidence": False,
+            "routingMeasured": False,
+            "recoveryMeasured": False,
+            "unnecessaryCallsMeasured": False,
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "taskSpec": str(tasks_path),
             "taskCount": len(tasks),
@@ -1358,7 +1359,10 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Replay and score HWPX task evaluation specs"
+        description=(
+            "Deterministically replay preselected HWPX calls; this does not measure "
+            "live-agent tool selection or recovery"
+        )
     )
     parser.add_argument("--tasks", type=Path, default=DEFAULT_TASKS)
     parser.add_argument("--profile", type=Path, action="append", dest="profiles")
@@ -1379,7 +1383,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     current = report["profiles"][0]
     print(
-        f"[OK] evaluated {report['taskCount']} tasks for {len(report['profiles'])} profiles; "
+        f"[OK] deterministically replayed {report['taskCount']} tasks for {len(report['profiles'])} profiles; "
         f"{current['profileId']} score={current['score']:.2%}"
     )
     print(f"[OK] report: {args.output}")

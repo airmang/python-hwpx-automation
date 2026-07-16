@@ -25,7 +25,12 @@ WORKFLOW_TOOLS = {
     "resume_workflow",
 }
 RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
-FIXTURE_BENCHMARK_TOOLS = {"run_fixture_benchmark", "export_fixture_benchmark"}
+REMOVED_QA_FIXTURE_TOOLS = {
+    "visual_review_fixture",
+    "visual_repair_fixture",
+    "run_fixture_benchmark",
+    "export_fixture_benchmark",
+}
 REMOVED_PRIVATE_PRACTICE_TOOLS = {
     "start_practice_scenario",
     "apply_practice_scenario",
@@ -56,7 +61,7 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert RECOVERED_TOOLS <= required
     assert WORKFLOW_TOOLS <= names
     assert RENDER_TOOLS <= names
-    assert FIXTURE_BENCHMARK_TOOLS <= names
+    assert REMOVED_QA_FIXTURE_TOOLS.isdisjoint(names)
     assert REMOVED_PRIVATE_PRACTICE_TOOLS.isdisjoint(names)
     assert all(tool["domain"] != "private_practice" for tool in contract["tools"])
     assert AGENT_DOCUMENT_TOOLS <= names
@@ -80,11 +85,18 @@ def test_every_host_bundle_carries_the_canonical_contract() -> None:
 
 def test_launcher_and_manifests_match_contract_minimums() -> None:
     contract = _contract()
+    identity = json.loads(
+        (ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8")
+    )
+    components = identity["components"]
     launcher = (ROOT / "packaging" / "templates" / "hwpx-mcp-server").read_text(
         encoding="utf-8"
     )
-    assert f"hwpx-mcp-server=={contract['minMcpVersion']}" in launcher
-    assert f"HWPX_SKILL_VERSION:-{contract['minSkillVersion']}" in launcher
+    assert contract["minMcpVersion"] == components["mcp"]["minimumCompatibleVersion"]
+    assert contract["minPythonHwpx"] == components["core"]["minimumCompatibleVersion"]
+    assert contract["minSkillVersion"] == components["plugin"]["minimumCompatibleVersion"]
+    assert f"hwpx-mcp-server=={components['mcp']['currentVersion']}" in launcher
+    assert f"HWPX_SKILL_VERSION:-{components['plugin']['currentVersion']}" in launcher
     assert 'export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"' in launcher
 
     for manifest in (
@@ -94,7 +106,7 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
     ):
         assert (
             json.loads(manifest.read_text(encoding="utf-8"))["version"]
-            == contract["minSkillVersion"]
+            == components["plugin"]["currentVersion"]
         )
 
 
@@ -111,6 +123,12 @@ def test_skill_routes_to_generated_api_table() -> None:
         assert re.search(rf"`{re.escape(tool)}`", generated)
     for tool in RENDER_TOOLS:
         assert re.search(rf"`{re.escape(tool)}`", generated)
+    assert "## Internal fixture QA removals" in generated
+    for tool in REMOVED_QA_FIXTURE_TOOLS:
+        # The generated contract keeps one explicit removal receipt, but the
+        # removed repository-QA names must never appear as installed API rows.
+        assert f"| `{tool}` |" not in generated
+        assert generated.count(f"`{tool}`") == 1
     assert "private_practice" not in generated
     for tool in REMOVED_PRIVATE_PRACTICE_TOOLS:
         assert not re.search(rf"`{re.escape(tool)}`", generated)
@@ -207,6 +225,23 @@ def test_skill_routes_general_work_to_one_level_autonomous_reference() -> None:
     assert "unknown_form_fill" in reference
     assert "renderChecked=false" in reference
     assert all(tool in reference for tool in WORKFLOW_TOOLS)
+
+
+def test_skill_routes_forms_through_one_mixed_plan_and_keeps_exam_separate() -> None:
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    forms = (ROOT / "references" / "workflows-forms.md").read_text(encoding="utf-8")
+
+    assert "`analyze_form_fill` → `apply_form_fill`" in skill
+    assert "**한 트랜잭션**" in skill
+    assert "시험은 `compose_exam`" in skill
+    assert "평가계획은 `apply_evalplan_fill`" in skill
+    for target_kind in ("nativeField", "canonicalPath", "labelCell", "bodyAnchor"):
+        assert f"`{target_kind}`" in forms
+    assert "다른 kind로 runtime fallback하지 않는다" in forms
+    assert "stable native field" in forms
+    assert "`apply_table_ops`와\n   `apply_body_ops`를 따로 commit" in forms
+    assert "generated contract의 replacement guidance" in forms
+    assert "`compose_exam`" in forms
 
 
 def test_every_host_bundle_carries_autonomous_reference_and_routing() -> None:

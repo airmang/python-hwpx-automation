@@ -2,15 +2,18 @@
 
 `hwpx-plugins`에서 반복적으로 참조하는 `python-hwpx` API만 추렸다. 스킬 본문은 워크플로 중심이고, 이 문서는 시그니처와 사용 포인트를 빠르게 확인하는 용도다.
 
-| python-hwpx 버전 | 상태 | 비고 |
-|---|---|---|
-| 2.11.1+ | ✅ 필수 기준 | editor-open safety guard + 트랜잭션 편집·렌더 프리뷰·서식 편집·누름틀·공문서 lint 등 현행 도구 표면 |
-| 2.10.3 | ⚠️ open-safety만 | editor-open safety guard는 있으나 2.11.1 신규 편집·검증 표면 없음 |
-| 2.10.0–2.10.2 | ⚠️ 읽기/일부 편집만 | 일부 생성·저장 경로에 최신 open-safety hard gate가 없을 수 있음 |
-| 2.9.x 이하 | ❌ handoff 금지 | 생성한 HWPX가 편집기에서 열리는지 보장할 수 없으므로 최종 산출물 작성에 사용하지 않음 |
+버전 숫자는 세 가지 뜻을 구분한다. 값의 machine-readable 정본은
+`packaging/product-identity.json`이다.
 
-- import 이름: `hwpx`
-- 로컬 실측 버전: `python-hwpx 2.11.1 + editor-open safety guard`
+| 용어 | 의미 | 현재 값 |
+|---|---|---|
+| 릴리스 후보 | 아직 공개되지 않은 S-079 후보 구성요소 버전 | `python-hwpx 3.1.0` · `hwpx-mcp-server 4.0.0` · `hwpx-plugin 0.3.0` |
+| 최소 호환 버전 | 이 후보 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.1.0` · MCP `>=4.0.0` · skill `>=0.3.0` |
+| 플러그인 설치 핀 | 후보 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.1.0` · `hwpx-mcp-server==4.0.0` |
+
+- import 이름은 `hwpx`다.
+- 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
+  아직 선언하지 않았다. 릴리스 후보나 호환성 숫자를 성숙도 주장으로 바꾸지 않는다.
 - 최종 산출물을 만들 때는 `validate_editor_open_safety(path).ok == True` 또는 MCP 응답의 `openSafety.ok == true` / `verification.openSafety.ok == true`를 handoff evidence로 남긴다.
 
 ## 목차
@@ -33,7 +36,8 @@
 pip install -U python-hwpx lxml
 ```
 
-최종 HWPX 산출물 작성에는 `python-hwpx >= 2.11.1`이 필요하다. 더 낮은 버전은 읽기/탐색에는 쓸 수 있어도 handoff용 파일 생성에는 사용하지 않는다.
+이 스킬의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 3.1.0`이 필요하다.
+더 낮은 버전은 현재 계약 밖이므로 handoff용 파일 생성에 사용하지 않는다.
 
 ```python
 from hwpx import HwpxDocument, HwpxPackage, ObjectFinder, TextExtractor
@@ -81,7 +85,7 @@ table.set_cell_text(1, 1, "홍길동")
 doc.save_to_path("table-example.hwpx")
 ```
 
-실측 시그니처(2.8):
+현재 후보 문서화 기준(3.1.0) 시그니처:
 
 - `add_table(rows, cols, *, section=None, section_index=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style_id_ref=None, char_pr_id_ref=None, run_attributes=None, **extra_attrs) -> HwpxOxmlTable`
 - `set_cell_text(row_index, col_index, text, *, logical=False, split_merged=False) -> None`
@@ -106,7 +110,7 @@ memo, anchor_paragraph, field_value = doc.add_memo_with_anchor(
 )
 ```
 
-실측 시그니처(2.8):
+현재 후보 문서화 기준(3.1.0) 시그니처:
 
 - `add_memo_with_anchor(text="", *, paragraph=None, section=None, section_index=None, paragraph_text=None, memo_shape_id_ref=None, memo_id=None, char_pr_id_ref=None, attributes=None, field_id=None, author=None, created=None, number=1, anchor_char_pr_id_ref=None) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]`
 
@@ -127,7 +131,7 @@ with HwpxDocument.open("input.hwpx") as doc:
     doc.save_to_path("output.hwpx")
 ```
 
-실측 시그니처(2.8):
+현재 후보 문서화 기준(3.1.0) 시그니처:
 
 - `find_runs_by_style(*, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None) -> list[HwpxOxmlRun]`
 - `replace_text_in_runs(search, replacement, *, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None, limit=None) -> int`
@@ -161,7 +165,7 @@ with HwpxDocument.open("input.hwpx") as doc:
 쪽번호가 필요한 머리글/바닥글은 `hwpx.builder` 또는 아래 facade 메서드를 사용한다.
 자동화 경로에서는 적용 후 결과 파일을 다시 열어 확인하는 방식으로 쓴다.
 
-2.11.1 facade 확장:
+현재 facade:
 
 - `set_header_content(content, *, section_index=0) -> None`
 - `set_footer_content(content, *, section_index=0) -> None`
@@ -427,7 +431,7 @@ text = tex.extract_text(
 )
 ```
 
-실측 시그니처(2.8):
+현재 후보 문서화 기준(3.1.0) 시그니처:
 
 - `extract_text(*, paragraph_separator="\n", skip_empty=True, include_nested=True, object_behavior="skip", object_placeholder=None, preserve_breaks=True, annotations=None) -> str`
 
@@ -441,7 +445,7 @@ for paragraph in tex.iter_document_paragraphs(include_nested=True):
     print(paragraph.section.index, paragraph.index, paragraph.path, paragraph.text())
 ```
 
-실측 시그니처(2.8):
+현재 후보 문서화 기준(3.1.0) 시그니처:
 
 - `iter_document_paragraphs(*, include_nested=True) -> Iterator[ParagraphInfo]`
 
@@ -466,7 +470,7 @@ texts = finder.find_all(tag="t", limit=20)
 first_table = finder.find_first(tag="tbl")
 ```
 
-실측 시그니처(2.8):
+현재 후보 문서화 기준(3.1.0) 시그니처:
 
 - `find_all(*, tag=None, attrs=None, xpath=None, section_filter=None, limit=None) -> list[FoundElement]`
 - `find_first(*, tag=None, attrs=None, xpath=None, section_filter=None) -> FoundElement | None`
@@ -572,7 +576,7 @@ MCP 응답에서 확인할 필드:
 
 ## MCP 편집·서식·생성 도구 시그니처
 
-`hwpx-mcp-server` 2.5.0의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약.
+S-079 릴리스 후보 `hwpx-mcp-server 4.0.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
 사용 절차는 `workflows-editing.md` / `workflows-bulk-compare.md`를 본다. 모든 쓰기
 도구의 응답에는 `openSafety`, `verificationReport`, `document_revision`이 들어가고,
 `dry_run`/`expected_revision`을 지원한다(별도 표기 없으면 공통).
@@ -854,7 +858,7 @@ The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
 3. an immutable plugin-local runtime fingerprinted by the exact
-   `hwpx-mcp-server==3.0.0`, `python-hwpx[visual]==3.0.0`, skill, Python ABI,
+   `hwpx-mcp-server==4.0.0`, `python-hwpx[visual]==3.1.0`, skill, Python ABI,
    and platform values
 4. an exact-version `uvx` fallback when `uv` is unavailable
 

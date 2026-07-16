@@ -52,7 +52,22 @@ def skill_dir_for(host: dict) -> Path:
     return out if host["skillSubdir"] == "." else out / host["skillSubdir"]
 
 
-def build_host(host: dict, config: dict) -> None:
+def load_identity(config: dict) -> dict:
+    identity_path = PACKAGING / config["identityFile"]
+    if not identity_path.is_file():
+        raise SystemExit(f"missing product identity: {identity_path}")
+    return json.loads(identity_path.read_text(encoding="utf-8"))
+
+
+def host_frontmatter(host: dict, identity: dict) -> str:
+    extra = host.get("frontmatterExtra", "").strip()
+    if host.get("includeVersionFrontmatter"):
+        version = identity["components"]["plugin"]["currentVersion"]
+        extra = f"version: {version}" + (f"\n{extra}" if extra else "")
+    return extra
+
+
+def build_host(host: dict, config: dict, identity: dict) -> None:
     out = ROOT / host["outputDir"]
     if out.exists():
         shutil.rmtree(out)
@@ -63,7 +78,10 @@ def build_host(host: dict, config: dict) -> None:
     canonical = ROOT / config["canonicalSkill"]
     skill_md = skill_dir / "SKILL.md"
     skill_md.write_text(
-        render_skill_md(canonical.read_text(encoding="utf-8"), host.get("frontmatterExtra", "")),
+        render_skill_md(
+            canonical.read_text(encoding="utf-8"),
+            host_frontmatter(host, identity),
+        ),
         encoding="utf-8",
     )
     records.append(record(config["canonicalSkill"], canonical, skill_md, transformed=True))
@@ -119,7 +137,7 @@ def build_host(host: dict, config: dict) -> None:
         json.dumps(
             {
                 "schemaVersion": "hwpx.plugin-sync.v2",
-                "plugin": config["pluginName"],
+                "plugin": identity["components"]["plugin"]["installedPluginId"],
                 "host": host["id"],
                 "files": records,
             },
@@ -141,8 +159,9 @@ def build_repo_root_artifacts(config: dict) -> None:
 
 def main() -> int:
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
+    identity = load_identity(config)
     for host in config["hosts"]:
-        build_host(host, config)
+        build_host(host, config, identity)
     build_repo_root_artifacts(config)
     print(f"[OK] built {len(config['hosts'])} host bundles")
     return 0

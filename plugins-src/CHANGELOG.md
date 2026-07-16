@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-16
+
+### Removed
+- Removes the four repository-QA fixture tools from the public skill routing and generated host bundles:
+  `visual_review_fixture`, `visual_repair_fixture`, `run_fixture_benchmark`, and
+  `export_fixture_benchmark`. Their synthetic fixtures and runners remain repository-internal regression assets.
+
+### Changed
+- Routes ordinary and mixed-anchor forms through one typed `analyze_form_fill` → `apply_form_fill` →
+  `verify_form_fill` transaction, while keeping exam and evalplan requests on their explicit specialized paths.
+- Adds a machine-readable first-party product identity for candidate/minimum/pinned versions and maturity vocabulary,
+  and advances the unpublished candidate triplet to core `3.1.0`, MCP `4.0.0`, and plugin `0.3.0`.
+- Renames task-eval output as deterministic direct-call replay and explicitly excludes live-agent routing,
+  recovery, and unnecessary-call claims.
+
+### Fixed
+- Bundles the previously missing TOC reference, changelog, and product identity in every host artifact and validates
+  safe, existing relative Markdown links so broken or traversal links fail closed.
+- Refreshes the API reference from obsolete 2.x baseline language to the S-079 `3.1.0 / 4.0.0 / 0.3.0`
+  release-candidate stack without claiming publication.
+
 ## [0.2.0] - 2026-07-16
 
 ### Removed

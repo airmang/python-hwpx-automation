@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "hwpx.demo.mixed-form-source/v1",
+  "dataPolicy": {
+    "containsRealPersonalData": false,
+    "containsTestMaterial": false,
+    "synthetic": true
+  },
+  "document": {
+    "pageIntent": 1,
+    "title": {
+      "paragraphId": "240010",
+      "text": "S-079 혼합 양식 기준 문서"
+    }
+  },
+  "nativeField": {
+    "controlId": "ctrl-240021",
+    "fieldId": "240021",
+    "label": "사업명: ",
+    "name": "사업명",
+    "paragraphId": "240020",
+    "placeholder": "여기를 누르세요",
+    "type": "ClickHere"
+  },
+  "table": {
+    "anchor": "담당 부서",
+    "cellParagraphIds": [
+      [
+        "240032",
+        "240033"
+      ],
+      [
+        "240034",
+        "240035"
+      ]
+    ],
+    "columnCount": 2,
+    "paragraphId": "240030",
+    "rowCount": 2,
+    "rows": [
+      [
+        "사업명",
+        ""
+      ],
+      [
+        "담당 부서",
+        ""
+      ]
+    ],
+    "tableId": "240031"
+  },
+  "bodyAnchor": {
+    "paragraphId": "240040",
+    "text": "담당자: {{담당자}}"
+  },
+  "canonicalTarget": {
+    "paragraphId": "240050",
+    "text": "행사 목적: 여기를 입력하세요"
+  }
+}

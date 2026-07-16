@@ -20,24 +20,20 @@ def _module():
     return module
 
 
-def test_fixture_skill_routes_and_preserves_honest_boundary() -> None:
+def test_fixture_qa_remains_repository_internal_and_preserves_honest_boundary() -> None:
     skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
     reference = (ROOT / "references" / "workflows-visual-fixture-qa.md").read_text(
         encoding="utf-8"
     )
-    evidence = (ROOT / "references" / "evidence-contract.md").read_text(encoding="utf-8")
-
-    assert "`visual_review_fixture`" in skill
-    assert "`visual_repair_fixture`" in skill
-    assert "references/workflows-visual-fixture-qa.md" in skill
+    assert "`visual_review_fixture`" not in skill
+    assert "`visual_repair_fixture`" not in skill
+    assert "references/workflows-visual-fixture-qa.md" not in skill
     assert "renderChecked=false" in reference
     assert "real_hancom_verified=false" in reference
     assert "최대 3회" in reference
     assert "repair_plan_path" in reference
     assert "append-only" in reference
     assert "primitive 편집 도구로 우회하지 않는다" in reference
-    assert "renderChecked == false" in evidence
-    assert "real_hancom_verified == false" in evidence
 
 
 def test_installed_fixture_harness_checks_three_categories_and_ledger_signals() -> None:
@@ -93,9 +89,7 @@ def test_fixture_harness_help_does_not_require_mcp_runtime() -> None:
     assert "--expected-category" in result.stdout
 
 
-def test_every_host_bundle_carries_fixture_visual_qa_assets() -> None:
-    canonical_reference = (ROOT / "references" / "workflows-visual-fixture-qa.md").read_bytes()
-    canonical_script = SCRIPT.read_bytes()
+def test_every_host_bundle_excludes_repository_internal_fixture_qa_assets() -> None:
     bundles = sorted((ROOT / "plugins").glob("*/hwpx*"))
     assert len(bundles) == 4
 
@@ -103,5 +97,8 @@ def test_every_host_bundle_carries_fixture_visual_qa_assets() -> None:
         skill_root = bundle / "skills" / "hwpx"
         if not skill_root.exists():
             skill_root = bundle
-        assert (skill_root / "references" / "workflows-visual-fixture-qa.md").read_bytes() == canonical_reference
-        assert (skill_root / "scripts" / "plugin_fixture_qa_e2e.py").read_bytes() == canonical_script
+        assert not (skill_root / "references" / "workflows-visual-fixture-qa.md").exists()
+        assert not (skill_root / "scripts" / "plugin_fixture_qa_e2e.py").exists()
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        assert "visual_review_fixture" not in skill
+        assert "visual_repair_fixture" not in skill

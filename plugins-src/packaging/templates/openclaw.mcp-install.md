@@ -3,19 +3,19 @@
 OpenClaw plugins do not bundle MCP servers in `openclaw.plugin.json`; the HWPX MCP
 server is registered through your OpenClaw MCP configuration.
 
-## Published package (recommended)
+## Pinned release package
 
-Add an MCP server entry that runs the pinned package with `uvx`:
+After this candidate is published, add an MCP server entry that runs the pinned package with `uvx`:
 
 ```json
 {
   "hwpx-mcp-server": {
     "command": "uvx",
-    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.0.0", "--from", "hwpx-mcp-server==3.0.0", "hwpx-mcp-server"],
+    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.1.0", "--from", "hwpx-mcp-server==4.0.0", "hwpx-mcp-server"],
     "env": {
       "HWPX_MCP_ADVANCED": "0",
       "HWPX_MCP_AUTOBACKUP": "1",
-      "HWPX_SKILL_VERSION": "0.2.0",
+      "HWPX_SKILL_VERSION": "0.3.0",
       "HWPX_MCP_WORKSPACE_ROOTS": "[\"/absolute/path/to/workspace\"]"
     }
   }

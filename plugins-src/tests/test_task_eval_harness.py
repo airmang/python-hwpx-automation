@@ -62,7 +62,7 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     report = task_eval_harness.run(
         ROOT / "examples" / "eval_tasks" / "tasks.json",
         [
-            ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.9.json",
+            ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.3.0.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
         ],
@@ -72,7 +72,7 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     )
 
     current, previous, baseline = report["profiles"]
-    assert current["profileId"] == "current-0.1.9"
+    assert current["profileId"] == "current-0.3.0"
     assert current["passed"] == report["taskCount"]
     assert previous["profileId"] == "current-0.1.6"
     assert previous["failed"] > 0
@@ -84,6 +84,13 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
         "skill_guidance_gap",
     } <= set(baseline["failuresByClassification"])
     assert report["guidanceVerification"]["mode"] == "bundle-body"
+    assert report["schemaVersion"] == "hwpx.deterministic-task-replay-report.v1"
+    assert report["evaluationKind"] == "deterministic-direct-tool-replay"
+    assert report["instructionSelectionUsed"] is False
+    assert report["liveAgentEvidence"] is False
+    assert report["routingMeasured"] is False
+    assert report["recoveryMeasured"] is False
+    assert report["unnecessaryCallsMeasured"] is False
     assert report["comparison"]["scoreDelta"] > 0
     assert any(
         entry["profileId"] == "current-0.1.6" and entry["passedDelta"] > 0
@@ -91,6 +98,26 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     )
     assert (tmp_path / "report.json").exists()
     assert (tmp_path / "report.md").exists()
+    markdown = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert "Deterministic Direct-Call Replay" in markdown
+    assert "not live-agent" in markdown
+
+
+def test_current_profile_resolves_default_tools_from_generated_contract() -> None:
+    profile = task_eval_harness.Profile.from_path(
+        ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.3.0.json"
+    )
+    contract = json.loads(
+        (ROOT / "references" / "tool-contract.generated.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    expected = {
+        tool["name"] for tool in contract["tools"] if tool["profile"] == "default"
+    }
+
+    assert profile.available_tools == expected
+    assert profile.plugin_version == "0.3.0"
 
 
 def test_preflight_fails_when_bundle_body_lacks_guidance_keywords() -> None:
@@ -168,3 +195,20 @@ def test_repo_skill_bundle_documents_all_replayed_tools() -> None:
             if not task_eval_harness._bundle_mentions(bundle_text, tool):
                 undocumented.add(tool)
     assert not undocumented, f"skill bundle does not document: {sorted(undocumented)}"
+
+
+def test_authored_guidance_loader_excludes_generated_contract_inventory(tmp_path: Path) -> None:
+    (tmp_path / "references").mkdir()
+    (tmp_path / "SKILL.md").write_text("authored-route\n", encoding="utf-8")
+    (tmp_path / "references" / "workflow.md").write_text(
+        "authored-tool\n", encoding="utf-8"
+    )
+    (tmp_path / "references" / "tool-contract.generated.md").write_text(
+        "inventory-only-tool\n", encoding="utf-8"
+    )
+
+    body = task_eval_harness._load_skill_bundle_text(tmp_path)
+
+    assert "authored-route" in body
+    assert "authored-tool" in body
+    assert "inventory-only-tool" not in body

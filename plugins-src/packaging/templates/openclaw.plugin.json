@@ -1,8 +1,8 @@
 {
   "id": "hwpx-plugin",
   "name": "HWPX Plugin",
-  "description": "AI 에이전트가 HWPX(한글) 문서를 읽고·양식 채우고·새로 만들고·점검/복구하게 해주는 스킬. 순수 Python·한컴 불필요.",
-  "version": "0.2.0",
+  "description": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬. 편집은 순수 Python이며 최종 시각 검증은 필요 시 한컴 오라클을 사용합니다.",
+  "version": "0.3.0",
   "skills": ["./skills"],
   "configSchema": { "type": "object", "additionalProperties": false, "properties": {} }
 }

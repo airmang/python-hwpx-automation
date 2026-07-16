@@ -1,12 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _validator_module():
+    script = ROOT / "scripts" / "validate_hwpx_plugin.py"
+    spec = importlib.util.spec_from_file_location("validate_hwpx_plugin", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _identity() -> dict:
+    return json.loads(
+        (ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8")
+    )
 
 
 def test_generated_plugin_bundles_validate() -> None:
@@ -19,6 +38,48 @@ def test_generated_plugin_bundles_validate() -> None:
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_markdown_link_validator_accepts_only_safe_existing_relative_targets(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "target.md").write_text("# target\n", encoding="utf-8")
+    markdown = docs / "index.md"
+    markdown.write_text(
+        "[local](target.md#section) [external](https://example.com/docs) [anchor](#here)\n",
+        encoding="utf-8",
+    )
+
+    validator.validate_markdown_links([markdown], tmp_path, "test")
+
+    unsafe_targets = (
+        "missing.md",
+        "../outside.md",
+        "/absolute.md",
+        "//example.com/path",
+        "file:///tmp/secret",
+        "javascript:alert(1)",
+        "%2e%2e/outside.md",
+    )
+    for target in unsafe_targets:
+        markdown.write_text(f"[unsafe]({target})\n", encoding="utf-8")
+        with pytest.raises(SystemExit):
+            validator.validate_markdown_links([markdown], tmp_path, "test")
+
+
+def test_packaging_carries_identity_changelog_and_toc_but_not_qa_fixture_routes() -> None:
+    config = json.loads((ROOT / "packaging" / "hosts.json").read_text(encoding="utf-8"))
+    assets = set(config["sharedAssets"])
+
+    assert "packaging/product-identity.json" in assets
+    assert "CHANGELOG.md" in assets
+    assert "references/workflows-toc.md" in assets
+    assert "references/workflows-visual-fixture-qa.md" not in assets
+    assert "references/workflows-fixture-benchmark.md" not in assets
+    assert "scripts/plugin_fixture_qa_e2e.py" not in assets
 
 
 def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
@@ -36,20 +97,23 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
 
 
 def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> None:
-    import json
-
+    components = _identity()["components"]
     config = json.loads(
         (ROOT / "plugins/codex/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
     )["mcpServers"]["hwpx-mcp-server"]
     assert config["command"] == "uvx"
     assert "cwd" not in config
-    assert "hwpx-mcp-server==3.0.0" in config["args"]
-    assert "python-hwpx[visual]==3.0.0" in config["args"]
+    assert (
+        f"{components['mcp']['distribution']}=={components['mcp']['currentVersion']}"
+        in config["args"]
+    )
+    assert (
+        f"{components['core']['distribution']}[visual]=={components['core']['currentVersion']}"
+        in config["args"]
+    )
 
 
 def test_claude_mcp_command_preserves_project_cwd() -> None:
-    import json
-
     config = json.loads(
         (ROOT / "plugins/claude/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
     )["mcpServers"]["hwpx-mcp-server"]
@@ -119,10 +183,13 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
 
     for reference in references:
         text = reference.read_text(encoding="utf-8")
-        assert "2.11.1+" in text
+        assert "`python-hwpx 3.1.0`" in text
+        assert "릴리스 후보" in text
+        assert "최소 호환 버전" in text
+        assert "플러그인 설치 핀" in text
         assert "validate_editor_open_safety(path).ok == True" in text
-        assert "2.9.1+ | ✅ 권장" not in text
-        assert "2.6–2.9.0 | ✅ 기본 편집 호환" not in text
+        assert "2.11.1" not in text
+        assert "2.5.0" not in text
 
 
 def test_task_eval_harness_assets_are_bundled() -> None:
@@ -141,7 +208,7 @@ def test_task_eval_harness_assets_are_bundled() -> None:
             / "examples"
             / "eval_tasks"
             / "profiles"
-            / "current-0.1.9.json"
+            / "current-0.3.0.json"
         ).exists()
         assert (
             skill_root
@@ -150,3 +217,36 @@ def test_task_eval_harness_assets_are_bundled() -> None:
             / "profiles"
             / "current-0.1.6.json"
         ).exists()
+
+
+def test_generated_bundles_carry_toc_changelog_identity_and_exclude_internal_qa() -> None:
+    bundles = sorted((ROOT / "plugins").glob("*/hwpx*"))
+    assert len(bundles) == 4
+    for bundle in bundles:
+        skill_root = bundle / "skills" / "hwpx"
+        if not skill_root.exists():
+            skill_root = bundle
+        assert (skill_root / "references" / "workflows-toc.md").is_file()
+        assert (skill_root / "CHANGELOG.md").is_file()
+        assert (skill_root / "packaging" / "product-identity.json").is_file()
+        assert not (skill_root / "references" / "workflows-visual-fixture-qa.md").exists()
+        assert not (skill_root / "references" / "workflows-fixture-benchmark.md").exists()
+        assert not (skill_root / "scripts" / "plugin_fixture_qa_e2e.py").exists()
+
+
+def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
+    identity = _identity()
+    components = identity["components"]
+    hosts = json.loads((ROOT / "packaging" / "hosts.json").read_text(encoding="utf-8"))
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert identity["schemaVersion"] == "hwpx.product-identity.v1"
+    assert identity["releaseState"] == "candidate"
+    assert hosts["identityFile"] == "product-identity.json"
+    assert "pluginName" not in hosts and "skillName" not in hosts
+    assert identity["firstPartyLabelKo"] in readme
+    assert components["core"]["maturity"] == "alpha"
+    assert components["mcp"]["maturity"] == "not-declared"
+    assert components["plugin"]["maturity"] == "not-declared"
+    for host in hosts["hosts"]:
+        assert "version:" not in host.get("frontmatterExtra", "")

@@ -1,0 +1,275 @@
+{
+  "artifacts": {
+    "output": {
+      "bytes": 8328,
+      "path": "expected.hwpx",
+      "sha256": "sha256:b43754cf16f0fabdc3ec2c751d50eefa585d91db3bdfca3d2f66a641b5ed9b4e"
+    },
+    "plan": {
+      "bytes": 1425,
+      "path": "expected-plan.json",
+      "sha256": "sha256:3d9eef85c13fa9b7b86ebe8dafe325e34537bab2dec32bd58ff7eee9347f506f"
+    },
+    "source": {
+      "bytes": 8295,
+      "path": "source.hwpx",
+      "sha256": "sha256:5e81a9bcea08a9932ccc712d5bf2accbc9c64ebc5cc48c78b5d4154af1ab4e0b"
+    },
+    "sourceSpec": {
+      "bytes": 1155,
+      "path": "source-spec.json",
+      "sha256": "sha256:d1553510036e3df46428b1139a7fdf9d629983bc70f1c80e537426f66fae6359"
+    }
+  },
+  "checks": {
+    "dryRun": {
+      "destinationWritten": false,
+      "ok": true
+    },
+    "idempotentReplay": {
+      "ok": true,
+      "outputUnchanged": true,
+      "replayed": true
+    },
+    "injectedFailure": {
+      "destinationPreserved": true,
+      "errorCode": "verification_failed",
+      "ok": true,
+      "rolledBack": true
+    },
+    "opcMemberIdentity": {
+      "addedMembers": [],
+      "changedMembers": [
+        "Contents/section0.xml"
+      ],
+      "memberCount": 11,
+      "members": [
+        {
+          "identical": true,
+          "name": "Contents/content.hpf",
+          "outputSha256": "sha256:b391203180c6c9f08593be77f47a99be4108b1c003a941e35f50c7a9eee07c08",
+          "sourceSha256": "sha256:b391203180c6c9f08593be77f47a99be4108b1c003a941e35f50c7a9eee07c08"
+        },
+        {
+          "identical": true,
+          "name": "Contents/header.xml",
+          "outputSha256": "sha256:98e556aa6c94fa5b56899e712fcd1b88920191cb52158ef9ba2f346f1f5f5ac3",
+          "sourceSha256": "sha256:98e556aa6c94fa5b56899e712fcd1b88920191cb52158ef9ba2f346f1f5f5ac3"
+        },
+        {
+          "identical": false,
+          "name": "Contents/section0.xml",
+          "outputSha256": "sha256:182f0a01505615a3f0b6a6849b4c6a46ab84fc0335d45cb7e047271adc24e4e7",
+          "sourceSha256": "sha256:0e12a4d1288a37070c683afd6334ddb4201ff0b94a337e59d11725b0f6ecf313"
+        },
+        {
+          "identical": true,
+          "name": "META-INF/container.rdf",
+          "outputSha256": "sha256:0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89",
+          "sourceSha256": "sha256:0cfd814c20595c841e48e62fbf7591829f13c177fa92af634c8199f85ecf3a89"
+        },
+        {
+          "identical": true,
+          "name": "META-INF/container.xml",
+          "outputSha256": "sha256:5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61",
+          "sourceSha256": "sha256:5109d3a9249ec1058177fedab574c5d9616058aa92ebefcd33249ebb36a20f61"
+        },
+        {
+          "identical": true,
+          "name": "META-INF/manifest.xml",
+          "outputSha256": "sha256:2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea",
+          "sourceSha256": "sha256:2b4b155c1bb6a9ccc212fef113c4831d2f558e67cf1260eb314ce54f26fd32ea"
+        },
+        {
+          "identical": true,
+          "name": "Preview/PrvImage.png",
+          "outputSha256": "sha256:199421054da7920d8bf8974afad536a799efdb85bc64b33aaaaed35223b90efd",
+          "sourceSha256": "sha256:199421054da7920d8bf8974afad536a799efdb85bc64b33aaaaed35223b90efd"
+        },
+        {
+          "identical": true,
+          "name": "Preview/PrvText.txt",
+          "outputSha256": "sha256:7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+          "sourceSha256": "sha256:7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+        },
+        {
+          "identical": true,
+          "name": "mimetype",
+          "outputSha256": "sha256:5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2",
+          "sourceSha256": "sha256:5ab5230b5af04f78947736bf8dd1a269aa684e234f7f4a392efb85289d1655c2"
+        },
+        {
+          "identical": true,
+          "name": "settings.xml",
+          "outputSha256": "sha256:dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f",
+          "sourceSha256": "sha256:dcc4abfcc61852badcfc866339ec626cf4ffbdf77f0553cb708be58a05d6713f"
+        },
+        {
+          "identical": true,
+          "name": "version.xml",
+          "outputSha256": "sha256:0ea2a56a3a92e4c96f9fc90133c8b462e9ea30881380d986662f144cb78f3606",
+          "sourceSha256": "sha256:0ea2a56a3a92e4c96f9fc90133c8b462e9ea30881380d986662f144cb78f3606"
+        }
+      ],
+      "ok": true,
+      "removedMembers": [],
+      "unchangedMemberCount": 10,
+      "unchangedMembers": [
+        "Contents/content.hpf",
+        "Contents/header.xml",
+        "META-INF/container.rdf",
+        "META-INF/container.xml",
+        "META-INF/manifest.xml",
+        "Preview/PrvImage.png",
+        "Preview/PrvText.txt",
+        "mimetype",
+        "settings.xml",
+        "version.xml"
+      ]
+    },
+    "openSafety": {
+      "ok": true,
+      "output": {
+        "ok": true,
+        "reopen": {
+          "error": null,
+          "ok": true
+        },
+        "summary": "editor-open safety verification passed",
+        "validateDocument": {
+          "errors": [],
+          "ok": true,
+          "warnings": []
+        },
+        "validatePackage": {
+          "blockingErrors": [],
+          "errors": [],
+          "ok": true,
+          "warnings": [
+            "Contents/content.hpf: manifest does not reference a version part; engine will fall back to 'version.xml'"
+          ]
+        }
+      },
+      "source": {
+        "ok": true,
+        "reopen": {
+          "error": null,
+          "ok": true
+        },
+        "summary": "editor-open safety verification passed",
+        "validateDocument": {
+          "errors": [],
+          "ok": true,
+          "warnings": []
+        },
+        "validatePackage": {
+          "blockingErrors": [],
+          "errors": [],
+          "ok": true,
+          "warnings": [
+            "Contents/content.hpf: manifest does not reference a version part; engine will fall back to 'version.xml'"
+          ]
+        }
+      }
+    },
+    "reopen": {
+      "observed": {
+        "bodyAnchorParagraph": "담당자: 김서현",
+        "canonicalParagraph": "행사 목적: 교내 AI 활용 사례 공유",
+        "labelCell": "교육연구부",
+        "nativeField": "AI 수업 나눔의 날"
+      },
+      "ok": true
+    },
+    "sourceOutputSeparation": {
+      "ok": true,
+      "output": "expected.hwpx",
+      "source": "source.hwpx",
+      "sourceUnchanged": true
+    }
+  },
+  "contract": {
+    "compiledPlanHash": "sha256:be92b3feecbb09fa3db663433830c259de724e2c7673b2b09485f98faa594f36",
+    "compiledRequestHash": "sha256:158fc42b1308f651fea8d1be1448bfd70a45983375c880294365b31a2c70c57a",
+    "inputRevision": "sha256:5e81a9bcea08a9932ccc712d5bf2accbc9c64ebc5cc48c78b5d4154af1ab4e0b",
+    "operationCount": 4,
+    "publicPlanSchema": "hwpx.mixed-form-plan/v1",
+    "resolutions": [
+      {
+        "locatorKind": "nativeField",
+        "logicalColumn": null,
+        "logicalRow": null,
+        "nodeKind": "form-field",
+        "operationId": "native-project-name",
+        "path": "/section[1]/paragraph[@id=\"240020\"]/form-field[@id=\"240021\"]",
+        "physicalColumn": null,
+        "physicalRow": null,
+        "section": null,
+        "stability": "native",
+        "tableIndex": null
+      },
+      {
+        "locatorKind": "labelCell",
+        "logicalColumn": 1,
+        "logicalRow": 1,
+        "nodeKind": "cell",
+        "operationId": "label-department",
+        "path": "/section[1]/paragraph[@id=\"240030\"]/table[@id=\"240031\"]/row[2]/cell[2]",
+        "physicalColumn": 1,
+        "physicalRow": 1,
+        "section": 1,
+        "stability": "positional",
+        "tableIndex": 0
+      },
+      {
+        "locatorKind": "canonicalPath",
+        "logicalColumn": null,
+        "logicalRow": null,
+        "nodeKind": "paragraph",
+        "operationId": "canonical-purpose",
+        "path": "/section[1]/paragraph[@id=\"240050\"]",
+        "physicalColumn": null,
+        "physicalRow": null,
+        "section": null,
+        "stability": "native",
+        "tableIndex": null
+      },
+      {
+        "locatorKind": "bodyAnchor",
+        "logicalColumn": null,
+        "logicalRow": null,
+        "nodeKind": "run",
+        "operationId": "body-owner",
+        "path": "/section[1]/paragraph[@id=\"240040\"]/run[1]",
+        "physicalColumn": null,
+        "physicalRow": null,
+        "section": 1,
+        "stability": "positional",
+        "tableIndex": null
+      }
+    ],
+    "singleAgentBatch": true,
+    "targetKinds": [
+      "nativeField",
+      "labelCell",
+      "canonicalPath",
+      "bodyAnchor"
+    ]
+  },
+  "dataPolicy": {
+    "containsRealPersonalData": false,
+    "containsTestMaterial": false,
+    "synthetic": true,
+    "syntheticNameNotice": "김서현은 기준 문서용 가상 이름입니다."
+  },
+  "fixture": "024-mixed-form",
+  "layout": {
+    "pageIntent": 1,
+    "realHancom": {
+      "performed": false,
+      "status": "pending-root-p5"
+    }
+  },
+  "schemaVersion": "hwpx.demo.mixed-form-receipt/v1",
+  "status": "passed"
+}

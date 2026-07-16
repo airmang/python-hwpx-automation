@@ -1,10 +1,10 @@
 <p align="center">
   <h1 align="center">📄 hwpx-plugins</h1>
   <p align="center">
-    <strong>AI 에이전트가 HWPX 문서를 바로 읽고, 채우고, 만들고, 점검하게 해주는 공식 온보딩 스킬</strong>
+    <strong>python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬</strong>
   </p>
   <p align="center">
-    순수 Python · 한컴오피스 불필요 · 크로스 플랫폼
+    문서 편집은 순수 Python으로 수행하며, 최종 시각 검증은 필요할 때 한컴 오라클을 사용합니다.
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?style=flat-square&color=blue" alt="PyPI"></a>
@@ -22,13 +22,17 @@
 |---|---|---|
 | 📦 라이브러리 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | 순수 파이썬 HWPX 파싱·편집·생성 코어 |
 | 🔌 MCP 서버 | [`hwpx-mcp-server`](https://github.com/airmang/hwpx-mcp-server) | MCP 클라이언트(Claude Desktop, VS Code 등)에서 HWPX 조작 |
-| 🎯 에이전트 스킬 | **[`hwpx-plugins`](https://github.com/airmang/hwpx-plugins)** | 에이전트가 HWPX를 바로 쓰게 해주는 공식 온보딩 스킬 |
+| 🎯 에이전트 스킬 | **[`hwpx-plugins`](https://github.com/airmang/hwpx-plugins)** | 프로젝트가 직접 유지보수하는 first-party 에이전트 스킬·호스트 번들 |
 
 ---
 
 ## 왜 / 무엇을 하나
 
-`hwpx-plugins`은 `python-hwpx` 기반의 공식 에이전트 스킬이다. HWPX를 잘 모르는 사용자도 **스킬만 설치하면** 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다루게 하는 것이 목표다. 에이전트는 `SKILL.md`의 의사결정 트리를 따라 알맞은 스크립트나 MCP 도구를 스스로 호출한다.
+`hwpx-plugins`은 `python-hwpx` 프로젝트가 직접 유지보수하는 first-party 에이전트 스킬이다.
+여기서 first-party는 프로젝트 유지보수 관계를 뜻하며 한컴 또는 제3자의 공식 인증을 뜻하지 않는다.
+HWPX를 잘 모르는 사용자도 **스킬만 설치하면** 에이전트에게 자연어로 말하는 것만으로 한글 문서를
+다루게 하는 것이 목표다. 에이전트는 `SKILL.md`의 의사결정 트리를 따라 알맞은 스크립트나 MCP
+도구를 스스로 호출한다.
 
 - **읽기·추출** — `.hwpx` 텍스트, 표, 각주까지 추출 (JSON/Markdown)
 - **양식 채움** — 승인된 양식을 그대로 두고 바이트 보존으로 셀만 채운다
@@ -44,7 +48,17 @@
 python3 -m pip install -U python-hwpx lxml
 ```
 
-권장 기준: Python 3.10+ · `python-hwpx >= 3.0.0` · `hwpx-mcp-server >= 3.0.0` · 스킬 번들 `0.2.0`.
+### 버전·호환성·성숙도 어휘
+
+| 구분 | 의미 | 현재 값 |
+|---|---|---|
+| 릴리스 후보 | 아직 공개되지 않은 S-079 후보 구성요소 버전 | `python-hwpx 3.1.0` · `hwpx-mcp-server 4.0.0` · `hwpx-plugin 0.3.0` |
+| 최소 호환 버전 | 이 후보 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.1.0` · `hwpx-mcp-server >= 4.0.0` · skill `>= 0.3.0` |
+| 플러그인 설치 핀 | 후보 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.1.0` · `hwpx-mcp-server==4.0.0` |
+
+- 코어 성숙도: `Development Status :: 3 - Alpha`.
+- MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않는다.
+- Python 기준은 3.10 이상이다.
 
 설치 직후 첫 성공 경로를 한 번에 확인:
 
@@ -99,7 +113,8 @@ claude plugin marketplace add airmang/hwpx-plugins
 claude plugin install hwpx-plugin@hwpx
 ```
 
-수동 설치를 원하면 이 레포를 `hwpx-plugins` 폴더째 프로젝트 로컬 `.claude/skills/hwpx-plugins/` 또는 글로벌 `~/.claude/skills/hwpx-plugins/`에 복사한다.
+수동 설치를 원하면 canonical skill 파일을 프로젝트 로컬 `.claude/skills/hwpx/` 또는 글로벌
+`~/.claude/skills/hwpx/`에 둔다. 저장소 이름 `hwpx-plugins`와 설치 skill 이름 `hwpx`를 혼동하지 않는다.
 
 ### Codex CLI
 
@@ -108,11 +123,13 @@ codex plugin marketplace add airmang/hwpx-plugins
 codex plugin add hwpx-plugin@hwpx
 ```
 
-수동 경로는 `.agents/skills/hwpx-plugins/`.
+수동 경로는 `.agents/skills/hwpx/`다.
 
 ### Cursor
 
-이 레포를 `.cursor/skills/hwpx-plugins/`(또는 글로벌 `~/.cursor/skills/`)에 복사하고, `.cursor/rules/hwpx.mdc` 트리거 룰을 둔다. 스킬과 룰을 함께 두면 자연어 요청과 `**/*.hwpx` 확장자 둘 다로 트리거된다.
+이 레포의 canonical skill 파일을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.cursor/skills/hwpx/`)에
+복사하고, `.cursor/rules/hwpx.mdc` 트리거 룰을 둔다. 스킬과 룰을 함께 두면 자연어 요청과
+`**/*.hwpx` 확장자 둘 다로 트리거된다.
 
 ```md
 ---
@@ -121,7 +138,7 @@ globs:
   - "**/*.hwpx"
 alwaysApply: false
 ---
-한글 문서(.hwpx), 가정통신문, 공문, 한글 양식, OWPML, 플레이스홀더 치환, 문서 자동화 요청이면 `.cursor/skills/hwpx-plugins/`의 `SKILL.md`를 먼저 읽고 그 워크플로를 따른다.
+한글 문서(.hwpx), 가정통신문, 공문, 한글 양식, OWPML, 플레이스홀더 치환, 문서 자동화 요청이면 `.cursor/skills/hwpx/`의 `SKILL.md`를 먼저 읽고 그 워크플로를 따른다.
 ```
 
 ### OpenClaw · Hermes
@@ -133,7 +150,7 @@ alwaysApply: false
 | OpenClaw | `plugins/openclaw/hwpx-plugin` | `openclaw.plugin.json` + `INSTALL-mcp.md` |
 | Hermes Agent | `plugins/hermes/hwpx` | `hermes skills publish` + `INSTALL-mcp.md` |
 
-> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 `hwpx-mcp-server==3.0.0`과 `python-hwpx[visual]==3.0.0`을 fingerprinted runtime에 설치한다.
+> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 후보 좌표 `hwpx-mcp-server==4.0.0`과 `python-hwpx[visual]==3.1.0`을 fingerprinted runtime에 설치한다. 이 좌표는 별도 승인 전까지 공개 패키지 설치 가능성을 뜻하지 않는다.
 
 ## 직접 실행하기 (수동 검증·고급 사용)
 
@@ -155,6 +172,10 @@ python3 scripts/text_extract.py examples/out/01_created.hwpx
 `zip_replace_all.py`와 `fix_namespaces.py`는 임시 HWPX가 `validate_editor_open_safety()`를 통과한 경우에만 대상 파일을 교체한다. 검증 실패 시 기존 output은 보존된다.
 
 builder / document-plan / operating-plan / form-fit 경로는 각각 `examples/10_create_with_builder.py`, `06_create_from_document_plan.py`, `07_create_operating_plan.py`, `08_template_formfit.py`로 확인하며, 대응하는 `quickcheck.py --builder/--document-plan/--operating-plan/--template-formfit` 플래그로 게이트를 검증한다. 자세한 절차와 evidence 계약은 [references/](references/)에 있다.
+
+`scripts/task_eval_harness.py`는 자연어 instruction에서 도구를 선택하는 agent 평가가 아니라,
+미리 지정된 호출을 직접 실행하는 **deterministic direct-call replay**다. 이 결과는 회귀 신호일 뿐
+live-agent routing, recovery 또는 unnecessary-call 증거로 사용하지 않는다.
 
 ## 운영 메모
 

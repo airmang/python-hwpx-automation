@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "hwpx.product-identity.v1",
+  "stackName": "HWPX stack",
+  "releaseState": "candidate",
+  "firstPartyLabelKo": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬",
+  "visualVerificationNoteKo": "문서 편집은 순수 Python으로 수행하며, 최종 시각 검증은 필요할 때 한컴 오라클을 사용합니다.",
+  "components": {
+    "core": {
+      "repository": "python-hwpx",
+      "distribution": "python-hwpx",
+      "importName": "hwpx",
+      "currentVersion": "3.1.0",
+      "minimumCompatibleVersion": "3.1.0",
+      "maturity": "alpha",
+      "maturityEvidence": "Development Status :: 3 - Alpha"
+    },
+    "mcp": {
+      "repository": "hwpx-mcp-server",
+      "distribution": "hwpx-mcp-server",
+      "serverId": "hwpx-mcp-server",
+      "currentVersion": "4.0.0",
+      "minimumCompatibleVersion": "4.0.0",
+      "maturity": "not-declared"
+    },
+    "plugin": {
+      "repository": "hwpx-plugins",
+      "installedPluginId": "hwpx-plugin",
+      "installedSkillName": "hwpx",
+      "currentVersion": "0.3.0",
+      "minimumCompatibleVersion": "0.3.0",
+      "maturity": "not-declared"
+    }
+  },
+  "pluginPinPolicy": {
+    "core": "exact-current",
+    "mcp": "exact-current"
+  },
+  "forbiddenUnqualifiedClaimsKo": [
+    "공식 온보딩 스킬",
+    "공식 에이전트 스킬"
+  ]
+}
