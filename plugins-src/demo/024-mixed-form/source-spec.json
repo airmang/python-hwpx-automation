@@ -13,13 +13,13 @@
     }
   },
   "nativeField": {
-    "controlId": "ctrl-240021",
+    "controlId": "240022",
     "fieldId": "240021",
     "label": "사업명: ",
     "name": "사업명",
     "paragraphId": "240020",
     "placeholder": "여기를 누르세요",
-    "type": "ClickHere"
+    "type": "CLICK_HERE"
   },
   "table": {
     "anchor": "담당 부서",

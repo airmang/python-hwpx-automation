@@ -173,32 +173,45 @@ def _append(parent: Any, tag: str, attrs: dict[str, str] | None = None) -> Any:
     return child
 
 
+def _native_field_command(direction: str) -> str:
+    payload = (
+        f"Direction:wstring:{len(direction)}:{direction} "
+        "HelpState:wstring:0:  "
+    )
+    return f"Clickhere:set:{len(payload) - 1}:{payload}"
+
+
 def _add_native_field(document: HwpxDocument, spec: Mapping[str, Any]) -> None:
     paragraph = document.add_paragraph(str(spec["label"]))
     paragraph.element.set("id", str(spec["paragraphId"]))
     begin_run = _append(paragraph.element, f"{HP}run", {"charPrIDRef": "0"})
-    control = _append(
-        begin_run,
-        f"{HP}ctrl",
-        {"type": "FORM", "id": str(spec["controlId"])},
-    )
+    control = _append(begin_run, f"{HP}ctrl")
     field_begin = _append(
         control,
         f"{HP}fieldBegin",
         {
-            "id": str(spec["fieldId"]),
+            "id": str(spec["controlId"]),
             "fieldid": str(spec["fieldId"]),
             "type": str(spec["type"]),
             "name": str(spec["name"]),
-            "prompt": str(spec["name"]),
-            "editable": "true",
+            "editable": "1",
+            "dirty": "0",
+            "zorder": "-1",
+            "metaTag": "",
         },
     )
-    parameters = _append(field_begin, f"{HP}parameters", {"count": "2"})
-    _append(parameters, f"{HP}stringParam", {"name": "FieldName"}).text = str(
-        spec["name"]
+    parameters = _append(
+        field_begin,
+        f"{HP}parameters",
+        {"cnt": "3", "name": ""},
     )
-    _append(parameters, f"{HP}stringParam", {"name": "Instruction"}).text = str(
+    _append(parameters, f"{HP}integerParam", {"name": "Prop"}).text = "9"
+    _append(
+        parameters,
+        f"{HP}stringParam",
+        {"name": "Command", "{http://www.w3.org/XML/1998/namespace}space": "preserve"},
+    ).text = _native_field_command(str(spec["name"]))
+    _append(parameters, f"{HP}stringParam", {"name": "Direction"}).text = str(
         spec["name"]
     )
     value_run = _append(paragraph.element, f"{HP}run", {"charPrIDRef": "0"})
@@ -209,7 +222,7 @@ def _add_native_field(document: HwpxDocument, spec: Mapping[str, Any]) -> None:
         end_control,
         f"{HP}fieldEnd",
         {
-            "beginIDRef": str(spec["fieldId"]),
+            "beginIDRef": str(spec["controlId"]),
             "fieldid": str(spec["fieldId"]),
         },
     )
