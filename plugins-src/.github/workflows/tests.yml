@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           repository: airmang/hwpx-mcp-server
-          ref: 4468aab51c591c01297e68bd03387bec062f4f6b
+          ref: d10c3e4bd03c04853bcaa2d7ee31bc64163827cf
           path: hwpx-mcp-server
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
