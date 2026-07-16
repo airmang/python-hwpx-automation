@@ -7,10 +7,11 @@
 
 다음은 기존 전문 경로가 우선이다.
 
-- 평가계획·처음 보는 양식 채움·표 구조 보존 채움: `apply_evalplan_fill`, `scan_form_guidance`,
-  `apply_table_ops`, `apply_body_ops`
+- 평가계획: `apply_evalplan_fill`; 처음 보는 mixed 양식: `analyze_form_fill` →
+  `apply_form_fill` → `verify_form_fill`
 - 시험지, PII, 메일머지, 변경추적, 직인, 문서 생성, lint/repair: 각 전용 workflow/tool
-- 이미 paragraph index나 anchor가 확정된 단순 치환·좌표 편집: `apply_edits` 등 기존 편집 도구
+- 이미 paragraph index나 anchor가 확정된 단건 편집: 가장 작은 전용 도구; 여러 canonical
+  path의 이종 편집: `apply_document_commands`
 
 generic 명령은 raw XML, XPath, package part, 임의 속성을 받지 않는다. 전문 도구가 만드는 도메인
 영수증을 generic 성공으로 대체하지 않는다.
@@ -46,7 +47,8 @@ table[id="123"] > row > cell:contains("합계")
 4. 입력과 다른 `output`에 한 batch를 `dry_run=true`로 실행한다. dry-run 전용 idempotency key를 쓴다.
 5. `semanticDiff`, 각 `commandResults`, `rolledBack`, `verificationReport`를 검토한다.
 6. 동일 commands를 `dry_run=false`, 새 commit용 idempotency key, 같은 `expected_revision`으로 실행한다.
-7. `ok == true`, `rolledBack == false`, 선언한 verification layer와 `openSafety.ok == true`를 확인한다.
+7. `ok == true`, `rolledBack == false`, 선언한 verification layer와
+   `verificationReport.openSafety.ok == true`를 확인한다.
 
 dry-run과 commit은 request hash가 다르므로 **같은 idempotency key를 재사용하지 않는다**. commit 재시도만
 같은 key를 사용한다. `expected_revision` 불일치는 다시 읽고 외부 변경을 검토한 뒤 새 revision으로
@@ -101,7 +103,7 @@ copy 결과의 `generatedIdentities`와 반환된 새 path를 사용하고 ID를
   `editableProperties`·`operations`와 shared catalog를 확인한다.
 - `identity_collision`, `invariant_violation`, `unsupported_content`: generic 우회를 시도하지 말고
   전문 도구 또는 사람 검토로 넘긴다.
-- `verification_failed`, `openSafety.ok != true`, `rolledBack == true`: 산출물을 제출하지 않는다.
+- `verification_failed`, `verificationReport.openSafety.ok != true`, `rolledBack == true`: 산출물을 제출하지 않는다.
 
 로컬 `render_preview`는 근사 검수다. real-Hancom이 요구된 작업은 `render_health` → `render_submit` →
 `render_status`의 일치하는 영수증 없이는 시각 완료로 주장하지 않는다.

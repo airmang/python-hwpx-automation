@@ -724,10 +724,11 @@
       "skillRequired": false,
       "callableName": "render_status",
       "schemaBinding": "python-signature",
-      "mutates": false,
+      "mutates": true,
       "tags": [
         "real_hancom_render",
-        "public"
+        "public",
+        "mutation"
       ],
       "description": "렌더 job 상태를 한 번 조회합니다. 서버는 poll 동안 호출을 점유하지 않습니다.",
       "signature": "(job_id: 'str', output_dir: 'str' = None) -> 'dict'",
@@ -2399,7 +2400,7 @@
         "skill-required"
       ],
       "description": "바이트 보존으로 표 셀/행/열/표 구조 연산을 원자 적용합니다.",
-      "signature": "(filename: 'str', ops: 'list[TableOperation]', output: 'str | None' = None, render_check: 'str' = 'off', dry_run: 'bool' = False) -> 'dict'",
+      "signature": "(filename: 'str', ops: 'list[TableOperation]', output: 'str | None' = None, render_check: 'str' = 'off', dry_run: 'bool' = False) -> 'ApplyTableOpsOutput'",
       "inputSchema": {
         "$defs": {
           "CellAnchor": {
@@ -3313,10 +3314,577 @@
         "additionalProperties": false
       },
       "outputSchema": {
-        "additionalProperties": true,
-        "title": "apply_table_opsDictOutput",
-        "type": "object",
-        "properties": {}
+        "$defs": {
+          "FormVerificationReceipt": {
+            "additionalProperties": false,
+            "description": "Closed top-level public receipt envelope for form mutations/verifiers.",
+            "properties": {
+              "bytePreservation": {
+                "additionalProperties": true,
+                "title": "Bytepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "committed": {
+                "title": "Committed",
+                "type": "boolean"
+              },
+              "domain": {
+                "additionalProperties": true,
+                "title": "Domain",
+                "type": "object",
+                "properties": {}
+              },
+              "dryRun": {
+                "title": "Dryrun",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Error"
+              },
+              "expectedTargets": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Expectedtargets",
+                "type": "array"
+              },
+              "idempotency": {
+                "additionalProperties": true,
+                "title": "Idempotency",
+                "type": "object",
+                "properties": {}
+              },
+              "memberDiff": {
+                "additionalProperties": true,
+                "title": "Memberdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "openSafety": {
+                "additionalProperties": true,
+                "title": "Opensafety",
+                "type": "object",
+                "properties": {}
+              },
+              "operation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Operation"
+              },
+              "output": {
+                "$ref": "#/$defs/_ReceiptOutput"
+              },
+              "package": {
+                "additionalProperties": true,
+                "title": "Package",
+                "type": "object",
+                "properties": {}
+              },
+              "phase": {
+                "enum": [
+                  "apply",
+                  "verify",
+                  "domain-apply"
+                ],
+                "title": "Phase",
+                "type": "string"
+              },
+              "plan": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/_ReceiptPlanSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "realHancom": {
+                "additionalProperties": true,
+                "title": "Realhancom",
+                "type": "object",
+                "properties": {}
+              },
+              "reopen": {
+                "additionalProperties": true,
+                "title": "Reopen",
+                "type": "object",
+                "properties": {}
+              },
+              "resolutions": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "rollbackPreservation": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Rollbackpreservation"
+              },
+              "rolledBack": {
+                "title": "Rolledback",
+                "type": "boolean"
+              },
+              "savePipeline": {
+                "additionalProperties": true,
+                "title": "Savepipeline",
+                "type": "object",
+                "properties": {}
+              },
+              "schemaVersion": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "semanticDiff": {
+                "additionalProperties": true,
+                "title": "Semanticdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "source": {
+                "$ref": "#/$defs/_ReceiptFile"
+              },
+              "sourcePreservation": {
+                "additionalProperties": true,
+                "title": "Sourcepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "status": {
+                "enum": [
+                  "committed",
+                  "dry-run",
+                  "failed",
+                  "replayed",
+                  "rolled-back",
+                  "structurally-verified",
+                  "verified"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "valueVerification": {
+                "$ref": "#/$defs/_ReceiptValueVerification"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "phase",
+              "status",
+              "ok",
+              "dryRun",
+              "committed",
+              "rolledBack",
+              "plan",
+              "source",
+              "output",
+              "sourcePreservation",
+              "resolutions",
+              "expectedTargets",
+              "valueVerification",
+              "package",
+              "reopen",
+              "openSafety",
+              "semanticDiff",
+              "memberDiff",
+              "bytePreservation",
+              "idempotency",
+              "savePipeline",
+              "domain",
+              "realHancom",
+              "error"
+            ],
+            "title": "FormVerificationReceipt",
+            "type": "object"
+          },
+          "_ReceiptFile": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              }
+            },
+            "required": [
+              "filename",
+              "revision"
+            ],
+            "title": "_ReceiptFile",
+            "type": "object"
+          },
+          "_ReceiptOutput": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "title": "Exists",
+                "type": "boolean"
+              },
+              "expectedRevision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Expectedrevision"
+              },
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              },
+              "revisionMatched": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revisionmatched"
+              }
+            },
+            "required": [
+              "filename",
+              "revision",
+              "exists",
+              "expectedRevision",
+              "revisionMatched"
+            ],
+            "title": "_ReceiptOutput",
+            "type": "object"
+          },
+          "_ReceiptPlanSummary": {
+            "additionalProperties": false,
+            "properties": {
+              "inputRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Inputrevision",
+                "type": "string"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.mixed-form-compiled-plan/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "planHash",
+              "requestHash",
+              "inputRevision"
+            ],
+            "title": "_ReceiptPlanSummary",
+            "type": "object"
+          },
+          "_ReceiptValueVerification": {
+            "additionalProperties": false,
+            "properties": {
+              "checkCount": {
+                "minimum": 0,
+                "title": "Checkcount",
+                "type": "integer"
+              },
+              "checks": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Checks",
+                "type": "array"
+              },
+              "matchedCount": {
+                "minimum": 0,
+                "title": "Matchedcount",
+                "type": "integer"
+              },
+              "ok": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Ok"
+              },
+              "status": {
+                "enum": [
+                  "checked",
+                  "deferred"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ok",
+              "status",
+              "matchedCount",
+              "checkCount",
+              "checks"
+            ],
+            "title": "_ReceiptValueVerification",
+            "type": "object"
+          },
+          "_SpecializedCompatibility": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalReceipt": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Canonicalreceipt",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "specialized-semantics-preserved",
+                  "specialized-verification-failed",
+                  "rolled-back"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "canonicalReceipt"
+            ],
+            "title": "_SpecializedCompatibility",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "applied": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object",
+              "properties": {}
+            },
+            "title": "Applied",
+            "type": "array"
+          },
+          "byteIdentical": {
+            "title": "Byteidentical",
+            "type": "boolean"
+          },
+          "changedParts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changedparts",
+            "type": "array"
+          },
+          "compatibility": {
+            "$ref": "#/$defs/_SpecializedCompatibility"
+          },
+          "documentRevision": {
+            "anyOf": [
+              {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Documentrevision"
+          },
+          "dryRun": {
+            "title": "Dryrun",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "openSafety": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Opensafety"
+          },
+          "outputPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputpath"
+          },
+          "renderVerdict": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Renderverdict"
+          },
+          "rolledBack": {
+            "title": "Rolledback",
+            "type": "boolean"
+          },
+          "skipped": {
+            "items": {},
+            "title": "Skipped",
+            "type": "array"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Transcript"
+          },
+          "verificationReceipt": {
+            "$ref": "#/$defs/FormVerificationReceipt"
+          },
+          "verificationReport": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Verificationreport"
+          },
+          "zipMethod": {
+            "title": "Zipmethod",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "dryRun",
+          "outputPath",
+          "changedParts",
+          "byteIdentical",
+          "skipped",
+          "rolledBack",
+          "verificationReceipt",
+          "compatibility",
+          "applied",
+          "zipMethod"
+        ],
+        "title": "ApplyTableOpsOutput",
+        "type": "object"
       }
     },
     {
@@ -3351,7 +3919,7 @@
         "skill-required"
       ],
       "description": "표 밖 본문 문단에 바이트 보존 연산을 적용합니다.",
-      "signature": "(filename: 'str', ops: 'list[BodyOperation]', output: 'str | None' = None, dry_run: 'bool' = False) -> 'dict'",
+      "signature": "(filename: 'str', ops: 'list[BodyOperation]', output: 'str | None' = None, dry_run: 'bool' = False) -> 'ApplyBodyOpsOutput'",
       "inputSchema": {
         "$defs": {
           "BodyDeleteParagraph": {
@@ -3631,10 +4199,555 @@
         "additionalProperties": false
       },
       "outputSchema": {
-        "additionalProperties": true,
-        "title": "apply_body_opsDictOutput",
-        "type": "object",
-        "properties": {}
+        "$defs": {
+          "FormVerificationReceipt": {
+            "additionalProperties": false,
+            "description": "Closed top-level public receipt envelope for form mutations/verifiers.",
+            "properties": {
+              "bytePreservation": {
+                "additionalProperties": true,
+                "title": "Bytepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "committed": {
+                "title": "Committed",
+                "type": "boolean"
+              },
+              "domain": {
+                "additionalProperties": true,
+                "title": "Domain",
+                "type": "object",
+                "properties": {}
+              },
+              "dryRun": {
+                "title": "Dryrun",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Error"
+              },
+              "expectedTargets": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Expectedtargets",
+                "type": "array"
+              },
+              "idempotency": {
+                "additionalProperties": true,
+                "title": "Idempotency",
+                "type": "object",
+                "properties": {}
+              },
+              "memberDiff": {
+                "additionalProperties": true,
+                "title": "Memberdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "openSafety": {
+                "additionalProperties": true,
+                "title": "Opensafety",
+                "type": "object",
+                "properties": {}
+              },
+              "operation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Operation"
+              },
+              "output": {
+                "$ref": "#/$defs/_ReceiptOutput"
+              },
+              "package": {
+                "additionalProperties": true,
+                "title": "Package",
+                "type": "object",
+                "properties": {}
+              },
+              "phase": {
+                "enum": [
+                  "apply",
+                  "verify",
+                  "domain-apply"
+                ],
+                "title": "Phase",
+                "type": "string"
+              },
+              "plan": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/_ReceiptPlanSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "realHancom": {
+                "additionalProperties": true,
+                "title": "Realhancom",
+                "type": "object",
+                "properties": {}
+              },
+              "reopen": {
+                "additionalProperties": true,
+                "title": "Reopen",
+                "type": "object",
+                "properties": {}
+              },
+              "resolutions": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "rollbackPreservation": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Rollbackpreservation"
+              },
+              "rolledBack": {
+                "title": "Rolledback",
+                "type": "boolean"
+              },
+              "savePipeline": {
+                "additionalProperties": true,
+                "title": "Savepipeline",
+                "type": "object",
+                "properties": {}
+              },
+              "schemaVersion": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "semanticDiff": {
+                "additionalProperties": true,
+                "title": "Semanticdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "source": {
+                "$ref": "#/$defs/_ReceiptFile"
+              },
+              "sourcePreservation": {
+                "additionalProperties": true,
+                "title": "Sourcepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "status": {
+                "enum": [
+                  "committed",
+                  "dry-run",
+                  "failed",
+                  "replayed",
+                  "rolled-back",
+                  "structurally-verified",
+                  "verified"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "valueVerification": {
+                "$ref": "#/$defs/_ReceiptValueVerification"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "phase",
+              "status",
+              "ok",
+              "dryRun",
+              "committed",
+              "rolledBack",
+              "plan",
+              "source",
+              "output",
+              "sourcePreservation",
+              "resolutions",
+              "expectedTargets",
+              "valueVerification",
+              "package",
+              "reopen",
+              "openSafety",
+              "semanticDiff",
+              "memberDiff",
+              "bytePreservation",
+              "idempotency",
+              "savePipeline",
+              "domain",
+              "realHancom",
+              "error"
+            ],
+            "title": "FormVerificationReceipt",
+            "type": "object"
+          },
+          "_ReceiptFile": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              }
+            },
+            "required": [
+              "filename",
+              "revision"
+            ],
+            "title": "_ReceiptFile",
+            "type": "object"
+          },
+          "_ReceiptOutput": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "title": "Exists",
+                "type": "boolean"
+              },
+              "expectedRevision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Expectedrevision"
+              },
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              },
+              "revisionMatched": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revisionmatched"
+              }
+            },
+            "required": [
+              "filename",
+              "revision",
+              "exists",
+              "expectedRevision",
+              "revisionMatched"
+            ],
+            "title": "_ReceiptOutput",
+            "type": "object"
+          },
+          "_ReceiptPlanSummary": {
+            "additionalProperties": false,
+            "properties": {
+              "inputRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Inputrevision",
+                "type": "string"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.mixed-form-compiled-plan/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "planHash",
+              "requestHash",
+              "inputRevision"
+            ],
+            "title": "_ReceiptPlanSummary",
+            "type": "object"
+          },
+          "_ReceiptValueVerification": {
+            "additionalProperties": false,
+            "properties": {
+              "checkCount": {
+                "minimum": 0,
+                "title": "Checkcount",
+                "type": "integer"
+              },
+              "checks": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Checks",
+                "type": "array"
+              },
+              "matchedCount": {
+                "minimum": 0,
+                "title": "Matchedcount",
+                "type": "integer"
+              },
+              "ok": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Ok"
+              },
+              "status": {
+                "enum": [
+                  "checked",
+                  "deferred"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ok",
+              "status",
+              "matchedCount",
+              "checkCount",
+              "checks"
+            ],
+            "title": "_ReceiptValueVerification",
+            "type": "object"
+          },
+          "_SpecializedCompatibility": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalReceipt": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Canonicalreceipt",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "specialized-semantics-preserved",
+                  "specialized-verification-failed",
+                  "rolled-back"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "canonicalReceipt"
+            ],
+            "title": "_SpecializedCompatibility",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "byteIdentical": {
+            "title": "Byteidentical",
+            "type": "boolean"
+          },
+          "changedParts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changedparts",
+            "type": "array"
+          },
+          "compatibility": {
+            "$ref": "#/$defs/_SpecializedCompatibility"
+          },
+          "documentRevision": {
+            "anyOf": [
+              {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Documentrevision"
+          },
+          "dryRun": {
+            "title": "Dryrun",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "openSafety": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Opensafety"
+          },
+          "outputPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputpath"
+          },
+          "renderVerdict": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Renderverdict"
+          },
+          "rolledBack": {
+            "title": "Rolledback",
+            "type": "boolean"
+          },
+          "skipped": {
+            "items": {},
+            "title": "Skipped",
+            "type": "array"
+          },
+          "transcript": {
+            "items": {},
+            "title": "Transcript",
+            "type": "array"
+          },
+          "verificationReceipt": {
+            "$ref": "#/$defs/FormVerificationReceipt"
+          },
+          "verificationReport": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Verificationreport"
+          }
+        },
+        "required": [
+          "ok",
+          "dryRun",
+          "outputPath",
+          "changedParts",
+          "byteIdentical",
+          "skipped",
+          "rolledBack",
+          "verificationReceipt",
+          "compatibility",
+          "transcript"
+        ],
+        "title": "ApplyBodyOpsOutput",
+        "type": "object"
       }
     },
     {
@@ -3725,7 +4838,7 @@
         "skill-required"
       ],
       "description": "Compiled mixed-form 결과를 검증합니다. filename/before_path는 렌더 호환 경로입니다.",
-      "signature": "(filename: 'str' = None, before_path: 'str' = None, require: 'bool' = False, plan: 'MixedFormCompiledPlanInput' = None) -> 'dict'",
+      "signature": "(filename: 'str' = None, before_path: 'str' = None, require: 'bool' = False, plan: 'MixedFormCompiledPlanInput' = None, expected_output_revision: \"Annotated[str | None, Field(pattern='^sha256:[0-9a-f]{64}$')]\" = None) -> 'VerifyFormFillOutput'",
       "inputSchema": {
         "$defs": {
           "MixedFormCompiledPlanInput": {
@@ -3780,111 +4893,55 @@
             "additionalProperties": false,
             "properties": {
               "layoutLint": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "warn",
-                      "strict"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "warn",
+                  "strict"
                 ],
-                "default": null,
-                "title": "Layoutlint"
+                "title": "Layoutlint",
+                "type": "string"
               },
               "mode": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "transparent",
-                      "strict"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "transparent",
+                  "strict"
                 ],
-                "default": null,
-                "title": "Mode"
+                "title": "Mode",
+                "type": "string"
               },
               "overflowPolicy": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "fail",
-                      "warn",
-                      "truncate"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "fail",
+                  "warn",
+                  "truncate"
                 ],
-                "default": null,
-                "title": "Overflowpolicy"
+                "title": "Overflowpolicy",
+                "type": "string"
               },
               "preserveUnmodifiedParts": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Preserveunmodifiedparts"
+                "title": "Preserveunmodifiedparts",
+                "type": "boolean"
               },
               "renderCheck": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "auto",
-                      "required"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "auto",
+                  "required"
                 ],
-                "default": null,
-                "title": "Rendercheck"
+                "title": "Rendercheck",
+                "type": "string"
               },
               "requireReferenceIntegrity": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Requirereferenceintegrity"
+                "title": "Requirereferenceintegrity",
+                "type": "boolean"
               },
               "xsdMode": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "lint"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "lint"
                 ],
-                "default": null,
-                "title": "Xsdmode"
+                "title": "Xsdmode",
+                "type": "string"
               }
             },
             "title": "MixedFormQuality",
@@ -3906,6 +4963,7 @@
               "logicalColumn": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -3917,6 +4975,7 @@
               "logicalRow": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -3936,16 +4995,19 @@
                 "type": "string"
               },
               "operationId": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
                 "title": "Operationid",
                 "type": "string"
               },
               "path": {
+                "minLength": 1,
                 "title": "Path",
                 "type": "string"
               },
               "physicalColumn": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -3957,6 +5019,7 @@
               "physicalRow": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -3968,6 +5031,7 @@
               "section": {
                 "anyOf": [
                   {
+                    "minimum": 1,
                     "type": "integer"
                   },
                   {
@@ -3988,6 +5052,7 @@
               "tableIndex": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -4090,7 +5155,8 @@
                   "type": "string"
                 },
                 "title": "Verificationrequirements",
-                "type": "array"
+                "type": "array",
+                "uniqueItems": true
               }
             },
             "required": [
@@ -4185,6 +5251,7 @@
             "additionalProperties": false,
             "properties": {
               "text": {
+                "maxLength": 4096,
                 "title": "Text",
                 "type": "string"
               }
@@ -4199,6 +5266,7 @@
             "additionalProperties": false,
             "properties": {
               "value": {
+                "maxLength": 4096,
                 "title": "Value",
                 "type": "string"
               }
@@ -4215,6 +5283,19 @@
             "default": null,
             "title": "Before Path",
             "type": "string"
+          },
+          "expected_output_revision": {
+            "anyOf": [
+              {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Output Revision"
           },
           "filename": {
             "default": null,
@@ -4234,13 +5315,517 @@
         "title": "verify_form_fillArguments",
         "type": "object",
         "additionalProperties": false,
-        "required": []
+        "required": [],
+        "oneOf": [
+          {
+            "required": [
+              "plan"
+            ],
+            "properties": {
+              "plan": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "filename"
+                  ],
+                  "properties": {
+                    "filename": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "before_path"
+                  ],
+                  "properties": {
+                    "before_path": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "filename",
+              "before_path"
+            ],
+            "properties": {
+              "filename": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "before_path": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "plan": {
+                "type": "null"
+              },
+              "expected_output_revision": {
+                "type": "null"
+              }
+            }
+          }
+        ]
       },
       "outputSchema": {
-        "additionalProperties": true,
-        "title": "verify_form_fillDictOutput",
-        "type": "object",
-        "properties": {}
+        "$defs": {
+          "FormVerificationReceipt": {
+            "additionalProperties": false,
+            "description": "Closed top-level public receipt envelope for form mutations/verifiers.",
+            "properties": {
+              "bytePreservation": {
+                "additionalProperties": true,
+                "title": "Bytepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "committed": {
+                "title": "Committed",
+                "type": "boolean"
+              },
+              "domain": {
+                "additionalProperties": true,
+                "title": "Domain",
+                "type": "object",
+                "properties": {}
+              },
+              "dryRun": {
+                "title": "Dryrun",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Error"
+              },
+              "expectedTargets": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Expectedtargets",
+                "type": "array"
+              },
+              "idempotency": {
+                "additionalProperties": true,
+                "title": "Idempotency",
+                "type": "object",
+                "properties": {}
+              },
+              "memberDiff": {
+                "additionalProperties": true,
+                "title": "Memberdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "openSafety": {
+                "additionalProperties": true,
+                "title": "Opensafety",
+                "type": "object",
+                "properties": {}
+              },
+              "operation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Operation"
+              },
+              "output": {
+                "$ref": "#/$defs/_ReceiptOutput"
+              },
+              "package": {
+                "additionalProperties": true,
+                "title": "Package",
+                "type": "object",
+                "properties": {}
+              },
+              "phase": {
+                "enum": [
+                  "apply",
+                  "verify",
+                  "domain-apply"
+                ],
+                "title": "Phase",
+                "type": "string"
+              },
+              "plan": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/_ReceiptPlanSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "realHancom": {
+                "additionalProperties": true,
+                "title": "Realhancom",
+                "type": "object",
+                "properties": {}
+              },
+              "reopen": {
+                "additionalProperties": true,
+                "title": "Reopen",
+                "type": "object",
+                "properties": {}
+              },
+              "resolutions": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "rollbackPreservation": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Rollbackpreservation"
+              },
+              "rolledBack": {
+                "title": "Rolledback",
+                "type": "boolean"
+              },
+              "savePipeline": {
+                "additionalProperties": true,
+                "title": "Savepipeline",
+                "type": "object",
+                "properties": {}
+              },
+              "schemaVersion": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "semanticDiff": {
+                "additionalProperties": true,
+                "title": "Semanticdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "source": {
+                "$ref": "#/$defs/_ReceiptFile"
+              },
+              "sourcePreservation": {
+                "additionalProperties": true,
+                "title": "Sourcepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "status": {
+                "enum": [
+                  "committed",
+                  "dry-run",
+                  "failed",
+                  "replayed",
+                  "rolled-back",
+                  "structurally-verified",
+                  "verified"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "valueVerification": {
+                "$ref": "#/$defs/_ReceiptValueVerification"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "phase",
+              "status",
+              "ok",
+              "dryRun",
+              "committed",
+              "rolledBack",
+              "plan",
+              "source",
+              "output",
+              "sourcePreservation",
+              "resolutions",
+              "expectedTargets",
+              "valueVerification",
+              "package",
+              "reopen",
+              "openSafety",
+              "semanticDiff",
+              "memberDiff",
+              "bytePreservation",
+              "idempotency",
+              "savePipeline",
+              "domain",
+              "realHancom",
+              "error"
+            ],
+            "title": "FormVerificationReceipt",
+            "type": "object"
+          },
+          "LegacyFormFillVerifyOutput": {
+            "additionalProperties": true,
+            "properties": {
+              "compatibility": {
+                "$ref": "#/$defs/_LegacyRenderCompatibility"
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "renderChecked": {
+                "title": "Renderchecked",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "renderChecked",
+              "ok",
+              "compatibility"
+            ],
+            "title": "LegacyFormFillVerifyOutput",
+            "type": "object"
+          },
+          "_LegacyRenderCompatibility": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalInput": {
+                "const": "plan: hwpx.mixed-form-compiled-plan/v1",
+                "title": "Canonicalinput",
+                "type": "string"
+              },
+              "status": {
+                "const": "retained-render-verifier",
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "canonicalInput"
+            ],
+            "title": "_LegacyRenderCompatibility",
+            "type": "object"
+          },
+          "_ReceiptFile": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              }
+            },
+            "required": [
+              "filename",
+              "revision"
+            ],
+            "title": "_ReceiptFile",
+            "type": "object"
+          },
+          "_ReceiptOutput": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "title": "Exists",
+                "type": "boolean"
+              },
+              "expectedRevision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Expectedrevision"
+              },
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              },
+              "revisionMatched": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revisionmatched"
+              }
+            },
+            "required": [
+              "filename",
+              "revision",
+              "exists",
+              "expectedRevision",
+              "revisionMatched"
+            ],
+            "title": "_ReceiptOutput",
+            "type": "object"
+          },
+          "_ReceiptPlanSummary": {
+            "additionalProperties": false,
+            "properties": {
+              "inputRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Inputrevision",
+                "type": "string"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.mixed-form-compiled-plan/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "planHash",
+              "requestHash",
+              "inputRevision"
+            ],
+            "title": "_ReceiptPlanSummary",
+            "type": "object"
+          },
+          "_ReceiptValueVerification": {
+            "additionalProperties": false,
+            "properties": {
+              "checkCount": {
+                "minimum": 0,
+                "title": "Checkcount",
+                "type": "integer"
+              },
+              "checks": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Checks",
+                "type": "array"
+              },
+              "matchedCount": {
+                "minimum": 0,
+                "title": "Matchedcount",
+                "type": "integer"
+              },
+              "ok": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Ok"
+              },
+              "status": {
+                "enum": [
+                  "checked",
+                  "deferred"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ok",
+              "status",
+              "matchedCount",
+              "checkCount",
+              "checks"
+            ],
+            "title": "_ReceiptValueVerification",
+            "type": "object"
+          }
+        },
+        "anyOf": [
+          {
+            "$ref": "#/$defs/FormVerificationReceipt"
+          },
+          {
+            "$ref": "#/$defs/LegacyFormFillVerifyOutput"
+          }
+        ],
+        "description": "Canonical receipt or the retained two-file render verifier response.",
+        "title": "VerifyFormFillOutput"
       }
     },
     {
@@ -4535,13 +6120,14 @@
         "public"
       ],
       "description": "엄격한 혼합 양식 계획을 비변경 분석합니다. 기존 formfill.v1 인자는 호환 경로입니다.",
-      "signature": "(source_filename: 'str' = None, input_json: 'CanonicalFormFillInput | str' = None, input_json_path: 'str' = None, input_docx: 'str' = None, destination_filename: 'str' = None, options: 'FormFillAnalyzeOptions' = None, plan: 'MixedFormPlanInput' = None) -> 'dict'",
+      "signature": "(source_filename: 'str' = None, input_json: 'CanonicalFormFillInput | str' = None, input_json_path: 'str' = None, input_docx: 'str' = None, destination_filename: 'str' = None, options: 'FormFillAnalyzeOptions' = None, plan: 'MixedFormPlanInput' = None) -> 'AnalyzeFormFillOutput'",
       "inputSchema": {
         "$defs": {
           "BodyAnchorTarget": {
             "additionalProperties": false,
             "properties": {
               "anchor": {
+                "maxLength": 4096,
                 "minLength": 1,
                 "title": "Anchor",
                 "type": "string"
@@ -4891,6 +6477,7 @@
                 "type": "string"
               },
               "label": {
+                "maxLength": 4096,
                 "minLength": 1,
                 "title": "Label",
                 "type": "string"
@@ -4912,6 +6499,13 @@
                     "tableIndex"
                   ]
                 },
+                "properties": {
+                  "tableAnchor": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
                 "required": [
                   "tableAnchor"
                 ]
@@ -4921,6 +6515,12 @@
                   "required": [
                     "tableAnchor"
                   ]
+                },
+                "properties": {
+                  "tableIndex": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
                 },
                 "required": [
                   "tableIndex"
@@ -4944,6 +6544,7 @@
               "tableAnchor": {
                 "anyOf": [
                   {
+                    "maxLength": 4096,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -5011,6 +6612,7 @@
                 "title": "Target"
               },
               "value": {
+                "maxLength": 4096,
                 "title": "Value",
                 "type": "string"
               }
@@ -5116,7 +6718,8 @@
                   "type": "string"
                 },
                 "title": "Verificationrequirements",
-                "type": "array"
+                "type": "array",
+                "uniqueItems": true
               }
             },
             "required": [
@@ -5138,111 +6741,55 @@
             "additionalProperties": false,
             "properties": {
               "layoutLint": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "warn",
-                      "strict"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "warn",
+                  "strict"
                 ],
-                "default": null,
-                "title": "Layoutlint"
+                "title": "Layoutlint",
+                "type": "string"
               },
               "mode": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "transparent",
-                      "strict"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "transparent",
+                  "strict"
                 ],
-                "default": null,
-                "title": "Mode"
+                "title": "Mode",
+                "type": "string"
               },
               "overflowPolicy": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "fail",
-                      "warn",
-                      "truncate"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "fail",
+                  "warn",
+                  "truncate"
                 ],
-                "default": null,
-                "title": "Overflowpolicy"
+                "title": "Overflowpolicy",
+                "type": "string"
               },
               "preserveUnmodifiedParts": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Preserveunmodifiedparts"
+                "title": "Preserveunmodifiedparts",
+                "type": "boolean"
               },
               "renderCheck": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "auto",
-                      "required"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "auto",
+                  "required"
                 ],
-                "default": null,
-                "title": "Rendercheck"
+                "title": "Rendercheck",
+                "type": "string"
               },
               "requireReferenceIntegrity": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Requirereferenceintegrity"
+                "title": "Requirereferenceintegrity",
+                "type": "boolean"
               },
               "xsdMode": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "lint"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "lint"
                 ],
-                "default": null,
-                "title": "Xsdmode"
+                "title": "Xsdmode",
+                "type": "string"
               }
             },
             "title": "MixedFormQuality",
@@ -5257,6 +6804,13 @@
                     "name"
                   ]
                 },
+                "properties": {
+                  "fieldId": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
                 "required": [
                   "fieldId"
                 ]
@@ -5267,6 +6821,13 @@
                     "fieldId"
                   ]
                 },
+                "properties": {
+                  "name": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
                 "required": [
                   "name"
                 ]
@@ -5276,6 +6837,7 @@
               "fieldId": {
                 "anyOf": [
                   {
+                    "maxLength": 4096,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -5294,6 +6856,7 @@
               "name": {
                 "anyOf": [
                   {
+                    "maxLength": 4096,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -5357,13 +6920,732 @@
         "title": "analyze_form_fillArguments",
         "type": "object",
         "additionalProperties": false,
-        "required": []
+        "required": [],
+        "oneOf": [
+          {
+            "required": [
+              "plan"
+            ],
+            "properties": {
+              "plan": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "source_filename"
+                  ],
+                  "properties": {
+                    "source_filename": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "input_json"
+                  ],
+                  "properties": {
+                    "input_json": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "input_json_path"
+                  ],
+                  "properties": {
+                    "input_json_path": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "input_docx"
+                  ],
+                  "properties": {
+                    "input_docx": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "destination_filename"
+                  ],
+                  "properties": {
+                    "destination_filename": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "options"
+                  ],
+                  "properties": {
+                    "options": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "source_filename"
+            ],
+            "properties": {
+              "source_filename": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "plan": {
+                "type": "null"
+              }
+            }
+          }
+        ]
       },
       "outputSchema": {
-        "additionalProperties": true,
-        "title": "analyze_form_fillDictOutput",
-        "type": "object",
-        "properties": {}
+        "$defs": {
+          "CanonicalMixedFormAnalysisOutput": {
+            "additionalProperties": false,
+            "properties": {
+              "compiledPlan": {
+                "$ref": "#/$defs/MixedFormCompiledPlanInput"
+              },
+              "mutated": {
+                "const": false,
+                "title": "Mutated",
+                "type": "boolean"
+              },
+              "nextTool": {
+                "const": "apply_form_fill",
+                "title": "Nexttool",
+                "type": "string"
+              },
+              "openSafety": {
+                "additionalProperties": true,
+                "title": "Opensafety",
+                "type": "object",
+                "properties": {}
+              },
+              "output": {
+                "$ref": "#/$defs/_AnalysisOutputRef"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "resolutions": {
+                "items": {
+                  "$ref": "#/$defs/MixedFormResolution"
+                },
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "schemaVersion": {
+                "const": "hwpx.mixed-form-analysis/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "source": {
+                "$ref": "#/$defs/_AnalysisSource"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "mutated",
+              "source",
+              "output",
+              "compiledPlan",
+              "planHash",
+              "requestHash",
+              "resolutions",
+              "openSafety",
+              "nextTool"
+            ],
+            "title": "CanonicalMixedFormAnalysisOutput",
+            "type": "object"
+          },
+          "LegacyFormFillAnalysisOutput": {
+            "additionalProperties": true,
+            "properties": {
+              "compatibility": {
+                "$ref": "#/$defs/_LegacyFormFillCompatibility"
+              },
+              "mutated": {
+                "const": false,
+                "title": "Mutated",
+                "type": "boolean"
+              },
+              "plan_id": {
+                "minLength": 1,
+                "title": "Plan Id",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.formfill.v1",
+                "title": "Schemaversion",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "plan_id",
+              "mutated",
+              "compatibility"
+            ],
+            "title": "LegacyFormFillAnalysisOutput",
+            "type": "object"
+          },
+          "MixedFormCompiledPlanInput": {
+            "additionalProperties": false,
+            "description": "Detached, revision-bound plan returned by ``analyze_form_fill``.",
+            "properties": {
+              "batch": {
+                "$ref": "#/$defs/_CompiledBatch"
+              },
+              "inputRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Inputrevision",
+                "type": "string"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "resolutions": {
+                "items": {
+                  "$ref": "#/$defs/MixedFormResolution"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "schemaVersion": {
+                "const": "hwpx.mixed-form-compiled-plan/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "inputRevision",
+              "requestHash",
+              "resolutions",
+              "batch",
+              "planHash"
+            ],
+            "title": "MixedFormCompiledPlanInput",
+            "type": "object"
+          },
+          "MixedFormQuality": {
+            "additionalProperties": false,
+            "properties": {
+              "layoutLint": {
+                "enum": [
+                  "off",
+                  "warn",
+                  "strict"
+                ],
+                "title": "Layoutlint",
+                "type": "string"
+              },
+              "mode": {
+                "enum": [
+                  "transparent",
+                  "strict"
+                ],
+                "title": "Mode",
+                "type": "string"
+              },
+              "overflowPolicy": {
+                "enum": [
+                  "fail",
+                  "warn",
+                  "truncate"
+                ],
+                "title": "Overflowpolicy",
+                "type": "string"
+              },
+              "preserveUnmodifiedParts": {
+                "title": "Preserveunmodifiedparts",
+                "type": "boolean"
+              },
+              "renderCheck": {
+                "enum": [
+                  "off",
+                  "auto",
+                  "required"
+                ],
+                "title": "Rendercheck",
+                "type": "string"
+              },
+              "requireReferenceIntegrity": {
+                "title": "Requirereferenceintegrity",
+                "type": "boolean"
+              },
+              "xsdMode": {
+                "enum": [
+                  "off",
+                  "lint"
+                ],
+                "title": "Xsdmode",
+                "type": "string"
+              }
+            },
+            "title": "MixedFormQuality",
+            "type": "object"
+          },
+          "MixedFormResolution": {
+            "additionalProperties": false,
+            "properties": {
+              "locatorKind": {
+                "enum": [
+                  "nativeField",
+                  "labelCell",
+                  "canonicalPath",
+                  "bodyAnchor"
+                ],
+                "title": "Locatorkind",
+                "type": "string"
+              },
+              "logicalColumn": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Logicalcolumn"
+              },
+              "logicalRow": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Logicalrow"
+              },
+              "nodeKind": {
+                "enum": [
+                  "paragraph",
+                  "run",
+                  "cell",
+                  "form-field"
+                ],
+                "title": "Nodekind",
+                "type": "string"
+              },
+              "operationId": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                "title": "Operationid",
+                "type": "string"
+              },
+              "path": {
+                "minLength": 1,
+                "title": "Path",
+                "type": "string"
+              },
+              "physicalColumn": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Physicalcolumn"
+              },
+              "physicalRow": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Physicalrow"
+              },
+              "section": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Section"
+              },
+              "stability": {
+                "enum": [
+                  "native",
+                  "derived",
+                  "positional"
+                ],
+                "title": "Stability",
+                "type": "string"
+              },
+              "tableIndex": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Tableindex"
+              }
+            },
+            "required": [
+              "operationId",
+              "locatorKind",
+              "path",
+              "nodeKind",
+              "stability",
+              "section",
+              "tableIndex",
+              "logicalRow",
+              "logicalColumn",
+              "physicalRow",
+              "physicalColumn"
+            ],
+            "title": "MixedFormResolution",
+            "type": "object"
+          },
+          "_AnalysisOutputRef": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "unchangedAfterAnalysis": {
+                "const": true,
+                "title": "Unchangedafteranalysis",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "filename",
+              "unchangedAfterAnalysis"
+            ],
+            "title": "_AnalysisOutputRef",
+            "type": "object"
+          },
+          "_AnalysisSource": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Revision",
+                "type": "string"
+              },
+              "unchangedAfterAnalysis": {
+                "const": true,
+                "title": "Unchangedafteranalysis",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "filename",
+              "revision",
+              "unchangedAfterAnalysis"
+            ],
+            "title": "_AnalysisSource",
+            "type": "object"
+          },
+          "_CompiledBatch": {
+            "additionalProperties": false,
+            "properties": {
+              "commands": {
+                "items": {
+                  "$ref": "#/$defs/_CompiledSetCommand"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Commands",
+                "type": "array"
+              },
+              "dryRun": {
+                "title": "Dryrun",
+                "type": "boolean"
+              },
+              "expectedRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Expectedrevision",
+                "type": "string"
+              },
+              "idempotencyKey": {
+                "anyOf": [
+                  {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Idempotencykey"
+              },
+              "input": {
+                "$ref": "#/$defs/_FilenameRef"
+              },
+              "output": {
+                "$ref": "#/$defs/_OutputRef"
+              },
+              "quality": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "transparent",
+                      "strict"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/MixedFormQuality"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Quality"
+              },
+              "schemaVersion": {
+                "const": "hwpx.agent-batch/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "verificationRequirements": {
+                "items": {
+                  "enum": [
+                    "package",
+                    "reopen",
+                    "openSafety",
+                    "semanticDiff",
+                    "bytePreservation",
+                    "domain",
+                    "realHancom"
+                  ],
+                  "type": "string"
+                },
+                "title": "Verificationrequirements",
+                "type": "array",
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "input",
+              "output",
+              "commands",
+              "expectedRevision",
+              "idempotencyKey",
+              "dryRun",
+              "quality",
+              "verificationRequirements"
+            ],
+            "title": "_CompiledBatch",
+            "type": "object"
+          },
+          "_CompiledSetCommand": {
+            "additionalProperties": false,
+            "properties": {
+              "commandId": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                "title": "Commandid",
+                "type": "string"
+              },
+              "op": {
+                "const": "set",
+                "title": "Op",
+                "type": "string"
+              },
+              "path": {
+                "minLength": 1,
+                "title": "Path",
+                "type": "string"
+              },
+              "properties": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/_TextSetProperties"
+                  },
+                  {
+                    "$ref": "#/$defs/_ValueSetProperties"
+                  }
+                ],
+                "title": "Properties"
+              }
+            },
+            "required": [
+              "commandId",
+              "op",
+              "path",
+              "properties"
+            ],
+            "title": "_CompiledSetCommand",
+            "type": "object"
+          },
+          "_FilenameRef": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "minLength": 1,
+                "title": "Filename",
+                "type": "string"
+              }
+            },
+            "required": [
+              "filename"
+            ],
+            "title": "_FilenameRef",
+            "type": "object"
+          },
+          "_LegacyFormFillCompatibility": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalInput": {
+                "minLength": 1,
+                "title": "Canonicalinput",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.formfill.v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "status": {
+                "const": "retained",
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "status",
+              "canonicalInput"
+            ],
+            "title": "_LegacyFormFillCompatibility",
+            "type": "object"
+          },
+          "_OutputRef": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "minLength": 1,
+                "title": "Filename",
+                "type": "string"
+              },
+              "overwrite": {
+                "title": "Overwrite",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "filename",
+              "overwrite"
+            ],
+            "title": "_OutputRef",
+            "type": "object"
+          },
+          "_TextSetProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "maxLength": 4096,
+                "title": "Text",
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "title": "_TextSetProperties",
+            "type": "object"
+          },
+          "_ValueSetProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "maxLength": 4096,
+                "title": "Value",
+                "type": "string"
+              }
+            },
+            "required": [
+              "value"
+            ],
+            "title": "_ValueSetProperties",
+            "type": "object"
+          }
+        },
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CanonicalMixedFormAnalysisOutput"
+          },
+          {
+            "$ref": "#/$defs/LegacyFormFillAnalysisOutput"
+          }
+        ],
+        "description": "Canonical analysis or the retained ``hwpx.formfill.v1`` response.",
+        "title": "AnalyzeFormFillOutput"
       }
     },
     {
@@ -5393,13 +7675,14 @@
         "mutation"
       ],
       "description": "엄격한 public/compiled 혼합 양식 계획을 원자 적용합니다. 기존 인자는 호환 경로입니다.",
-      "signature": "(plan_id: 'str' = None, analysis: 'FormFillPlanInput' = None, source_filename: 'str' = None, destination_filename: 'str' = None, canonical_input: 'CanonicalFormFillInput | str' = None, confirm: 'bool' = True, plan: 'MixedFormApplyInput' = None) -> 'dict'",
+      "signature": "(plan_id: 'str' = None, analysis: 'FormFillPlanInput' = None, source_filename: 'str' = None, destination_filename: 'str' = None, canonical_input: 'CanonicalFormFillInput | str' = None, confirm: 'bool' = True, plan: 'MixedFormApplyInput' = None) -> 'ApplyFormFillOutput'",
       "inputSchema": {
         "$defs": {
           "BodyAnchorTarget": {
             "additionalProperties": false,
             "properties": {
               "anchor": {
+                "maxLength": 4096,
                 "minLength": 1,
                 "title": "Anchor",
                 "type": "string"
@@ -5975,6 +8258,7 @@
                 "type": "string"
               },
               "label": {
+                "maxLength": 4096,
                 "minLength": 1,
                 "title": "Label",
                 "type": "string"
@@ -5996,6 +8280,13 @@
                     "tableIndex"
                   ]
                 },
+                "properties": {
+                  "tableAnchor": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
                 "required": [
                   "tableAnchor"
                 ]
@@ -6005,6 +8296,12 @@
                   "required": [
                     "tableAnchor"
                   ]
+                },
+                "properties": {
+                  "tableIndex": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
                 },
                 "required": [
                   "tableIndex"
@@ -6028,6 +8325,7 @@
               "tableAnchor": {
                 "anyOf": [
                   {
+                    "maxLength": 4096,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -6143,6 +8441,7 @@
                 "title": "Target"
               },
               "value": {
+                "maxLength": 4096,
                 "title": "Value",
                 "type": "string"
               }
@@ -6248,7 +8547,8 @@
                   "type": "string"
                 },
                 "title": "Verificationrequirements",
-                "type": "array"
+                "type": "array",
+                "uniqueItems": true
               }
             },
             "required": [
@@ -6270,111 +8570,55 @@
             "additionalProperties": false,
             "properties": {
               "layoutLint": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "warn",
-                      "strict"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "warn",
+                  "strict"
                 ],
-                "default": null,
-                "title": "Layoutlint"
+                "title": "Layoutlint",
+                "type": "string"
               },
               "mode": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "transparent",
-                      "strict"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "transparent",
+                  "strict"
                 ],
-                "default": null,
-                "title": "Mode"
+                "title": "Mode",
+                "type": "string"
               },
               "overflowPolicy": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "fail",
-                      "warn",
-                      "truncate"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "fail",
+                  "warn",
+                  "truncate"
                 ],
-                "default": null,
-                "title": "Overflowpolicy"
+                "title": "Overflowpolicy",
+                "type": "string"
               },
               "preserveUnmodifiedParts": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Preserveunmodifiedparts"
+                "title": "Preserveunmodifiedparts",
+                "type": "boolean"
               },
               "renderCheck": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "auto",
-                      "required"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "auto",
+                  "required"
                 ],
-                "default": null,
-                "title": "Rendercheck"
+                "title": "Rendercheck",
+                "type": "string"
               },
               "requireReferenceIntegrity": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Requirereferenceintegrity"
+                "title": "Requirereferenceintegrity",
+                "type": "boolean"
               },
               "xsdMode": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "off",
-                      "lint"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "enum": [
+                  "off",
+                  "lint"
                 ],
-                "default": null,
-                "title": "Xsdmode"
+                "title": "Xsdmode",
+                "type": "string"
               }
             },
             "title": "MixedFormQuality",
@@ -6396,6 +8640,7 @@
               "logicalColumn": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -6407,6 +8652,7 @@
               "logicalRow": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -6426,16 +8672,19 @@
                 "type": "string"
               },
               "operationId": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
                 "title": "Operationid",
                 "type": "string"
               },
               "path": {
+                "minLength": 1,
                 "title": "Path",
                 "type": "string"
               },
               "physicalColumn": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -6447,6 +8696,7 @@
               "physicalRow": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -6458,6 +8708,7 @@
               "section": {
                 "anyOf": [
                   {
+                    "minimum": 1,
                     "type": "integer"
                   },
                   {
@@ -6478,6 +8729,7 @@
               "tableIndex": {
                 "anyOf": [
                   {
+                    "minimum": 0,
                     "type": "integer"
                   },
                   {
@@ -6512,6 +8764,13 @@
                     "name"
                   ]
                 },
+                "properties": {
+                  "fieldId": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
                 "required": [
                   "fieldId"
                 ]
@@ -6522,6 +8781,13 @@
                     "fieldId"
                   ]
                 },
+                "properties": {
+                  "name": {
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
                 "required": [
                   "name"
                 ]
@@ -6531,6 +8797,7 @@
               "fieldId": {
                 "anyOf": [
                   {
+                    "maxLength": 4096,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -6549,6 +8816,7 @@
               "name": {
                 "anyOf": [
                   {
+                    "maxLength": 4096,
                     "minLength": 1,
                     "type": "string"
                   },
@@ -6643,7 +8911,8 @@
                   "type": "string"
                 },
                 "title": "Verificationrequirements",
-                "type": "array"
+                "type": "array",
+                "uniqueItems": true
               }
             },
             "required": [
@@ -6738,6 +9007,7 @@
             "additionalProperties": false,
             "properties": {
               "text": {
+                "maxLength": 4096,
                 "title": "Text",
                 "type": "string"
               }
@@ -6752,6 +9022,7 @@
             "additionalProperties": false,
             "properties": {
               "value": {
+                "maxLength": 4096,
                 "title": "Value",
                 "type": "string"
               }
@@ -6823,13 +9094,879 @@
         "title": "apply_form_fillArguments",
         "type": "object",
         "additionalProperties": false,
-        "required": []
+        "required": [],
+        "oneOf": [
+          {
+            "required": [
+              "plan"
+            ],
+            "properties": {
+              "plan": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "confirm": {
+                "const": true
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "plan_id"
+                  ],
+                  "properties": {
+                    "plan_id": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "analysis"
+                  ],
+                  "properties": {
+                    "analysis": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "source_filename"
+                  ],
+                  "properties": {
+                    "source_filename": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "destination_filename"
+                  ],
+                  "properties": {
+                    "destination_filename": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "canonical_input"
+                  ],
+                  "properties": {
+                    "canonical_input": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "properties": {
+              "plan": {
+                "type": "null"
+              }
+            }
+          }
+        ]
       },
       "outputSchema": {
-        "additionalProperties": true,
-        "title": "apply_form_fillDictOutput",
-        "type": "object",
-        "properties": {}
+        "$defs": {
+          "CanonicalMixedFormApplyOutput": {
+            "additionalProperties": false,
+            "properties": {
+              "commandResults": {
+                "items": {
+                  "$ref": "#/$defs/_PublicCommandResult"
+                },
+                "title": "Commandresults",
+                "type": "array"
+              },
+              "documentRevision": {
+                "anyOf": [
+                  {
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Documentrevision"
+              },
+              "dryRun": {
+                "title": "Dryrun",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Error"
+              },
+              "inputRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Inputrevision",
+                "type": "string"
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "openSafety": {
+                "additionalProperties": true,
+                "title": "Opensafety",
+                "type": "object",
+                "properties": {}
+              },
+              "output": {
+                "$ref": "#/$defs/_AgentOutputRef"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "resolutions": {
+                "items": {
+                  "$ref": "#/$defs/MixedFormResolution"
+                },
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "rolledBack": {
+                "title": "Rolledback",
+                "type": "boolean"
+              },
+              "schemaVersion": {
+                "const": "hwpx.agent-batch-result/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "semanticDiff": {
+                "additionalProperties": true,
+                "title": "Semanticdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "verificationReceipt": {
+                "$ref": "#/$defs/FormVerificationReceipt"
+              },
+              "verificationReport": {
+                "additionalProperties": true,
+                "title": "Verificationreport",
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "ok",
+              "rolledBack",
+              "dryRun",
+              "inputRevision",
+              "documentRevision",
+              "output",
+              "commandResults",
+              "semanticDiff",
+              "verificationReport",
+              "planHash",
+              "requestHash",
+              "resolutions",
+              "verificationReceipt",
+              "openSafety"
+            ],
+            "title": "CanonicalMixedFormApplyOutput",
+            "type": "object"
+          },
+          "FormVerificationReceipt": {
+            "additionalProperties": false,
+            "description": "Closed top-level public receipt envelope for form mutations/verifiers.",
+            "properties": {
+              "bytePreservation": {
+                "additionalProperties": true,
+                "title": "Bytepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "committed": {
+                "title": "Committed",
+                "type": "boolean"
+              },
+              "domain": {
+                "additionalProperties": true,
+                "title": "Domain",
+                "type": "object",
+                "properties": {}
+              },
+              "dryRun": {
+                "title": "Dryrun",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Error"
+              },
+              "expectedTargets": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Expectedtargets",
+                "type": "array"
+              },
+              "idempotency": {
+                "additionalProperties": true,
+                "title": "Idempotency",
+                "type": "object",
+                "properties": {}
+              },
+              "memberDiff": {
+                "additionalProperties": true,
+                "title": "Memberdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "openSafety": {
+                "additionalProperties": true,
+                "title": "Opensafety",
+                "type": "object",
+                "properties": {}
+              },
+              "operation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Operation"
+              },
+              "output": {
+                "$ref": "#/$defs/_ReceiptOutput"
+              },
+              "package": {
+                "additionalProperties": true,
+                "title": "Package",
+                "type": "object",
+                "properties": {}
+              },
+              "phase": {
+                "enum": [
+                  "apply",
+                  "verify",
+                  "domain-apply"
+                ],
+                "title": "Phase",
+                "type": "string"
+              },
+              "plan": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/_ReceiptPlanSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "realHancom": {
+                "additionalProperties": true,
+                "title": "Realhancom",
+                "type": "object",
+                "properties": {}
+              },
+              "reopen": {
+                "additionalProperties": true,
+                "title": "Reopen",
+                "type": "object",
+                "properties": {}
+              },
+              "resolutions": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "rollbackPreservation": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Rollbackpreservation"
+              },
+              "rolledBack": {
+                "title": "Rolledback",
+                "type": "boolean"
+              },
+              "savePipeline": {
+                "additionalProperties": true,
+                "title": "Savepipeline",
+                "type": "object",
+                "properties": {}
+              },
+              "schemaVersion": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "semanticDiff": {
+                "additionalProperties": true,
+                "title": "Semanticdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "source": {
+                "$ref": "#/$defs/_ReceiptFile"
+              },
+              "sourcePreservation": {
+                "additionalProperties": true,
+                "title": "Sourcepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "status": {
+                "enum": [
+                  "committed",
+                  "dry-run",
+                  "failed",
+                  "replayed",
+                  "rolled-back",
+                  "structurally-verified",
+                  "verified"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "valueVerification": {
+                "$ref": "#/$defs/_ReceiptValueVerification"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "phase",
+              "status",
+              "ok",
+              "dryRun",
+              "committed",
+              "rolledBack",
+              "plan",
+              "source",
+              "output",
+              "sourcePreservation",
+              "resolutions",
+              "expectedTargets",
+              "valueVerification",
+              "package",
+              "reopen",
+              "openSafety",
+              "semanticDiff",
+              "memberDiff",
+              "bytePreservation",
+              "idempotency",
+              "savePipeline",
+              "domain",
+              "realHancom",
+              "error"
+            ],
+            "title": "FormVerificationReceipt",
+            "type": "object"
+          },
+          "LegacyFormFillApplyOutput": {
+            "additionalProperties": true,
+            "properties": {
+              "compatibility": {
+                "$ref": "#/$defs/_LegacyFormFillCompatibility"
+              },
+              "handoff_status": {
+                "enum": [
+                  "ready",
+                  "blocked"
+                ],
+                "title": "Handoff Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "handoff_status",
+              "compatibility"
+            ],
+            "title": "LegacyFormFillApplyOutput",
+            "type": "object"
+          },
+          "MixedFormResolution": {
+            "additionalProperties": false,
+            "properties": {
+              "locatorKind": {
+                "enum": [
+                  "nativeField",
+                  "labelCell",
+                  "canonicalPath",
+                  "bodyAnchor"
+                ],
+                "title": "Locatorkind",
+                "type": "string"
+              },
+              "logicalColumn": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Logicalcolumn"
+              },
+              "logicalRow": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Logicalrow"
+              },
+              "nodeKind": {
+                "enum": [
+                  "paragraph",
+                  "run",
+                  "cell",
+                  "form-field"
+                ],
+                "title": "Nodekind",
+                "type": "string"
+              },
+              "operationId": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                "title": "Operationid",
+                "type": "string"
+              },
+              "path": {
+                "minLength": 1,
+                "title": "Path",
+                "type": "string"
+              },
+              "physicalColumn": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Physicalcolumn"
+              },
+              "physicalRow": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Physicalrow"
+              },
+              "section": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Section"
+              },
+              "stability": {
+                "enum": [
+                  "native",
+                  "derived",
+                  "positional"
+                ],
+                "title": "Stability",
+                "type": "string"
+              },
+              "tableIndex": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Tableindex"
+              }
+            },
+            "required": [
+              "operationId",
+              "locatorKind",
+              "path",
+              "nodeKind",
+              "stability",
+              "section",
+              "tableIndex",
+              "logicalRow",
+              "logicalColumn",
+              "physicalRow",
+              "physicalColumn"
+            ],
+            "title": "MixedFormResolution",
+            "type": "object"
+          },
+          "_AgentOutputRef": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              }
+            },
+            "required": [
+              "filename"
+            ],
+            "title": "_AgentOutputRef",
+            "type": "object"
+          },
+          "_LegacyFormFillCompatibility": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalInput": {
+                "minLength": 1,
+                "title": "Canonicalinput",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.formfill.v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "status": {
+                "const": "retained",
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "status",
+              "canonicalInput"
+            ],
+            "title": "_LegacyFormFillCompatibility",
+            "type": "object"
+          },
+          "_PublicCommandResult": {
+            "additionalProperties": false,
+            "properties": {
+              "changedPropertyNames": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Changedpropertynames",
+                "type": "array"
+              },
+              "commandId": {
+                "minLength": 1,
+                "title": "Commandid",
+                "type": "string"
+              },
+              "generatedIdentityCount": {
+                "minimum": 0,
+                "title": "Generatedidentitycount",
+                "type": "integer"
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "op": {
+                "minLength": 1,
+                "title": "Op",
+                "type": "string"
+              },
+              "parentPath": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Parentpath"
+              },
+              "path": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Path"
+              },
+              "warningCount": {
+                "minimum": 0,
+                "title": "Warningcount",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "commandId",
+              "op",
+              "ok",
+              "warningCount",
+              "changedPropertyNames",
+              "generatedIdentityCount"
+            ],
+            "title": "_PublicCommandResult",
+            "type": "object"
+          },
+          "_ReceiptFile": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              }
+            },
+            "required": [
+              "filename",
+              "revision"
+            ],
+            "title": "_ReceiptFile",
+            "type": "object"
+          },
+          "_ReceiptOutput": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "title": "Exists",
+                "type": "boolean"
+              },
+              "expectedRevision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Expectedrevision"
+              },
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              },
+              "revisionMatched": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revisionmatched"
+              }
+            },
+            "required": [
+              "filename",
+              "revision",
+              "exists",
+              "expectedRevision",
+              "revisionMatched"
+            ],
+            "title": "_ReceiptOutput",
+            "type": "object"
+          },
+          "_ReceiptPlanSummary": {
+            "additionalProperties": false,
+            "properties": {
+              "inputRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Inputrevision",
+                "type": "string"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.mixed-form-compiled-plan/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "planHash",
+              "requestHash",
+              "inputRevision"
+            ],
+            "title": "_ReceiptPlanSummary",
+            "type": "object"
+          },
+          "_ReceiptValueVerification": {
+            "additionalProperties": false,
+            "properties": {
+              "checkCount": {
+                "minimum": 0,
+                "title": "Checkcount",
+                "type": "integer"
+              },
+              "checks": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Checks",
+                "type": "array"
+              },
+              "matchedCount": {
+                "minimum": 0,
+                "title": "Matchedcount",
+                "type": "integer"
+              },
+              "ok": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Ok"
+              },
+              "status": {
+                "enum": [
+                  "checked",
+                  "deferred"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ok",
+              "status",
+              "matchedCount",
+              "checkCount",
+              "checks"
+            ],
+            "title": "_ReceiptValueVerification",
+            "type": "object"
+          }
+        },
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CanonicalMixedFormApplyOutput"
+          },
+          {
+            "$ref": "#/$defs/LegacyFormFillApplyOutput"
+          }
+        ],
+        "description": "Canonical atomic apply or the retained ``hwpx.formfill.v1`` response.",
+        "title": "ApplyFormFillOutput"
       }
     },
     {
@@ -7215,7 +10352,7 @@
         "skill-required"
       ],
       "description": "빈 평가계획 양식과 검토용 Markdown을 바이트 보존 채움본으로 만듭니다.",
-      "signature": "(filename: 'str', review_md: 'str', output: 'str | None' = None, render_check: 'str' = 'off', score_gold_path: 'str | None' = None, expected_pages: 'int | None' = None) -> 'dict'",
+      "signature": "(filename: 'str', review_md: 'str', output: 'str | None' = None, render_check: 'str' = 'off', score_gold_path: 'str | None' = None, expected_pages: 'int | None' = None) -> 'ApplyEvalplanFillOutput'",
       "inputSchema": {
         "properties": {
           "expected_pages": {
@@ -7277,10 +10414,594 @@
         "additionalProperties": false
       },
       "outputSchema": {
-        "additionalProperties": true,
-        "title": "apply_evalplan_fillDictOutput",
-        "type": "object",
-        "properties": {}
+        "$defs": {
+          "FormVerificationReceipt": {
+            "additionalProperties": false,
+            "description": "Closed top-level public receipt envelope for form mutations/verifiers.",
+            "properties": {
+              "bytePreservation": {
+                "additionalProperties": true,
+                "title": "Bytepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "committed": {
+                "title": "Committed",
+                "type": "boolean"
+              },
+              "domain": {
+                "additionalProperties": true,
+                "title": "Domain",
+                "type": "object",
+                "properties": {}
+              },
+              "dryRun": {
+                "title": "Dryrun",
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Error"
+              },
+              "expectedTargets": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Expectedtargets",
+                "type": "array"
+              },
+              "idempotency": {
+                "additionalProperties": true,
+                "title": "Idempotency",
+                "type": "object",
+                "properties": {}
+              },
+              "memberDiff": {
+                "additionalProperties": true,
+                "title": "Memberdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "ok": {
+                "title": "Ok",
+                "type": "boolean"
+              },
+              "openSafety": {
+                "additionalProperties": true,
+                "title": "Opensafety",
+                "type": "object",
+                "properties": {}
+              },
+              "operation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Operation"
+              },
+              "output": {
+                "$ref": "#/$defs/_ReceiptOutput"
+              },
+              "package": {
+                "additionalProperties": true,
+                "title": "Package",
+                "type": "object",
+                "properties": {}
+              },
+              "phase": {
+                "enum": [
+                  "apply",
+                  "verify",
+                  "domain-apply"
+                ],
+                "title": "Phase",
+                "type": "string"
+              },
+              "plan": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/_ReceiptPlanSummary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "realHancom": {
+                "additionalProperties": true,
+                "title": "Realhancom",
+                "type": "object",
+                "properties": {}
+              },
+              "reopen": {
+                "additionalProperties": true,
+                "title": "Reopen",
+                "type": "object",
+                "properties": {}
+              },
+              "resolutions": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Resolutions",
+                "type": "array"
+              },
+              "rollbackPreservation": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object",
+                    "properties": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Rollbackpreservation"
+              },
+              "rolledBack": {
+                "title": "Rolledback",
+                "type": "boolean"
+              },
+              "savePipeline": {
+                "additionalProperties": true,
+                "title": "Savepipeline",
+                "type": "object",
+                "properties": {}
+              },
+              "schemaVersion": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              },
+              "semanticDiff": {
+                "additionalProperties": true,
+                "title": "Semanticdiff",
+                "type": "object",
+                "properties": {}
+              },
+              "source": {
+                "$ref": "#/$defs/_ReceiptFile"
+              },
+              "sourcePreservation": {
+                "additionalProperties": true,
+                "title": "Sourcepreservation",
+                "type": "object",
+                "properties": {}
+              },
+              "status": {
+                "enum": [
+                  "committed",
+                  "dry-run",
+                  "failed",
+                  "replayed",
+                  "rolled-back",
+                  "structurally-verified",
+                  "verified"
+                ],
+                "title": "Status",
+                "type": "string"
+              },
+              "valueVerification": {
+                "$ref": "#/$defs/_ReceiptValueVerification"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "phase",
+              "status",
+              "ok",
+              "dryRun",
+              "committed",
+              "rolledBack",
+              "plan",
+              "source",
+              "output",
+              "sourcePreservation",
+              "resolutions",
+              "expectedTargets",
+              "valueVerification",
+              "package",
+              "reopen",
+              "openSafety",
+              "semanticDiff",
+              "memberDiff",
+              "bytePreservation",
+              "idempotency",
+              "savePipeline",
+              "domain",
+              "realHancom",
+              "error"
+            ],
+            "title": "FormVerificationReceipt",
+            "type": "object"
+          },
+          "_ReceiptFile": {
+            "additionalProperties": false,
+            "properties": {
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              }
+            },
+            "required": [
+              "filename",
+              "revision"
+            ],
+            "title": "_ReceiptFile",
+            "type": "object"
+          },
+          "_ReceiptOutput": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "title": "Exists",
+                "type": "boolean"
+              },
+              "expectedRevision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Expectedrevision"
+              },
+              "filename": {
+                "title": "Filename",
+                "type": "string"
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revision"
+              },
+              "revisionMatched": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Revisionmatched"
+              }
+            },
+            "required": [
+              "filename",
+              "revision",
+              "exists",
+              "expectedRevision",
+              "revisionMatched"
+            ],
+            "title": "_ReceiptOutput",
+            "type": "object"
+          },
+          "_ReceiptPlanSummary": {
+            "additionalProperties": false,
+            "properties": {
+              "inputRevision": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Inputrevision",
+                "type": "string"
+              },
+              "planHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Planhash",
+                "type": "string"
+              },
+              "requestHash": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "title": "Requesthash",
+                "type": "string"
+              },
+              "schemaVersion": {
+                "const": "hwpx.mixed-form-compiled-plan/v1",
+                "title": "Schemaversion",
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "planHash",
+              "requestHash",
+              "inputRevision"
+            ],
+            "title": "_ReceiptPlanSummary",
+            "type": "object"
+          },
+          "_ReceiptValueVerification": {
+            "additionalProperties": false,
+            "properties": {
+              "checkCount": {
+                "minimum": 0,
+                "title": "Checkcount",
+                "type": "integer"
+              },
+              "checks": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "properties": {}
+                },
+                "title": "Checks",
+                "type": "array"
+              },
+              "matchedCount": {
+                "minimum": 0,
+                "title": "Matchedcount",
+                "type": "integer"
+              },
+              "ok": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Ok"
+              },
+              "status": {
+                "enum": [
+                  "checked",
+                  "deferred"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ok",
+              "status",
+              "matchedCount",
+              "checkCount",
+              "checks"
+            ],
+            "title": "_ReceiptValueVerification",
+            "type": "object"
+          },
+          "_SpecializedCompatibility": {
+            "additionalProperties": false,
+            "properties": {
+              "canonicalReceipt": {
+                "const": "hwpx.form-verification-receipt/v1",
+                "title": "Canonicalreceipt",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "specialized-semantics-preserved",
+                  "specialized-verification-failed",
+                  "rolled-back"
+                ],
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "canonicalReceipt"
+            ],
+            "title": "_SpecializedCompatibility",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "byteIdentical": {
+            "title": "Byteidentical",
+            "type": "boolean"
+          },
+          "changedParts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changedparts",
+            "type": "array"
+          },
+          "compatibility": {
+            "$ref": "#/$defs/_SpecializedCompatibility"
+          },
+          "contentReport": {
+            "additionalProperties": true,
+            "title": "Contentreport",
+            "type": "object",
+            "properties": {}
+          },
+          "documentRevision": {
+            "anyOf": [
+              {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Documentrevision"
+          },
+          "dryRun": {
+            "title": "Dryrun",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "expectedSkeleton": {
+            "title": "Expectedskeleton"
+          },
+          "needsReviewNotes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Needsreviewnotes",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "openSafety": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Opensafety"
+          },
+          "outputPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputpath"
+          },
+          "renderVerdict": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Renderverdict"
+          },
+          "rolledBack": {
+            "title": "Rolledback",
+            "type": "boolean"
+          },
+          "rubricNeedsReview": {
+            "minimum": 0,
+            "title": "Rubricneedsreview",
+            "type": "integer"
+          },
+          "scorecard": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Scorecard"
+          },
+          "skipped": {
+            "items": {},
+            "title": "Skipped",
+            "type": "array"
+          },
+          "transcript": {
+            "items": {},
+            "title": "Transcript",
+            "type": "array"
+          },
+          "verificationReceipt": {
+            "$ref": "#/$defs/FormVerificationReceipt"
+          },
+          "verificationReport": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Verificationreport"
+          }
+        },
+        "required": [
+          "ok",
+          "dryRun",
+          "outputPath",
+          "changedParts",
+          "byteIdentical",
+          "skipped",
+          "rolledBack",
+          "verificationReceipt",
+          "compatibility",
+          "transcript",
+          "expectedSkeleton",
+          "contentReport",
+          "rubricNeedsReview",
+          "needsReviewNotes"
+        ],
+        "title": "ApplyEvalplanFillOutput",
+        "type": "object"
       }
     },
     {
@@ -13174,10 +16895,11 @@
       "skillRequired": true,
       "callableName": "render_preview",
       "schemaBinding": "python-signature",
-      "mutates": false,
+      "mutates": true,
       "tags": [
         "verify_quality",
         "public",
+        "mutation",
         "skill-required"
       ],
       "description": "레이아웃 충실 HTML과 headless browser PNG 프리뷰 산출물을 생성합니다.\n\nembed_images 가 참이면 각 페이지 PNG 를 인라인 이미지 콘텐츠 블록으로 함께\n반환해 (한컴/ComputerUse 없이) 모델이 레이아웃을 직접 볼 수 있습니다. 구조화\n매니페스트(JSON)는 structuredContent 로 그대로 유지됩니다.",
@@ -14938,10 +18660,11 @@
         "skillRequired": false,
         "callableName": "render_status",
         "schemaBinding": "python-signature",
-        "mutates": false,
+        "mutates": true,
         "tags": [
           "real_hancom_render",
-          "public"
+          "public",
+          "mutation"
         ]
       },
       {
@@ -18066,10 +21789,11 @@
         "skillRequired": true,
         "callableName": "render_preview",
         "schemaBinding": "python-signature",
-        "mutates": false,
+        "mutates": true,
         "tags": [
           "verify_quality",
           "public",
+          "mutation",
           "skill-required"
         ]
       },
@@ -18542,7 +22266,7 @@
       }
     ]
   },
-  "contractHash": "b3673279acce516e",
+  "contractHash": "71661f4118e020c4",
   "defaultToolCount": 121,
   "advancedToolCount": 132,
   "baselineToolCount": 136,

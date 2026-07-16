@@ -82,7 +82,15 @@ def _mcp_error_code(exc: BaseException) -> str | None:
 
 async def _run(args: argparse.Namespace) -> dict[str, Any]:
     contract = json.loads(args.contract.read_text(encoding="utf-8"))
-    required = set(contract["skillRequiredTools"])
+    active_contract_names = {
+        tool["name"]
+        for tool in contract["tools"]
+        if args.advanced or tool["profile"] == "default"
+    }
+    # Skill-required is a cross-profile inventory. Startup health applies it
+    # only to the selected profile, matching the server's own active-required
+    # intersection (for example advanced-only ``score_form_fill``).
+    required = set(contract["skillRequiredTools"]) & active_contract_names
     with (
         tempfile.TemporaryDirectory(prefix="hwpx-plugin-e2e-") as tmp,
         tempfile.TemporaryDirectory(prefix="hwpx-plugin-e2e-denied-") as denied_tmp,
@@ -171,6 +179,13 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                 await session.initialize()
                 listed = await session.list_tools()
                 names = {tool.name for tool in listed.tools}
+                if names != active_contract_names:
+                    missing_names = sorted(active_contract_names - names)
+                    unexpected_names = sorted(names - active_contract_names)
+                    raise RuntimeError(
+                        "installed plugin contract mismatch: "
+                        f"missing={missing_names}, unexpected={unexpected_names}"
+                    )
                 missing = sorted(required - names)
                 if missing:
                     raise RuntimeError(
@@ -360,8 +375,15 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                         "mcp_server_health", {}, read_timeout_seconds=timeout
                     )
                 )
-                if health.get("toolSurface", {}).get("status") != "ok":
+                tool_surface = health.get("toolSurface", {})
+                if tool_surface.get("status") != "ok":
                     raise RuntimeError(f"plugin health is not ok: {health}")
+                runtime_contract_hash = tool_surface.get("contractHash")
+                if runtime_contract_hash != contract["contractHash"]:
+                    raise RuntimeError(
+                        "installed runtime contract hash mismatch: "
+                        f"{runtime_contract_hash} != {contract['contractHash']}"
+                    )
                 workspace = health.get("workspace") or {}
                 observed_roots = [
                     Path(value).resolve() for value in workspace.get("roots", [])
@@ -379,16 +401,31 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                         "render_health", {}, read_timeout_seconds=timeout
                     )
                 )
-                render_receipt = _structured(
-                    await session.call_tool(
-                        "render_submit",
-                        {
-                            "filename": str(output),
-                            "idempotency_key": "plugin-e2e-render",
-                        },
-                        read_timeout_seconds=timeout,
+                render_error_code: str | None = None
+                try:
+                    render_receipt = _structured(
+                        await session.call_tool(
+                            "render_submit",
+                            {
+                                "filename": str(output),
+                                "idempotency_key": "plugin-e2e-render",
+                            },
+                            read_timeout_seconds=timeout,
+                        )
                     )
-                )
+                except Exception as exc:
+                    render_error_code = _mcp_error_code(exc)
+                    if (
+                        args.require_real_render
+                        or render_error_code != "TOOL_EXECUTION_FAILED"
+                        or render_health.get("degradedReason") != "NOT_CONFIGURED"
+                    ):
+                        raise
+                    # The strict protocol adapter promotes an ``ok: false``
+                    # unconfigured-render receipt to a typed JSON-RPC error.
+                    # Treat that as the honest no-backend outcome only when
+                    # health independently confirms NOT_CONFIGURED.
+                    render_receipt = {}
                 if args.require_real_render:
                     receipt_payload = render_receipt.get("receipt") or {}
                     job_id = receipt_payload.get("job_id")
@@ -425,18 +462,20 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                             f"installed render artifacts missing: {render_receipt}"
                         )
                 else:
-                    payload = render_receipt.get("receipt") or {}
-                    if (
-                        payload.get("status") != "unavailable"
-                        or payload.get("render_checked") is not False
-                    ):
-                        raise RuntimeError(
-                            f"unconfigured render must be honestly unavailable: {render_receipt}"
-                        )
+                    if render_error_code is None:
+                        payload = render_receipt.get("receipt") or {}
+                        if (
+                            payload.get("status") != "unavailable"
+                            or payload.get("render_checked") is not False
+                        ):
+                            raise RuntimeError(
+                                "unconfigured render must be honestly unavailable: "
+                                f"{render_receipt}"
+                            )
                 return {
                     "ok": True,
                     "toolCount": len(names),
-                    "contractHash": contract["contractHash"],
+                    "contractHash": runtime_contract_hash,
                     "requiredTools": sorted(required),
                     "workflowTools": sorted(WORKFLOW_TOOLS),
                     "renderTools": sorted(RENDER_TOOLS),
@@ -447,6 +486,7 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                     "openSafety": open_safety,
                     "renderHealth": render_health,
                     "renderReceipt": render_receipt,
+                    "renderErrorCode": render_error_code,
                     "realRenderRequired": args.require_real_render,
                     "versions": health.get("capability", {}).get("versions"),
                     "workspace": workspace,

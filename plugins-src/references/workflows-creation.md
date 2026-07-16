@@ -75,12 +75,13 @@ builder는 내부 XML을 직접 만들지 않고 `HwpxDocument` facade로 loweri
 
 1. 붙여넣은 텍스트는 `parse_government_report_text(text, title)`로 plan v2로 변환한다.
 2. 금액/비율/증감률/날짜는 `compute_report_value(operation, values)`로 계산한다(수동 계산 금지).
-3. `create_government_report_document(filename, document_plan)` — `government_report`
-   preset과 품질 프로필이 자동 적용된다.
+3. 반환 plan에 `preset="government_report"`와 필요한 결문·메타데이터를 확인하고
+   `validate_document_plan` → `create_document_from_plan`으로 생성한다.
+4. `inspect_document_authoring_quality(..., quality_profile="government_report")`로 확인한다.
 
-MCP가 없으면 plan v2에 `preset="government_report"`를 넣어 `create_document_from_plan(plan)`을
-호출하고 `inspect_document_authoring_quality(..., quality_profile="government_report")`로
-확인한다. 예제: `examples/10_create_government_report.py`, `examples/10_mcp_government_report.md`.
+`create_government_report_document`는 기존 호출자를 위한 compatibility facade다. 새 요청은
+위 document-plan 경로를 사용한다. 예제: `examples/10_create_government_report.py`,
+`examples/10_mcp_government_report.md`.
 열린 문서 검토 항목은 [`government-report-visual-review.md`](government-report-visual-review.md).
 
 ## 5. 운영 계획서 제출 후보
@@ -107,18 +108,21 @@ plan보다 운영 계획서 프로필을 우선한다.
 
 ## 6. 제안서/기획안 (proposal preset)
 
-"제안서", "기획안" 요청은 `python-hwpx` proposal preset을 사용한다.
+"제안서", "기획안" 요청은 proposal 구조를 담은 canonical document plan을 사용한다.
 
-1. 요청을 `ProposalSpec` JSON으로 정규화한다.
-2. MCP `create_proposal_document` 또는 local
-   `from hwpx.presets import create_proposal_document, inspect_proposal_quality`.
+1. 요청을 `hwpx.document_plan.v1`로 정규화하고 제안 배경, 목표, 범위, 실행안, 일정,
+   예산/자원, 기대효과를 명시한다.
+2. `validate_document_plan` → `analyze_document_plan` → `create_document_from_plan`으로 생성한다.
 3. 생성 직후 `inspect_document_quality(filename, rubric="proposal")`(MCP) 또는
    `inspect_proposal_quality()`(local)로 구조·표·payload·validation·rubric 점수·
    `sample_match`를 확인한다.
-4. 평균 점수 4.0 미만, `sample_match.pass == false`, 필수 섹션 누락이면 spec을 보강해
+4. 평균 점수 4.0 미만, `sample_match.pass == false`, 필수 섹션 누락이면 plan을 보강해
    다시 생성한다.
 5. anti-pattern: 큰 BMP 의존 문서, 표/메타데이터가 이미지로 박힌 문서, PII가 redaction
    없이 노출되는 예제.
+
+`create_proposal_document`는 기존 `ProposalSpec` 호출을 위한 compatibility facade다. 새 요청의
+MCP 경로로 선택하지 않는다.
 
 예제: `examples/04_create_proposal.py`. 검증: `python3 scripts/quickcheck.py --proposal`.
 

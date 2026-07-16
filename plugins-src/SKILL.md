@@ -42,7 +42,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | Markdown/HTML/JSON 변환·추출 | `hwpx_to_markdown` · `hwpx_to_html` · `hwpx_extract_json` · `document_to_markdown` · `document_extract_json` | [api](references/api.md) |
 | 런서식(굵게·색·크기·글꼴) + 각주/미주 본문까지 충실 읽기 | `hwpx_extract_json` (`format_detail`·`doc.notes[]`) · `hwpx_to_markdown` (각주 부록) | [workflows-reading](references/workflows-reading.md) |
 | 일반 텍스트 위치 찾기 | `find_text` | [workflows-editing](references/workflows-editing.md) |
-| 이미 인덱스·앵커가 확정된 본문·표 좌표 편집 (2건 이상) | `apply_edits` (dry_run → 확정) | [workflows-editing](references/workflows-editing.md) |
+| 이미 canonical path가 확정된 본문·표 좌표 편집 (2건 이상) | `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
 | 단건 치환·문단·표 셀 편집 | `search_and_replace` · `batch_replace` · `insert_paragraph` · `set_table_cell_text` | [workflows-editing](references/workflows-editing.md) |
 | 직전 편집 되돌리기 | `undo_last_edit` | [workflows-editing](references/workflows-editing.md) |
 | 줄간격·정렬·들여쓰기·문단 간격 변경 | `set_paragraph_format` | [workflows-editing](references/workflows-editing.md) |
@@ -61,20 +61,20 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 공문·보고서·가정통신문 (유형별 한컴 양식 프로파일 + 공문 구조 hard-gate·결문 메타·맞춤법 정직보고) | `create_document_from_plan` (`metadata.document_type` + `gyeolmun`) | [workflows-authoring](references/workflows-authoring.md) |
 | 살아있는 목차(한컴이 재계산)·쪽 번호 상호참조 | `add_toc` · `add_cross_reference` · `verify_toc` | [workflows-toc](references/workflows-toc.md) |
 | 변경추적 redline 저작 (삽입/삭제/치환 + 코멘트, 사람이 한컴서 수락/거부) | `add_tracked_edit` (+ `add_memo_by_anchor`) | [workflows-redline](references/workflows-redline.md) |
-| 개인정보(PII) 탐지·마스킹 (양식채움·메일머지·추출 기본 마스킹, 가명/비식별) | `scan_personal_info` · `masking_policy` param | [workflows-pii](references/workflows-pii.md) |
+| 개인정보(PII) 탐지·마스킹 (읽기·추출 기본 마스킹, 쓰기 입력 사전 정제) | `scan_personal_info` · 읽기/추출 `mask` param | [workflows-pii](references/workflows-pii.md) |
 | 머리글·쪽번호·리치 런·병합 표 조립 생성 | `hwpx.builder` (local) | [workflows-creation](references/workflows-creation.md) |
-| 정부보고서·공문형 보고서 (□/○/※ 불릿) | `parse_government_report_text` → `compute_report_value` → `create_government_report_document` | [workflows-creation](references/workflows-creation.md) |
+| 정부보고서·공문형 보고서 (□/○/※ 불릿) | `parse_government_report_text` → document plan 구성·검증 → `create_document_from_plan` | [workflows-creation](references/workflows-creation.md) |
 | 운영 계획서 제출 후보 | document-plan + `quality_profile="operating_plan"` | [workflows-creation](references/workflows-creation.md) |
-| 제안서·기획안 | `create_proposal_document` → `inspect_document_quality` | [workflows-creation](references/workflows-creation.md) |
+| 제안서·기획안 | proposal document plan → `create_document_from_plan` → `inspect_document_quality` | [workflows-creation](references/workflows-creation.md) |
 | 공문서 작성규정 lint·결재란 | `inspect_official_document_style` | [workflows-creation](references/workflows-creation.md), [규정](references/official-document-rules.md) |
 | 직인/관인 날인 (발신명의 끝글자에 도장) · 날인 규정 pass/fail 검사 | `place_seal` · `check_seal_compliance` | [workflows-forms](references/workflows-forms.md) |
 | 출제 md를 학교 시험지 양식에 재조판 (문항 keep-together, 그림은 placeholder) | `compose_exam` · `verify_question_splits` | [workflows-exam](references/workflows-exam.md) |
-| **평가계획(교수학습운영 및 평가계획) 전문 채움** | `apply_evalplan_fill(..., renderCheck="required", scoreGoldPath=...)` → 필요 시 advanced `score_form_fill` | [workflows-forms](references/workflows-forms.md) |
-| 낯선 양식·누름틀·라벨 셀·경로 셀·표 밖 본문이 섞인 채움 | `analyze_form_fill` → plan 승인 → `apply_form_fill` (dry-run → commit) → `verify_form_fill` | [workflows-forms](references/workflows-forms.md) |
+| **평가계획(교수학습운영 및 평가계획) 전문 채움** | `apply_evalplan_fill(filename=..., review_md=..., output=..., render_check="required", score_gold_path=...)` → 필요 시 advanced `score_form_fill` | [workflows-forms](references/workflows-forms.md) |
+| 낯선 양식·누름틀·라벨 셀·경로 셀·표 밖 본문이 섞인 채움 | `analyze_form_fill(plan=...)` → plan 승인 → `apply_form_fill(plan=...)` (`plan.dryRun` dry-run → commit) → `verify_form_fill(plan=...)` | [workflows-forms](references/workflows-forms.md) |
 | 메일머지 N부 대량생산 (상장·수료증·안내장·명부 CSV/XLSX) · 셀 넘침 격리(fit) | `mail_merge` (`fit_mode`) | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 표 합계·평균·소계 계산 | `table_compute` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 두 문서/문단 비교 (신구 diff) | `doc_diff` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
-| 신구대조표 문서 생성 | `create_comparison_table_document` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
+| 신구대조표 문서 생성 | `doc_diff` → comparison document plan → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 사진대지 생성 | `build_image_grid` → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 회의 명패 생성 | `build_meeting_nameplates` → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 조직도 생성 | `build_organization_chart` → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
@@ -97,9 +97,11 @@ deprecation/replacement guidance를 따른다.
 
 - **원본 보존**: 기존 문서를 편집할 때는 원본을 직접 덮어쓰지 말고 `copy_document` 사본 또는
   별도 destination에서 작업한다. 양식 채움은 항상 원본과 다른 destination에만 적용한다.
-- **openSafety**: 모든 쓰기 도구 응답의 `openSafety.ok == true`
-  (또는 `verification.openSafety.ok == true`)를 확인한다. false인 파일은 handoff하지 않는다.
-- **dry_run 우선**: 쓰기 도구는 `dry_run=true`로 `semanticDiff`를 먼저 확인한 뒤 확정 저장한다.
+- **openSafety**: 생성 계약이 `openSafety`를 선언한 쓰기 도구는 `openSafety.ok == true`
+  (또는 도구별 verification receipt의 대응 필드)를 확인한다. 필드가 없는 도구는 해당
+  도구가 선언한 전용 영수증과 재열기 검증을 사용하며, 존재하지 않는 공통 필드를 추정하지 않는다.
+- **dry_run 우선**: 생성 계약이 `dry_run`과 `semanticDiff`를 선언한 쓰기 도구는 이를 먼저
+  검토한 뒤 확정 저장한다. 미지원 도구에는 인자를 임의로 추가하지 말고 도구별 안전 절차를 따른다.
 - **blueprint 정직성**: `unsupported`가 비었고 strict `fidelity.ok == true`인 replayable bundle만
   이식한다. raw XML·ZIP 내부 XML·package path를 직접 편집하거나 degraded를 exact로 부르지 않는다.
 - **증거 계약**: `visual_review_required=true`이면
@@ -116,7 +118,7 @@ deprecation/replacement guidance를 따른다.
    여러 후보 중 첫 항목을 임의 선택하거나 `volatilePath`를 다른 revision에서 재사용하지 않는다.
 3. 관련 변경을 한 `apply_document_commands(..., dry_run=true)` batch로 검토한다.
 4. diff가 맞으면 **새 idempotency key**로 commit한다. commit 재시도에만 같은 key를 쓴다.
-5. `ok`, `rolledBack == false`, `openSafety.ok`, 선언한 검증 영수증을 확인한다.
+5. `ok`, `rolledBack == false`, `verificationReport.openSafety.ok`, 선언한 검증 영수증을 확인한다.
 
 스키마·오류 복구·CLI replay는
 [`references/workflows-agent-document.md`](references/workflows-agent-document.md)를 본다. 양식·시험·PII·
@@ -136,7 +138,7 @@ deprecation/replacement guidance를 따른다.
 5. dry-run의 node/dependency map, `exact|mapped|degraded|unsupported` fidelity와 semantic diff를 확인한다.
    commit에는 새 idempotency key를 쓰고, 동일 요청 재시도에만 같은 key를 쓴다.
 6. commit에서 `rolledBack == false`, package/reopen/reference/resource/byte preservation,
-   `openSafety.ok`, domain 영수증을 확인한다. 실패하면 output이 보존됐는지 확인하고 성공으로 간주하지 않는다.
+   `verificationReport.openSafety.ok`, domain 영수증을 확인한다. 실패하면 output이 보존됐는지 확인하고 성공으로 간주하지 않는다.
 7. 실제 한컴 검증이 요구되면 `render_health` → `render_submit` → `render_status`의 matching full-page
    영수증까지 받아야 한다. oracle unavailable/mismatch는 `unverified`다.
 
@@ -163,13 +165,13 @@ deprecation/replacement guidance를 따른다.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
 - [`references/workflows-editing.md`](references/workflows-editing.md) — 트랜잭션 편집 루프, 서식 5종, 그림, byte patch, render_preview.
 - [`references/workflows-creation.md`](references/workflows-creation.md) — document-plan, builder, 정부보고서, 운영계획서, 제안서, 공문서 레시피.
-- [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`. `hwpx-mcp-server>=2.9.0`.
-- [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지·마스킹(양식채움·메일머지·추출 기본 마스킹) + 가명/비식별. `scan_personal_info` · `mask` param. `hwpx-mcp-server>=2.10.0`.
+- [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`. S-079 `hwpx-mcp-server>=4.0.0` 계약.
+- [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지, 읽기·추출 기본 마스킹, 폼필·메일머지 입력 사전 정제 + 가명/비식별. `scan_personal_info` · 읽기/추출 `mask` param. S-079 `hwpx-mcp-server>=4.0.0` 계약.
 - [`references/workflows-reading.md`](references/workflows-reading.md) — 런서식(굵게·색·크기·글꼴)+각주/미주 본문 충실 읽기. `hwpx_extract_json`(`format_detail`·`doc.notes[]`)·`hwpx_to_markdown` 각주 부록, `document_to_markdown` 로컬 ingest.
-- [`references/workflows-toc.md`](references/workflows-toc.md) — 네이티브 자동 차례·상호참조(재페이지네이션 시 한컴이 재번호). `add_toc`·`add_cross_reference`·`verify_toc`. `hwpx-mcp-server>=2.12.0`.
+- [`references/workflows-toc.md`](references/workflows-toc.md) — 네이티브 자동 차례·상호참조(재페이지네이션 시 한컴이 재번호). `add_toc`·`add_cross_reference`·`verify_toc`. S-079 `hwpx-mcp-server>=4.0.0` 계약.
 - **처음 이 스킬로 HWPX 작업 시작 시**: `describe_capabilities`로 실제 FastMCP 작업군을 확인한다. 정확한 default/advanced/필수 도구 계약은 자동 생성된 [`tool-contract.generated.md`](references/tool-contract.generated.md)가 정본이다.
 - [`references/workflows-forms.md`](references/workflows-forms.md) — canonical mixed-form plan/apply/verify, 평가계획 facade, legacy replacement 경계.
-- [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). `hwpx-mcp-server>=2.7.0`.
+- [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). S-079 `hwpx-mcp-server>=4.0.0` 계약.
 - [`references/workflows-bulk-compare.md`](references/workflows-bulk-compare.md) — 메일머지, 표 계산, 신구대조, 생성기 3종, 스타일 프로파일/템플릿.
 - [`references/evidence-contract.md`](references/evidence-contract.md) — openSafety·visual-review v1·hard gates·제출 증거 계약.
 - [`references/api.md`](references/api.md) — python-hwpx 시그니처, MCP 도구 표, repair/recover, 번들 스크립트.

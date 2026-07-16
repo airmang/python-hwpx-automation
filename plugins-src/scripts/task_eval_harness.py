@@ -1290,6 +1290,11 @@ def run(
         temp_dir = tempfile.TemporaryDirectory(prefix="hwpx_task_eval_")
         work_dir = Path(temp_dir.name)
     else:
+        # Tool calls receive paths derived from this directory.  Normalize it
+        # before configuring the workspace policy so a caller-provided relative
+        # evidence path cannot be interpreted again relative to the workspace
+        # root and rejected as an escape.
+        work_dir = work_dir.resolve()
         if work_dir.exists():
             shutil.rmtree(work_dir)
         work_dir.mkdir(parents=True)

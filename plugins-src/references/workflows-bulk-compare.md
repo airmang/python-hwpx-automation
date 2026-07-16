@@ -48,7 +48,7 @@ table_compute(table, value_columns=[...], operations=["subtotal", "sum", "averag
 - 응답 `computedTable`은 document-plan table block으로 재사용 가능. `evidence[]`에는
   operation, axis, sourceRowCount/sourceValueCount, result가 들어간다.
 
-## 3. 문서 비교 — `doc_diff` / 신구대조표 — `create_comparison_table_document`
+## 3. 문서 비교 — `doc_diff` / 신구대조표 document plan
 
 두 문서(또는 문단 목록)의 신구 비교 요청:
 
@@ -60,18 +60,19 @@ doc_diff(old_paragraphs=[...], new_paragraphs=[...])
 LCS 기반 paragraph diff를 반환한다. `summary.counts.{changed, added, ...}`로 변경 규모를
 파악한다.
 
-"신구대조표 만들어줘"는 diff 결과를 좌우 대조표 HWPX로 바로 생성한다:
+"신구대조표 만들어줘"는 diff 결과를 좌우 대조표 block으로 정규화한 뒤 canonical
+document plan으로 생성한다:
 
 ```
-create_comparison_table_document(filename, old_filename=.../new_filename=... |
-    old_paragraphs=.../new_paragraphs=..., title="신구대조표", include_equal=True,
-    verbosity="compact")
+doc_diff(old_filename=..., new_filename=...)
+validate_document_plan(document_plan={... comparison table rows ...})
+create_document_from_plan(filename, document_plan)
 ```
 
-- `include_equal=false`이면 변경된 행만 표에 남긴다.
-- 응답 키: `created`, `document_plan`, `plan_validation`, `verification.openSafety.ok`.
-  `created=false`이면 `plan_validation`을 읽고 입력을 보정한다.
-- 생성 preset은 `government_report`라서 행정문서 표 스타일이 적용된다.
+- 변경된 행만 필요하면 diff의 equal 항목을 제외하고 plan을 만든다.
+- `validate_document_plan.ok == true`와 생성 응답의 도구별 verification receipt를 확인한다.
+- 행정문서 표 스타일이 필요하면 plan에 `government_report` preset을 명시한다.
+- `create_comparison_table_document`는 기존 direct-create 호출을 위한 compatibility facade다.
 
 ## 4. 고급 생성기 3종 (block + document_plan 반환)
 

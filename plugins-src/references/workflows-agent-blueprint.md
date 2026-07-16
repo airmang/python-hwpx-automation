@@ -109,7 +109,7 @@ commit 전까지 바뀌지 않는다.
 - source-bound는 필요한 dependency가 모두 `exact`, portable은 허용된 `exact|mapped`만 존재;
 - blueprint logical ID마다 target canonical path가 있고 dangling reference가 없음;
 - `semanticDiff.ok`, `bytePreservation.ok`;
-- package validation/reopen/reference/resource integrity와 `openSafety.ok`;
+- package validation/reopen/reference/resource integrity와 `verificationReport.openSafety.ok`;
 - `verificationReport.savePipeline.ok`와 선언한 domain 검증.
 
 실패는 `rolledBack == true`여야 하며 기존 output sentinel/파일이 그대로여야 한다. `stale_revision`,

@@ -2,19 +2,25 @@
 
 **언제:** 양식 채움·메일머지·추출 경로로 **개인정보(주민등록번호·연락처·이메일·카드·계좌·주소·이름)**가 흐를 때. 사람을 대체해 문서를 처리하는 LLM은 개인정보 보호법상 **탐지+마스킹+최소화** 의무를 진다. 명부 대량 생성·텍스트 추출에서 원본 PII가 산출물/응답/로그로 새지 않게 한다.
 
-**핵심:** 마스킹은 **기본 ON**(safe-by-default). 기계검증 세트(주민등록번호·휴대폰·이메일·카드+Luhn)는 **항상-on·high-confidence**라 "누출 0"을 주도하고, 맥락형(계좌·주소·이름)은 **라벨 게이트·low-confidence**(자유텍스트 과마스킹 방지).
+**핵심:** 읽기·추출 도구의 `mask`는 **기본 ON**(safe-by-default)이다. 쓰기 도구인
+폼필·메일머지에는 공통 자동 마스킹 인자가 없으므로 입력 값을 먼저 최소화·가명화하거나
+마스킹한 뒤 전달해야 한다.
 
 **도구:**
 - `scan_personal_info(filename|text)` — read-only 감사. 탐지 span을 유형·신뢰도별로(마스킹된 예시만, 원본값 미노출).
-- `fill_form_field` / `mail_merge` / `get_document_text` · `hwpx_to_markdown` · `hwpx_extract_json` — `masking_policy`(기본 ON) 파라미터. 산출물·응답 echo·추출 텍스트가 마스킹된다.
+- `get_document_text` · `hwpx_to_markdown` · `hwpx_extract_json` — `mask=true`가 기본이며,
+  명시적으로 승인된 원문 확인에만 `mask=false`를 사용한다.
+- `fill_form_field` / `mail_merge` — 마스킹 파라미터가 없다. 정제된 `value`/`data_rows` 또는
+  정제된 데이터 파일만 입력하고 결과를 다시 감사한다.
 
 ## 루프
 
 1. **감사(선택):** `scan_personal_info` 로 어떤 PII가 어디 있는지 먼저 본다(마스킹 예시).
-2. **처리:** fill/merge/extract 를 평소대로 호출 — 마스킹이 기본으로 적용된다. (가역 출력이 꼭 필요하면 정책으로 opt-out하되 책임은 호출자.)
-   - 메일머지: 행 값의 기계세트 PII 자동 마스킹(`010-****-****`, `900101-2******`). 마스킹 길이로 FitPolicy 재측정.
-   - 추출: 반환 텍스트의 PII 마스킹.
-   - 폼필: 채워지는 값 + `applied[]` echo 마스킹.
+2. **처리:** 추출은 기본 `mask=true`로 호출한다. 폼필·메일머지는 필요한 값만 남기고
+   사전에 마스킹·가명화한 입력을 전달한다.
+   - 메일머지: 정제된 행 값으로 FitPolicy를 계산하고 원본 PII 데이터 파일을 evidence에 복사하지 않는다.
+   - 추출: 반환 텍스트의 PII 마스킹을 확인한다.
+   - 폼필: 정제된 값만 plan/value에 넣고 응답 echo에도 원문 PII가 없는지 확인한다.
 3. **가명/비식별(선택):** 가명=결정적 토큰맵(`이름_001`), 비식별=불가역 salted-hash. 필드 최소화로 불필요한 PII 열 제거.
 4. **0-누출 확인:** 합성 코퍼스 산출물을 raw-PII 패턴/`detect_pii` 로 스캔 → **기계세트 0 hit** 이 게이트.
 
@@ -26,4 +32,5 @@
 
 ## 데모
 
-`demo/M5-pii/` — 합성 명부 → 메일머지(기본 마스킹) 산출물의 기계세트 PII **누출 0**(`evidence/zero-leak-verdict.json`) + 마스킹 산출물 한컴 렌더 clean.
+`demo/M5-pii/` — 합성 명부를 사전 마스킹한 뒤 메일머지한 산출물의 기계세트 PII
+**누출 0**(`evidence/zero-leak-verdict.json`) + 마스킹 산출물 한컴 렌더 clean.

@@ -31,8 +31,10 @@
    때만 `stable native field` → `explicit revision-bound canonical path` → `exact unique label cell` →
    `unique direct-body single-run anchor` 순서를 쓴다. 0건·복수건·run/paragraph 경계에 걸친 anchor는
    fail-closed다. 모호한 target은 임의로 첫 후보를 고르지 말고 한 번에 묶어 사용자에게 확인한다.
-5. 모든 target이 mutation 전에 해석됐는지 확인하고 `apply_form_fill(..., dry_run=true)`의 semantic
-   diff를 먼저 검토한다. 승인된 **동일 plan 전체**를 commit에 한 번 전달한다. `apply_table_ops`와
+5. 모든 target이 mutation 전에 해석됐는지 확인한다. dry-run은 top-level 인자가 아니라
+   `plan.dryRun=true`로 설정해 `apply_form_fill(plan=...)`의 semantic diff를 먼저 검토한다.
+   commit은 동일 operations/verification requirements를 `plan.dryRun=false`, 새 idempotency key,
+   최신 revision으로 다시 분석한 뒤 한 번 적용한다. `apply_table_ops`와
    `apply_body_ops`를 따로 commit해 원자성을 깨지 않는다.
 6. 응답의 rollback/idempotency, package reopen, byte-preservation, `openSafety.ok`, residue/verification
    영수증을 확인한다. 별도 검증이 요구된 계약에서는 `verify_form_fill` 결과도 같은 revision과 연결한다.
@@ -61,16 +63,16 @@
 
 ```text
 apply_evalplan_fill(
-  templatePath=".../빈양식.hwpx",
-  reviewMdPath=".../검토용.md",
-  outputPath=".../채움본.hwpx",
-  renderCheck="required",
-  scoreGoldPath=".../gold.hwpx"  # 선택
+  filename=".../빈양식.hwpx",
+  review_md=".../검토용.md",
+  output=".../채움본.hwpx",
+  render_check="required",
+  score_gold_path=".../gold.hwpx"  # 선택
 )
 ```
 
 - facade 응답의 typed plan과 canonical apply/verify 영수증을 확인한다.
-- `renderCheck="required"`이면 실제 한컴 전 페이지 판정이 없을 때 완료를 확언하지 않는다.
+- `render_check="required"`이면 실제 한컴 전 페이지 판정이 없을 때 완료를 확언하지 않는다.
 - advanced profile에서 정량 비교가 명시적으로 필요할 때만 `score_form_fill`을 별도로 호출한다.
 - facade가 unavailable이면 typed reason과 요구 버전을 보고하고 설치 조합을 교정한다. 새 작업을
   수동 `apply_table_ops` 조합으로 조용히 낮추지 않는다.

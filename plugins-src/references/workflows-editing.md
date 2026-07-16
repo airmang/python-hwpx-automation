@@ -1,13 +1,20 @@
 # 편집 워크플로 (트랜잭션·서식·그림·패치·프리뷰)
 
-기존 HWPX를 수정하는 모든 경로의 상세 계약. 시그니처와 응답 키는
-`hwpx-mcp-server` 2.4.1 `server.py`와 도구별 테스트에서 실측한 값이다.
+기존 HWPX를 수정하는 주요 경로의 상세 계약. 시그니처와 응답 키는 S-079 릴리스 후보
+`hwpx-mcp-server` 4.0.0의 생성 계약과 도구별 테스트를 기준으로 한다. 정확한 현재
+시그니처는 `tool-contract.generated.json`을 우선한다.
 
 ## 1. 트랜잭션 편집 루프 (`apply_edits`)
 
+`apply_edits`는 전환기 호환 facade다. 새 이종 편집 흐름은
+`workflows-agent-document.md`의 `apply_document_commands`를 우선한다.
+
 ```
-apply_edits(filename, operations, dry_run=False, expected_revision=None, idempotency_key=None)
+apply_edits(filename, operations, dry_run=False, expected_revision=None, idempotency_key=None, quality=None)
 ```
+
+호스트 기본 quality policy를 따르려면 `quality=None`을 유지한다. 명시적으로 transparent
+검증만 요청할 때에만 `quality="transparent"`를 전달한다.
 
 여러 편집 operation을 **원자적으로** 적용한다. 한 operation이라도 실패하면 파일은
 변경되지 않고 `{"ok": false, "rolledBack": true, "failedOperationIndex": N, "error": ...}`가
@@ -44,8 +51,8 @@ apply_edits(filename, operations, dry_run=False, expected_revision=None, idempot
 
 ### expected_revision (낙관적 동시성)
 
-모든 읽기/쓰기 응답에 `document_revision`(`"sha256:..."`)이 들어 있다. 확정 저장 시
-직전에 읽은 revision을 `expected_revision`으로 넘긴다. 파일이 그 사이 바뀌었으면:
+revision을 반환하고 `expected_revision`을 받는 도구에서는 확정 저장 시 직전에 읽은
+`document_revision`(`"sha256:..."`)을 넘긴다. 파일이 그 사이 바뀌었으면:
 
 ```json
 {"ok": false, "handoff_status": "blocked", "reason": "document revision mismatch",
@@ -75,9 +82,10 @@ undo 후 `.bak`에는 직전 상태가 들어가므로 한 번 더 호출하면 
 
 ## 2. 단건 편집·읽기 도구
 
-루프를 돌 필요 없는 단건 작업은 전용 도구를 쓴다. 모든 쓰기 도구는
-`dry_run`/`expected_revision`을 지원하고 응답에 `openSafety`·`verificationReport`·
-`semanticDiff`·`document_revision`을 담는다.
+루프를 돌 필요 없는 단건 작업은 전용 도구를 쓴다. 지원 인자와 응답 증거는 도구마다
+다르므로 생성 계약의 해당 시그니처를 확인한다. `dry_run`, `expected_revision`,
+`semanticDiff`, `verificationReport`, `document_revision`은 실제 스키마에 선언된 경우에만
+요청하거나 성공 증거로 요구한다.
 
 - 쓰기: `add_paragraph`, `add_heading`, `add_table`, `add_page_break`,
   `insert_paragraph`, `delete_paragraph`, `set_table_cell_text`,
@@ -109,7 +117,8 @@ undo 후 `.bak`에는 직전 상태가 들어가므로 한 번 더 호출하면 
 set_paragraph_format(filename, paragraph_index=None, paragraph_indexes=None,
     alignment=None, line_spacing_percent=None, indent_left_mm=None,
     indent_right_mm=None, first_line_indent_mm=None, spacing_before_pt=None,
-    spacing_after_pt=None, outline_level=None, dry_run=False, expected_revision=None)
+    spacing_after_pt=None, outline_level=None, keep_with_next=None, keep_lines=None,
+    page_break_before=None, dry_run=False, expected_revision=None)
 ```
 
 "줄간격 160%로 바꿔줘" 예시:

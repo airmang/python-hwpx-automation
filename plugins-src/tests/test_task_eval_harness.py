@@ -103,6 +103,21 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     assert "not live-agent" in markdown
 
 
+def test_task_eval_harness_normalizes_relative_work_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    report = task_eval_harness.run(
+        ROOT / "examples" / "eval_tasks" / "tasks.json",
+        [ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.3.0.json"],
+        tmp_path / "relative-report.json",
+        None,
+        Path("relative-work"),
+    )
+
+    assert report["profiles"][0]["passed"] == report["taskCount"]
+
+
 def test_current_profile_resolves_default_tools_from_generated_contract() -> None:
     profile = task_eval_harness.Profile.from_path(
         ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.3.0.json"

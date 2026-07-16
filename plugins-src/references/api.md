@@ -577,13 +577,14 @@ MCP 응답에서 확인할 필드:
 ## MCP 편집·서식·생성 도구 시그니처
 
 S-079 릴리스 후보 `hwpx-mcp-server 4.0.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
-사용 절차는 `workflows-editing.md` / `workflows-bulk-compare.md`를 본다. 모든 쓰기
-도구의 응답에는 `openSafety`, `verificationReport`, `document_revision`이 들어가고,
-`dry_run`/`expected_revision`을 지원한다(별도 표기 없으면 공통).
+사용 절차는 `workflows-agent-document.md` / `workflows-editing.md` /
+`workflows-bulk-compare.md`를 본다. 지원 인자와 응답 증거는 도구별로 다르며 아래 표와
+`tool-contract.generated.json`의 실제 스키마를 따른다.
 
 | 도구 | 시그니처 (주요 인자) | 핵심 응답 키 |
 |---|---|---|
-| `apply_edits` | `(filename, operations, dry_run, expected_revision, idempotency_key)` | `ok`, `rolledBack`, `operationsApplied`, `operationResults[]`, `semanticDiff` |
+| `apply_document_commands` | `(filename, output, commands, expected_revision, idempotency_key, dry_run, quality, verification_requirements, overwrite)` | `ok`, `rolledBack`, `commandResults[]`, `semanticDiff`, `verificationReport` |
+| `apply_edits` | `(filename, operations, dry_run, expected_revision, idempotency_key, quality)` | `ok`, `rolledBack`, `operationsApplied`, `operationResults[]`, `semanticDiff` |
 | `undo_last_edit` | `(filename)` | `restored`, `backupPath`, `openSafety`, `semanticDiff` |
 | `byte_preserving_patch` | `(filename, patches=[{sectionPath, paragraphIndex, text}], output)` | `changedParts[]`, `byteIdentical`, `skipped[]`, `openSafety` |
 | `set_paragraph_format` | `(filename, paragraph_index|paragraph_indexes, alignment, line_spacing_percent, indent_left_mm, indent_right_mm, first_line_indent_mm, spacing_before_pt, spacing_after_pt, outline_level)` | 적용 결과 + `openSafety` |
@@ -603,10 +604,11 @@ S-079 릴리스 후보 `hwpx-mcp-server 4.0.0`의 트랜잭션·서식·그림·
 | `document_extract_json` | `(filename, output="full"|"chunks", chunk_strategy, max_chars_per_chunk, mask)` | `ok`, `doc.{markdown,sections,tables,metadata}`, `meta`, `attempts[]` |
 | `markdown_to_document_plan` | `(markdown, title, metadata, style_preset)` | `ok`, `can_create`, `document_plan`, `validation`, `warnings`, `next_tool` |
 
-`document_revision` 개념: 모든 응답의 `document_revision`(`"sha256:..."`)은 낙관적
-동시성 토큰이다. 쓰기 도구에 `expected_revision`으로 넘기면 외부 변경 시
-`reason: "document revision mismatch"`로 차단된다. `idempotency_key`는
-`apply_edits`/`search_and_replace`/`batch_replace`의 중복 적용 방지 키다.
+`document_revision`을 반환하는 도구에서는 이 값(`"sha256:..."`)을 낙관적 동시성
+토큰으로 사용한다. 생성 계약에 `expected_revision`이 선언된 쓰기 도구에 넘기면 외부
+변경 시 `reason: "document revision mismatch"`로 차단된다. `idempotency_key`는
+이를 선언한 `apply_document_commands`, `apply_edits`, `search_and_replace`,
+`batch_replace` 등의 중복 적용 방지 키다.
 
 일반 문서 ingest: HWPX는 `python-hwpx` engine으로 변환된다. 비-HWPX는 서버가
 `hwpx-mcp-server[ingest]` extra로 설치되어 있을 때 MarkItDown adapter가 처리한다.

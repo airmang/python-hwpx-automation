@@ -93,10 +93,10 @@ python3 scripts/quickcheck.py
 에이전트가 트리거하는 주요 기능을 테마별로 정리했다. 전체 도구·워크플로 목록은 [SKILL.md](SKILL.md)와 [references/](references/) 참고.
 
 - **읽기** — 텍스트/표/각주 추출, JSON·Markdown 변환, 런서식 충실 읽기 · [workflows-reading.md](references/workflows-reading.md)
-- **양식** — 누름틀(`list_form_fields`/`fill_form_field`) 1급 지원, **바이트 보존 구조적 form-fill**(셀 채움·행/열·표 삽입/삭제·열너비 자동맞춤·폰트 shrink-to-fit·실한컴 검증), 처음 보는 양식은 **정찰→상의→채움** 동적 흐름, **평가계획 한-방 채움**(생성 후 검토 필요) · [workflows-forms.md](references/workflows-forms.md)
+- **양식** — `analyze_form_fill` → `apply_form_fill` → `verify_form_fill`의 canonical mixed-form 트랜잭션으로 누름틀·라벨 셀·경로·본문 anchor를 함께 채우고 바이트 보존·실한컴 증거를 남긴다. `fill_form_field`는 단일 native-field 호환 경로이며, **평가계획 한-방 채움**은 전용 facade를 유지한다 · [workflows-forms.md](references/workflows-forms.md)
 - **생성** — `hwpx.builder`(머리글/바닥글·쪽번호·리치 런·목록·병합/음영/열너비 표·이미지·페이지 나눔), 선언형 `hwpx.document_plan.v1`, 공문·보고서·제안서 레시피 · [workflows-creation.md](references/workflows-creation.md) · [workflows-authoring.md](references/workflows-authoring.md)
-- **편집** — 원자 적용 `apply_edits`(dry_run·revision 가드·멱등키)·`undo_last_edit`, 인간 단위 서식 편집, 추적 변경(redline) · [workflows-editing.md](references/workflows-editing.md) · [workflows-redline.md](references/workflows-redline.md)
-- **공문서** — `inspect_official_document_style` lint·결재란 프리셋·장르 레시피, 신구대조표(`doc_diff`/`create_comparison_table_document`) · [official-document-rules.md](references/official-document-rules.md)
+- **편집** — 이종 원자 적용 `apply_document_commands`(dry-run·revision 가드·멱등키)·`undo_last_edit`, 인간 단위 서식 편집, 추적 변경(redline). `apply_edits`는 호환 facade다 · [workflows-agent-document.md](references/workflows-agent-document.md) · [workflows-editing.md](references/workflows-editing.md) · [workflows-redline.md](references/workflows-redline.md)
+- **공문서** — `inspect_official_document_style` lint·결재란 프리셋·장르 레시피, `doc_diff` 결과를 comparison document plan으로 구성해 `create_document_from_plan`으로 만드는 신구대조표. `create_comparison_table_document`는 호환 facade다 · [official-document-rules.md](references/official-document-rules.md)
 - **자동 TOC·상호참조** — 네이티브 목차 생성·페이지 재계산 트리거 · [workflows-toc.md](references/workflows-toc.md)
 - **생산성** — `mail_merge` 대량 생산·`table_compute`, 서식 이식(`extract_style_profile`)·템플릿 레지스트리, 고급 생성기(사진대지·명패·조직도) · [workflows-bulk-compare.md](references/workflows-bulk-compare.md)
 - **PII** — 개인정보 마스킹 게이트·scan · [workflows-pii.md](references/workflows-pii.md)

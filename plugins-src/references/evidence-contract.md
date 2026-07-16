@@ -7,8 +7,10 @@
 - 정의: `hwpx.tools.package_validator.validate_editor_open_safety(path)`가 검증하는
   "한컴 편집기에서 안전하게 열리는가" 판정. MCP 쓰기 도구는 저장 전 임시 파일에서 이
   검증을 수행하고, 통과한 경우에만 대상 파일을 교체한다.
-- 모든 쓰기 응답에서 `openSafety.ok == true`(또는 `verification.openSafety.ok == true`,
-  `validation.openSafety.ok == true`)를 확인한다.
+- 쓰기 도구가 `openSafety`를 반환하면 `openSafety.ok == true`(또는
+  `verification.openSafety.ok == true`, `validation.openSafety.ok == true`)를 확인한다.
+  해당 필드가 없는 도구는 생성 계약에 선언된 verification receipt와 재열기/전용 검증
+  도구를 사용하며, 존재하지 않는 공통 필드를 추정하지 않는다.
 - `openSafety.ok == false`인 파일은 **handoff하지 않는다**. `validation.*.issues[]`와
   `recovery.repair_hints[]`를 따라 재저장/재생성한 뒤 다시 검사한다.
 - ZIP 자체가 안 열리거나 `mimetype` 첫 엔트리/CRC 손상이 의심되면 편집 전에

@@ -6,10 +6,10 @@
 머리글/꼬리글·결재란은 **무손실 보존**, 그림/표/수식은 **텍스트 placeholder로 남겨** 사람이
 나중에 삽입한다.
 
-> **요구 버전**: `compose_exam` / `verify_question_splits` 는 `hwpx-mcp-server >= 2.7.0` 에서
-> 노출된다. `mcp_server_health()` 의 `toolSurface` 에 `compose_exam` 이 없으면 아직 이 버전이
-> 설치되지 않은 것이다(릴리스 대기 중일 수 있음). 그 경우 이 워크플로를 시도하지 말고 설치
-> 상태를 먼저 안내한다.
+> **요구 버전**: 이 S-079 번들은 `hwpx-mcp-server >= 4.0.0` 계약의
+> `compose_exam` / `verify_question_splits`를 사용한다. `mcp_server_health()`의
+> `toolSurface`에 이름이 없거나 계약 해시가 다르면 설치 조합이 맞지 않는 것이므로 이
+> 워크플로를 시도하지 말고 core/MCP/plugin 버전과 활성 profile을 먼저 교정한다.
 
 ## 입력 계약
 
