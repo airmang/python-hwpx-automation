@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed
+- The task-eval harness now hard-fails when `hwpx_mcp_server.server` fails to
+  import for any reason other than a missing FastMCP SDK. A broken or
+  mismatched sibling stack previously degraded to the fallback adapter and
+  reported a plausible-looking 0/44 score; it now raises an explicit
+  environment error instead.
+- Replaced stale "S-079 `hwpx-mcp-server>=4.0.0`" contract labels in SKILL.md
+  and the toc/reading/exam workflow references with the current
+  `hwpx-mcp-server>=4.1.0` floor (stage labels age; version floors stay true).
+
 ## [0.4.0] - 2026-07-17
 
 ### Added

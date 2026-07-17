@@ -227,3 +227,43 @@ def test_authored_guidance_loader_excludes_generated_contract_inventory(tmp_path
     assert "authored-route" in body
     assert "authored-tool" in body
     assert "inventory-only-tool" not in body
+
+
+def test_fallback_is_permitted_only_for_missing_fastmcp_sdk() -> None:
+    """S-081: a broken stack must hard-fail, never score 0/44 via the fallback."""
+
+    permitted = task_eval_harness._fallback_permitted
+
+    assert permitted(ModuleNotFoundError("No module named 'mcp'", name="mcp"))
+    assert permitted(
+        ModuleNotFoundError("No module named 'mcp.server'", name="mcp.server")
+    )
+    # A stale sibling python-hwpx shadowing the required one raises this shape.
+    assert not permitted(
+        ModuleNotFoundError("No module named 'hwpx.agent'", name="hwpx.agent")
+    )
+    assert not permitted(ImportError("cannot import name 'X'"))
+    assert not permitted(RuntimeError("anything else"))
+
+
+def test_broken_stack_import_raises_instead_of_fallback(monkeypatch) -> None:
+    import builtins
+
+    real_import = builtins.__import__
+
+    def broken_import(name, *args, **kwargs):
+        if name == "hwpx_mcp_server.server" or name.startswith("hwpx_mcp_server.server."):
+            raise ModuleNotFoundError("No module named 'hwpx.agent'", name="hwpx.agent")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", broken_import)
+    monkeypatch.setattr(task_eval_harness, "_ensure_stack_imports", lambda: None)
+    sys.modules.pop("hwpx_mcp_server.server", None)
+
+    try:
+        task_eval_harness._load_server_module()
+    except RuntimeError as exc:
+        assert "broken stack" in str(exc)
+        assert type(task_eval_harness).__name__ != "_FallbackServer"
+    else:
+        raise AssertionError("expected RuntimeError for a broken stack import")

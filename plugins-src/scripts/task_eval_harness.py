@@ -899,11 +899,35 @@ class _FallbackServer:
         }
 
 
+def _fallback_permitted(exc: BaseException) -> bool:
+    """Only a missing FastMCP SDK may degrade to the local adapter.
+
+    Any other import failure means the stack itself is broken (for example a
+    stale sibling python-hwpx shadowing the required one); scoring through the
+    fallback there would misreport an environment failure as a legitimate
+    0-point task result (S-081).
+    """
+
+    return (
+        isinstance(exc, ModuleNotFoundError)
+        and bool(exc.name)
+        and exc.name.split(".")[0] == "mcp"
+    )
+
+
 def _load_server_module() -> Any:
     _ensure_stack_imports()
     try:
         import hwpx_mcp_server.server as server
-    except Exception as exc:  # pragma: no cover - environment diagnostic
+    except Exception as exc:
+        if not _fallback_permitted(exc):
+            raise RuntimeError(
+                "hwpx_mcp_server.server failed to import with a broken stack "
+                f"({exc!r}); refusing the fallback adapter because its scores "
+                "would disguise an environment failure as task results. Point "
+                "HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO at matching "
+                "checkouts or install matching packages in this interpreter."
+            ) from exc
         try:
             return _FallbackServer()
         except Exception as fallback_exc:  # pragma: no cover - environment diagnostic
