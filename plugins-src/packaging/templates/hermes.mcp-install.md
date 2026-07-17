@@ -4,7 +4,10 @@ This directory is a publishable Hermes skill (`SKILL.md` plus `scripts/` and `re
 Hermes loads MCP servers from `config.yaml`, not from the skill, so register the HWPX MCP
 server there.
 
-## Publish the skill
+## Publish the released skill
+
+The `0.4.0 / 4.1.0 / 3.2.0` coordinates below are the public S-080 release stack.
+The publish command and MCP entry retain those exact public-package pins.
 
 ```bash
 hermes skills publish plugins/hermes/hwpx --to github --repo airmang/hwpx-plugins
@@ -16,11 +19,11 @@ hermes skills publish plugins/hermes/hwpx --to github --repo airmang/hwpx-plugin
 mcp_servers:
   hwpx-mcp-server:
     command: uvx
-    args: ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.1.0", "--from", "hwpx-mcp-server==4.0.0", "hwpx-mcp-server"]
+    args: ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.2.0", "--from", "hwpx-mcp-server==4.1.0", "hwpx-mcp-server"]
     env:
       HWPX_MCP_ADVANCED: "0"
       HWPX_MCP_AUTOBACKUP: "1"
-      HWPX_SKILL_VERSION: "0.3.0"
+      HWPX_SKILL_VERSION: "0.4.0"
       HWPX_MCP_WORKSPACE_ROOTS: '["/absolute/path/to/workspace"]'
 ```
 

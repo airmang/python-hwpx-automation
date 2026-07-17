@@ -123,7 +123,10 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         identity.get("schemaVersion") == "hwpx.product-identity.v1",
         "product identity schemaVersion mismatch",
     )
-    require(identity.get("releaseState") == "released", "product identity must describe the approved public release")
+    require(
+        identity.get("releaseState") == "released",
+        "product identity must describe the approved public release",
+    )
     components = identity.get("components")
     require(isinstance(components, dict), "product identity components missing")
     for component_name in ("core", "mcp", "plugin"):
@@ -273,12 +276,16 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         "current replay profile must resolve tools from generated contract",
     )
     _require_fragments(
-        PACKAGING / "s079-cross-repo-readme-wording.md",
+        PACKAGING / "s080-cross-repo-readme-wording.md",
         [
             "first-party",
             "Development Status :: 3 - Alpha",
             "actions/workflows/tests.yml/badge.svg",
             "서버 전체를\n> stateless라고 표현하지 않습니다.",
+            f"hwpx-mcp-server {mcp['currentVersion']}",
+            f"python-hwpx {core['currentVersion']}",
+            f"hwpx-plugin {plugin['currentVersion']}",
+            "현재 공개 릴리스",
         ],
         "cross-repository README evidence",
     )

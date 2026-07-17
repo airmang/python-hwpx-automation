@@ -1,13 +1,16 @@
 # 편집 워크플로 (트랜잭션·서식·그림·패치·프리뷰)
 
-기존 HWPX를 수정하는 주요 경로의 상세 계약. 시그니처와 응답 키는 S-079 공개 릴리스
-`hwpx-mcp-server` 4.0.0의 생성 계약과 도구별 테스트를 기준으로 한다. 정확한 현재
+기존 HWPX를 수정하는 주요 경로의 상세 계약. 시그니처와 응답 키는 S-080 공개 릴리스
+`hwpx-mcp-server` 4.1.0의 생성 계약과 도구별 테스트를 기준으로 한다. 정확한 현재
 시그니처는 `tool-contract.generated.json`을 우선한다.
 
 ## 1. 트랜잭션 편집 루프 (`apply_edits`)
 
 `apply_edits`는 전환기 호환 facade다. 새 이종 편집 흐름은
 `workflows-agent-document.md`의 `apply_document_commands`를 우선한다.
+특히 본문·표 셀·이미 존재하는 단순 머리글 story를 같은 트랜잭션에서 바꿀 때는
+command-only header canonical path와 `verificationReport.storyPreservation` 계약을 그 문서에서
+확인한다. 새 머리글 생성이나 rich/control story 편집은 이 generic 경로로 우회하지 않는다.
 
 ```
 apply_edits(filename, operations, dry_run=False, expected_revision=None, idempotency_key=None, quality=None)

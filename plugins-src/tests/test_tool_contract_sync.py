@@ -182,6 +182,8 @@ def test_skill_routes_unfamiliar_structure_to_shared_agent_document_contract() -
         "rolledBack == true",
         "real-Hancom",
         "hwpx batch commands.json",
+        '/section[1]/header[@page-type="BOTH"]',
+        "storyPreservation",
     ):
         assert term in reference
 

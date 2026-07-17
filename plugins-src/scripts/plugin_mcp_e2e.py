@@ -515,12 +515,12 @@ def main() -> int:
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--server-package")
     parser.add_argument("--core-package")
-    parser.add_argument("--expected-server-version", default="4.0.0")
-    parser.add_argument("--expected-core-version", default="3.1.0")
+    parser.add_argument("--expected-server-version", default="4.1.0")
+    parser.add_argument("--expected-core-version", default="3.2.0")
     parser.add_argument(
         "--server-runtime", "--server-venv", dest="server_runtime", type=Path
     )
-    parser.add_argument("--skill-version", default="0.3.0")
+    parser.add_argument("--skill-version", default="0.4.0")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--require-real-render", action="store_true")
     parser.add_argument("--advanced", action="store_true")

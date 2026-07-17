@@ -6,7 +6,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 # hwpx (HWPX / OWPML)
 
 `.hwpx`는 ZIP 기반 OWPML 문서다. 모든 작업은 `hwpx-mcp-server`의 MCP 도구를 1차 경로로 사용한다.
-MCP가 없을 때의 local Python(`python-hwpx >= 3.1.0`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 3.2.0`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
@@ -14,7 +14,8 @@ MCP가 없을 때의 local Python(`python-hwpx >= 3.1.0`) 대안과 번들 스�
 쓴다. 큰 결과의 `resultRef`는 `get_workflow_result`로 회수한다. typed 입력과 영수증 계약은
 [workflows-autonomous](references/workflows-autonomous.md)를 본다.
 primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단용 escape hatch다. 단, 처음 보는
-기존 문서의 semantic 구조를 탐색하고 블록 이동·복사를 포함한 이종 편집을 한 번에 적용하는 요청은
+기존 문서의 semantic 구조를 탐색하고 본문·표 셀·기존 단순 머리글 story 또는 블록 이동·복사를
+포함한 이종 편집을 한 번에 적용하는 요청은
 `get_document_node` → `query_document_nodes` → `apply_document_commands` 경로를 쓴다.
 지원되는 문서·하위 트리를 다른 HWPX로 이식할 때는 같은 경로로 source/target canonical path를
 확정한 뒤 `dump_document_blueprint` → manifest의 unsupported/fidelity 검토 →
@@ -33,7 +34,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 
 | 사용자 요청 패턴 | 1차 경로 (MCP 도구) | 상세 참조 |
 |---|---|---|
-| 낯선 기존 문서의 구조 탐색 + 본문·표·블록 이종 편집·이동·복사 | `get_document_node` → `query_document_nodes` → `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
+| 낯선 기존 문서의 구조 탐색 + 본문·표 셀·기존 단순 머리글 story·블록 이종 편집·이동·복사 | `get_document_node` → `query_document_nodes` → `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
 | 지원 문서·결재/양식 블록을 다른 HWPX로 안전하게 이식 | `get_document_node`/`query_document_nodes` → `dump_document_blueprint` → `replay_document_blueprint` (dry-run → commit) | [workflows-agent-blueprint](references/workflows-agent-blueprint.md) |
 | 일반 복합 HWPX 읽기·편집·생성 (아래 전문 양식·시험 경로 제외) | `start_workflow` → `continue_workflow` → 필요 시 `approve_workflow_decision` | [workflows-autonomous](references/workflows-autonomous.md) |
 | 최종 산출물을 실제 한컴으로 렌더·검증 | `render_health` → `render_submit` → `render_status` | [workflows-real-hancom-render](references/workflows-real-hancom-render.md) |
@@ -42,7 +43,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | Markdown/HTML/JSON 변환·추출 | `hwpx_to_markdown` · `hwpx_to_html` · `hwpx_extract_json` · `document_to_markdown` · `document_extract_json` | [api](references/api.md) |
 | 런서식(굵게·색·크기·글꼴) + 각주/미주 본문까지 충실 읽기 | `hwpx_extract_json` (`format_detail`·`doc.notes[]`) · `hwpx_to_markdown` (각주 부록) | [workflows-reading](references/workflows-reading.md) |
 | 일반 텍스트 위치 찾기 | `find_text` | [workflows-editing](references/workflows-editing.md) |
-| 이미 canonical path가 확정된 본문·표 좌표 편집 (2건 이상) | `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
+| 이미 canonical path가 확정된 본문·표 좌표와 기존 단순 머리글 story 편집 (2건 이상) | `apply_document_commands` (dry-run → commit) | [workflows-agent-document](references/workflows-agent-document.md) |
 | 단건 치환·문단·표 셀 편집 | `search_and_replace` · `batch_replace` · `insert_paragraph` · `set_table_cell_text` | [workflows-editing](references/workflows-editing.md) |
 | 직전 편집 되돌리기 | `undo_last_edit` | [workflows-editing](references/workflows-editing.md) |
 | 줄간격·정렬·들여쓰기·문단 간격 변경 | `set_paragraph_format` | [workflows-editing](references/workflows-editing.md) |
@@ -119,6 +120,7 @@ deprecation/replacement guidance를 따른다.
 3. 관련 변경을 한 `apply_document_commands(..., dry_run=true)` batch로 검토한다.
 4. diff가 맞으면 **새 idempotency key**로 commit한다. commit 재시도에만 같은 key를 쓴다.
 5. `ok`, `rolledBack == false`, `verificationReport.openSafety.ok`, 선언한 검증 영수증을 확인한다.
+   머리글 story를 포함했다면 `verificationReport.storyPreservation.ok == true`와 대상 `stableId`도 확인한다.
 
 스키마·오류 복구·CLI replay는
 [`references/workflows-agent-document.md`](references/workflows-agent-document.md)를 본다. 양식·시험·PII·
@@ -160,7 +162,7 @@ deprecation/replacement guidance를 따른다.
 ## 참조 인덱스
 
 - [`references/workflows-autonomous.md`](references/workflows-autonomous.md) — 서버 강제 5-family workflow, decision/재개/needs_review/사전 렌더 영수증 계약.
-- [`references/workflows-agent-document.md`](references/workflows-agent-document.md) — 낯선 문서 semantic view/query, canonical path, 원자 set/add/remove/move/copy batch, structured failure와 CLI replay.
+- [`references/workflows-agent-document.md`](references/workflows-agent-document.md) — 낯선 문서 semantic view/query, canonical path, 본문·표 셀·기존 단순 머리글 story의 원자 set과 add/remove/move/copy batch, structured failure와 CLI replay.
 - [`references/workflows-agent-blueprint.md`](references/workflows-agent-blueprint.md) — typed `.hwpxbp` dump/inspect/repack, portable/source-bound dependency mapping, atomic replay, strict fidelity와 real-Hancom 검증.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
 - [`references/workflows-editing.md`](references/workflows-editing.md) — 트랜잭션 편집 루프, 서식 5종, 그림, byte patch, render_preview.

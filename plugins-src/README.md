@@ -52,9 +52,9 @@ python3 -m pip install -U python-hwpx lxml
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 S-079 구성요소 버전 | `python-hwpx 3.1.0` · `hwpx-mcp-server 4.0.0` · `hwpx-plugin 0.3.0` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.1.0` · `hwpx-mcp-server >= 4.0.0` · skill `>= 0.3.0` |
-| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.1.0` · `hwpx-mcp-server==4.0.0` |
+| 공개 릴리스 | 현재 공개된 S-080 구성요소 버전 | `python-hwpx 3.2.0` · `hwpx-mcp-server 4.1.0` · `hwpx-plugin 0.4.0` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.2.0` · `hwpx-mcp-server >= 4.1.0` · skill `>= 0.4.0` |
+| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.2.0` · `hwpx-mcp-server==4.1.0` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않는다.
@@ -95,7 +95,7 @@ python3 scripts/quickcheck.py
 - **읽기** — 텍스트/표/각주 추출, JSON·Markdown 변환, 런서식 충실 읽기 · [workflows-reading.md](references/workflows-reading.md)
 - **양식** — `analyze_form_fill` → `apply_form_fill` → `verify_form_fill`의 canonical mixed-form 트랜잭션으로 누름틀·라벨 셀·경로·본문 anchor를 함께 채우고 바이트 보존·실한컴 증거를 남긴다. `fill_form_field`는 단일 native-field 호환 경로이며, **평가계획 한-방 채움**은 전용 facade를 유지한다 · [workflows-forms.md](references/workflows-forms.md)
 - **생성** — `hwpx.builder`(머리글/바닥글·쪽번호·리치 런·목록·병합/음영/열너비 표·이미지·페이지 나눔), 선언형 `hwpx.document_plan.v1`, 공문·보고서·제안서 레시피 · [workflows-creation.md](references/workflows-creation.md) · [workflows-authoring.md](references/workflows-authoring.md)
-- **편집** — 이종 원자 적용 `apply_document_commands`(dry-run·revision 가드·멱등키)·`undo_last_edit`, 인간 단위 서식 편집, 추적 변경(redline). `apply_edits`는 호환 facade다 · [workflows-agent-document.md](references/workflows-agent-document.md) · [workflows-editing.md](references/workflows-editing.md) · [workflows-redline.md](references/workflows-redline.md)
+- **편집** — 본문·표 셀·기존 단순 머리글 story를 한 번에 원자 적용하는 `apply_document_commands`(dry-run·revision 가드·멱등키)·`undo_last_edit`, 인간 단위 서식 편집, 추적 변경(redline). `apply_edits`는 호환 facade다 · [workflows-agent-document.md](references/workflows-agent-document.md) · [workflows-editing.md](references/workflows-editing.md) · [workflows-redline.md](references/workflows-redline.md)
 - **공문서** — `inspect_official_document_style` lint·결재란 프리셋·장르 레시피, `doc_diff` 결과를 comparison document plan으로 구성해 `create_document_from_plan`으로 만드는 신구대조표. `create_comparison_table_document`는 호환 facade다 · [official-document-rules.md](references/official-document-rules.md)
 - **자동 TOC·상호참조** — 네이티브 목차 생성·페이지 재계산 트리거 · [workflows-toc.md](references/workflows-toc.md)
 - **생산성** — `mail_merge` 대량 생산·`table_compute`, 서식 이식(`extract_style_profile`)·템플릿 레지스트리, 고급 생성기(사진대지·명패·조직도) · [workflows-bulk-compare.md](references/workflows-bulk-compare.md)
@@ -105,6 +105,9 @@ python3 scripts/quickcheck.py
 ## 설치 (호스트별)
 
 의존성(`python-hwpx lxml`)은 위 [빠른 시작](#빠른-시작)에서 한 번만 설치한다. 아래는 호스트별 진입점이다. **설치·재설치 후에는 새 에이전트 세션을 시작해야** 새 skill과 MCP 도구가 로드된다.
+
+> 순차 게시와 공개 검증이 끝난 뒤 아래 marketplace 명령은 공개
+> `0.4.0 / 4.1.0 / 3.2.0` 스택을 설치한다.
 
 ### Claude Code
 
@@ -150,7 +153,7 @@ alwaysApply: false
 | OpenClaw | `plugins/openclaw/hwpx-plugin` | `openclaw.plugin.json` + `INSTALL-mcp.md` |
 | Hermes Agent | `plugins/hermes/hwpx` | `hermes skills publish` + `INSTALL-mcp.md` |
 
-> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 공개 좌표 `hwpx-mcp-server==4.0.0`과 `python-hwpx[visual]==3.1.0`을 fingerprinted runtime에 설치한다.
+> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 공개 좌표 `hwpx-mcp-server==4.1.0`과 `python-hwpx[visual]==3.2.0`을 fingerprinted runtime에 설치한다.
 
 ## 직접 실행하기 (수동 검증·고급 사용)
 

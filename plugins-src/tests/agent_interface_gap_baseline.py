@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import re
 import sys
@@ -52,6 +53,15 @@ def _mentions(text: str, token: str) -> bool:
 def _load_tool_contract(server_src: Path) -> tuple[set[str], str]:
     sys.path.insert(0, str(server_src))
     try:
+        # Feature 025 binds the canonical registry during explicit runtime
+        # composition.  Older snapshots composed from ``server`` directly, so
+        # retain that compatibility path for reproducible historical audits.
+        try:
+            importlib.import_module("hwpx_mcp_server.runtime")
+        except ModuleNotFoundError as exc:
+            if exc.name != "hwpx_mcp_server.runtime":
+                raise
+            importlib.import_module("hwpx_mcp_server.server")
         from hwpx_mcp_server.tool_contract import contract_hash, expected_tool_names
 
         return expected_tool_names(advanced=False), contract_hash()

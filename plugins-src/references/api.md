@@ -7,9 +7,9 @@
 
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 S-079 구성요소 버전 | `python-hwpx 3.1.0` · `hwpx-mcp-server 4.0.0` · `hwpx-plugin 0.3.0` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.1.0` · MCP `>=4.0.0` · skill `>=0.3.0` |
-| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.1.0` · `hwpx-mcp-server==4.0.0` |
+| 공개 릴리스 | 현재 공개된 S-080 구성요소 버전 | `python-hwpx 3.2.0` · `hwpx-mcp-server 4.1.0` · `hwpx-plugin 0.4.0` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.2.0` · MCP `>=4.1.0` · skill `>=0.4.0` |
+| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.2.0` · `hwpx-mcp-server==4.1.0` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
@@ -36,7 +36,7 @@
 pip install -U python-hwpx lxml
 ```
 
-이 스킬의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 3.1.0`이 필요하다.
+이 스킬의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 3.2.0`이 필요하다.
 더 낮은 버전은 현재 계약 밖이므로 handoff용 파일 생성에 사용하지 않는다.
 
 ```python
@@ -85,7 +85,7 @@ table.set_cell_text(1, 1, "홍길동")
 doc.save_to_path("table-example.hwpx")
 ```
 
-현재 공개 문서화 기준(3.1.0) 시그니처:
+현재 공개 문서화 기준(3.2.0) 시그니처:
 
 - `add_table(rows, cols, *, section=None, section_index=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style_id_ref=None, char_pr_id_ref=None, run_attributes=None, **extra_attrs) -> HwpxOxmlTable`
 - `set_cell_text(row_index, col_index, text, *, logical=False, split_merged=False) -> None`
@@ -110,7 +110,7 @@ memo, anchor_paragraph, field_value = doc.add_memo_with_anchor(
 )
 ```
 
-현재 공개 문서화 기준(3.1.0) 시그니처:
+현재 공개 문서화 기준(3.2.0) 시그니처:
 
 - `add_memo_with_anchor(text="", *, paragraph=None, section=None, section_index=None, paragraph_text=None, memo_shape_id_ref=None, memo_id=None, char_pr_id_ref=None, attributes=None, field_id=None, author=None, created=None, number=1, anchor_char_pr_id_ref=None) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]`
 
@@ -131,7 +131,7 @@ with HwpxDocument.open("input.hwpx") as doc:
     doc.save_to_path("output.hwpx")
 ```
 
-현재 공개 문서화 기준(3.1.0) 시그니처:
+현재 공개 문서화 기준(3.2.0) 시그니처:
 
 - `find_runs_by_style(*, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None) -> list[HwpxOxmlRun]`
 - `replace_text_in_runs(search, replacement, *, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None, limit=None) -> int`
@@ -170,6 +170,16 @@ with HwpxDocument.open("input.hwpx") as doc:
 - `set_header_content(content, *, section_index=0) -> None`
 - `set_footer_content(content, *, section_index=0) -> None`
 - header/footer 객체의 `add_page_number_field(*, paragraph=None, format="page", position="BOTTOM_CENTER") -> Element`
+
+섹션 관리 facade:
+
+- `add_section(*, after: int | None = None) -> HwpxOxmlSection`
+- `remove_section(section: HwpxOxmlSection | int) -> None`
+
+3.2.0 공개 릴리스의 `add_section()`은 인접 섹션의 유효한 용지·여백·단 설정만 복제하고
+머리글/바닥글 story는 복제하지 않는다. 새 section part와 manifest/spine 순서,
+`Contents/header.xml`의 `secCnt`를 함께 맞추며, 양의 페이지 geometry를 만들 수 없으면
+mutation 전에 실패한다. `remove_section()`도 같은 section count 계약을 유지한다.
 
 `content`는 paragraph spec 목록이다. 각 paragraph는 `{"children": [...]}` 형태이고,
 child는 `{"type": "run", "text": "...", "bold": True, ...}` 또는
@@ -431,7 +441,7 @@ text = tex.extract_text(
 )
 ```
 
-현재 공개 문서화 기준(3.1.0) 시그니처:
+현재 공개 문서화 기준(3.2.0) 시그니처:
 
 - `extract_text(*, paragraph_separator="\n", skip_empty=True, include_nested=True, object_behavior="skip", object_placeholder=None, preserve_breaks=True, annotations=None) -> str`
 
@@ -445,7 +455,7 @@ for paragraph in tex.iter_document_paragraphs(include_nested=True):
     print(paragraph.section.index, paragraph.index, paragraph.path, paragraph.text())
 ```
 
-현재 공개 문서화 기준(3.1.0) 시그니처:
+현재 공개 문서화 기준(3.2.0) 시그니처:
 
 - `iter_document_paragraphs(*, include_nested=True) -> Iterator[ParagraphInfo]`
 
@@ -470,7 +480,7 @@ texts = finder.find_all(tag="t", limit=20)
 first_table = finder.find_first(tag="tbl")
 ```
 
-현재 공개 문서화 기준(3.1.0) 시그니처:
+현재 공개 문서화 기준(3.2.0) 시그니처:
 
 - `find_all(*, tag=None, attrs=None, xpath=None, section_filter=None, limit=None) -> list[FoundElement]`
 - `find_first(*, tag=None, attrs=None, xpath=None, section_filter=None) -> FoundElement | None`
@@ -576,7 +586,7 @@ MCP 응답에서 확인할 필드:
 
 ## MCP 편집·서식·생성 도구 시그니처
 
-S-079 공개 릴리스 `hwpx-mcp-server 4.0.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
+S-080 공개 릴리스 `hwpx-mcp-server 4.1.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
 사용 절차는 `workflows-agent-document.md` / `workflows-editing.md` /
 `workflows-bulk-compare.md`를 본다. 지원 인자와 응답 증거는 도구별로 다르며 아래 표와
 `tool-contract.generated.json`의 실제 스키마를 따른다.
@@ -603,6 +613,13 @@ S-079 공개 릴리스 `hwpx-mcp-server 4.0.0`의 트랜잭션·서식·그림·
 | `document_to_markdown` | `(filename, output="full"|"chunks", chunk_strategy, max_chars_per_chunk, mask)` | `ok`, `markdown`, `meta.{source_format,engine}`, `warnings`, `attempts[]` |
 | `document_extract_json` | `(filename, output="full"|"chunks", chunk_strategy, max_chars_per_chunk, mask)` | `ok`, `doc.{markdown,sections,tables,metadata}`, `meta`, `attempts[]` |
 | `markdown_to_document_plan` | `(markdown, title, metadata, style_preset)` | `ok`, `can_create`, `document_plan`, `validation`, `warnings`, `next_tool` |
+
+`apply_document_commands`는 공개 node catalog를 바꾸지 않으면서 command-only 경로
+`/section[N]/header[@page-type="BOTH"|"EVEN"|"ODD"]` 또는
+`/section[N]/header[@id="..."]`로 **이미 존재하는 단순 머리글**의 텍스트를 본문·표 셀과
+같은 batch에서 바꿀 수 있다. rich run, control, 모호한 selector, 새 머리글 생성은 generic
+우회 없이 `unsupported_content`·`ambiguous_target`·`not_found`로 닫힌다. 성공 시
+`verificationReport.storyPreservation`에서 stable identity와 reopen text 일치를 확인한다.
 
 `document_revision`을 반환하는 도구에서는 이 값(`"sha256:..."`)을 낙관적 동시성
 토큰으로 사용한다. 생성 계약에 `expected_revision`이 선언된 쓰기 도구에 넘기면 외부
@@ -860,7 +877,7 @@ The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
 3. an immutable plugin-local runtime fingerprinted by the exact
-   `hwpx-mcp-server==4.0.0`, `python-hwpx[visual]==3.1.0`, skill, Python ABI,
+   `hwpx-mcp-server==4.1.0`, `python-hwpx[visual]==3.2.0`, skill, Python ABI,
    and platform values
 4. an exact-version `uvx` fallback when `uv` is unavailable
 

@@ -24,7 +24,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "examples" / "eval_tasks" / "tasks.json"
 DEFAULT_PROFILES = [
-    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.3.0.json",
+    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.4.0.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
 ]
@@ -1309,12 +1309,21 @@ def run(
             from hwpx_mcp_server.storage import LocalDocumentStorage
             from hwpx_mcp_server.workspace import WorkspaceResolver
 
-            server._OPS = HwpxOps(
+            ops = HwpxOps(
                 storage=LocalDocumentStorage(
                     workspace_resolver=WorkspaceResolver.from_environment(),
                     auto_backup=False,
                 )
             )
+            # Feature 025 moved handler ownership to the stable runtime-service
+            # container.  New runtimes must replace that graph through the
+            # compatibility hook; the assignment remains for older profiles
+            # replayed by this cross-version harness.
+            replace_ops = getattr(server, "_replace_ops", None)
+            if callable(replace_ops):
+                replace_ops(ops)
+            else:
+                server._OPS = ops
         tools = _available_server_tools(server, tasks)
         summaries = []
         for profile in profiles:

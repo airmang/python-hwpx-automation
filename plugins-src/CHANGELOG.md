@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-17
+
+### Added
+- Documents the S-080 command-only existing-header story path for
+  `apply_document_commands`, allowing body, table-cell, and one simple existing section
+  header to commit in the same revision-bound, idempotent transaction without adding an
+  MCP tool or changing the public node catalog.
+- Adds the release-final `demo/025-runtime-modularization` reference package for the synthetic
+  two-section Korean office document, including frozen exact source/output bytes, a replayable
+  public MCP request, public-index replay support, and bundled warning-free Hancom evidence.
+
+### Changed
+- Publishes the approved triplet as `python-hwpx 3.2.0`,
+  `hwpx-mcp-server 4.1.0`, and `hwpx-plugin 0.4.0`; the four generated host bundles pin
+  the exact released core and MCP packages after regeneration.
+- Requires the same `3.2.0 / 4.1.0 / 0.4.0` minimum stack. Public core 3.1.0 rejects the
+  new header path, so retaining the old floor would advertise a capability the declared
+  minimum cannot execute.
+- Keeps the 121 default / 132 advanced tool-name surface and 28 skill-required tools while
+  moving core OXML ownership, MCP handlers, and `HwpxOps` domains behind bounded facades.
+
+### Fixed
+- Records the core section-creation contract that copies renderable page layout, keeps
+  section stories independent, synchronizes `hh:head/@secCnt`, and fails before mutation
+  when a renderable adjacent layout is unavailable.
+- Preserves unrelated section bytes, existing header identities, rollback, reopen,
+  openSafety, and one-serialization semantics in the installed multi-story transaction.
+
 ## [0.3.0] - 2026-07-16
 
 ### Removed

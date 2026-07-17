@@ -3,7 +3,8 @@
 ## 언제 이 경로를 쓰나
 
 처음 보는 기존 HWPX에서 제목·문단·표·셀·누름틀·그림 같은 구조를 먼저 이해한 뒤, 서로 다른
-종류의 변경이나 블록 이동·복사를 **한 번에 전부 성공하거나 전부 취소**해야 할 때 쓴다.
+종류의 변경, 기존 단순 머리글 story 편집, 블록 이동·복사를 **한 번에 전부 성공하거나 전부 취소**해야
+할 때 쓴다.
 
 다음은 기존 전문 경로가 우선이다.
 
@@ -11,7 +12,7 @@
   `apply_form_fill` → `verify_form_fill`
 - 시험지, PII, 메일머지, 변경추적, 직인, 문서 생성, lint/repair: 각 전용 workflow/tool
 - 이미 paragraph index나 anchor가 확정된 단건 편집: 가장 작은 전용 도구; 여러 canonical
-  path의 이종 편집: `apply_document_commands`
+  path 또는 본문·표 셀·기존 단순 머리글 story의 이종 편집: `apply_document_commands`
 
 generic 명령은 raw XML, XPath, package part, 임의 속성을 받지 않는다. 전문 도구가 만드는 도메인
 영수증을 generic 성공으로 대체하지 않는다.
@@ -39,6 +40,21 @@ table[id="123"] > row > cell:contains("합계")
 문맥을 더해 다시 query하거나 각 후보를 `get_document_node`로 읽어 **한 canonical path**를 확정한다.
 `volatilePath=true`인 대상은 같은 revision에서만 쓰고, 문서가 바뀌면 다시 탐색한다.
 
+### 기존 머리글 story의 command-only 경로
+
+S-080 공개 릴리스는 public view/query node catalog를 늘리지 않고, `set` command에서만 다음 두 경로를
+인식한다.
+
+```text
+/section[1]/header[@page-type="BOTH"]
+/section[2]/header[@id="1153630576"]
+```
+
+대상은 문서에 이미 존재하며 selector가 정확히 하나와 일치하는 단순 텍스트 머리글이어야 한다.
+수정 가능한 속성은 `text` 하나다. 머리글 생성, footer, `add`/`remove`/`move`/`copy`, rich run,
+쪽번호·필드·그림·기타 control이 있는 story는 generic 경로로 단순화하지 않고 fail-closed한다.
+그런 작업은 `set_header_footer` 같은 전용 도구를 쓰거나 사람 검토로 넘긴다.
+
 ## 표준 루프
 
 1. `mcp_server_health()`에서 tool surface와 capability가 정상인지 확인한다.
@@ -48,7 +64,9 @@ table[id="123"] > row > cell:contains("합계")
 5. `semanticDiff`, 각 `commandResults`, `rolledBack`, `verificationReport`를 검토한다.
 6. 동일 commands를 `dry_run=false`, 새 commit용 idempotency key, 같은 `expected_revision`으로 실행한다.
 7. `ok == true`, `rolledBack == false`, 선언한 verification layer와
-   `verificationReport.openSafety.ok == true`를 확인한다.
+   `verificationReport.openSafety.ok == true`를 확인한다. 머리글 story가 있으면
+   `verificationReport.storyPreservation.ok == true`, `storyCount`, `stories[].stableId`,
+   `textMatched == true`까지 확인한다.
 
 dry-run과 commit은 request hash가 다르므로 **같은 idempotency key를 재사용하지 않는다**. commit 재시도만
 같은 key를 사용한다. `expected_revision` 불일치는 다시 읽고 외부 변경을 검토한 뒤 새 revision으로
@@ -79,6 +97,12 @@ dry-run과 commit은 request hash가 다르므로 **같은 idempotency key를 �
       "op": "set",
       "path": "/section[1]/paragraph[id=\"103\"]/table[id=\"201\"]/row[1]/cell[2]",
       "properties": {"text": "서술형 평가"}
+    },
+    {
+      "commandId": "renameExistingHeader",
+      "op": "set",
+      "path": "/section[1]/header[@page-type=\"BOTH\"]",
+      "properties": {"text": "2026학년도 평가 운영 계획"}
     }
   ],
   "expected_revision": "sha256:<64 hex>",
@@ -103,6 +127,8 @@ copy 결과의 `generatedIdentities`와 반환된 새 path를 사용하고 ID를
   `editableProperties`·`operations`와 shared catalog를 확인한다.
 - `identity_collision`, `invariant_violation`, `unsupported_content`: generic 우회를 시도하지 말고
   전문 도구 또는 사람 검토로 넘긴다.
+- 기존 머리글 경로의 `invalid_syntax`: 설치 core/MCP/skill 버전을 health에서 다시 확인한다.
+  S-080 경로에는 `python-hwpx>=3.2.0`, `hwpx-mcp-server>=4.1.0`, skill `>=0.4.0`이 필요하다.
 - `verification_failed`, `verificationReport.openSafety.ok != true`, `rolledBack == true`: 산출물을 제출하지 않는다.
 
 로컬 `render_preview`는 근사 검수다. real-Hancom이 요구된 작업은 `render_health` → `render_submit` →
