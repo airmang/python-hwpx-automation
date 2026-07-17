@@ -1,4 +1,4 @@
-# S-080 cross-repository README public-release wording
+# S-081 cross-repository README public-release wording
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
 `python-hwpx`와 `hwpx-mcp-server` README에 적용할 때 사용할 정확 문구다. 이 저장소의
@@ -37,7 +37,7 @@
 
 버전 문구:
 
-> 현재 공개 릴리스는 `python-hwpx 3.2.0`입니다.
+> 현재 공개 릴리스는 `python-hwpx 3.3.0`입니다.
 
 ## `hwpx-mcp-server` README 교체 문구
 
@@ -65,5 +65,5 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 `hwpx-mcp-server 4.1.0`이며 최소 호환 코어는 `python-hwpx 3.2.0`입니다.
-> `hwpx-plugin 0.4.0` 설치 번들은 재현성을 위해 MCP를 `==4.1.0`, 코어를 `==3.2.0`으로 고정합니다.
+> 현재 공개 릴리스는 `hwpx-mcp-server 4.2.0`이며 최소 호환 코어는 `python-hwpx 3.3.0`입니다.
+> `hwpx-plugin 0.5.0` 설치 번들은 재현성을 위해 MCP를 `==4.2.0`, 코어를 `==3.3.0`으로 고정합니다.

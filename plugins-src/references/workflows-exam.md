@@ -6,7 +6,7 @@
 머리글/꼬리글·결재란은 **무손실 보존**, 그림/표/수식은 **텍스트 placeholder로 남겨** 사람이
 나중에 삽입한다.
 
-> **요구 버전**: 이 번들은 `hwpx-mcp-server >= 4.1.0` 계약의
+> **요구 버전**: 이 번들은 `hwpx-mcp-server >= 4.2.0` 계약의
 > `compose_exam` / `verify_question_splits`를 사용한다. `mcp_server_health()`의
 > `toolSurface`에 이름이 없거나 계약 해시가 다르면 설치 조합이 맞지 않는 것이므로 이
 > 워크플로를 시도하지 말고 core/MCP/plugin 버전과 활성 profile을 먼저 교정한다.

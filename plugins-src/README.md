@@ -52,9 +52,9 @@ python3 -m pip install -U python-hwpx lxml
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 S-080 구성요소 버전 | `python-hwpx 3.2.0` · `hwpx-mcp-server 4.1.0` · `hwpx-plugin 0.4.0` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.2.0` · `hwpx-mcp-server >= 4.1.0` · skill `>= 0.4.0` |
-| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.2.0` · `hwpx-mcp-server==4.1.0` |
+| 공개 릴리스 | 현재 공개된 S-081 구성요소 버전 | `python-hwpx 3.3.0` · `hwpx-mcp-server 4.2.0` · `hwpx-plugin 0.5.0` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.3.0` · `hwpx-mcp-server >= 4.2.0` · skill `>= 0.5.0` |
+| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.3.0` · `hwpx-mcp-server==4.2.0` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않는다.
@@ -107,7 +107,7 @@ python3 scripts/quickcheck.py
 의존성(`python-hwpx lxml`)은 위 [빠른 시작](#빠른-시작)에서 한 번만 설치한다. 아래는 호스트별 진입점이다. **설치·재설치 후에는 새 에이전트 세션을 시작해야** 새 skill과 MCP 도구가 로드된다.
 
 > 순차 게시와 공개 검증이 끝난 뒤 아래 marketplace 명령은 공개
-> `0.4.0 / 4.1.0 / 3.2.0` 스택을 설치한다.
+> `0.5.0 / 4.2.0 / 3.3.0` 스택을 설치한다.
 
 ### Claude Code
 
@@ -153,7 +153,7 @@ alwaysApply: false
 | OpenClaw | `plugins/openclaw/hwpx-plugin` | `openclaw.plugin.json` + `INSTALL-mcp.md` |
 | Hermes Agent | `plugins/hermes/hwpx` | `hermes skills publish` + `INSTALL-mcp.md` |
 
-> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 공개 좌표 `hwpx-mcp-server==4.1.0`과 `python-hwpx[visual]==3.2.0`을 fingerprinted runtime에 설치한다.
+> 이 레포는 HWPX 스킬의 canonical 소스로, 호스트별 번들(Claude Code / Codex / OpenClaw / Hermes)을 한 소스에서 빌드한다. canonical `SKILL.md`, `references/`, `examples/`, `scripts/`를 편집한 뒤 `python3 scripts/build_hwpx_plugins.py`로 재빌드하고 `python3 scripts/validate_hwpx_plugin.py`로 검증한다. MCP 런처는 로컬 sibling checkout(`../hwpx-mcp-server`, `../python-hwpx`)을 우선하고, 없으면 첫 MCP 시작 시 공개 좌표 `hwpx-mcp-server==4.2.0`과 `python-hwpx[visual]==3.3.0`을 fingerprinted runtime에 설치한다.
 
 ## 직접 실행하기 (수동 검증·고급 사용)
 

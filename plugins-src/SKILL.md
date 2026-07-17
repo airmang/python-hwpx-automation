@@ -6,7 +6,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 # hwpx (HWPX / OWPML)
 
 `.hwpx`는 ZIP 기반 OWPML 문서다. 모든 작업은 `hwpx-mcp-server`의 MCP 도구를 1차 경로로 사용한다.
-MCP가 없을 때의 local Python(`python-hwpx >= 3.2.0`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 3.3.0`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
@@ -167,13 +167,13 @@ deprecation/replacement guidance를 따른다.
 - [`references/workflows-real-hancom-render.md`](references/workflows-real-hancom-render.md) — 비동기 실한컴 제출·폴링·artifact provenance·취소·degraded 처리.
 - [`references/workflows-editing.md`](references/workflows-editing.md) — 트랜잭션 편집 루프, 서식 5종, 그림, byte patch, render_preview.
 - [`references/workflows-creation.md`](references/workflows-creation.md) — document-plan, builder, 정부보고서, 운영계획서, 제안서, 공문서 레시피.
-- [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`. `hwpx-mcp-server>=4.1.0` 계약.
-- [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지, 읽기·추출 기본 마스킹, 폼필·메일머지 입력 사전 정제 + 가명/비식별. `scan_personal_info` · 읽기/추출 `mask` param. `hwpx-mcp-server>=4.1.0` 계약.
+- [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`. `hwpx-mcp-server>=4.2.0` 계약.
+- [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지, 읽기·추출 기본 마스킹, 폼필·메일머지 입력 사전 정제 + 가명/비식별. `scan_personal_info` · 읽기/추출 `mask` param. `hwpx-mcp-server>=4.2.0` 계약.
 - [`references/workflows-reading.md`](references/workflows-reading.md) — 런서식(굵게·색·크기·글꼴)+각주/미주 본문 충실 읽기. `hwpx_extract_json`(`format_detail`·`doc.notes[]`)·`hwpx_to_markdown` 각주 부록, `document_to_markdown` 로컬 ingest.
-- [`references/workflows-toc.md`](references/workflows-toc.md) — 네이티브 자동 차례·상호참조(재페이지네이션 시 한컴이 재번호). `add_toc`·`add_cross_reference`·`verify_toc`. `hwpx-mcp-server>=4.1.0` 계약.
+- [`references/workflows-toc.md`](references/workflows-toc.md) — 네이티브 자동 차례·상호참조(재페이지네이션 시 한컴이 재번호). `add_toc`·`add_cross_reference`·`verify_toc`. `hwpx-mcp-server>=4.2.0` 계약.
 - **처음 이 스킬로 HWPX 작업 시작 시**: `describe_capabilities`로 실제 FastMCP 작업군을 확인한다. 정확한 default/advanced/필수 도구 계약은 자동 생성된 [`tool-contract.generated.md`](references/tool-contract.generated.md)가 정본이다.
 - [`references/workflows-forms.md`](references/workflows-forms.md) — canonical mixed-form plan/apply/verify, 평가계획 facade, legacy replacement 경계.
-- [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). `hwpx-mcp-server>=4.1.0` 계약.
+- [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). `hwpx-mcp-server>=4.2.0` 계약.
 - [`references/workflows-bulk-compare.md`](references/workflows-bulk-compare.md) — 메일머지, 표 계산, 신구대조, 생성기 3종, 스타일 프로파일/템플릿.
 - [`references/evidence-contract.md`](references/evidence-contract.md) — openSafety·visual-review v1·hard gates·제출 증거 계약.
 - [`references/api.md`](references/api.md) — python-hwpx 시그니처, MCP 도구 표, repair/recover, 번들 스크립트.

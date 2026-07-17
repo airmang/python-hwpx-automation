@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-18
+
 ### Changed
 - The task-eval harness now hard-fails when `hwpx_mcp_server.server` fails to
   import for any reason other than a missing FastMCP SDK. A broken or
@@ -9,8 +11,17 @@
   reported a plausible-looking 0/44 score; it now raises an explicit
   environment error instead.
 - Replaced stale "S-079 `hwpx-mcp-server>=4.0.0`" contract labels in SKILL.md
-  and the toc/reading/exam workflow references with the current
-  `hwpx-mcp-server>=4.1.0` floor (stage labels age; version floors stay true).
+  and the toc/reading/exam workflow references with the current declared floor
+  (stage labels age; version floors stay true).
+- Publishes the S-081 triplet pins: `python-hwpx==3.3.0`,
+  `hwpx-mcp-server==4.2.0`, plugin `0.5.0`. The tool surface stays exactly
+  121 default / 132 advanced / 28 skill-required; the contract hash moves to
+  `f909a00fe4590c64` purely through the version coordinates embedded in the
+  canonical payload.
+- The MCP floor gains an exact SDK pin (`mcp==1.28.1`), a zero-import-cycle
+  architecture baseline, and bounded optional-oracle waits
+  (`HWPX_ORACLE_STRUCTURAL_ONLY`, `HWPX_ORACLE_BUDGET_SECONDS`, TCC
+  reachability probe in core 3.3.0).
 
 ## [0.4.0] - 2026-07-17
 
