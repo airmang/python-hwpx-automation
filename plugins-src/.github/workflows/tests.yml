@@ -19,12 +19,12 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           repository: airmang/python-hwpx
-          ref: 52fb49102d10cd95d97f11b7dc0080158344bfa0
+          ref: 407573180f88a6674125e4ed4f3dca93fce83346
           path: python-hwpx
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           repository: airmang/hwpx-mcp-server
-          ref: a2fb903246cffa3e200afc5d78a078dc461b8e45
+          ref: e07490f85c95c387145ebcdfde92f038b866c546
           path: hwpx-mcp-server
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:

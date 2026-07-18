@@ -2,7 +2,15 @@
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-07-18
+## [0.5.1] - 2026-07-18
+
+### Note
+- Recovery release. The `v0.5.0` tag was cut before the MCP `v4.2.0`
+  prepublish failure surfaced, so its bundles carried a stale generated
+  contract document and its CI pinned the previous stack. `v0.5.0` is
+  preserved as failure history and was never announced to the marketplace as
+  current; 0.5.1 is the actual public release, pinned to the recovered
+  `hwpx-mcp-server 4.2.1` at contract `fff2c9093ca4677b`.
 
 ### Changed
 - The task-eval harness now hard-fails when `hwpx_mcp_server.server` fails to
@@ -14,7 +22,7 @@
   and the toc/reading/exam workflow references with the current declared floor
   (stage labels age; version floors stay true).
 - Publishes the S-081 triplet pins: `python-hwpx==3.3.0`,
-  `hwpx-mcp-server==4.2.1`, plugin `0.5.0`. The tool surface stays exactly
+  `hwpx-mcp-server==4.2.1`, plugin `0.5.1`. The tool surface stays exactly
   121 default / 132 advanced / 28 skill-required; the contract hash moves to
   `fff2c9093ca4677b` purely through the version coordinates embedded in the
   canonical payload.
