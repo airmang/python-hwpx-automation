@@ -154,7 +154,7 @@ def main() -> int:
                 "HWPX_MCP_DISABLE_LOCAL_EDITABLE": "1",
                 "HWPX_MCP_SERVER_PACKAGE": server_package,
                 "HWPX_PYTHON_HWPX_PACKAGE": core_package,
-                "HWPX_MCP_SERVER_VERSION": "4.2.0",
+                "HWPX_MCP_SERVER_VERSION": "4.2.1",
                 "HWPX_PYTHON_HWPX_VERSION": "3.3.0",
                 "HWPX_SKILL_VERSION": "0.5.0",
                 "HWPX_MCP_RUNTIME_ROOT": str(runtime_root),

@@ -18,8 +18,8 @@
       "repository": "hwpx-mcp-server",
       "distribution": "hwpx-mcp-server",
       "serverId": "hwpx-mcp-server",
-      "currentVersion": "4.2.0",
-      "minimumCompatibleVersion": "4.2.0",
+      "currentVersion": "4.2.1",
+      "minimumCompatibleVersion": "4.2.1",
       "maturity": "not-declared"
     },
     "plugin": {

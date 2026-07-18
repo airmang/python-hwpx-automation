@@ -11,7 +11,7 @@ Add an MCP server entry that runs the exact released packages with `uvx`:
 {
   "hwpx-mcp-server": {
     "command": "uvx",
-    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.3.0", "--from", "hwpx-mcp-server==4.2.0", "hwpx-mcp-server"],
+    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.3.0", "--from", "hwpx-mcp-server==4.2.1", "hwpx-mcp-server"],
     "env": {
       "HWPX_MCP_ADVANCED": "0",
       "HWPX_MCP_AUTOBACKUP": "1",

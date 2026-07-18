@@ -14,9 +14,9 @@
   and the toc/reading/exam workflow references with the current declared floor
   (stage labels age; version floors stay true).
 - Publishes the S-081 triplet pins: `python-hwpx==3.3.0`,
-  `hwpx-mcp-server==4.2.0`, plugin `0.5.0`. The tool surface stays exactly
+  `hwpx-mcp-server==4.2.1`, plugin `0.5.0`. The tool surface stays exactly
   121 default / 132 advanced / 28 skill-required; the contract hash moves to
-  `f909a00fe4590c64` purely through the version coordinates embedded in the
+  `fff2c9093ca4677b` purely through the version coordinates embedded in the
   canonical payload.
 - The MCP floor gains an exact SDK pin (`mcp==1.28.1`), a zero-import-cycle
   architecture baseline, and bounded optional-oracle waits

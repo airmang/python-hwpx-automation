@@ -7,9 +7,9 @@
 
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 S-081 구성요소 버전 | `python-hwpx 3.3.0` · `hwpx-mcp-server 4.2.0` · `hwpx-plugin 0.5.0` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.3.0` · MCP `>=4.2.0` · skill `>=0.5.0` |
-| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.3.0` · `hwpx-mcp-server==4.2.0` |
+| 공개 릴리스 | 현재 공개된 S-081 구성요소 버전 | `python-hwpx 3.3.0` · `hwpx-mcp-server 4.2.1` · `hwpx-plugin 0.5.0` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.3.0` · MCP `>=4.2.1` · skill `>=0.5.0` |
+| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.3.0` · `hwpx-mcp-server==4.2.1` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
@@ -586,7 +586,7 @@ MCP 응답에서 확인할 필드:
 
 ## MCP 편집·서식·생성 도구 시그니처
 
-S-081 공개 릴리스 `hwpx-mcp-server 4.2.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
+S-081 공개 릴리스 `hwpx-mcp-server 4.2.1`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
 사용 절차는 `workflows-agent-document.md` / `workflows-editing.md` /
 `workflows-bulk-compare.md`를 본다. 지원 인자와 응답 증거는 도구별로 다르며 아래 표와
 `tool-contract.generated.json`의 실제 스키마를 따른다.
@@ -877,7 +877,7 @@ The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
 3. an immutable plugin-local runtime fingerprinted by the exact
-   `hwpx-mcp-server==4.2.0`, `python-hwpx[visual]==3.3.0`, skill, Python ABI,
+   `hwpx-mcp-server==4.2.1`, `python-hwpx[visual]==3.3.0`, skill, Python ABI,
    and platform values
 4. an exact-version `uvx` fallback when `uv` is unavailable
 
