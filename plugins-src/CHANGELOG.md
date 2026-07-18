@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-18
+
+### Changed
+- Migrates the tier-1 facade guides to the canonical form-fill trio
+  (`analyze_form_fill` → `apply_form_fill` → `verify_form_fill`): the
+  `analyze_template_formfit`/`apply_template_formfit` tutorial in
+  `references/api.md` shrinks to a compatibility note, `fill_form_field` is
+  documented as observation-only (native-field fills are expressed as
+  canonical-plan `nativeField` operations), and the legacy MCP form-fit
+  example is replaced by `examples/08_mcp_canonical_form_fill.md`. The three
+  tools stay installed and functional; demotion is deferred to the next major
+  after observing consumption. `examples/08_template_formfit.py` remains as
+  the labelled compatibility regression gate (`quickcheck --template-formfit`).
+- Documents `apply_table_ops`/`apply_body_ops` as public low-level primitives
+  (promoted out of the compatibility-facade table in MCP 4.3.0); form filling
+  still routes through the single canonical transaction.
+- Repins the bundle stack to `python-hwpx[visual]==3.3.1` ·
+  `hwpx-mcp-server==4.3.0` (contract hash `f82caecbcfc742e9`, surface
+  unchanged at 121 default / 132 advanced / 28 skill-required) and renames the
+  deterministic replay profile to `current-0.6.0`.
+
 ## [0.5.1] - 2026-07-18
 
 ### Note

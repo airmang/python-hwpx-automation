@@ -81,6 +81,14 @@ apply_evalplan_fill(
 반영비율, 수행평가 세부기준, 정의적 영역, 결시자 처리, 유의사항, 결과 분석을 명시적으로 담는다.
 누락되거나 서로 충돌하는 항목은 `needs_review`로 남긴다.
 
+## Public 저수준 프리미티브 — `apply_table_ops` · `apply_body_ops`
+
+두 도구는 4.3.0부터 public 제품 표면이다(compatibility facade 아님). 바이트 보존
+표 셀 채움/구조 편집과 표 밖 본문 편집의 저수준 프리미티브로, 양식 채움 밖의
+구조 작업에 직접 사용할 수 있다. 단 **양식 채움**에서는 canonical
+`analyze_form_fill` → `apply_form_fill` 한 트랜잭션이 기본 경로이며, 같은 작업을
+두 프리미티브의 별도 commit으로 쪼개 원자성을 깨지 않는다.
+
 ## Compatibility facade 경계
 
 다음 이름은 기존 호출자를 위한 전환 표면이거나 집중 검사 도구다. generated contract가
@@ -90,10 +98,10 @@ deprecated/replacement로 표시한 이름은 root router에 다시 올리지 �
 |---|---|
 | `list_form_fields` | native field 존재 여부를 읽는 집중 검사. 새 채움 계획은 `analyze_form_fill`로 만든다. |
 | `find_cell_by_label` | 정확한 표 라벨 후보를 찾는 public locator. mutation은 canonical plan에 합친다. |
-| `fill_form_field` · `fill_by_path` | 단일 legacy target 호환. 새 mixed 작업은 canonical plan에 합친다. |
-| `apply_table_ops` · `apply_body_ops` | 기존 op payload 호환. 새 작업에서 두 mutation을 따로 commit하지 않는다. |
+| `fill_form_field` | **1군 관찰 릴리스**: 새 사용 금지. 누름틀 채움도 canonical plan의 `nativeField` op로 표현한다. 기존 자동화 호환으로만 유지하며 다음 major에서 deprecated 강등을 검토한다. |
+| `fill_by_path` | 단일 legacy target 호환. 새 mixed 작업은 canonical plan에 합친다. |
 | `scan_form_guidance` · `inspect_fill_residue` · `verify_form_fill` | bounded 정찰/검증에 사용할 수 있으나 별도 mutation 세대를 만들지 않는다. |
-| `analyze_template_formfit` · `apply_template_formfit` | 기존 baseline 자동화 호환. replacement guidance에 따라 canonical analyzer/apply로 이관한다. |
+| `analyze_template_formfit` · `apply_template_formfit` | **1군 관찰 릴리스**: 가이드·예제는 canonical 3종으로 이주 완료. 기존 baseline 자동화 호환으로만 유지하며 다음 major에서 deprecated 강등을 검토한다. |
 | `analyze_quality_generation` · `apply_quality_generation` | 전환 기간 deprecated facade. 내용 생성 요구도 canonical plan의 생성 정책으로 표현한다. |
 
 ## 직인/관인 날인 (`place_seal` · `check_seal_compliance`)

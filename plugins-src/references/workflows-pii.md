@@ -10,7 +10,7 @@
 - `scan_personal_info(filename|text)` — read-only 감사. 탐지 span을 유형·신뢰도별로(마스킹된 예시만, 원본값 미노출).
 - `get_document_text` · `hwpx_to_markdown` · `hwpx_extract_json` — `mask=true`가 기본이며,
   명시적으로 승인된 원문 확인에만 `mask=false`를 사용한다.
-- `fill_form_field` / `mail_merge` — 마스킹 파라미터가 없다. 정제된 `value`/`data_rows` 또는
+- `apply_form_fill` / `mail_merge` — 마스킹 파라미터가 없다. 정제된 plan 값/`data_rows` 또는
   정제된 데이터 파일만 입력하고 결과를 다시 감사한다.
 
 ## 루프

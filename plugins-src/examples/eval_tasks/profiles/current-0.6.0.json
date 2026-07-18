@@ -1,8 +1,8 @@
 {
   "schemaVersion": "hwpx.task-eval-profile.v1",
-  "id": "current-0.5.1",
-  "label": "S-081 deterministic direct-call replay profile",
-  "pluginVersion": "0.5.1",
+  "id": "current-0.6.0",
+  "label": "S-083 deterministic direct-call replay profile",
+  "pluginVersion": "0.6.0",
   "availableTools": {
     "source": "generated-contract",
     "profile": "default"

@@ -7,9 +7,9 @@
 
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 S-081 구성요소 버전 | `python-hwpx 3.3.0` · `hwpx-mcp-server 4.2.1` · `hwpx-plugin 0.5.1` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.3.0` · MCP `>=4.2.1` · skill `>=0.5.1` |
-| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.3.0` · `hwpx-mcp-server==4.2.1` |
+| 공개 릴리스 | 현재 공개된 S-083 구성요소 버전 | `python-hwpx 3.3.1` · `hwpx-mcp-server 4.3.0` · `hwpx-plugin 0.6.0` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.3.1` · MCP `>=4.3.0` · skill `>=0.6.0` |
+| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.3.1` · `hwpx-mcp-server==4.3.0` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
@@ -36,7 +36,7 @@
 pip install -U python-hwpx lxml
 ```
 
-이 스킬의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 3.3.0`이 필요하다.
+이 스킬의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 3.3.1`이 필요하다.
 더 낮은 버전은 현재 계약 밖이므로 handoff용 파일 생성에 사용하지 않는다.
 
 ```python
@@ -85,7 +85,7 @@ table.set_cell_text(1, 1, "홍길동")
 doc.save_to_path("table-example.hwpx")
 ```
 
-현재 공개 문서화 기준(3.3.0) 시그니처:
+현재 공개 문서화 기준(3.3.1) 시그니처:
 
 - `add_table(rows, cols, *, section=None, section_index=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style_id_ref=None, char_pr_id_ref=None, run_attributes=None, **extra_attrs) -> HwpxOxmlTable`
 - `set_cell_text(row_index, col_index, text, *, logical=False, split_merged=False) -> None`
@@ -110,7 +110,7 @@ memo, anchor_paragraph, field_value = doc.add_memo_with_anchor(
 )
 ```
 
-현재 공개 문서화 기준(3.3.0) 시그니처:
+현재 공개 문서화 기준(3.3.1) 시그니처:
 
 - `add_memo_with_anchor(text="", *, paragraph=None, section=None, section_index=None, paragraph_text=None, memo_shape_id_ref=None, memo_id=None, char_pr_id_ref=None, attributes=None, field_id=None, author=None, created=None, number=1, anchor_char_pr_id_ref=None) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]`
 
@@ -131,7 +131,7 @@ with HwpxDocument.open("input.hwpx") as doc:
     doc.save_to_path("output.hwpx")
 ```
 
-현재 공개 문서화 기준(3.3.0) 시그니처:
+현재 공개 문서화 기준(3.3.1) 시그니처:
 
 - `find_runs_by_style(*, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None) -> list[HwpxOxmlRun]`
 - `replace_text_in_runs(search, replacement, *, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None, limit=None) -> int`
@@ -441,7 +441,7 @@ text = tex.extract_text(
 )
 ```
 
-현재 공개 문서화 기준(3.3.0) 시그니처:
+현재 공개 문서화 기준(3.3.1) 시그니처:
 
 - `extract_text(*, paragraph_separator="\n", skip_empty=True, include_nested=True, object_behavior="skip", object_placeholder=None, preserve_breaks=True, annotations=None) -> str`
 
@@ -455,7 +455,7 @@ for paragraph in tex.iter_document_paragraphs(include_nested=True):
     print(paragraph.section.index, paragraph.index, paragraph.path, paragraph.text())
 ```
 
-현재 공개 문서화 기준(3.3.0) 시그니처:
+현재 공개 문서화 기준(3.3.1) 시그니처:
 
 - `iter_document_paragraphs(*, include_nested=True) -> Iterator[ParagraphInfo]`
 
@@ -480,7 +480,7 @@ texts = finder.find_all(tag="t", limit=20)
 first_table = finder.find_first(tag="tbl")
 ```
 
-현재 공개 문서화 기준(3.3.0) 시그니처:
+현재 공개 문서화 기준(3.3.1) 시그니처:
 
 - `find_all(*, tag=None, attrs=None, xpath=None, section_filter=None, limit=None) -> list[FoundElement]`
 - `find_first(*, tag=None, attrs=None, xpath=None, section_filter=None) -> FoundElement | None`
@@ -586,7 +586,7 @@ MCP 응답에서 확인할 필드:
 
 ## MCP 편집·서식·생성 도구 시그니처
 
-S-081 공개 릴리스 `hwpx-mcp-server 4.2.1`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
+S-083 공개 릴리스 `hwpx-mcp-server 4.3.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
 사용 절차는 `workflows-agent-document.md` / `workflows-editing.md` /
 `workflows-bulk-compare.md`를 본다. 지원 인자와 응답 증거는 도구별로 다르며 아래 표와
 `tool-contract.generated.json`의 실제 스키마를 따른다.
@@ -793,45 +793,19 @@ MCP 운영 계획서 경로에서 확인할 필드:
 - `quality.profiles.operating_plan.pass == true`
 - `visual_review_required == true`이면 최종 제출 전 렌더링 또는 사람의 시각 검토 필요
 
-## Template form-fit authoring
+## Template form-fit authoring (호환 — 1군 관찰 릴리스)
+
+> **새 양식 채움 작업은 canonical `analyze_form_fill` → `apply_form_fill` →
+> `verify_form_fill` 경로를 사용한다** —
+> [workflows-forms.md](workflows-forms.md) 참조. 이 template-formfit 쌍은 기존
+> baseline 자동화의 호환 표면으로만 유지되며(관찰 릴리스), 다음 major에서
+> deprecated 강등을 검토한다. 회귀 자산은
+> `examples/08_template_formfit.py`(quickcheck `--template-formfit` 게이트)다.
 
 `hwpx.template-formfit.baseline.v1`은 승인된 HWPX 양식을 보존하면서 특정
 anchor 아래의 placeholder scaffold와 표 영역만 채우는 계약이다.
 
-```python
-from hwpx import analyze_template_formfit, apply_template_formfit
-
-analysis = analyze_template_formfit(
-    "template.hwpx",
-    baseline="template-formfit-baseline.json",
-    content={
-        "school": {"name": "광교고등학교"},
-        "sections": {
-            "background_purpose": [
-                "AI 융합형 교육실 구축으로 학생 맞춤형 탐구 수업을 확대한다.",
-                "교원 공동 설계와 지역 연계를 통해 지속 가능한 운영 체계를 만든다.",
-            ],
-            "timeline": {
-                "rows": [
-                    {"월": "3월", "추진 내용": "운영 협의체 구성"},
-                    {"월": "4월", "추진 내용": "공간 설계 및 기자재 선정"},
-                ]
-            },
-        },
-    },
-    destination="filled.hwpx",
-)
-assert analysis["mutated"] is False
-assert analysis["unresolved_count"] == 0
-
-result = apply_template_formfit(analysis=analysis, confirm=True)
-assert result["source"]["preserved"] is True
-assert result["validation"]["validate_package"]["ok"] is True
-assert result["validation"]["validate_document"]["ok"] is True
-assert result["validation"]["openSafety"]["ok"] is True
-```
-
-주요 함수:
+호환 함수:
 
 - `analyze_template_formfit(source, *, baseline, content, destination=None, options=None) -> dict`
 - `apply_template_formfit(*, analysis=None, source=None, baseline=None, content=None, destination=None, confirm=True) -> dict`
@@ -877,7 +851,7 @@ The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
 3. an immutable plugin-local runtime fingerprinted by the exact
-   `hwpx-mcp-server==4.2.1`, `python-hwpx[visual]==3.3.0`, skill, Python ABI,
+   `hwpx-mcp-server==4.3.0`, `python-hwpx[visual]==3.3.1`, skill, Python ABI,
    and platform values
 4. an exact-version `uvx` fallback when `uv` is unavailable
 

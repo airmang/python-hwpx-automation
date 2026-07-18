@@ -24,7 +24,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "examples" / "eval_tasks" / "tasks.json"
 DEFAULT_PROFILES = [
-    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.5.1.json",
+    ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.6.0.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
 ]
@@ -905,7 +905,7 @@ def _fallback_permitted(exc: BaseException) -> bool:
     Any other import failure means the stack itself is broken (for example a
     stale sibling python-hwpx shadowing the required one); scoring through the
     fallback there would misreport an environment failure as a legitimate
-    0-point task result (S-081).
+    0-point task result (S-083).
     """
 
     return (
