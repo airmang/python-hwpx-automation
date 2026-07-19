@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-19
+
+### Changed
+- Repins the bundle core to `python-hwpx[visual]==3.4.1` — the exact stack the
+  M9 published-corpus measurement ran on (open 476/476 all-pass, per-axis
+  reports; see the core repo's `docs/corpus-metrics.md`). `hwpx-mcp-server`
+  stays `==4.3.0` (contract `f82caecbcfc742e9` unchanged, floor `>=3.3.1`
+  admits 3.4.1). The deterministic replay profile moves to `current-0.6.1`.
+- Core `v3.4.0` is a preserved failed tag (prepublish hygiene gate); 3.4.1 is
+  the recovery release this bundle pins.
+
 ## [0.6.0] - 2026-07-18
 
 ### Changed

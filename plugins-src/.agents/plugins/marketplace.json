@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "hwpx-plugin",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "source": {
         "source": "local",
         "path": "./plugins/codex/hwpx-plugin"

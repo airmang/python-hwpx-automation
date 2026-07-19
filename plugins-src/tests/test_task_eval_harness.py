@@ -62,7 +62,7 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     report = task_eval_harness.run(
         ROOT / "examples" / "eval_tasks" / "tasks.json",
         [
-            ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.6.0.json",
+            ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.6.1.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
             ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
         ],
@@ -72,7 +72,7 @@ def test_task_eval_harness_scores_current_and_classifies_baseline(tmp_path: Path
     )
 
     current, previous, baseline = report["profiles"]
-    assert current["profileId"] == "current-0.6.0"
+    assert current["profileId"] == "current-0.6.1"
     assert current["passed"] == report["taskCount"]
     assert previous["profileId"] == "current-0.1.6"
     assert previous["failed"] > 0
@@ -109,7 +109,7 @@ def test_task_eval_harness_normalizes_relative_work_dir(
     monkeypatch.chdir(tmp_path)
     report = task_eval_harness.run(
         ROOT / "examples" / "eval_tasks" / "tasks.json",
-        [ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.6.0.json"],
+        [ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.6.1.json"],
         tmp_path / "relative-report.json",
         None,
         Path("relative-work"),
@@ -120,7 +120,7 @@ def test_task_eval_harness_normalizes_relative_work_dir(
 
 def test_current_profile_resolves_default_tools_from_generated_contract() -> None:
     profile = task_eval_harness.Profile.from_path(
-        ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.6.0.json"
+        ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.6.1.json"
     )
     contract = json.loads(
         (ROOT / "references" / "tool-contract.generated.json").read_text(
@@ -132,7 +132,7 @@ def test_current_profile_resolves_default_tools_from_generated_contract() -> Non
     }
 
     assert profile.available_tools == expected
-    assert profile.plugin_version == "0.6.0"
+    assert profile.plugin_version == "0.6.1"
 
 
 def test_preflight_fails_when_bundle_body_lacks_guidance_keywords() -> None:
