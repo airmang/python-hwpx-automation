@@ -2,25 +2,36 @@
 
 ## [Unreleased]
 
-## [0.6.2] - 2026-07-20
+## [0.6.3] - 2026-07-20
 
 ### Changed
-- Repins the bundle core to `python-hwpx[visual]==3.5.0` so the installed
+- Repins the bundle core to `python-hwpx[visual]==3.6.0` (S-087 structural
+  form-fill fix: inline-control width modeled, impossible fills are typed
+  refusals; silent breakage 47%->16.7% on the wild differential).
+  `hwpx-mcp-server` stays `==4.3.0`, contract hash unchanged.
+- `references/workflows-bulk-compare.md`: the honest-limit guidance now says
+  control-sharing cells are refused by design (pick the intended value cell)
+  and multi-page form fills should go through a render gate.
+
+## [0.6.3] - 2026-07-20
+
+### Changed
+- Repins the bundle core to `python-hwpx[visual]==3.6.0` so the installed
   surface reaches the S-085 height-budget fit engine (form-fill shrink and
   typed overflow refusal are now real, reachable via `mail_merge`'s
   `fit_mode`). `hwpx-mcp-server` stays `==4.3.0` and the contract hash is
   unchanged (`f82caecbcfc742e9`) — no MCP change. Replay profile renamed to
-  `current-0.6.2`.
+  `current-0.6.3`.
 
-## [0.6.2] - 2026-07-19
+## [0.6.3] - 2026-07-19
 
 ### Changed
-- Repins the bundle core to `python-hwpx[visual]==3.5.0` — the exact stack the
+- Repins the bundle core to `python-hwpx[visual]==3.6.0` — the exact stack the
   M9 published-corpus measurement ran on (open 476/476 all-pass, per-axis
   reports; see the core repo's `docs/corpus-metrics.md`). `hwpx-mcp-server`
   stays `==4.3.0` (contract `f82caecbcfc742e9` unchanged, floor `>=3.3.1`
-  admits 3.5.0). The deterministic replay profile moves to `current-0.6.2`.
-- Core `v3.4.0` is a preserved failed tag (prepublish hygiene gate); 3.5.0 is
+  admits 3.6.0). The deterministic replay profile moves to `current-0.6.3`.
+- Core `v3.4.0` is a preserved failed tag (prepublish hygiene gate); 3.6.0 is
   the recovery release this bundle pins.
 
 ## [0.6.0] - 2026-07-18

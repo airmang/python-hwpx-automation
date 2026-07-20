@@ -7,9 +7,9 @@
 
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 S-083 구성요소 버전 | `python-hwpx 3.5.0` · `hwpx-mcp-server 4.3.0` · `hwpx-plugin 0.6.2` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.3.1` · MCP `>=4.3.0` · skill `>=0.6.2` |
-| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.5.0` · `hwpx-mcp-server==4.3.0` |
+| 공개 릴리스 | 현재 공개된 S-083 구성요소 버전 | `python-hwpx 3.6.0` · `hwpx-mcp-server 4.3.0` · `hwpx-plugin 0.6.3` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=3.3.1` · MCP `>=4.3.0` · skill `>=0.6.3` |
+| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual]==3.6.0` · `hwpx-mcp-server==4.3.0` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
@@ -85,7 +85,7 @@ table.set_cell_text(1, 1, "홍길동")
 doc.save_to_path("table-example.hwpx")
 ```
 
-현재 공개 문서화 기준(3.5.0) 시그니처:
+현재 공개 문서화 기준(3.6.0) 시그니처:
 
 - `add_table(rows, cols, *, section=None, section_index=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style_id_ref=None, char_pr_id_ref=None, run_attributes=None, **extra_attrs) -> HwpxOxmlTable`
 - `set_cell_text(row_index, col_index, text, *, logical=False, split_merged=False) -> None`
@@ -110,7 +110,7 @@ memo, anchor_paragraph, field_value = doc.add_memo_with_anchor(
 )
 ```
 
-현재 공개 문서화 기준(3.5.0) 시그니처:
+현재 공개 문서화 기준(3.6.0) 시그니처:
 
 - `add_memo_with_anchor(text="", *, paragraph=None, section=None, section_index=None, paragraph_text=None, memo_shape_id_ref=None, memo_id=None, char_pr_id_ref=None, attributes=None, field_id=None, author=None, created=None, number=1, anchor_char_pr_id_ref=None) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]`
 
@@ -131,7 +131,7 @@ with HwpxDocument.open("input.hwpx") as doc:
     doc.save_to_path("output.hwpx")
 ```
 
-현재 공개 문서화 기준(3.5.0) 시그니처:
+현재 공개 문서화 기준(3.6.0) 시그니처:
 
 - `find_runs_by_style(*, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None) -> list[HwpxOxmlRun]`
 - `replace_text_in_runs(search, replacement, *, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None, limit=None) -> int`
@@ -441,7 +441,7 @@ text = tex.extract_text(
 )
 ```
 
-현재 공개 문서화 기준(3.5.0) 시그니처:
+현재 공개 문서화 기준(3.6.0) 시그니처:
 
 - `extract_text(*, paragraph_separator="\n", skip_empty=True, include_nested=True, object_behavior="skip", object_placeholder=None, preserve_breaks=True, annotations=None) -> str`
 
@@ -455,7 +455,7 @@ for paragraph in tex.iter_document_paragraphs(include_nested=True):
     print(paragraph.section.index, paragraph.index, paragraph.path, paragraph.text())
 ```
 
-현재 공개 문서화 기준(3.5.0) 시그니처:
+현재 공개 문서화 기준(3.6.0) 시그니처:
 
 - `iter_document_paragraphs(*, include_nested=True) -> Iterator[ParagraphInfo]`
 
@@ -480,7 +480,7 @@ texts = finder.find_all(tag="t", limit=20)
 first_table = finder.find_first(tag="tbl")
 ```
 
-현재 공개 문서화 기준(3.5.0) 시그니처:
+현재 공개 문서화 기준(3.6.0) 시그니처:
 
 - `find_all(*, tag=None, attrs=None, xpath=None, section_filter=None, limit=None) -> list[FoundElement]`
 - `find_first(*, tag=None, attrs=None, xpath=None, section_filter=None) -> FoundElement | None`
@@ -851,7 +851,7 @@ The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
 1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
 2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
 3. an immutable plugin-local runtime fingerprinted by the exact
-   `hwpx-mcp-server==4.3.0`, `python-hwpx[visual]==3.5.0`, skill, Python ABI,
+   `hwpx-mcp-server==4.3.0`, `python-hwpx[visual]==3.6.0`, skill, Python ABI,
    and platform values
 4. an exact-version `uvx` fallback when `uv` is unavailable
 
