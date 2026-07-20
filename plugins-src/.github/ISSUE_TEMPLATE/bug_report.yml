@@ -1,0 +1,73 @@
+name: 버그 신고
+description: 예상과 다르게 동작하는 문제를 신고합니다.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 무슨 문제인가요
+      description: 어떤 문제가 발생했는지 구체적으로 설명해주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 방법
+      description: 스킬을 사용한 시나리오를 단계별로 적어주세요(어떤 요청을 했는지, 어떤 도구가 호출됐는지 등).
+      placeholder: |
+        1. "가정통신문 초안을 만들어줘"라고 요청
+        2. create_document 호출 → ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: sample-file
+    attributes:
+      label: 샘플 .hwpx 파일
+      description: >-
+        개인정보·기밀 정보를 제거한 최소 재현용 .hwpx 파일을 첨부해주세요(이 폼에 드래그 앤 드롭 가능합니다).
+        HWPX는 파일 구조 자체에 문제 원인이 담겨 있는 경우가 많아, 재현 파일이 있으면 진단 속도가 크게 빨라집니다.
+    validations:
+      required: false
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 기대 동작 / 실제 동작
+      description: 기대했던 동작과 실제로 일어난 동작을 각각 적어주세요.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 버전
+      description: 플러그인 버전과 호스트 클라이언트(Claude Desktop, Claude Code 등) 이름·버전을 적어주세요.
+      placeholder: "hwpx-plugin 0.6.2 / Claude Code 2.x"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 환경
+      description: OS / 실행 방법(marketplace 설치 등)
+      placeholder: "예: macOS 15 / Claude Code plugin marketplace"
+  - type: dropdown
+    id: hancom-verified
+    attributes:
+      label: 한컴오피스에서 확인했나요
+      description: >-
+        생성·수정된 .hwpx가 실제 한컴오피스에서 정상적으로 열리는지는 결과물 검증에서 중요한 정보입니다.
+        확인했다면 '추가 정보'란에 한컴오피스 버전도 함께 적어주세요.
+      options:
+        - "확인함('추가 정보'에 버전 기재)"
+        - "확인 안 함"
+        - "해당 없음"
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 추가 정보
+      description: 스크린샷, 로그, 관련 이슈 등 참고할 내용이 있다면 자유롭게 적어주세요.
+    validations:
+      required: false
