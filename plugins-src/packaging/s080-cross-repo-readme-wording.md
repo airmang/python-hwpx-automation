@@ -65,5 +65,5 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 `hwpx-mcp-server 4.4.0`이며 최소 호환 코어는 `python-hwpx 3.8.0`입니다.
-> `hwpx-plugin 0.6.7` 설치 번들은 재현성을 위해 MCP를 `==4.3.0`, 코어를 `==3.6.0`으로 고정합니다.
+> 현재 공개 릴리스는 `hwpx-mcp-server 4.4.1`이며 최소 호환 코어는 `python-hwpx 3.8.0`입니다.
+> `hwpx-plugin 0.6.8` 설치 번들은 재현성을 위해 MCP를 `==4.3.0`, 코어를 `==3.6.0`으로 고정합니다.

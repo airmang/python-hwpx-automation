@@ -2,7 +2,14 @@
 
 ## [Unreleased]
 
-## [0.6.7] - 2026-07-21
+## [0.6.8] - 2026-07-21
+
+### Notes
+- `v0.6.7`은 보존 태그입니다 — 당시 핀 `hwpx-mcp-server==4.4.0`이 릴리스 게이트
+  실패로 PyPI에 발행되지 않아 설치가 해석 단계에서 실패합니다(잘못된 비트가
+  설치되지는 않음). 본 0.6.8이 `==4.4.1`로 복구한 대표 릴리스입니다.
+
+## [0.6.7] - 2026-07-21 (보존 태그)
 
 ### Added
 - `references/workflows-preview.md`: 한컴 없이 스크롤 통독하는 문서 프리뷰
@@ -58,7 +65,7 @@
   typed overflow refusal are now real, reachable via `mail_merge`'s
   `fit_mode`). `hwpx-mcp-server` stays `==4.3.0` and the contract hash is
   unchanged (`f82caecbcfc742e9`) — no MCP change. Replay profile renamed to
-  `current-0.6.7`.
+  `current-0.6.8`.
 
 ## [0.6.5] - 2026-07-19
 
@@ -67,7 +74,7 @@
   M9 published-corpus measurement ran on (open 476/476 all-pass, per-axis
   reports; see the core repo's `docs/corpus-metrics.md`). `hwpx-mcp-server`
   stays `==4.3.0` (contract `f82caecbcfc742e9` unchanged, floor `>=3.3.1`
-  admits 3.6.0). The deterministic replay profile moves to `current-0.6.7`.
+  admits 3.6.0). The deterministic replay profile moves to `current-0.6.8`.
 - Core `v3.4.0` is a preserved failed tag (prepublish hygiene gate); 3.6.0 is
   the recovery release this bundle pins.
 

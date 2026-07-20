@@ -6,7 +6,7 @@
       "env": {
         "HWPX_MCP_ADVANCED": "0",
         "HWPX_MCP_AUTOBACKUP": "1",
-        "HWPX_SKILL_VERSION": "0.6.7"
+        "HWPX_SKILL_VERSION": "0.6.8"
       }
     }
   }
