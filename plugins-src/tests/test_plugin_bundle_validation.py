@@ -208,7 +208,7 @@ def test_task_eval_harness_assets_are_bundled() -> None:
             / "examples"
             / "eval_tasks"
             / "profiles"
-            / "current-0.6.3.json"
+            / "current-0.6.4.json"
         ).exists()
         assert (
             skill_root
@@ -244,9 +244,9 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert identity["releaseState"] == "released"
     assert components["core"]["currentVersion"] == "3.6.0"
     assert components["core"]["minimumCompatibleVersion"] == "3.3.1"
-    assert components["mcp"]["currentVersion"] == "4.3.0"
+    assert components["mcp"]["currentVersion"] == "4.3.2"
     assert components["mcp"]["minimumCompatibleVersion"] == "4.3.0"
-    assert components["plugin"]["currentVersion"] == "0.6.3"
+    assert components["plugin"]["currentVersion"] == "0.6.4"
     assert components["plugin"]["minimumCompatibleVersion"] == "0.5.0"
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts

@@ -6,13 +6,13 @@
         "--refresh-package", "hwpx-mcp-server",
         "--refresh-package", "python-hwpx",
         "--with", "python-hwpx[visual]==3.6.0",
-        "--from", "hwpx-mcp-server==4.3.0",
+        "--from", "hwpx-mcp-server==4.3.2",
         "hwpx-mcp-server"
       ],
       "env": {
         "HWPX_MCP_ADVANCED": "0",
         "HWPX_MCP_AUTOBACKUP": "1",
-        "HWPX_SKILL_VERSION": "0.6.3"
+        "HWPX_SKILL_VERSION": "0.6.4"
       }
     }
   }

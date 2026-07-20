@@ -2,7 +2,17 @@
 
 ## [Unreleased]
 
-## [0.6.3] - 2026-07-20
+## [0.6.4] - 2026-07-21
+
+### Changed
+- Repins the bundle MCP server to `hwpx-mcp-server==4.3.2`, which ships the
+  degenerate-cwd workspace fallback fix: GUI MCP clients (Windows Claude
+  Desktop 등) that launch the server from a system directory now get an
+  actionable `HWPX_MCP_WORKSPACE_ROOTS` configuration error instead of every
+  path being rejected. Core stays `python-hwpx[visual]==3.6.0`; contract hash
+  unchanged.
+
+## [0.6.4] - 2026-07-20
 
 ### Changed
 - Repins the bundle core to `python-hwpx[visual]==3.6.0` (S-087 structural
@@ -13,7 +23,7 @@
   control-sharing cells are refused by design (pick the intended value cell)
   and multi-page form fills should go through a render gate.
 
-## [0.6.3] - 2026-07-20
+## [0.6.4] - 2026-07-20
 
 ### Changed
 - Repins the bundle core to `python-hwpx[visual]==3.6.0` so the installed
@@ -21,16 +31,16 @@
   typed overflow refusal are now real, reachable via `mail_merge`'s
   `fit_mode`). `hwpx-mcp-server` stays `==4.3.0` and the contract hash is
   unchanged (`f82caecbcfc742e9`) — no MCP change. Replay profile renamed to
-  `current-0.6.3`.
+  `current-0.6.4`.
 
-## [0.6.3] - 2026-07-19
+## [0.6.4] - 2026-07-19
 
 ### Changed
 - Repins the bundle core to `python-hwpx[visual]==3.6.0` — the exact stack the
   M9 published-corpus measurement ran on (open 476/476 all-pass, per-axis
   reports; see the core repo's `docs/corpus-metrics.md`). `hwpx-mcp-server`
   stays `==4.3.0` (contract `f82caecbcfc742e9` unchanged, floor `>=3.3.1`
-  admits 3.6.0). The deterministic replay profile moves to `current-0.6.3`.
+  admits 3.6.0). The deterministic replay profile moves to `current-0.6.4`.
 - Core `v3.4.0` is a preserved failed tag (prepublish hygiene gate); 3.6.0 is
   the recovery release this bundle pins.
 
@@ -51,7 +61,7 @@
   (promoted out of the compatibility-facade table in MCP 4.3.0); form filling
   still routes through the single canonical transaction.
 - Repins the bundle stack to `python-hwpx[visual]==3.3.1` ·
-  `hwpx-mcp-server==4.3.0` (contract hash `f82caecbcfc742e9`, surface
+  `hwpx-mcp-server==4.3.2` (contract hash `f82caecbcfc742e9`, surface
   unchanged at 121 default / 132 advanced / 28 skill-required) and renames the
   deterministic replay profile to `current-0.6.0`.
 
