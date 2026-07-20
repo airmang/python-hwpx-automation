@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "hwpx-plugin",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬. 편집은 순수 Python이며 최종 시각 검증은 필요 시 한컴 오라클을 사용합니다.",
   "author": { "name": "Kohkyuhyun", "email": "kokyuhyun@hotmail.com", "url": "https://github.com/airmang" },
   "homepage": "https://github.com/airmang/hwpx-plugins",
