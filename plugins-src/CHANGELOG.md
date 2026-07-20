@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-## [0.6.5] - 2026-07-21
+## [0.6.6] - 2026-07-21
+
+### Notes
+- `v0.6.5`는 버전락 테스트 미갱신(red 스위트)으로 보존된 태그입니다 — 번들
+  내용의 기능 결함은 없으며 마켓플레이스 산출물은 본 0.6.6이 대표합니다.
+
+## [0.6.5] - 2026-07-21 (보존 태그)
 
 ### Changed
 - Repins the bundle core to `python-hwpx[visual]==3.7.0` — the Safe Write
@@ -39,7 +45,7 @@
   typed overflow refusal are now real, reachable via `mail_merge`'s
   `fit_mode`). `hwpx-mcp-server` stays `==4.3.0` and the contract hash is
   unchanged (`f82caecbcfc742e9`) — no MCP change. Replay profile renamed to
-  `current-0.6.5`.
+  `current-0.6.6`.
 
 ## [0.6.5] - 2026-07-19
 
@@ -48,7 +54,7 @@
   M9 published-corpus measurement ran on (open 476/476 all-pass, per-axis
   reports; see the core repo's `docs/corpus-metrics.md`). `hwpx-mcp-server`
   stays `==4.3.0` (contract `f82caecbcfc742e9` unchanged, floor `>=3.3.1`
-  admits 3.6.0). The deterministic replay profile moves to `current-0.6.5`.
+  admits 3.6.0). The deterministic replay profile moves to `current-0.6.6`.
 - Core `v3.4.0` is a preserved failed tag (prepublish hygiene gate); 3.6.0 is
   the recovery release this bundle pins.
 

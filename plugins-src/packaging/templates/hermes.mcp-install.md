@@ -6,7 +6,7 @@ server there.
 
 ## Publish the released skill
 
-The `0.6.5 / 4.3.0 / 3.6.0` coordinates below are the public S-083 release stack.
+The `0.6.6 / 4.3.0 / 3.6.0` coordinates below are the public S-083 release stack.
 The publish command and MCP entry retain those exact public-package pins.
 
 ```bash
@@ -23,7 +23,7 @@ mcp_servers:
     env:
       HWPX_MCP_ADVANCED: "0"
       HWPX_MCP_AUTOBACKUP: "1"
-      HWPX_SKILL_VERSION: "0.6.5"
+      HWPX_SKILL_VERSION: "0.6.6"
       HWPX_MCP_WORKSPACE_ROOTS: '["/absolute/path/to/workspace"]'
 ```
 

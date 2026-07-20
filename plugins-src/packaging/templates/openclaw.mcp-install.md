@@ -15,7 +15,7 @@ Add an MCP server entry that runs the exact released packages with `uvx`:
     "env": {
       "HWPX_MCP_ADVANCED": "0",
       "HWPX_MCP_AUTOBACKUP": "1",
-      "HWPX_SKILL_VERSION": "0.6.5",
+      "HWPX_SKILL_VERSION": "0.6.6",
       "HWPX_MCP_WORKSPACE_ROOTS": "[\"/absolute/path/to/workspace\"]"
     }
   }

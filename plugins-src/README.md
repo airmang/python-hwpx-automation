@@ -52,8 +52,8 @@ python3 -m pip install -U python-hwpx lxml
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 S-083 구성요소 버전 | `python-hwpx 3.7.0` · `hwpx-mcp-server 4.3.2` · `hwpx-plugin 0.6.5` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.3.1` · `hwpx-mcp-server >= 4.3.0` · skill `>= 0.6.5` |
+| 공개 릴리스 | 현재 공개된 S-083 구성요소 버전 | `python-hwpx 3.7.0` · `hwpx-mcp-server 4.3.2` · `hwpx-plugin 0.6.6` |
+| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 3.3.1` · `hwpx-mcp-server >= 4.3.0` · skill `>= 0.6.6` |
 | 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual]==3.7.0` · `hwpx-mcp-server==4.3.2` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`.
@@ -107,7 +107,7 @@ python3 scripts/quickcheck.py
 의존성(`python-hwpx lxml`)은 위 [빠른 시작](#빠른-시작)에서 한 번만 설치한다. 아래는 호스트별 진입점이다. **설치·재설치 후에는 새 에이전트 세션을 시작해야** 새 skill과 MCP 도구가 로드된다.
 
 > 순차 게시와 공개 검증이 끝난 뒤 아래 marketplace 명령은 공개
-> `0.6.5 / 4.3.2 / 3.7.0` 스택을 설치한다.
+> `0.6.6 / 4.3.2 / 3.7.0` 스택을 설치한다.
 
 ### Claude Code
 
