@@ -2,16 +2,29 @@
 
 ## [Unreleased]
 
-## [0.6.6] - 2026-07-21
+## [0.6.7] - 2026-07-21
+
+### Added
+- `references/workflows-preview.md`: 한컴 없이 스크롤 통독하는 문서 프리뷰
+  워크플로 — `render_preview(viewer=true)` 계약(`hwpx-mcp-server>=4.4.0`),
+  3단 수식 fail-closed 의미, 환경별 전달(Artifact/로컬 open), 정직 티어 보고.
+
+### Changed
+- Repins the bundle to `python-hwpx[visual,preview]==3.8.0`(수식 MathML 렌더
+  포함) and `hwpx-mcp-server==4.4.0`. Contract hash `c89cbc5f98eb5367`
+  (additive-only delta: render_preview optional `viewer` param — proof in the
+  server repo's `docs/tool-contract-delta-4.4.0.json`).
+
+## [0.6.7] - 2026-07-21
 
 ### Notes
 - `v0.6.5`는 버전락 테스트 미갱신(red 스위트)으로 보존된 태그입니다 — 번들
-  내용의 기능 결함은 없으며 마켓플레이스 산출물은 본 0.6.6이 대표합니다.
+  내용의 기능 결함은 없으며 마켓플레이스 산출물은 본 0.6.7이 대표합니다.
 
 ## [0.6.5] - 2026-07-21 (보존 태그)
 
 ### Changed
-- Repins the bundle core to `python-hwpx[visual]==3.7.0` — the Safe Write
+- Repins the bundle core to `python-hwpx[visual,preview]==3.8.0` — the Safe Write
   Contract release: explicit write mode(patch|rebuild|auto), mutation-report/v1
   receipts, no-silent-fallback(PreservationDowngradeError), 공개 지원 매트릭스.
   `hwpx-mcp-server` stays `==4.3.2`; contract hash unchanged.
@@ -19,17 +32,17 @@
 ## [0.6.5] - 2026-07-21
 
 ### Changed
-- Repins the bundle MCP server to `hwpx-mcp-server==4.3.2`, which ships the
+- Repins the bundle MCP server to `hwpx-mcp-server==4.4.0`, which ships the
   degenerate-cwd workspace fallback fix: GUI MCP clients (Windows Claude
   Desktop 등) that launch the server from a system directory now get an
   actionable `HWPX_MCP_WORKSPACE_ROOTS` configuration error instead of every
-  path being rejected. Core stays `python-hwpx[visual]==3.7.0`; contract hash
+  path being rejected. Core stays `python-hwpx[visual,preview]==3.8.0`; contract hash
   unchanged.
 
 ## [0.6.5] - 2026-07-20
 
 ### Changed
-- Repins the bundle core to `python-hwpx[visual]==3.7.0` (S-087 structural
+- Repins the bundle core to `python-hwpx[visual,preview]==3.8.0` (S-087 structural
   form-fill fix: inline-control width modeled, impossible fills are typed
   refusals; silent breakage 47%->16.7% on the wild differential).
   `hwpx-mcp-server` stays `==4.3.0`, contract hash unchanged.
@@ -40,21 +53,21 @@
 ## [0.6.5] - 2026-07-20
 
 ### Changed
-- Repins the bundle core to `python-hwpx[visual]==3.7.0` so the installed
+- Repins the bundle core to `python-hwpx[visual,preview]==3.8.0` so the installed
   surface reaches the S-085 height-budget fit engine (form-fill shrink and
   typed overflow refusal are now real, reachable via `mail_merge`'s
   `fit_mode`). `hwpx-mcp-server` stays `==4.3.0` and the contract hash is
   unchanged (`f82caecbcfc742e9`) — no MCP change. Replay profile renamed to
-  `current-0.6.6`.
+  `current-0.6.7`.
 
 ## [0.6.5] - 2026-07-19
 
 ### Changed
-- Repins the bundle core to `python-hwpx[visual]==3.7.0` — the exact stack the
+- Repins the bundle core to `python-hwpx[visual,preview]==3.8.0` — the exact stack the
   M9 published-corpus measurement ran on (open 476/476 all-pass, per-axis
   reports; see the core repo's `docs/corpus-metrics.md`). `hwpx-mcp-server`
   stays `==4.3.0` (contract `f82caecbcfc742e9` unchanged, floor `>=3.3.1`
-  admits 3.6.0). The deterministic replay profile moves to `current-0.6.6`.
+  admits 3.6.0). The deterministic replay profile moves to `current-0.6.7`.
 - Core `v3.4.0` is a preserved failed tag (prepublish hygiene gate); 3.6.0 is
   the recovery release this bundle pins.
 
@@ -75,7 +88,7 @@
   (promoted out of the compatibility-facade table in MCP 4.3.0); form filling
   still routes through the single canonical transaction.
 - Repins the bundle stack to `python-hwpx[visual]==3.3.1` ·
-  `hwpx-mcp-server==4.3.2` (contract hash `f82caecbcfc742e9`, surface
+  `hwpx-mcp-server==4.4.0` (contract hash `f82caecbcfc742e9`, surface
   unchanged at 121 default / 132 advanced / 28 skill-required) and renames the
   deterministic replay profile to `current-0.6.0`.
 

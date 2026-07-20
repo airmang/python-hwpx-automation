@@ -232,7 +232,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
             require(forbidden not in text, f"{path}: unqualified product claim remains: {forbidden}")
 
     mcp_pin = f"{mcp['distribution']}=={mcp['currentVersion']}"
-    core_pin = f"{core['distribution']}[visual]=={core['currentVersion']}"
+    core_pin = f"{core['distribution']}[visual,preview]=={core['currentVersion']}"
     skill_env = f'"HWPX_SKILL_VERSION": "{plugin["currentVersion"]}"'
     for path in (
         PACKAGING / "templates" / "claude.mcp.json",
@@ -380,7 +380,7 @@ def validate_launcher(out: Path, host_id: str, identity: dict) -> None:
         "--refresh-package python-hwpx",
         "--from \"${SERVER_PACKAGE}\"",
         f"hwpx-mcp-server=={mcp_version}",
-        f"python-hwpx[visual]=={core_version}",
+        f"python-hwpx[visual,preview]=={core_version}",
         f"HWPX_SKILL_VERSION:-{plugin_version}",
     ]
     missing = [fragment for fragment in fragments if fragment not in text]
@@ -456,7 +456,7 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
                 "codex: MCP package pin missing",
             )
             require(
-                f"{core['distribution']}[visual]=={core['currentVersion']}" in args,
+                f"{core['distribution']}[visual,preview]=={core['currentVersion']}" in args,
                 "codex: core package pin missing",
             )
         require(

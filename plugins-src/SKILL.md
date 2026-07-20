@@ -174,7 +174,7 @@ deprecation/replacement guidance를 따른다.
 - [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지, 읽기·추출 기본 마스킹, 폼필·메일머지 입력 사전 정제 + 가명/비식별. `scan_personal_info` · 읽기/추출 `mask` param. `hwpx-mcp-server>=4.3.0` 계약.
 - [`references/workflows-reading.md`](references/workflows-reading.md) — 런서식(굵게·색·크기·글꼴)+각주/미주 본문 충실 읽기. `hwpx_extract_json`(`format_detail`·`doc.notes[]`)·`hwpx_to_markdown` 각주 부록, `document_to_markdown` 로컬 ingest.
 - [`references/workflows-toc.md`](references/workflows-toc.md) — 네이티브 자동 차례·상호참조(재페이지네이션 시 한컴이 재번호). `add_toc`·`add_cross_reference`·`verify_toc`. `hwpx-mcp-server>=4.3.0` 계약.
-- [`references/workflows-preview.md`](references/workflows-preview.md) — 한컴 없는 스크롤 통독 문서 뷰어(수식 MathML 렌더 fail-closed 3단계), 환경별 전달(Claude Code=Artifact/Codex=local open), 충실도 티어 정직 라벨. `render_preview(viewer=true)`.
+- [`references/workflows-preview.md`](references/workflows-preview.md) — 한컴 없는 스크롤 통독 문서 뷰어(수식 MathML 렌더 fail-closed 3단계), 환경별 전달(Claude Code=Artifact/Codex=local open), 충실도 티어 정직 라벨. `render_preview(viewer=true)`. `hwpx-mcp-server>=4.4.0` 계약.
 - **처음 이 스킬로 HWPX 작업 시작 시**: `describe_capabilities`로 실제 FastMCP 작업군을 확인한다. 정확한 default/advanced/필수 도구 계약은 자동 생성된 [`tool-contract.generated.md`](references/tool-contract.generated.md)가 정본이다.
 - [`references/workflows-forms.md`](references/workflows-forms.md) — canonical mixed-form plan/apply/verify, 평가계획 facade, legacy replacement 경계.
 - [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). `hwpx-mcp-server>=4.3.0` 계약.

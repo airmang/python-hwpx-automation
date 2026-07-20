@@ -16897,8 +16897,8 @@
         "mutation",
         "skill-required"
       ],
-      "description": "레이아웃 충실 HTML과 headless browser PNG 프리뷰 산출물을 생성합니다.\n\nembed_images 가 참이면 각 페이지 PNG 를 인라인 이미지 콘텐츠 블록으로 함께\n반환해 (한컴/ComputerUse 없이) 모델이 레이아웃을 직접 볼 수 있습니다. 구조화\n매니페스트(JSON)는 structuredContent 로 그대로 유지됩니다.",
-      "signature": "(filename: 'str', output_dir: 'str | None' = None, mode: 'str' = 'pages', screenshot: 'str' = 'auto', max_pages: 'int | None' = None, embed_images: 'bool' = True, max_image_bytes: 'int | None' = None) -> 'Annotated[mcp_types.CallToolResult, RenderPreviewOutput]'",
+      "description": "레이아웃 충실 HTML과 headless browser PNG 프리뷰 산출물을 생성합니다.\n\nembed_images 가 참이면 각 페이지 PNG 를 인라인 이미지 콘텐츠 블록으로 함께\n반환해 (한컴/ComputerUse 없이) 모델이 레이아웃을 직접 볼 수 있습니다. 구조화\n매니페스트(JSON)는 structuredContent 로 그대로 유지됩니다.\n\nviewer 가 참이면 매니페스트에 자체완결 스크롤 문서 뷰어(수식은\npython-hwpx[preview] 설치 시 네이티브 MathML)를 workspace 안의\nviewer.html 로 쓰고 structuredContent.viewer 로 함께 반환합니다. 뷰어는\n래스터화와 독립이므로 가벼운 텍스트 경로에는 screenshot=\"off\" 와 함께\n쓰세요. viewer.equationRendering 은 MathML/latex/script 폴백 개수로 충실도\n티어를 정직하게 표면화합니다.",
+      "signature": "(filename: 'str', output_dir: 'str | None' = None, mode: 'str' = 'pages', screenshot: 'str' = 'auto', max_pages: 'int | None' = None, embed_images: 'bool' = True, max_image_bytes: 'int | None' = None, viewer: 'bool' = False) -> 'Annotated[mcp_types.CallToolResult, RenderPreviewOutput]'",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -16956,6 +16956,11 @@
             "default": "auto",
             "title": "Screenshot",
             "type": "string"
+          },
+          "viewer": {
+            "default": false,
+            "title": "Viewer",
+            "type": "boolean"
           }
         },
         "required": [
@@ -17012,6 +17017,88 @@
               "message"
             ],
             "title": "RenderPreviewScreenshotEngine",
+            "type": "object"
+          },
+          "RenderPreviewViewer": {
+            "additionalProperties": false,
+            "description": "Self-contained scrollable document viewer, emitted only when ``viewer=True``.\n\nThe viewer HTML is always written to ``viewerPath`` inside the workspace; the\ninline ``html`` is a convenience copy that is dropped (``htmlOmitted``) when it\nexceeds the inline byte cap so the response can never balloon.\n``equationRendering`` reports the honest fidelity tier as MathML/latex/script\nfallback counts (Constitution IX).",
+            "properties": {
+              "byteSize": {
+                "minimum": 0,
+                "title": "Bytesize",
+                "type": "integer"
+              },
+              "equationLibrary": {
+                "enum": [
+                  "latex2mathml",
+                  "absent"
+                ],
+                "title": "Equationlibrary",
+                "type": "string"
+              },
+              "equationRendering": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "title": "Equationrendering",
+                "type": "object",
+                "properties": {}
+              },
+              "fidelityTier": {
+                "title": "Fidelitytier",
+                "type": "string"
+              },
+              "html": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Html"
+              },
+              "htmlOmitted": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Htmlomitted"
+              },
+              "pageCount": {
+                "minimum": 0,
+                "title": "Pagecount",
+                "type": "integer"
+              },
+              "viewerPath": {
+                "title": "Viewerpath",
+                "type": "string"
+              },
+              "warnings": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Warnings",
+                "type": "array"
+              }
+            },
+            "required": [
+              "viewerPath",
+              "byteSize",
+              "pageCount",
+              "warnings",
+              "fidelityTier",
+              "equationLibrary",
+              "equationRendering"
+            ],
+            "title": "RenderPreviewViewer",
             "type": "object"
           }
         },
@@ -17097,6 +17184,17 @@
               }
             ],
             "title": "Suggestion"
+          },
+          "viewer": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RenderPreviewViewer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "visualReviewPath": {
             "title": "Visualreviewpath",
@@ -21855,7 +21953,7 @@
       }
     ]
   },
-  "contractHash": "f82caecbcfc742e9",
+  "contractHash": "c89cbc5f98eb5367",
   "defaultToolCount": 121,
   "advancedToolCount": 132,
   "baselineToolCount": 136,
