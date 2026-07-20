@@ -11,11 +11,11 @@ Add an MCP server entry that runs the exact released packages with `uvx`:
 {
   "hwpx-mcp-server": {
     "command": "uvx",
-    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.4.1", "--from", "hwpx-mcp-server==4.3.0", "hwpx-mcp-server"],
+    "args": ["--refresh-package", "hwpx-mcp-server", "--refresh-package", "python-hwpx", "--with", "python-hwpx[visual]==3.5.0", "--from", "hwpx-mcp-server==4.3.0", "hwpx-mcp-server"],
     "env": {
       "HWPX_MCP_ADVANCED": "0",
       "HWPX_MCP_AUTOBACKUP": "1",
-      "HWPX_SKILL_VERSION": "0.6.1",
+      "HWPX_SKILL_VERSION": "0.6.2",
       "HWPX_MCP_WORKSPACE_ROOTS": "[\"/absolute/path/to/workspace\"]"
     }
   }
