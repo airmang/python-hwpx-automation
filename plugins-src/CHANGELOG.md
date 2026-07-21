@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.7.0] - 2026-07-21
 
 ### Changed
 - 5.0 경계 가이드 이주: `hwpx-mcp-server` 5.0.0에서 제거되는 stub 5종

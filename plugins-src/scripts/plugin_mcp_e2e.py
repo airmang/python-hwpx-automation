@@ -520,7 +520,7 @@ def main() -> int:
     parser.add_argument(
         "--server-runtime", "--server-venv", dest="server_runtime", type=Path
     )
-    parser.add_argument("--skill-version", default="0.6.8")
+    parser.add_argument("--skill-version", default="0.7.0")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--require-real-render", action="store_true")
     parser.add_argument("--advanced", action="store_true")
