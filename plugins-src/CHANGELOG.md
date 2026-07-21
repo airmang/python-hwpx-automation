@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+- 5.0 경계 가이드 이주: `hwpx-mcp-server` 5.0.0에서 제거되는 stub 5종
+  (`plan_edit`/`preview_edit`/`apply_edit`/`analyze_quality_generation`/
+  `apply_quality_generation`)에 대한 스킬 가이드 참조를 canonical
+  `apply_document_commands`·`create_document_from_plan`·`inspect_document_quality`
+  경로로 전량 이주했다. 1군(`fill_form_field`,
+  `analyze_template_formfit`/`apply_template_formfit`) 문구를 "관찰 릴리스"에서
+  "DEPRECATED — 5.0 경계 확정(동작 유지, 제거는 다음 major)"로 갱신했다. 2군
+  (`apply_edits`/`fill_by_path`/`create_comparison_table_document`)은 분류 불변,
+  교육 경로만 canonical로 이주했다.
+- 신설 [`references/migration-5.0.md`](references/migration-5.0.md) — 제거 5종
+  대체표 + 1군 DEPRECATED 공지 + 2군 권장 경로.
+
 ## [0.6.8] - 2026-07-21
 
 ### Notes

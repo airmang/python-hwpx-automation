@@ -98,11 +98,10 @@ deprecated/replacement로 표시한 이름은 root router에 다시 올리지 �
 |---|---|
 | `list_form_fields` | native field 존재 여부를 읽는 집중 검사. 새 채움 계획은 `analyze_form_fill`로 만든다. |
 | `find_cell_by_label` | 정확한 표 라벨 후보를 찾는 public locator. mutation은 canonical plan에 합친다. |
-| `fill_form_field` | **1군 관찰 릴리스**: 새 사용 금지. 누름틀 채움도 canonical plan의 `nativeField` op로 표현한다. 기존 자동화 호환으로만 유지하며 다음 major에서 deprecated 강등을 검토한다. |
-| `fill_by_path` | 단일 legacy target 호환. 새 mixed 작업은 canonical plan에 합친다. |
+| `fill_form_field` | **DEPRECATED(5.0 경계 확정)**: 새 사용 금지. 누름틀 채움도 canonical plan의 `nativeField` op로 표현한다. 동작은 유지하되 제거는 다음 major다. |
+| `fill_by_path` | 단일 legacy target 호환. 새 mixed 양식 작업은 canonical plan에 합치고, 양식 밖의 일반 좌표 편집은 `get_document_map` → `apply_document_commands`를 쓴다. |
 | `scan_form_guidance` · `inspect_fill_residue` · `verify_form_fill` | bounded 정찰/검증에 사용할 수 있으나 별도 mutation 세대를 만들지 않는다. |
-| `analyze_template_formfit` · `apply_template_formfit` | **1군 관찰 릴리스**: 가이드·예제는 canonical 3종으로 이주 완료. 기존 baseline 자동화 호환으로만 유지하며 다음 major에서 deprecated 강등을 검토한다. |
-| `analyze_quality_generation` · `apply_quality_generation` | 전환 기간 deprecated facade. 내용 생성 요구도 canonical plan의 생성 정책으로 표현한다. |
+| `analyze_template_formfit` · `apply_template_formfit` | **DEPRECATED(5.0 경계 확정)**: 가이드·예제는 canonical 3종으로 이주 완료. 동작은 유지하되 제거는 다음 major다. |
 
 ## 직인/관인 날인 (`place_seal` · `check_seal_compliance`)
 

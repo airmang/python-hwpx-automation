@@ -87,6 +87,6 @@ operation 하나의 목록으로 모은다.
 
 기존 `hwpx.template-formfit.baseline.v1` baseline 자동화는
 `analyze_template_formfit` / `apply_template_formfit` 호환 표면으로 계속
-동작한다(1군 관찰 릴리스 — 다음 major에서 deprecated 강등 검토). 새 작업에는
+동작한다(**DEPRECATED — 5.0 경계 확정**, 동작 유지·제거는 다음 major). 새 작업에는
 사용하지 않는다. 회귀 자산: `examples/08_template_formfit.py`
 (quickcheck `--template-formfit`).

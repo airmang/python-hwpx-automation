@@ -4,7 +4,7 @@
 `hwpx-mcp-server` 4.1.0의 생성 계약과 도구별 테스트를 기준으로 한다. 정확한 현재
 시그니처는 `tool-contract.generated.json`을 우선한다.
 
-## 1. 트랜잭션 편집 루프 (`apply_edits`)
+## 1. 호환 트랜잭션 편집 루프 (`apply_edits`, compatibility facade)
 
 `apply_edits`는 전환기 호환 facade다. 새 이종 편집 흐름은
 `workflows-agent-document.md`의 `apply_document_commands`를 우선한다.

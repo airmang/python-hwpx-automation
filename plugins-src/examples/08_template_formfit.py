@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Create a template-preserving form-fit HWPX from a small baseline.
 
-호환(1군 관찰 릴리스) 회귀 자산: 새 양식 채움 작업은 canonical
-analyze_form_fill → apply_form_fill → verify_form_fill 경로를 사용한다
-(references/workflows-forms.md, examples/08_mcp_canonical_form_fill.md).
+호환(DEPRECATED — 5.0 경계 확정, 동작 유지·제거는 다음 major) 회귀 자산: 새 양식
+채움 작업은 canonical analyze_form_fill → apply_form_fill → verify_form_fill
+경로를 사용한다 (references/workflows-forms.md, examples/08_mcp_canonical_form_fill.md).
 이 스크립트는 기존 template-formfit baseline 자동화의 quickcheck
 게이트(--template-formfit)로 유지된다.
 """

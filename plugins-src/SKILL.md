@@ -93,9 +93,9 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 canonical path, body anchor를 함께 넣고 **한 트랜잭션**으로 적용한다. public 저수준
 프리미티브 `apply_table_ops`/`apply_body_ops`는 양식 채움 밖의 표·본문 구조 작업에 직접
 쓸 수 있으나, 양식 채움에서는 canonical 한 트랜잭션을 쪼개지 않는다. `fill_form_field`,
-`fill_by_path`, `find_cell_by_label`, template-formfit/quality-generation
-쌍은 새 요청의 1차 경로가 아니다. 전환이 필요한 기존 호출에서만 generated contract의
-deprecation/replacement guidance를 따른다.
+`fill_by_path`, `find_cell_by_label`, `analyze_template_formfit`/`apply_template_formfit`은
+새 요청의 1차 경로가 아니다(DEPRECATED, 5.0 경계 확정 — 동작 유지·제거는 다음 major).
+전환이 필요한 기존 호출에서만 generated contract의 deprecation/replacement guidance를 따른다.
 
 ## 공통 안전 수칙
 
@@ -153,14 +153,20 @@ deprecation/replacement guidance를 따른다.
 ## 확정 좌표 편집 표준 루프
 
 1. `get_document_map(filename)` — 개요·표·양식 필드·앵커와 `document_revision`을 확보한다.
-2. `apply_edits(filename, operations, dry_run=true)` — `semanticDiff`와 `openSafety.ok`를 확인한다.
-3. diff가 의도와 일치하면 `apply_edits(filename, operations, expected_revision=<1의 document_revision>)`로 확정한다.
-4. 응답의 `ok`, `openSafety.ok`, `semanticDiff`를 확인한다.
-   `reason: "document revision mismatch"`면 문서를 다시 읽고 새 revision으로 재시도한다.
-5. 결과가 잘못됐으면 `undo_last_edit(filename)`로 직전 저장 전 상태로 되돌린다.
-6. 재시도 위험이 있는 자동화에서는 `idempotency_key`를 부여해 중복 적용을 막는다.
+2. 확정된 좌표·앵커를 command 목록으로 만들어 `apply_document_commands(filename, output,
+   commands=[...], dry_run=true)`를 호출한다 — `semanticDiff`와
+   `verificationReport.openSafety.ok`를 확인한다.
+3. diff가 의도와 일치하면 같은 commands를 `dry_run=false`, 새 idempotency key,
+   `expected_revision=<1의 document_revision>`으로 재실행해 확정한다.
+4. 응답의 `ok`, `rolledBack == false`, `verificationReport.openSafety.ok`, `semanticDiff`를
+   확인한다. `stale_revision`이면 문서를 다시 읽고 새 revision으로 재시도한다.
+5. dry-run과 commit은 request hash가 달라 idempotency key를 공유하지 않는다 — commit
+   재시도에만 같은 key를 쓴다.
 
-연산 스키마와 응답 키 상세는 [`references/workflows-editing.md`](references/workflows-editing.md)를 본다.
+연산 스키마·selector·실패 코드 상세는
+[`references/workflows-agent-document.md`](references/workflows-agent-document.md)를 본다.
+기존 호출자를 위한 compatibility facade `apply_edits`(operation-list 스키마,
+`undo_last_edit` 1단계 되돌리기)는 [`references/workflows-editing.md`](references/workflows-editing.md)를 본다.
 
 ## 참조 인덱스
 
@@ -181,5 +187,6 @@ deprecation/replacement guidance를 따른다.
 - [`references/workflows-bulk-compare.md`](references/workflows-bulk-compare.md) — 메일머지, 표 계산, 신구대조, 생성기 3종, 스타일 프로파일/템플릿.
 - [`references/evidence-contract.md`](references/evidence-contract.md) — openSafety·visual-review v1·hard gates·제출 증거 계약.
 - [`references/api.md`](references/api.md) — python-hwpx 시그니처, MCP 도구 표, repair/recover, 번들 스크립트.
+- [`references/migration-5.0.md`](references/migration-5.0.md) — 5.0 경계: 제거 5종 대체표, DEPRECATED 1군, 2군 권장 경로.
 - [`references/official-document-rules.md`](references/official-document-rules.md) — 공문서 항목 표시·끝 표시·붙임·날짜/금액 규칙.
 - 설치 직후 최소 검증: `python3 examples/01_create_and_save.py` → `python3 scripts/text_extract.py examples/out/01_created.hwpx`.

@@ -793,24 +793,26 @@ MCP 운영 계획서 경로에서 확인할 필드:
 - `quality.profiles.operating_plan.pass == true`
 - `visual_review_required == true`이면 최종 제출 전 렌더링 또는 사람의 시각 검토 필요
 
-## Template form-fit authoring (호환 — 1군 관찰 릴리스)
+## Template form-fit authoring (호환 — DEPRECATED, 5.0 경계 확정)
 
 > **새 양식 채움 작업은 canonical `analyze_form_fill` → `apply_form_fill` →
 > `verify_form_fill` 경로를 사용한다** —
-> [workflows-forms.md](workflows-forms.md) 참조. 이 template-formfit 쌍은 기존
-> baseline 자동화의 호환 표면으로만 유지되며(관찰 릴리스), 다음 major에서
-> deprecated 강등을 검토한다. 회귀 자산은
+> [workflows-forms.md](workflows-forms.md) 참조. 이 template-formfit 쌍은 5.0
+> 경계에서 `ToolClassification.DEPRECATED`로 확정됐다: 기존 baseline 자동화
+> 호환으로 계속 동작하지만 새 사용은 금지이며, 제거는 다음 major다. 회귀 자산은
 > `examples/08_template_formfit.py`(quickcheck `--template-formfit` 게이트)다.
 
 `hwpx.template-formfit.baseline.v1`은 승인된 HWPX 양식을 보존하면서 특정
 anchor 아래의 placeholder scaffold와 표 영역만 채우는 계약이다.
 
-호환 함수:
+**DEPRECATED** 호환 함수 — 구조적 채움은 `apply_table_ops`(`fill_cells` 등)로,
+mixed-form 채움은 canonical `analyze_form_fill`/`apply_form_fill`/`verify_form_fill`로
+대체한다:
 
 - `analyze_template_formfit(source, *, baseline, content, destination=None, options=None) -> dict`
 - `apply_template_formfit(*, analysis=None, source=None, baseline=None, content=None, destination=None, confirm=True) -> dict`
 
-MCP 도구:
+**DEPRECATED** MCP 도구 — 대체는 위와 동일:
 
 - `analyze_template_formfit(source_filename, baseline, content, destination_filename=None)`
 - `apply_template_formfit(analysis=None, source_filename=None, baseline=None, content=None, destination_filename=None, confirm=True)`

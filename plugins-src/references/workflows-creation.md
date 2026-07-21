@@ -126,21 +126,27 @@ MCP 경로로 선택하지 않는다.
 
 예제: `examples/04_create_proposal.py`. 검증: `python3 scripts/quickcheck.py --proposal`.
 
-## 7. 양식 + 아이디어 고품질 생성 (quality generation)
+## 7. 양식 + 아이디어 고품질 생성 (quality-profile 생성)
 
-사용자가 양식 HWPX와 대략적 아이디어만 주고 "완성도 있게 작성해줘"라고 하면 목표 품질
-샘플을 요구하지 말고 MCP 품질 파이프라인을 사용한다.
+사용자가 완성 대상 양식(HWPX)의 구조와 대략적 아이디어만 주고 "완성도 있게 작성해줘"라고
+하면 목표 품질 샘플을 요구하지 말고 document-plan 경로에 품질 프로필을 실어 생성한다.
+`analyze_quality_generation`/`apply_quality_generation`은 5.0 경계에서 제거됐다 — 별도
+분석 단계 없이 plan schema 자체가 그 역할을 흡수한다.
 
-1. 양식 파일을 `form_filename`으로, 요청을 `idea_brief` 또는 구조화 content spec으로 정리한다.
-2. `analyze_quality_generation(form_filename, idea_brief, destination_filename)` — 원본 양식을
-   변경하지 않고 내장 품질 프로필과 생성 계획을 반환한다.
-3. 계획이 적절하면 `apply_quality_generation(analysis=..., confirm=True)`.
-4. 결과의 `validation`, `quality.gaps`, `revision_history`를 확인하고, 부족하면 보강된
-   브리프로 재생성한다.
-5. 좋은 품질 샘플은 캘리브레이션/평가용일 뿐 매번 필요한 입력이 아니다.
+1. 양식의 구조가 필요하면 `document_to_markdown(form_filename)` 또는 `get_document_map`으로
+   섹션·표·필수 항목을 파악한다.
+2. 요청과 아이디어를 `hwpx.document_plan.v1`로 정규화하고 파악한 구조를 반영한다.
+3. `validate_document_plan(document_plan)`으로 비파괴 검증한다. `ok=false`이면 `issues[]`/
+   `repairHints[]`를 반영해 고친다.
+4. `create_document_from_plan(destination_filename, document_plan, quality_profile=...)`으로
+   생성한다. proposal 성격이면 `create_proposal_document`를 대신 쓴다.
+5. `inspect_document_quality(destination_filename, rubric=...)`로 품질을 확인한다.
+   점수·`gaps`가 부족하면 plan을 보강해 다시 생성한다.
+6. 좋은 품질 샘플은 캘리브레이션/평가용일 뿐 매번 필요한 입력이 아니다.
 
 예제 흐름: `examples/05_mcp_quality_pipeline.md`. 양식 경로 선택 기준은
-[`workflows-forms.md`](workflows-forms.md)의 3경로 결정표를 따른다.
+[`workflows-forms.md`](workflows-forms.md)의 3경로 결정표를 따른다. 5.0 제거 계약은
+[`migration-5.0.md`](migration-5.0.md)를 본다.
 
 ## 8. 공문서 작성규정 lint와 결재란
 
