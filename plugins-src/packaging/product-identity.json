@@ -9,7 +9,7 @@
       "repository": "python-hwpx",
       "distribution": "python-hwpx",
       "importName": "hwpx",
-      "currentVersion": "4.0.0",
+      "currentVersion": "4.1.1",
       "minimumCompatibleVersion": "4.0.0",
       "maturity": "alpha",
       "maturityEvidence": "Development Status :: 3 - Alpha"
@@ -26,7 +26,7 @@
       "repository": "hwpx-plugins",
       "installedPluginId": "hwpx-plugin",
       "installedSkillName": "hwpx",
-      "currentVersion": "0.7.0",
+      "currentVersion": "0.7.1",
       "minimumCompatibleVersion": "0.7.0",
       "maturity": "not-declared"
     }

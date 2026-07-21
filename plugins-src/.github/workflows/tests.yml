@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: airmang/python-hwpx
-          ref: 62ba2563515ee345662aa427fa6f111aaed9d8c7
+          ref: aa84674f629b31cf3804100e47f5516eb82fb825
           path: python-hwpx
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

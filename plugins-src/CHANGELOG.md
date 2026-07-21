@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1] - 2026-07-21
+
+### Changed
+- 스택 핀 갱신: `python-hwpx[visual,preview]==4.1.1` (form-fill 차등 판정기
+  테두리 기반 교정 — `verify_form_fill` 계열 게이트의 허위 shape/overflow 실패
+  제거, 산출물 불변). `hwpx-mcp-server==5.0.0` 유지.
+
 ## [0.7.0] - 2026-07-21
 
 ### Changed
