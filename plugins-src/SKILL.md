@@ -71,7 +71,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 공문서 작성규정 lint·결재란 | `inspect_official_document_style` | [workflows-creation](references/workflows-creation.md), [규정](references/official-document-rules.md) |
 | 직인/관인 날인 (발신명의 끝글자에 도장) · 날인 규정 pass/fail 검사 | `place_seal` · `check_seal_compliance` | [workflows-forms](references/workflows-forms.md) |
 | 출제 md를 학교 시험지 양식에 재조판 (문항 keep-together, 그림은 placeholder) | `compose_exam` · `verify_question_splits` | [workflows-exam](references/workflows-exam.md) |
-| **평가계획(교수학습운영 및 평가계획) 전문 채움** | `apply_evalplan_fill(filename=..., review_md=..., output=..., render_check="required", score_gold_path=...)` → 필요 시 advanced `score_form_fill` | [workflows-forms](references/workflows-forms.md) |
+| **평가계획(교수학습운영 및 평가계획) 전문 채움** (J1~J6 두뇌 판단·붙여넣기용 MD 저작) | `apply_evalplan_fill(filename=..., review_md=..., output=..., phase="clean", render_check="required", score_gold_path=...)` → 필요 시 advanced `score_form_fill` | [workflows-evalplan](references/workflows-evalplan.md) |
 | 낯선 양식·누름틀·라벨 셀·경로 셀·표 밖 본문이 섞인 채움 | `analyze_form_fill(plan=...)` → plan 승인 → `apply_form_fill(plan=...)` (`plan.dryRun` dry-run → commit) → `verify_form_fill(plan=...)` | [workflows-forms](references/workflows-forms.md) |
 | 메일머지 N부 대량생산 (상장·수료증·안내장·명부 CSV/XLSX) · 셀 넘침 격리(fit) | `mail_merge` (`fit_mode`) | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 표 합계·평균·소계 계산 | `table_compute` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
@@ -183,6 +183,7 @@ canonical path, body anchor를 함께 넣고 **한 트랜잭션**으로 적용�
 - [`references/workflows-preview.md`](references/workflows-preview.md) — 한컴 없는 스크롤 통독 문서 뷰어(수식 MathML 렌더 fail-closed 3단계), 환경별 전달(Claude Code=Artifact/Codex=local open), 충실도 티어 정직 라벨. `render_preview(viewer=true)`. `hwpx-mcp-server>=4.4.0` 계약.
 - **처음 이 스킬로 HWPX 작업 시작 시**: `describe_capabilities`로 실제 FastMCP 작업군을 확인한다. 정확한 default/advanced/필수 도구 계약은 자동 생성된 [`tool-contract.generated.md`](references/tool-contract.generated.md)가 정본이다.
 - [`references/workflows-forms.md`](references/workflows-forms.md) — canonical mixed-form plan/apply/verify, 평가계획 facade, legacy replacement 경계.
+- [`references/workflows-evalplan.md`](references/workflows-evalplan.md) — 평가계획 실채움 두뇌 판단(J1~J6): 붙여넣기용 MD 저작, `phase="clean"` 대표 경로, 신규 지시문·정상 본문 구별·측면 매핑·변형 선택·렌더 해석. 스코어≠제출가능·오너 검수 권위.
 - [`references/workflows-exam.md`](references/workflows-exam.md) — 시험지 조판: 출제 md→학교 양식 재조판, 문항 keep-together, 커브-export 정직 게이트(시각 증거). `hwpx-mcp-server>=4.3.0` 계약.
 - [`references/workflows-bulk-compare.md`](references/workflows-bulk-compare.md) — 메일머지, 표 계산, 신구대조, 생성기 3종, 스타일 프로파일/템플릿.
 - [`references/evidence-contract.md`](references/evidence-contract.md) — openSafety·visual-review v1·hard gates·제출 증거 계약.

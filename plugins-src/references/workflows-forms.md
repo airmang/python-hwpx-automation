@@ -66,11 +66,15 @@ apply_evalplan_fill(
   filename=".../빈양식.hwpx",
   review_md=".../검토용.md",
   output=".../채움본.hwpx",
+  phase="clean",            # 채움 + core 결정론적 정리까지 한 번에 (제출용 채움본)
   render_check="required",
   score_gold_path=".../gold.hwpx"  # 선택
 )
 ```
 
+- `phase`는 `structural` | `all`(기본) | `clean`. **`clean`이 채움 + 정리(제목/교사/정의적 채움·
+  지시문 스캐폴딩 prune·빨강 제거·파랑→검정·캡션 strip)를 한 번에 하는 대표 경로**다. `all`은
+  채움만 하므로(옛 동작 보존) 정리가 필요하면 `clean`을 쓴다. 정리 리포트는 `contentReport.finalize`.
 - facade 응답의 typed plan과 canonical apply/verify 영수증을 확인한다.
 - `render_check="required"`이면 실제 한컴 전 페이지 판정이 없을 때 완료를 확언하지 않는다.
 - advanced profile에서 정량 비교가 명시적으로 필요할 때만 `score_form_fill`을 별도로 호출한다.
@@ -80,6 +84,10 @@ apply_evalplan_fill(
 검토용 Markdown은 제목/담당교사, 교수학습 운영 계획 표, 평가 목적·방침·성취기준·성취수준,
 반영비율, 수행평가 세부기준, 정의적 영역, 결시자 처리, 유의사항, 결과 분석을 명시적으로 담는다.
 누락되거나 서로 충돌하는 항목은 `needs_review`로 남긴다.
+
+임의 양식에서 붙여넣기용 MD를 정확히 저작하고(§7 detailed 배점·§8 측면 포맷), 신규 지시문 판정·
+정상 본문 구별·측면 매핑·변형 선택·렌더 결과 해석 같은 **두뇌 판단(J1~J6)**은
+[workflows-evalplan](workflows-evalplan.md)을 본다.
 
 ## Public 저수준 프리미티브 — `apply_table_ops` · `apply_body_ops`
 
