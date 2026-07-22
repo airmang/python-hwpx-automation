@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0] - 2026-07-22
+
+### Added
+- 평가계획 실채움 워크플로(`references/workflows-evalplan.md`) — 빈 양식 + 검토용 MD를
+  `apply_evalplan_fill(phase="clean")` 한 경로로 잔존물 없이 채우는 두뇌 판단(J1~J6).
+### Changed
+- 스택 핀 갱신: `python-hwpx[visual,preview]==4.2.0` · `hwpx-mcp-server==5.1.0`. 계약 429cb6706323e762.
+
 ## [0.7.1] - 2026-07-21
 
 ### Changed
