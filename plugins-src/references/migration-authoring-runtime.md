@@ -44,10 +44,15 @@ parity regression, and may then be mirrored into the core compatibility copy
 with an explicit receipt. Feature work, schema expansion, and independent
 behavior changes in the core copy are forbidden.
 
-The core authoring copy may continue to use its current temporal dependencies
-until their separately approved migrations:
+The compliance/quality migration is now complete for MCP production routing:
+official lint and page guard are owned by
+`hwpx_mcp_server.office.compliance`/`office.quality`, while the corresponding
+core imports remain frozen 4.x compatibility. See
+`references/migration-compliance-quality-utilities.md`.
 
-- `hwpx.tools.official_lint` and `hwpx.tools.page_guard` — validation migration;
+The core authoring copy may continue to use its remaining temporal
+dependencies until their separately approved migrations:
+
 - `hwpx.visual` — visual runtime migration;
 - `hwpx.tools.mail_merge` — mail-merge migration.
 

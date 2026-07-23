@@ -282,6 +282,40 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                         read_timeout_seconds=timeout,
                     )
                 )
+                raw_phone = "010-1234-5678"
+                raw_email = "hong@example.com"
+                _structured(
+                    await session.call_tool(
+                        "add_paragraph",
+                        {
+                            "filename": str(document),
+                            "text": f"연락처 {raw_phone} / {raw_email}",
+                        },
+                        read_timeout_seconds=timeout,
+                    )
+                )
+                pii_read = _structured(
+                    await session.call_tool(
+                        "get_document_text",
+                        {"filename": str(document)},
+                        read_timeout_seconds=timeout,
+                    )
+                )
+                masked_text = str(pii_read.get("text", ""))
+                if (
+                    raw_phone in masked_text
+                    or raw_email in masked_text
+                    or "010-****-****" not in masked_text
+                ):
+                    raise RuntimeError(
+                        f"default installed PII masking failed: {pii_read}"
+                    )
+                pii_masking = {
+                    "ok": True,
+                    "rawPhoneAbsent": raw_phone not in masked_text,
+                    "rawEmailAbsent": raw_email not in masked_text,
+                    "maskedPhonePresent": "010-****-****" in masked_text,
+                }
                 receipt = _structured(
                     await session.call_tool(
                         "start_workflow",
@@ -492,6 +526,7 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                     "workspace": workspace,
                     "outsideWorkspaceDenial": workspace_denials["outside"],
                     "workspaceDenials": workspace_denials,
+                    "piiMasking": pii_masking,
                     "launchSurface": launch_surface,
                     "advanced": args.advanced,
                 }
