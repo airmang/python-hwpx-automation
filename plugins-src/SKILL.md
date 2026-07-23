@@ -67,6 +67,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 머리글·쪽번호·리치 런·병합 표 조립 생성 | `hwpx.builder` (local) | [workflows-creation](references/workflows-creation.md) |
 | 정부보고서·공문형 보고서 (□/○/※ 불릿) | `parse_government_report_text` → document plan 구성·검증 → `create_document_from_plan` | [workflows-creation](references/workflows-creation.md) |
 | 운영 계획서 제출 후보 | document-plan + `quality_profile="operating_plan"` | [workflows-creation](references/workflows-creation.md) |
+| 운영 계획서 하우스 스타일·섹션칩 변주 | skill이 genre/profile/variable slot 판단 → 기존 document-plan MCP 경로 | [workflows-house-style](references/workflows-house-style.md) |
 | 제안서·기획안 | proposal document plan → `create_document_from_plan` → `inspect_document_quality` | [workflows-creation](references/workflows-creation.md) |
 | 공문서 작성규정 lint·결재란 | `inspect_official_document_style` | [workflows-creation](references/workflows-creation.md), [규정](references/official-document-rules.md) |
 | 직인/관인 날인 (발신명의 끝글자에 도장) · 날인 규정 pass/fail 검사 | `place_seal` · `check_seal_compliance` | [workflows-forms](references/workflows-forms.md) |

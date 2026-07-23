@@ -87,7 +87,9 @@ builder는 내부 XML을 직접 만들지 않고 `HwpxDocument` facade로 loweri
 ## 5. 운영 계획서 제출 후보
 
 "운영 계획서", "사업 운영 계획", "AI 중점학교 운영계획서" 등 제출용 계획서는 generic
-plan보다 운영 계획서 프로필을 우선한다.
+plan보다 운영 계획서 프로필을 우선한다. 장르 판단, report typography 상속,
+section-chip 번호/형태/accent 변주는
+[`workflows-house-style.md`](workflows-house-style.md)를 따른다.
 
 1. 요청을 `hwpx.document_plan.v1`로 정규화하고 필수 구조를 포함한다: 신청 목적, 운영 계획,
    추진 일정, 사업비/자원 사용 계획, 교육과정 또는 운영 체계, 기대 효과/성과 관리,
