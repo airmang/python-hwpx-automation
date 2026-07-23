@@ -32,6 +32,7 @@
     "references/workflows-preview.md",
     "references/migration-5.0.md",
     "references/migration-agent-runtime.md",
+    "references/migration-authoring-runtime.md",
     "examples/01_create_and_save.py",
     "examples/02_extract_and_inspect.py",
     "examples/03_template_replace.py",
