@@ -7,6 +7,11 @@
   remain in core while comparison-plan, canonical-PII bulk workflow, and
   Hancom-bound redline verification are canonical in MCP `office.document_ops`.
   Public ToolSpec remains `119/127/28 @ 429cb6706323e762`.
+- compatibility/deprecation 관찰 가이드: 2026-10-31까지 MCP의 6개
+  compatibility·3개 deprecated 도구와 core 4.x의 8개 runtime family·3개 CLI를
+  모두 `extend`합니다. 신규 호출은 canonical MCP 경로로 안내하되 기존 경로는
+  동작을 유지하고, clean-install parity·rollback과 별도 next-major 제거 승인을
+  요구합니다.
 
 ## [0.8.0] - 2026-07-22
 

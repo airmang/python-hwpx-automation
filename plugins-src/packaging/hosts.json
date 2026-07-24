@@ -37,6 +37,7 @@
     "references/migration-evalplan-runtime.md",
     "references/migration-document-operations.md",
     "references/migration-compliance-quality-utilities.md",
+    "references/migration-compatibility-observation.md",
     "examples/01_create_and_save.py",
     "examples/02_extract_and_inspect.py",
     "examples/03_template_replace.py",
