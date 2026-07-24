@@ -49,12 +49,13 @@ behavior changes in the core copy are forbidden.
 
 The remaining serial migration routes are:
 
-- eval-plan parsing and cleanup move in the next eval-plan migration;
 - visual and oracle policy move in the visual-runtime migration;
 - mail-merge application policy moves in the mail-merge migration.
 
-These migrations may consume the canonical form-fill owner. They must not
-restore production imports from the frozen core family.
+Evaluation-plan parsing and cleanup have moved to the canonical MCP owner; see
+[`migration-evalplan-runtime.md`](migration-evalplan-runtime.md). Later
+migrations may consume the canonical form-fill owner. They must not restore
+production imports from the frozen core family.
 
 ## Removal gate
 

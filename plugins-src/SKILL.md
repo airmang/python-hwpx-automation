@@ -193,5 +193,6 @@ canonical path, body anchor를 함께 넣고 **한 트랜잭션**으로 적용�
 - [`references/migration-agent-runtime.md`](references/migration-agent-runtime.md) — MCP `office.agent` 정본, core 4.x import/CLI 동결 호환, mirror-only fix 정책, 별도 core-major 제거 gate.
 - [`references/migration-authoring-runtime.md`](references/migration-authoring-runtime.md) — MCP `office.authoring` 정본, core 4.x authoring import/CLI 동결 호환, mirror-only fix 정책, 별도 core-major 제거 gate.
 - [`references/migration-form-fill-runtime.md`](references/migration-form-fill-runtime.md) — MCP `office.form_fill` 정본, core 4.x form-fill import 동결 호환, reusable core primitive 경계와 mirror-only fix/removal gate.
+- [`references/migration-evalplan-runtime.md`](references/migration-evalplan-runtime.md) — MCP `office.evalplan` 정본, core 4.x `hwpx.evalplan_fill` 동결 호환, J1~J6 exact 보존과 S-106/S-107 제거 gate.
 - [`references/official-document-rules.md`](references/official-document-rules.md) — 공문서 항목 표시·끝 표시·붙임·날짜/금액 규칙.
 - 설치 직후 최소 검증: `python3 examples/01_create_and_save.py` → `python3 scripts/text_extract.py examples/out/01_created.hwpx`.
