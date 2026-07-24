@@ -2,6 +2,22 @@
 
 > 계약: `hwpx-mcp-server>=4.4.0` · 수식 MathML 렌더는 `python-hwpx[preview]>=3.8.0`.
 
+## 렌더 소유권과 호환성
+
+- 실제 한컴 discovery·실행·worker·페이지 QA의 정본은
+  `hwpx_mcp_server.office.rendering`이다. `python-hwpx`에는
+  report/protocol/mask·detector/diff 같은 renderer-neutral 계약만 정본으로
+  남는다.
+- `python-hwpx` 4.x의 `hwpx.visual.oracle`·`hancom_worker`·fixture/page-QA
+  export는 기존 소비자를 위한 호환 표면이다. 새 기능과 MCP 실행 경로는 그
+  호환 복사본을 직접 호출하지 않는다.
+- 이 소유권 이동은 도구 이름·입력·출력·분류를 바꾸지 않는다.
+  `render_preview`의 텍스트 근사 경로와 아래 실제 한컴 렌더 라우팅도 그대로다.
+- 오라클이 없거나 시간 예산이 끝나면 결과는 `renderChecked=false` /
+  `unverified`다. 이를 성공한 실제 렌더로 표현하지 않는다.
+- 4.x 호환 표면의 물리적 제거는 후속 관찰 단계(S-106)를 거친 뒤 별도로
+  승인되는 다음 core major 단계(S-107)에서만 결정한다.
+
 **언제:** 저작·편집을 마친 뒤 **한컴을 열지 않고** 문서를 처음부터 끝까지 스크롤로 통독 검수할 때.
 특히 수식(`<hp:equation>`)이 포함된 문서에서는 프리뷰가 수식을 빈칸으로 떨구지 않고 실제로
 조판해 보여줘야 검수가 의미 있다. 페이지 수가 많은 문서에서 진행 위치(현재 페이지)를 확인하고
