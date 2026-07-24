@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- document diff·mail-merge·redline ownership guidance: generic HWPX semantics
+  remain in core while comparison-plan, canonical-PII bulk workflow, and
+  Hancom-bound redline verification are canonical in MCP `office.document_ops`.
+  Public ToolSpec remains `119/127/28 @ 429cb6706323e762`.
+
 ## [0.8.0] - 2026-07-22
 
 ### Added

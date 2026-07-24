@@ -20,6 +20,11 @@
    - `marksLinked` / `displayEnabled` — 마크가 헤더 변경에 TcId로 연결되고 표시 플래그가 켜졌는지.
    - `opensClean` / `render_checked` — Mac 한컴 가용 시 실제 렌더 영수증. **없으면 `render_checked=false`로 정직 강등**(거짓 통과 금지).
 
+Tracked-change header/body linkage와 display flag는 `python-hwpx`의 generic
+format contract이고, Hancom-bound verify/orchestration은 MCP
+`office.document_ops`가 canonical `office.rendering`과 결합해 소유한다.
+구조 검증과 visual 검증의 성공을 서로 대신 보고하지 않는다.
+
 ## 안전 수칙 (정직 보고)
 
 - **수락/거부는 사람이** 한컴 검토 리본에서 한다. 에이전트는 redline 을 **작성**할 뿐 자동 수락하지 않는다(COM accept 액션 미노출 — 정석은 사람 검토).

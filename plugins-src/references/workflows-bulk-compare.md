@@ -10,6 +10,11 @@ CSV/JSON/**XLSX(명부)**/행 데이터로 학생별 가정통신문, 상장, �
 만들 때는 반복 치환 대신 `mail_merge`를 사용한다. placeholder는 본문뿐 아니라 **표 셀**
 (발신·결재/안내 박스) 안에 있어도 치환된다.
 
+설치 MCP의 `office.document_ops`가 bulk workflow와 PII/fit 정책의 정본이고,
+`python-hwpx` core는 sanitizer를 주입받는 generic placeholder merge만 소유한다.
+따라서 application code는 core 4.x default-policy compatibility wrapper 대신
+MCP `mail_merge`를 사용한다.
+
 ```
 mail_merge(template_filename, data_rows=...|data_filename=..., output_dir=...,
     filename_pattern="{index:03d}-{student}.hwpx", zip_filename=...,
@@ -74,6 +79,10 @@ doc_diff(old_paragraphs=[...], new_paragraphs=[...])
 
 LCS 기반 paragraph diff를 반환한다. `summary.counts.{changed, added, ...}`로 변경 규모를
 파악한다.
+
+Generic diff semantics는 core 소유이고 comparison-table plan의 정본은 MCP
+`office.document_ops`다. 공개 tool 이름과 result contract는 이 소유권 변경으로
+달라지지 않는다.
 
 "신구대조표 만들어줘"는 diff 결과를 좌우 대조표 block으로 정규화한 뒤 canonical
 document plan으로 생성한다:
