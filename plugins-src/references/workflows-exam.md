@@ -11,6 +11,20 @@
 > `toolSurface`에 이름이 없거나 계약 해시가 다르면 설치 조합이 맞지 않는 것이므로 이
 > 워크플로를 시도하지 말고 core/MCP/plugin 버전과 활성 profile을 먼저 교정한다.
 
+## runtime 소유권과 호환 정책
+
+- 시험지 parser/IR/profile/measurement/composition의 **정본은
+  `hwpx-mcp-server`의 `hwpx_mcp_server.office.exam`** 이다. 실제
+  `compose_exam`·`verify_question_splits` 호출은 이 정본으로만 라우팅된다.
+- `python-hwpx 4.x`의 `hwpx.exam`은 기존 직접 사용자를 위한 **동결된 operational
+  compatibility copy**다. 새 기능은 MCP 정본에만 추가한다.
+- core 4.x copy 수정은 보안·정확성 문제에만 허용하며, MCP 정본과 동일한 패리티
+  테스트와 변경 receipt를 함께 남겨야 한다. 일반 개선이나 리팩터링을 양쪽에
+  독립적으로 적용하지 않는다.
+- core copy의 물리 제거는 S-106 관찰 결과와 S-107에서 별도로 승인한 다음 major
+  gate를 모두 통과한 뒤에만 가능하다. 그전에는 import shim으로 축소하거나
+  조기 삭제하지 않는다.
+
 ## 입력 계약
 
 | 입력 | 형태 | 처리 |
