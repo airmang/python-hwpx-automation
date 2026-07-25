@@ -128,7 +128,7 @@ copy 결과의 `generatedIdentities`와 반환된 새 path를 사용하고 ID를
 - `identity_collision`, `invariant_violation`, `unsupported_content`: generic 우회를 시도하지 말고
   전문 도구 또는 사람 검토로 넘긴다.
 - 기존 머리글 경로의 `invalid_syntax`: 설치 core/MCP/skill 버전을 health에서 다시 확인한다.
-  이 경로에는 `python-hwpx>=3.2.0`, `hwpx-mcp-server>=4.1.0`, skill `>=0.4.0`이 필요하다.
+  설치 조합이 계약과 맞는지 `mcp_server_health()`의 버전·계약 해시로 확인한다.
 - `verification_failed`, `verificationReport.openSafety.ok != true`, `rolledBack == true`: 산출물을 제출하지 않는다.
 
 로컬 `render_preview`는 근사 검수다. real-Hancom이 요구된 작업은 `render_health` → `render_submit` →

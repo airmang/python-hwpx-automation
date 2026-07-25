@@ -15557,7 +15557,7 @@
         "mutation",
         "skill-required"
       ],
-      "description": "출제 md를 학교 양식 .hwpx에 그 양식의 기존 스타일로 재조판합니다 (S-056 시험지 조판).\n\n각 문항이 단/쪽 경계에서 잘리지 않게(keep-together) 하고, 관리박스·머리글/꼬리글은\n무손실 보존하며, [그림N]/[표N]/[식N]은 텍스트 placeholder로 남깁니다(사람이 그림을\n나중에 삽입). ``exam_md``(인라인 문자열) 또는 ``exam_md_filename``(경로) 중 정확히\n하나를 줍니다. ``verify=True``(기본)면 한컴 렌더로 문항-split/overflow/placeholder를\n검증하고 — 오라클이 없으면 ``renderChecked=false`` 로 정직하게 degrade — ``verify=False``\n면 렌더 없이 조판만 합니다. 한컴이 본문을 벡터 커브로 export 하는 양식은\n``splits=null`` + ``needsReview=true`` 로 정직 보고합니다(렌더 이미지로 시각 검증 필요).\n잘못된 md/양식은 조용히 틀린 문서를 내지 않고 ``ok=false`` 로 실패합니다.",
+      "description": "출제 md를 학교 양식 .hwpx에 그 양식의 기존 스타일로 재조판합니다 (시험지 조판).\n\n각 문항이 단/쪽 경계에서 잘리지 않게(keep-together) 하고, 관리박스·머리글/꼬리글은\n무손실 보존하며, [그림N]/[표N]/[식N]은 텍스트 placeholder로 남깁니다(사람이 그림을\n나중에 삽입). ``exam_md``(인라인 문자열) 또는 ``exam_md_filename``(경로) 중 정확히\n하나를 줍니다. ``verify=True``(기본)면 한컴 렌더로 문항-split/overflow/placeholder를\n검증하고 — 오라클이 없으면 ``renderChecked=false`` 로 정직하게 degrade — ``verify=False``\n면 렌더 없이 조판만 합니다. 한컴이 본문을 벡터 커브로 export 하는 양식은\n``splits=null`` + ``needsReview=true`` 로 정직 보고합니다(렌더 이미지로 시각 검증 필요).\n잘못된 md/양식은 조용히 틀린 문서를 내지 않고 ``ok=false`` 로 실패합니다.",
       "signature": "(form_filename: 'str', output: 'str', exam_md: 'str | None' = None, exam_md_filename: 'str | None' = None, max_rounds: 'int' = 2, verify: 'bool' = True, role_style_names: 'dict[str, str] | None' = None) -> 'dict'",
       "inputSchema": {
         "additionalProperties": false,
@@ -15660,7 +15660,7 @@
         "exam",
         "public"
       ],
-      "description": "한컴 렌더로 시험지 .hwpx의 문항이 단/쪽 경계에서 잘렸는지(문항-split) 검증합니다 (S-056).\n\n오라클이 없으면 ``renderChecked=false`` 로 정직하게 degrade 합니다(임의 0 금지).\n한컴이 본문을 벡터 커브로 export 해 추출 텍스트에 조판 문항이 0개면(학교 원안지\n양식에서 관측) ``splits=null`` + ``needsReview=true`` 로 보고하고 렌더 이미지 기반\n시각 검증을 요구합니다. ``valid_question_numbers`` 로 측정 대상 문항을 한정하면 양식\nchrome(예: \"2026.\" 연도)이 가짜 문항 블록을 열지 않습니다.",
+      "description": "한컴 렌더로 시험지 .hwpx의 문항이 단/쪽 경계에서 잘렸는지(문항-split) 검증합니다.\n\n오라클이 없으면 ``renderChecked=false`` 로 정직하게 degrade 합니다(임의 0 금지).\n한컴이 본문을 벡터 커브로 export 해 추출 텍스트에 조판 문항이 0개면(학교 원안지\n양식에서 관측) ``splits=null`` + ``needsReview=true`` 로 보고하고 렌더 이미지 기반\n시각 검증을 요구합니다. ``valid_question_numbers`` 로 측정 대상 문항을 한정하면 양식\nchrome(예: \"2026.\" 연도)이 가짜 문항 블록을 열지 않습니다.",
       "signature": "(filename: 'str', valid_question_numbers: 'list[str] | None' = None, marker_regex: 'str | None' = None) -> 'dict'",
       "inputSchema": {
         "additionalProperties": false,
@@ -21447,7 +21447,7 @@
       }
     ]
   },
-  "contractHash": "9bfc7ec7b0c3c62b",
+  "contractHash": "e592ede5b0eb1a35",
   "defaultToolCount": 119,
   "advancedToolCount": 127,
   "baselineToolCount": 131,

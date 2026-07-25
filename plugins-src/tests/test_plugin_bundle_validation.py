@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -256,3 +257,49 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert components["plugin"]["maturity"] == "not-declared"
     for host in hosts["hosts"]:
         assert "version:" not in host.get("frontmatterExtra", "")
+
+
+def _shipped_guidance() -> list[Path]:
+    """Every user-facing document that states a version the reader will act on."""
+    return [ROOT / "README.md", ROOT / "SKILL.md", *sorted((ROOT / "references").glob("*.md"))]
+
+
+def test_no_shipped_guidance_states_a_superseded_version_floor() -> None:
+    """The identity file must be the authority in fact, not only by declaration.
+
+    It already named 5.0.0/6.0.0/1.0.0 while README and ``references/api.md``
+    still told readers the contract supported core >=4.2.0 and MCP >=5.1.0, and
+    api.md's install-pin row named a package pair that cannot run this skill —
+    disagreeing with README's own pin row two files away. Nothing failed,
+    because the previous test only checked that the identity file said the right
+    thing.
+
+    So this compares what the documents state against what the identity file
+    declares. A floor below the declared minimum is the failure: a reader who
+    installs what the sentence says gets a stack this skill does not support.
+    """
+
+    identity = _identity()
+    components = identity["components"]
+    minimums = {
+        "python-hwpx": components["core"]["minimumCompatibleVersion"],
+        "hwpx-mcp-server": components["mcp"]["minimumCompatibleVersion"],
+    }
+
+    pattern = re.compile(
+        r"(python-hwpx|hwpx-mcp-server)(?:\[[^\]]*\])?\s*(>=|==)\s*(\d+)\.(\d+)\.(\d+)"
+    )
+    stale: list[str] = []
+    for document in _shipped_guidance():
+        for number, line in enumerate(document.read_text(encoding="utf-8").splitlines(), 1):
+            for package, operator, *parts in pattern.findall(line):
+                stated = tuple(int(part) for part in parts)
+                required = tuple(int(part) for part in minimums[package].split("."))
+                if stated < required:
+                    stale.append(
+                        f"{document.relative_to(ROOT)}:{number}: "
+                        f"{package}{operator}{'.'.join(parts)} "
+                        f"is below the declared minimum {minimums[package]}"
+                    )
+
+    assert not stale, "shipped guidance names superseded versions:\n" + "\n".join(stale)

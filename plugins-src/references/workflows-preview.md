@@ -1,6 +1,6 @@
 # 한컴 없는 스크롤 통독 프리뷰 — workflows-preview
 
-> 계약: `hwpx-mcp-server>=4.4.0` · 수식 MathML 렌더는 `python-hwpx[preview]>=3.8.0`.
+> 수식 MathML 렌더에는 core의 `preview` extra가 필요하다 (`python-hwpx[preview]`).
 
 ## 렌더 소유권과 호환성
 

@@ -2,16 +2,34 @@
 
 ## Unreleased
 
-### Changed
-- document diff·mail-merge·redline ownership guidance: generic HWPX semantics
-  remain in core while comparison-plan, canonical-PII bulk workflow, and
-  Hancom-bound redline verification are canonical in MCP `office.document_ops`.
-  Public ToolSpec remains `119/127/28 @ 429cb6706323e762`.
-- compatibility/deprecation 관찰 가이드: 2026-10-31까지 MCP의 6개
-  compatibility·3개 deprecated 도구와 core 4.x의 8개 runtime family·3개 CLI를
-  모두 `extend`합니다. 신규 호출은 canonical MCP 경로로 안내하되 기존 경로는
-  동작을 유지하고, clean-install parity·rollback과 별도 next-major 제거 승인을
-  요구합니다.
+## [1.0.0] - unreleased
+
+5.0 스택 트레인. `python-hwpx` 5.0이 응용 워크플로를 내려놓고 `hwpx-mcp-server`
+6.0이 그 유일한 소유자가 된다. 스킬의 라우팅 정책 자체는 바뀌지 않았다 —
+바뀐 것은 core 직접 import 대안이 더 이상 존재하지 않는다는 사실이다.
+
+### Changed — BREAKING
+- 스택 핀 갱신: `python-hwpx[visual,preview]==5.0.0` ·
+  `hwpx-mcp-server==6.0.0`. 계약 `429cb6706323e762` → `e592ede5b0eb1a35`
+  (119/127/28 불변 — 이름·순서·스키마·분류·오류계약 전부 동일).
+- 4.x 호환 창 안내 문서 7종을 완료된 이행 하나
+  (`references/migration-core-5.0.md`)로 대체했다. 이미 끝난 이행을 아직
+  진행 중인 것처럼 설명하는 문서를 남기는 것이 코드네임을 지우는 것보다 나쁘다.
+- 워크플로별 최소 버전 표기(`hwpx-mcp-server>=4.3.0` 등)를 제거했다. 스킬 계약의
+  바닥이 6.0.0인 이상 지원되는 어떤 설치에도 4.3.0은 없으므로, 그 문장은
+  안내가 아니라 오해만 만든다. 도구 존재 확인은 `mcp_server_health()`로 한다.
+
+### Fixed
+- **README·`references/api.md`의 버전 표가 낡아 있었다.** "최소 호환 버전"은
+  core `>=4.2.0` / MCP `>=5.1.0`을, api.md의 "플러그인 설치 핀"은
+  `==4.2.0`/`==5.1.0`을 가리켰다 — 두 파일 사이에서도 서로 어긋났고, api.md를
+  따라 설치하면 이 스킬이 지원하지 않는 조합이 된다. `product-identity.json`은
+  줄곧 옳은 값을 담고 있었지만 아무도 대조하지 않았기 때문에 통과했다.
+  이제 대조하는 테스트가 있다.
+- SKILL.md에서 마이그레이션 참조 항목이 라우팅 표 한가운데에 들어가 표를
+  깨뜨리던 것을 참조 목록으로 옮겼다.
+- `hwpx.presets`·`hwpx.builder`를 import하던 예제 2개를 MCP 소유자 경로로
+  바꿨다. 자기 예제가 돌지 않는 스킬은 예제가 없는 것만 못하다.
 
 ## [0.8.0] - 2026-07-22
 
