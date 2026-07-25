@@ -20,7 +20,7 @@
 
 - 설치와 기본 import
 - `HwpxDocument`
-- `hwpx.builder`
+- `hwpx_automation.office.authoring.builder`
 - `TextExtractor`
 - `ObjectFinder`
 - `HwpxPackage`
@@ -162,7 +162,7 @@ with HwpxDocument.open("input.hwpx") as doc:
 ### 헤더와 푸터
 
 간단한 문자열은 `set_header_text()`와 `set_footer_text()`로 넣을 수 있다. 리치 런과
-쪽번호가 필요한 머리글/바닥글은 `hwpx.builder` 또는 아래 facade 메서드를 사용한다.
+쪽번호가 필요한 머리글/바닥글은 `hwpx_automation.office.authoring.builder` 또는 아래 facade 메서드를 사용한다.
 자동화 경로에서는 적용 후 결과 파일을 다시 열어 확인하는 방식으로 쓴다.
 
 현재 facade:
@@ -187,7 +187,7 @@ child는 `{"type": "run", "text": "...", "bold": True, ...}` 또는
 
 ## hwpx.builder
 
-`hwpx.builder`는 docx-js처럼 문서를 객체 노드로 조립한 뒤 `HwpxDocument` facade를
+`hwpx_automation.office.authoring.builder`는 docx-js처럼 문서를 객체 노드로 조립한 뒤 `HwpxDocument` facade를
 통해 HWPX로 lowering하는 새 문서 생성 API다. builder 내부에서 임의 XML을 직접
 만들지 않는 것이 계약이다.
 
@@ -205,7 +205,7 @@ child는 `{"type": "run", "text": "...", "bold": True, ...}` 또는
 기본 예시:
 
 ```python
-from hwpx.builder import (
+from hwpx_automation.office.authoring.builder import (
     Bullet,
     Document,
     Footer,
@@ -344,7 +344,8 @@ builder가 사용하는 신규 facade 메서드는 직접 XML을 조작하지 �
 placeholder 형식은 `{{field}}`, `${field}`, `<<field>>`다.
 
 ```python
-from hwpx import inspect_mail_merge_placeholders, mail_merge
+from hwpx import inspect_mail_merge_placeholders
+from hwpx_automation.office.document_ops import build_mail_merge
 
 placeholders = inspect_mail_merge_placeholders("template.hwpx")
 assert "student" in placeholders["keys"]
@@ -380,7 +381,7 @@ MCP가 있으면 `mail_merge(template_filename, data_rows=...|data_filename=...,
 (`columns`/`rows`), list-of-dicts 표를 받아 합계·평균·소계 행/열을 추가한다.
 
 ```python
-from hwpx import table_compute
+from hwpx_automation.office.utilities import table_compute
 
 result = table_compute(
     {
@@ -628,7 +629,7 @@ MCP 응답에서 확인할 필드:
 `batch_replace` 등의 중복 적용 방지 키다.
 
 일반 문서 ingest: HWPX는 `python-hwpx` engine으로 변환된다. 비-HWPX는 서버가
-`hwpx-mcp-server[ingest]` extra로 설치되어 있을 때 MarkItDown adapter가 처리한다.
+`python-hwpx-automation[ingest]`(또는 옛 이름 `hwpx-mcp-server[ingest]`) extra로 설치되어 있을 때 MarkItDown adapter가 처리한다.
 adapter 결과는 구조 읽기용 Markdown이며 레이아웃 충실도는 주장하지 않는다.
 
 ## 예외와 주의사항
@@ -648,7 +649,7 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 `hwpx.document_plan.v1`은 agent가 자연어 요청을 OWPML이 아닌 JSON 계획으로 정리한 뒤, `python-hwpx`가 공개 API만 사용해 HWPX를 생성하는 경로다.
 
 ```python
-from hwpx import (
+from hwpx_automation.office.authoring import (
     create_document_from_plan,
     inspect_document_authoring_quality,
     inspect_operating_plan_quality,
@@ -870,7 +871,10 @@ or skill scripts, then `python3 scripts/validate_hwpx_plugin.py`.
 `python-hwpx`의 proposal preset은 agent-first 제안서/기획안 생성을 위한 고수준 API다.
 
 ```python
-from hwpx.presets import create_proposal_document, inspect_proposal_quality
+from hwpx_automation.office.authoring.presets import (
+    create_proposal_document,
+    inspect_proposal_quality,
+)
 
 proposal_spec = {
     "title": "AI 융합형 교육실 구축 제안서",

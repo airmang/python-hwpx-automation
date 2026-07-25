@@ -132,7 +132,7 @@ def main() -> int:
         _run([*build_args, str(core_copy)])
         _run([*build_args, str(mcp_copy)])
         core_wheel = next(wheelhouse.glob("python_hwpx-*.whl"))
-        mcp_wheel = next(wheelhouse.glob("hwpx_automation-*.whl"))
+        mcp_wheel = next(wheelhouse.glob("python_hwpx_automation-*.whl"))
 
         launcher = (
             args.skill_root

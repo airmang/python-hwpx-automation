@@ -134,12 +134,23 @@ PY
         "${SERVER_PACKAGE}" \
         "${CORE_PACKAGE}"
       "${BUILD_DIR}/bin/python" - "${EXPECTED_SERVER_VERSION}" "${EXPECTED_CORE_VERSION}" <<'PY'
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
+
+
+def _version_of(*names):
+    for name in names:
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            continue
+    raise PackageNotFoundError(names[0])
 import sys
 
 expected_server, expected_core = sys.argv[1:]
 observed = {
-    "hwpx-mcp-server": version("hwpx-mcp-server"),
+    # 설치는 python-hwpx-automation으로 한다. 옛 이름으로 조회하면
+    # PackageNotFoundError가 난다 — 호환 셸을 따로 깐 환경이 아니면 없다.
+    "hwpx-mcp-server": _version_of("python-hwpx-automation", "hwpx-mcp-server"),
     "python-hwpx": version("python-hwpx"),
 }
 expected = {

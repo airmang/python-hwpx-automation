@@ -134,7 +134,7 @@ def main() -> None:
     # ---- 마켓 레포 사전점검 ----
     require_clean_main(MKT_REPO, "marketplace")
     marketplace_start_head = git(MKT_REPO, "rev-parse", "HEAD")
-    cur_pin = re.search(r"python-hwpx-automation[mcp]==(\d+\.\d+\.\d+)",
+    cur_pin = re.search(r"python-hwpx-automation\[mcp\]==(\d+\.\d+\.\d+)",
                         (MKT_REPO / "packaging/templates/hwpx-mcp-server").read_text()).group(1)
 
     mcp_repo = None
@@ -198,7 +198,7 @@ def main() -> None:
     tdir = MKT_REPO / "packaging" / "templates"
     n_pin = sub_in_files(
         list(tdir.glob("*")) + [MKT_REPO / "scripts" / "validate_hwpx_plugin.py"],
-        r"python-hwpx-automation[mcp]==\d+\.\d+\.\d+", f"python-hwpx-automation[mcp]=={args.engine}")
+        r"python-hwpx-automation\[mcp\]==\d+\.\d+\.\d+", f"python-hwpx-automation[mcp]=={args.engine}")
     n_ver = sub_in_files(
         list(tdir.glob("*.plugin.json")) + [tdir / "codex.marketplace.json"],
         r'"version": "\d+\.\d+\.\d+"', f'"version": "{args.plugin}"')

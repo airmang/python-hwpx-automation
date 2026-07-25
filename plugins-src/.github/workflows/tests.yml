@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-      - run: uv pip install --system -e ./python-hwpx -e './hwpx-mcp-server[test]' 'ruff>=0.12'
+      - run: uv pip install --system -e ./python-hwpx -e './hwpx-mcp-server[mcp,test]' 'ruff>=0.12'
       - name: Check public repository hygiene
         working-directory: hwpx-skill
         run: python scripts/check_public_hygiene.py
