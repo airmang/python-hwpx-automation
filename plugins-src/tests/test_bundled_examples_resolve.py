@@ -20,17 +20,26 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 #: 이 스택이 소유하는 배포. 이 밖의 서드파티 import는 설치 여부가 환경 문제다.
-STACK_ROOTS = ("hwpx", "hwpx_automation", "hwpx_automation")
+#: 이 스택이 소유하는 배포. 옛 root ``hwpx_mcp_server``도 넣는다 — 호환 셸이
+#: 살려두는 이름이라 번들이 실수로 쓸 수 있고, 그러면 잡아야 한다.
+#: (일괄 재명명이 이 튜플을 ("hwpx", "hwpx_automation", "hwpx_automation")로
+#: 만들어 옛 root가 검사에서 빠져 있었다.)
+STACK_ROOTS = ("hwpx", "hwpx_automation", "hwpx_mcp_server")
 
 
 def _stack_imports() -> list[tuple[Path, int, str, str]]:
     """(파일, 줄, 모듈, 이름) — 번들에 실리는 자산의 스택 import 전부."""
     found: list[tuple[Path, int, str, str]] = []
+    broken_syntax: list[str] = []
     for directory in ("examples", "scripts"):
         for path in sorted((ROOT / directory).rglob("*.py")):
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8"))
-            except SyntaxError:
+            except SyntaxError as exc:
+                # 조용히 넘기면 안 된다. 번들 자산의 문법이 깨졌다는 건 그
+                # 자산이 아예 실행 불가라는 뜻이고, 실제로 이 게이트를 쓰던
+                # 재배선 작업이 다섯 파일의 들여쓰기를 부순 적이 있다.
+                broken_syntax.append(f"{path.relative_to(ROOT)}:{exc.lineno}: {exc.msg}")
                 continue
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom):
@@ -41,6 +50,10 @@ def _stack_imports() -> list[tuple[Path, int, str, str]]:
                     for alias in node.names:
                         if alias.name.split(".")[0] in STACK_ROOTS:
                             found.append((path, node.lineno, alias.name, ""))
+    assert not broken_syntax, (
+        "번들 자산의 문법이 깨졌다 — 해석 이전의 문제다:\n  "
+        + "\n  ".join(broken_syntax)
+    )
     return found
 
 

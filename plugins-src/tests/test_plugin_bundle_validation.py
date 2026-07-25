@@ -282,13 +282,19 @@ def test_no_shipped_guidance_states_a_superseded_version_floor() -> None:
 
     identity = _identity()
     components = identity["components"]
+    # 세 이름을 다 본다. 6.0.0에서 응용 배포가 python-hwpx-automation이 됐고,
+    # hwpx-mcp-server는 같은 버전을 끌어오는 호환 셸로 남았다. 새 이름을
+    # 목록에서 빠뜨리면 게이트가 정작 현재 배포명의 낡은 바닥을 못 잡는다.
     minimums = {
         "python-hwpx": components["core"]["minimumCompatibleVersion"],
+        "python-hwpx-automation": components["mcp"]["minimumCompatibleVersion"],
         "hwpx-mcp-server": components["mcp"]["minimumCompatibleVersion"],
     }
 
+    # 긴 이름을 먼저 — python-hwpx가 python-hwpx-automation의 접두사다.
+    names = "|".join(sorted(minimums, key=len, reverse=True))
     pattern = re.compile(
-        r"(python-hwpx|hwpx-mcp-server)(?:\[[^\]]*\])?\s*(>=|==)\s*(\d+)\.(\d+)\.(\d+)"
+        rf"({names})(?:\[[^\]]*\])?\s*(>=|==)\s*(\d+)\.(\d+)\.(\d+)"
     )
     stale: list[str] = []
     for document in _shipped_guidance():
