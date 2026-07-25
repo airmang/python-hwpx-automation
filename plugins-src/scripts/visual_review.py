@@ -43,7 +43,7 @@ def _sha256(path: Path) -> str:
 
 def _quality_report(path: Path) -> dict[str, Any]:
     try:
-        from hwpx_mcp_server.office.authoring import inspect_operating_plan_quality
+        from hwpx_automation.office.authoring import inspect_operating_plan_quality
     except Exception as exc:
         return {
             "available": False,

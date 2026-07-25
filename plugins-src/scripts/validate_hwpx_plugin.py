@@ -191,7 +191,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
             "Development Status :: 3 - Alpha",
             "MCP 서버·플러그인 성숙도: 미선언",
             f"`{core['repository']} {core['currentVersion']}`",
-            f"`{mcp['repository']} {mcp['currentVersion']}`",
+            f"`{mcp['distribution']} {mcp['currentVersion']}`",
             f"`{plugin['installedPluginId']} {plugin['currentVersion']}`",
         ],
         "README.md",
@@ -231,7 +231,12 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         for forbidden in identity.get("forbiddenUnqualifiedClaimsKo", []):
             require(forbidden not in text, f"{path}: unqualified product claim remains: {forbidden}")
 
-    mcp_pin = f"{mcp['distribution']}=={mcp['currentVersion']}"
+    # extra를 뺀 핀은 MCP 서버 없는 설치를 만든다 — 6.0.0부터 mcp SDK는
+    # 필수 의존이 아니라 [mcp] extra다. 번들은 서버를 띄워야 하므로
+    # extra를 반드시 포함해야 한다.
+    _extra = mcp.get("installExtra")
+    _suffix = f"[{_extra}]" if _extra else ""
+    mcp_pin = f"{mcp['distribution']}{_suffix}=={mcp['currentVersion']}"
     core_pin = f"{core['distribution']}[visual,preview]=={core['currentVersion']}"
     skill_env = f'"HWPX_SKILL_VERSION": "{plugin["currentVersion"]}"'
     for path in (
@@ -376,10 +381,10 @@ def validate_launcher(out: Path, host_id: str, identity: dict) -> None:
         ".hwpx-stack-fingerprint",
         "install.lock",
         "uv pip install",
-        "--refresh-package hwpx-mcp-server",
+        "--refresh-package python-hwpx-automation",
         "--refresh-package python-hwpx",
         "--from \"${SERVER_PACKAGE}\"",
-        f"hwpx-mcp-server=={mcp_version}",
+        f"python-hwpx-automation[mcp]=={mcp_version}",
         f"python-hwpx[visual,preview]=={core_version}",
         f"HWPX_SKILL_VERSION:-{plugin_version}",
     ]
@@ -451,10 +456,13 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
             args = server.get("args", [])
             require(command == "uvx", "codex: .mcp.json command must be root-independent uvx")
             require("cwd" not in server, "codex: .mcp.json must preserve the thread workspace cwd")
-            require(
-                f"{mcp['distribution']}=={mcp['currentVersion']}" in args,
-                "codex: MCP package pin missing",
+            # extra 없는 핀은 MCP 서버 없는 설치를 만든다 (6.0.0부터 mcp는 extra).
+            _extra = mcp.get("installExtra")
+            _pin = (
+                f"{mcp['distribution']}"
+                f"{f'[{_extra}]' if _extra else ''}=={mcp['currentVersion']}"
             )
+            require(_pin in args, "codex: MCP package pin missing")
             require(
                 f"{core['distribution']}[visual,preview]=={core['currentVersion']}" in args,
                 "codex: core package pin missing",

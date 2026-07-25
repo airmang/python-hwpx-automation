@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hwpx_mcp_server.office.authoring import DOCUMENT_PLAN_SCHEMA_VERSION, create_document_from_plan, inspect_document_authoring_quality, inspect_operating_plan_quality, validate_document_plan
+from hwpx_automation.office.authoring import DOCUMENT_PLAN_SCHEMA_VERSION, create_document_from_plan, inspect_document_authoring_quality, inspect_operating_plan_quality, validate_document_plan
 
 
 OUTPUT = Path(__file__).resolve().parent / "out" / "07_operating_plan.hwpx"

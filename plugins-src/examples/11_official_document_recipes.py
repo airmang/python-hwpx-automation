@@ -6,8 +6,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from hwpx import validate_editor_open_safety
-from hwpx_mcp_server.office.authoring import create_document_from_plan, validate_document_plan
-from hwpx_mcp_server.office.compliance.official_lint import inspect_official_document_style
+from hwpx_automation.office.authoring import create_document_from_plan, validate_document_plan
+from hwpx_automation.office.compliance.official_lint import inspect_official_document_style
 
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "out" / "11_official_document_recipes"

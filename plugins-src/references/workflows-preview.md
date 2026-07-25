@@ -5,7 +5,7 @@
 ## 렌더 소유권과 호환성
 
 - 실제 한컴 discovery·실행·worker·페이지 QA의 정본은
-  `hwpx_mcp_server.office.rendering`이다. `python-hwpx`에는
+  `hwpx_automation.office.rendering`이다. `python-hwpx`에는
   report/protocol/mask·detector/diff 같은 renderer-neutral 계약만 정본으로
   남는다.
 - `python-hwpx` 4.x의 `hwpx.visual.oracle`·`hancom_worker`·fixture/page-QA

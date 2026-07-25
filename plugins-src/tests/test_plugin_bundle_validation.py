@@ -104,10 +104,11 @@ def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> Non
     )["mcpServers"]["hwpx-mcp-server"]
     assert config["command"] == "uvx"
     assert "cwd" not in config
-    assert (
-        f"{components['mcp']['distribution']}=={components['mcp']['currentVersion']}"
-        in config["args"]
-    )
+    # extra를 포함한 핀이어야 한다. 6.0.0부터 mcp SDK는 필수가 아니라 [mcp]
+    # extra이므로, extra 없는 핀으로 설치하면 MCP 서버가 없는 환경이 된다.
+    mcp = components["mcp"]
+    extra = f"[{mcp['installExtra']}]" if mcp.get("installExtra") else ""
+    assert f"{mcp['distribution']}{extra}=={mcp['currentVersion']}" in config["args"]
     assert (
         f"{components['core']['distribution']}[visual,preview]=={components['core']['currentVersion']}"
         in config["args"]

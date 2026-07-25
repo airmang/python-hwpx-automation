@@ -57,12 +57,12 @@ def _load_tool_contract(server_src: Path) -> tuple[set[str], str]:
         # composition.  Older snapshots composed from ``server`` directly, so
         # retain that compatibility path for reproducible historical audits.
         try:
-            importlib.import_module("hwpx_mcp_server.runtime")
+            importlib.import_module("hwpx_automation.runtime")
         except ModuleNotFoundError as exc:
-            if exc.name != "hwpx_mcp_server.runtime":
+            if exc.name != "hwpx_automation.runtime":
                 raise
-            importlib.import_module("hwpx_mcp_server.server")
-        from hwpx_mcp_server.tool_contract import contract_hash, expected_tool_names
+            importlib.import_module("hwpx_automation.server")
+        from hwpx_automation.tool_contract import contract_hash, expected_tool_names
 
         return expected_tool_names(advanced=False), contract_hash()
     finally:

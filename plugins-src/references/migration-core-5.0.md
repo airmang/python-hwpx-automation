@@ -16,20 +16,20 @@
 ## `hwpx`를 직접 import하고 있다면
 
 ```bash
-pip install hwpx-mcp-server
+pip install python-hwpx-automation[mcp]
 ```
 
 | 4.x import | 5.0 대체 |
 |---|---|
-| `hwpx.agent.*` · `hwpx` 명령 | `hwpx_mcp_server.office.agent` · 같은 `hwpx` 명령(MCP가 선언) |
-| `hwpx.authoring` · `builder` · `design` · `presets` | `hwpx_mcp_server.office.authoring` |
-| `hwpx.exam` | `hwpx_mcp_server.office.exam` — 또는 `compose_exam` 도구 |
-| `hwpx.evalplan_fill` | `hwpx_mcp_server.office.evalplan` — 또는 `apply_evalplan_fill` |
-| `hwpx.form_fill` · `formfill_quality` · `fill_residue` · `guidance_scan` · `template_formfit` | `hwpx_mcp_server.office.form_fill` — 또는 form-fill 3종 도구 |
-| `hwpx.tools.official_lint` · `pii` | `hwpx_mcp_server.office.compliance` |
-| `hwpx.tools.table_compute` · `style_profile` · `advanced_generators` · `report_parser` | `hwpx_mcp_server.office.utilities` / `office.authoring` |
+| `hwpx.agent.*` · `hwpx` 명령 | `hwpx_automation.office.agent` · 같은 `hwpx` 명령(MCP가 선언) |
+| `hwpx.authoring` · `builder` · `design` · `presets` | `hwpx_automation.office.authoring` |
+| `hwpx.exam` | `hwpx_automation.office.exam` — 또는 `compose_exam` 도구 |
+| `hwpx.evalplan_fill` | `hwpx_automation.office.evalplan` — 또는 `apply_evalplan_fill` |
+| `hwpx.form_fill` · `formfill_quality` · `fill_residue` · `guidance_scan` · `template_formfit` | `hwpx_automation.office.form_fill` — 또는 form-fill 3종 도구 |
+| `hwpx.tools.official_lint` · `pii` | `hwpx_automation.office.compliance` |
+| `hwpx.tools.table_compute` · `style_profile` · `advanced_generators` · `report_parser` | `hwpx_automation.office.utilities` / `office.authoring` |
 | `hwpx.tools.mail_merge.mail_merge` | `merge_template_rows` (core, 이제 공개) |
-| `hwpx.tools.doc_diff.build_comparison_table_plan` | `hwpx_mcp_server.office.document_ops` |
+| `hwpx.tools.doc_diff.build_comparison_table_plan` | `hwpx_automation.office.document_ops` |
 
 정확한 시그니처와 되돌리는 법은 `python-hwpx` 레포의 `docs/migration-mcp-5.0.md`가
 정본이다.
@@ -52,7 +52,7 @@ MCP는 이 계약을 **import**한다 — 사본을 갖지 않는다.
 통과로 보이게 하지 않는다.
 
 ```python
-from hwpx_mcp_server.office.rendering import resolve_hancom_backend
+from hwpx_automation.office.rendering import resolve_hancom_backend
 verify_redline(before, after, oracle=resolve_hancom_backend())
 ```
 

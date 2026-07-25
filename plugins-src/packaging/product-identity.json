@@ -16,11 +16,14 @@
     },
     "mcp": {
       "repository": "hwpx-mcp-server",
-      "distribution": "hwpx-mcp-server",
+      "distribution": "python-hwpx-automation",
       "serverId": "hwpx-mcp-server",
       "currentVersion": "6.0.0",
       "minimumCompatibleVersion": "6.0.0",
-      "maturity": "not-declared"
+      "maturity": "not-declared",
+      "installExtra": "mcp",
+      "compatibilityDistribution": "hwpx-mcp-server",
+      "distributionNote": "배포명은 python-hwpx-automation이다. MCP는 [mcp] extra다 — 응용 계층은 MCP SDK 없이도 동작한다. hwpx-mcp-server는 같은 버전을 끌어오는 호환 셸로 남고, serverId와 콘솔 명령은 바뀌지 않았다."
     },
     "plugin": {
       "repository": "hwpx-plugins",

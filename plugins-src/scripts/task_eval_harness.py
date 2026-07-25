@@ -185,7 +185,7 @@ class _FallbackServer:
     """Small local adapter used when FastMCP dependencies are not installed."""
 
     def __init__(self) -> None:
-        from hwpx_mcp_server.core.content import (
+        from hwpx_automation.core.content import (
             add_heading_to_doc,
             add_memo_to_doc,
             add_page_break_to_doc,
@@ -202,12 +202,12 @@ class _FallbackServer:
             set_cell_text,
             split_cell_in_table,
         )
-        from hwpx_mcp_server.core.document import create_blank, open_doc, save_doc
-        from hwpx_mcp_server.core.formatting import (
+        from hwpx_automation.core.document import create_blank, open_doc, save_doc
+        from hwpx_automation.core.formatting import (
             create_style_in_doc,
             format_text_range,
         )
-        from hwpx_mcp_server.core.search import (
+        from hwpx_automation.core.search import (
             batch_replace_in_doc,
             find_in_doc,
             replace_in_doc,
@@ -769,7 +769,7 @@ class _FallbackServer:
         return {"ok": True, "filename": filename, **result}
 
     def undo_last_edit(self, filename: str) -> dict[str, Any]:
-        from hwpx_mcp_server.core.transactions import undo_last_backup
+        from hwpx_automation.core.transactions import undo_last_backup
 
         return undo_last_backup(filename)
 
@@ -802,8 +802,8 @@ class _FallbackServer:
         verbosity: str = "compact",
     ) -> dict[str, Any]:
         del verbosity
-        from hwpx_mcp_server.office.authoring import create_document_from_plan, validate_document_plan
-        from hwpx_mcp_server.office.document_ops import build_comparison_table_plan
+        from hwpx_automation.office.authoring import create_document_from_plan, validate_document_plan
+        from hwpx_automation.office.document_ops import build_comparison_table_plan
 
         old_source: Any
         new_source: Any
@@ -853,7 +853,7 @@ class _FallbackServer:
         image_width_mm: float | None = None,
         title: str = "사진대지",
     ) -> dict[str, Any]:
-        from hwpx_mcp_server.office.authoring.advanced_generators import build_image_grid
+        from hwpx_automation.office.authoring.advanced_generators import build_image_grid
 
         block = hwpx_build_image_grid(
             images or [], columns=columns, image_width_mm=image_width_mm
@@ -871,7 +871,7 @@ class _FallbackServer:
         columns: int = 2,
         title: str = "회의 명패",
     ) -> dict[str, Any]:
-        from hwpx_mcp_server.office.authoring.advanced_generators import build_meeting_nameplates
+        from hwpx_automation.office.authoring.advanced_generators import build_meeting_nameplates
 
         block = hwpx_build_meeting_nameplates(names or [], size=size, columns=columns)
         return {
@@ -886,7 +886,7 @@ class _FallbackServer:
         max_depth: int = 3,
         title: str = "조직도",
     ) -> dict[str, Any]:
-        from hwpx_mcp_server.office.authoring.advanced_generators import build_organization_chart
+        from hwpx_automation.office.authoring.advanced_generators import build_organization_chart
 
         block = hwpx_build_organization_chart(hierarchy or {}, max_depth=max_depth)
         return {
@@ -915,11 +915,11 @@ def _fallback_permitted(exc: BaseException) -> bool:
 def _load_server_module() -> Any:
     _ensure_stack_imports()
     try:
-        import hwpx_mcp_server.server as server
+        import hwpx_automation.server as server
     except Exception as exc:
         if not _fallback_permitted(exc):
             raise RuntimeError(
-                "hwpx_mcp_server.server failed to import with a broken stack "
+                "hwpx_automation.server failed to import with a broken stack "
                 f"({exc!r}); refusing the fallback adapter because its scores "
                 "would disguise an environment failure as task results. Point "
                 "HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO at matching "
@@ -929,7 +929,7 @@ def _load_server_module() -> Any:
             return _FallbackServer()
         except Exception as fallback_exc:  # pragma: no cover - environment diagnostic
             raise RuntimeError(
-                "hwpx_mcp_server is unavailable. Set HWPX_MCP_SERVER_REPO to a local "
+                "hwpx_automation is unavailable. Set HWPX_MCP_SERVER_REPO to a local "
                 "checkout or install hwpx-mcp-server in this interpreter. "
                 f"FastMCP import error: {exc}; fallback error: {fallback_exc}"
             ) from fallback_exc
@@ -1326,9 +1326,9 @@ def run(
     try:
         server = _load_server_module()
         if hasattr(server, "_OPS"):
-            from hwpx_mcp_server.hwpx_ops import HwpxOps
-            from hwpx_mcp_server.storage import LocalDocumentStorage
-            from hwpx_mcp_server.workspace import WorkspaceResolver
+            from hwpx_automation.hwpx_ops import HwpxOps
+            from hwpx_automation.storage import LocalDocumentStorage
+            from hwpx_automation.workspace import WorkspaceResolver
 
             ops = HwpxOps(
                 storage=LocalDocumentStorage(

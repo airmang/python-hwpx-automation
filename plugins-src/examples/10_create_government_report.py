@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from hwpx import HwpxDocument
-from hwpx_mcp_server.office.authoring import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
+from hwpx_automation.office.authoring import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
 from hwpx.tools.report_utils import (
     calculate_ratios,
     format_krw_hangul,

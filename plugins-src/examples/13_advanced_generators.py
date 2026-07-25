@@ -7,8 +7,8 @@ import base64
 from pathlib import Path
 
 from hwpx import validate_editor_open_safety
-from hwpx_mcp_server.office.authoring import create_document_from_plan, validate_document_plan
-from hwpx_mcp_server.office.authoring.advanced_generators import build_image_grid, build_meeting_nameplates, build_organization_chart
+from hwpx_automation.office.authoring import create_document_from_plan, validate_document_plan
+from hwpx_automation.office.authoring.advanced_generators import build_image_grid, build_meeting_nameplates, build_organization_chart
 
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "out" / "13_advanced_generators"

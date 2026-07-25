@@ -7,7 +7,7 @@ zero-base 문서에 적용한다.
 
 - skill: 요청의 장르를 판단하고, 프로필·번호 체계·칩 형태·accent·이미지
   같은 변주를 선택한다.
-- MCP: `hwpx_mcp_server.office.house_style`의 typed bank/genre service와
+- MCP: `hwpx_automation.office.house_style`의 typed bank/genre service와
   document-plan composition을 소유한다.
 - core: `HwpxDocument`, 표·셀·문단·스타일 같은 범용 primitive만 소유한다.
 

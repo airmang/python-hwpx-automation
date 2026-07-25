@@ -95,7 +95,7 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
     assert contract["minMcpVersion"] == components["mcp"]["minimumCompatibleVersion"]
     assert contract["minPythonHwpx"] == components["core"]["minimumCompatibleVersion"]
     assert contract["minSkillVersion"] == components["plugin"]["minimumCompatibleVersion"]
-    assert f"hwpx-mcp-server=={components['mcp']['currentVersion']}" in launcher
+    assert f"python-hwpx-automation[mcp]=={components['mcp']['currentVersion']}" in launcher
     assert f"HWPX_SKILL_VERSION:-{components['plugin']['currentVersion']}" in launcher
     assert 'export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"' in launcher
 

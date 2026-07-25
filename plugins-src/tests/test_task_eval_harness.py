@@ -252,13 +252,13 @@ def test_broken_stack_import_raises_instead_of_fallback(monkeypatch) -> None:
     real_import = builtins.__import__
 
     def broken_import(name, *args, **kwargs):
-        if name == "hwpx_mcp_server.server" or name.startswith("hwpx_mcp_server.server."):
+        if name == "hwpx_automation.server" or name.startswith("hwpx_automation.server."):
             raise ModuleNotFoundError("No module named 'hwpx.agent'", name="hwpx.agent")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", broken_import)
     monkeypatch.setattr(task_eval_harness, "_ensure_stack_imports", lambda: None)
-    sys.modules.pop("hwpx_mcp_server.server", None)
+    sys.modules.pop("hwpx_automation.server", None)
 
     try:
         task_eval_harness._load_server_module()

@@ -20,7 +20,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 #: 이 스택이 소유하는 배포. 이 밖의 서드파티 import는 설치 여부가 환경 문제다.
-STACK_ROOTS = ("hwpx", "hwpx_mcp_server", "hwpx_automation")
+STACK_ROOTS = ("hwpx", "hwpx_automation", "hwpx_automation")
 
 
 def _stack_imports() -> list[tuple[Path, int, str, str]]:

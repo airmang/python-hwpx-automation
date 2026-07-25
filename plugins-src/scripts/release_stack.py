@@ -99,9 +99,9 @@ def wait_for_pypi(version: str, tries: int = 40, interval: int = 15) -> None:
         py = venv / "bin" / "python"
         for i in range(1, tries + 1):
             r = subprocess.run(
-                ["uv", "pip", "install", "-q", "--refresh-package", "hwpx-mcp-server",
+                ["uv", "pip", "install", "-q", "--refresh-package", "python-hwpx-automation",
                  "--python", str(py),
-                 f"hwpx-mcp-server=={version}"],
+                 f"python-hwpx-automation[mcp]=={version}"],
                 capture_output=True, text=True,
             )
             if r.returncode == 0:
@@ -134,7 +134,7 @@ def main() -> None:
     # ---- 마켓 레포 사전점검 ----
     require_clean_main(MKT_REPO, "marketplace")
     marketplace_start_head = git(MKT_REPO, "rev-parse", "HEAD")
-    cur_pin = re.search(r"hwpx-mcp-server==(\d+\.\d+\.\d+)",
+    cur_pin = re.search(r"python-hwpx-automation[mcp]==(\d+\.\d+\.\d+)",
                         (MKT_REPO / "packaging/templates/hwpx-mcp-server").read_text()).group(1)
 
     mcp_repo = None
@@ -198,7 +198,7 @@ def main() -> None:
     tdir = MKT_REPO / "packaging" / "templates"
     n_pin = sub_in_files(
         list(tdir.glob("*")) + [MKT_REPO / "scripts" / "validate_hwpx_plugin.py"],
-        r"hwpx-mcp-server==\d+\.\d+\.\d+", f"hwpx-mcp-server=={args.engine}")
+        r"python-hwpx-automation[mcp]==\d+\.\d+\.\d+", f"python-hwpx-automation[mcp]=={args.engine}")
     n_ver = sub_in_files(
         list(tdir.glob("*.plugin.json")) + [tdir / "codex.marketplace.json"],
         r'"version": "\d+\.\d+\.\d+"', f'"version": "{args.plugin}"')

@@ -19,7 +19,7 @@ def _server_src() -> Path:
         if candidate.is_dir():
             return candidate
 
-    installed = importlib.util.find_spec("hwpx_mcp_server")
+    installed = importlib.util.find_spec("hwpx_automation")
     if installed and installed.submodule_search_locations:
         return Path(next(iter(installed.submodule_search_locations))).resolve().parent
 

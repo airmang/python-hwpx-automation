@@ -24,6 +24,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: airmang/hwpx-mcp-server
+          # 이 두 ref는 릴리스마다 손으로 갱신해야 한다. 낡으면 CI가
+          # 조용히 옛 스택으로 번들을 검증한다 — automation 쪽에는
+          # scripts/check_pinned_core_satisfies_floor.py 가드가 있고,
+          # 여기도 릴리스 절차의 필수 단계다.
           ref: c0cb5bb347fdb2e76333d7145845efd3d62d069a
           path: hwpx-mcp-server
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

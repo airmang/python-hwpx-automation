@@ -7,7 +7,7 @@ import base64
 from pathlib import Path
 
 # The builder moved to the MCP owner in the 5.0 train.
-from hwpx_mcp_server.office.authoring.builder import (
+from hwpx_automation.office.authoring.builder import (
     Bullet,
     Document,
     Footer,

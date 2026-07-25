@@ -191,7 +191,7 @@ async def _run_protocol(server: Any, request: Mapping[str, Any]) -> dict[str, An
 
 def _verify_reopen(output: Path) -> dict[str, bool]:
     from hwpx import HwpxDocument
-    from hwpx_mcp_server.office.agent import HwpxAgentDocument
+    from hwpx_automation.office.agent import HwpxAgentDocument
 
     with HwpxDocument.open(output) as document:
         first_header = document.sections[0].properties.get_header("BOTH")
@@ -237,9 +237,9 @@ def replay_release(
     }
     if runtime != TARGET_STACK:
         raise RuntimeError(f"release stack mismatch: expected {TARGET_STACK}, got {runtime}")
-    if "hwpx_mcp_server.server" in sys.modules:
+    if "hwpx_automation.server" in sys.modules:
         raise RuntimeError(
-            "hwpx_mcp_server.server was imported before the temporary workspace was fixed"
+            "hwpx_automation.server was imported before the temporary workspace was fixed"
         )
 
     source_before = SOURCE_PATH.read_bytes()
@@ -251,16 +251,16 @@ def replay_release(
         shutil.copyfile(SOURCE_PATH, temp_source)
         with _release_workspace(workspace):
             import hwpx
-            import hwpx_mcp_server
+            import hwpx_automation
             from hwpx import validate_editor_open_safety
-            from hwpx_mcp_server import server
+            from hwpx_automation import server
 
             protocol = asyncio.run(_run_protocol(server, request))
             package_isolation = {
                 "pythonHwpxSitePackages": "site-packages"
                 in str(Path(hwpx.__file__).resolve()),
                 "mcpServerSitePackages": "site-packages"
-                in str(Path(hwpx_mcp_server.__file__).resolve()),
+                in str(Path(hwpx_automation.__file__).resolve()),
             }
 
         first = protocol["first"]
