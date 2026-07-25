@@ -7,15 +7,10 @@ import csv
 from pathlib import Path
 from zipfile import ZipFile
 
-from hwpx import (
-    HwpxDocument,
-    create_document_from_plan,
-    inspect_mail_merge_placeholders,
-    mail_merge,
-    table_compute,
-    validate_document_plan,
-    validate_editor_open_safety,
-)
+from hwpx import HwpxDocument, inspect_mail_merge_placeholders, validate_editor_open_safety
+from hwpx_mcp_server.office.authoring import create_document_from_plan, validate_document_plan
+from hwpx_mcp_server.office.document_ops import mail_merge
+from hwpx_mcp_server.office.utilities import table_compute
 
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "out" / "14_mail_merge_table_compute"

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hwpx import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
+from hwpx_mcp_server.office.authoring import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
 
 
 def main() -> None:

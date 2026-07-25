@@ -802,11 +802,8 @@ class _FallbackServer:
         verbosity: str = "compact",
     ) -> dict[str, Any]:
         del verbosity
-        from hwpx import (
-            build_comparison_table_plan,
-            create_document_from_plan,
-            validate_document_plan,
-        )
+        from hwpx_mcp_server.office.authoring import create_document_from_plan, validate_document_plan
+        from hwpx_mcp_server.office.document_ops import build_comparison_table_plan
 
         old_source: Any
         new_source: Any
@@ -856,7 +853,7 @@ class _FallbackServer:
         image_width_mm: float | None = None,
         title: str = "사진대지",
     ) -> dict[str, Any]:
-        from hwpx import build_image_grid as hwpx_build_image_grid
+        from hwpx_mcp_server.office.authoring.advanced_generators import build_image_grid
 
         block = hwpx_build_image_grid(
             images or [], columns=columns, image_width_mm=image_width_mm
@@ -874,7 +871,7 @@ class _FallbackServer:
         columns: int = 2,
         title: str = "회의 명패",
     ) -> dict[str, Any]:
-        from hwpx import build_meeting_nameplates as hwpx_build_meeting_nameplates
+        from hwpx_mcp_server.office.authoring.advanced_generators import build_meeting_nameplates
 
         block = hwpx_build_meeting_nameplates(names or [], size=size, columns=columns)
         return {
@@ -889,7 +886,7 @@ class _FallbackServer:
         max_depth: int = 3,
         title: str = "조직도",
     ) -> dict[str, Any]:
-        from hwpx import build_organization_chart as hwpx_build_organization_chart
+        from hwpx_mcp_server.office.authoring.advanced_generators import build_organization_chart
 
         block = hwpx_build_organization_chart(hierarchy or {}, max_depth=max_depth)
         return {

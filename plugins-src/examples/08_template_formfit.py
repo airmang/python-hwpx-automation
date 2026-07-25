@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hwpx import HwpxDocument, analyze_template_formfit, apply_template_formfit
+from hwpx import HwpxDocument
+from hwpx_mcp_server.office.form_fill import analyze_template_formfit, apply_template_formfit
 
 ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = ROOT / "out"
