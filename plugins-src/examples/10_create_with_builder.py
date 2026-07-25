@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Create a layout-sensitive HWPX document with hwpx.builder."""
+"""Create a layout-sensitive HWPX document with the MCP owner's builder."""
 
 from __future__ import annotations
 
 import base64
 from pathlib import Path
 
-from hwpx.builder import (
+# The builder moved to the MCP owner in the 5.0 train.
+from hwpx_mcp_server.office.authoring.builder import (
     Bullet,
     Document,
     Footer,

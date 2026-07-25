@@ -1,12 +1,22 @@
 {
   "name": "hwpx-plugin",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "description": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬. 편집은 순수 Python이며 최종 시각 검증은 필요 시 한컴 오라클을 사용합니다.",
-  "author": { "name": "Kohkyuhyun", "email": "kokyuhyun@hotmail.com", "url": "https://github.com/airmang" },
+  "author": {
+    "name": "Kohkyuhyun",
+    "email": "kokyuhyun@hotmail.com",
+    "url": "https://github.com/airmang"
+  },
   "homepage": "https://github.com/airmang/hwpx-plugins",
   "repository": "https://github.com/airmang/hwpx-plugins",
   "license": "Apache-2.0",
-  "keywords": ["codex", "hwpx", "mcp", "document-automation", "korean-documents"],
+  "keywords": [
+    "codex",
+    "hwpx",
+    "mcp",
+    "document-automation",
+    "korean-documents"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
@@ -15,8 +25,15 @@
     "longDescription": "HWPX Plugin bundles the HWPX authoring skill, local examples, visual-review handoff scripts, and a companion MCP launcher for HWPX generation and validation workflows.",
     "developerName": "Kohkyuhyun",
     "category": "Productivity",
-    "capabilities": ["Interactive", "Write"],
-    "defaultPrompt": ["$hwpx create operating plan", "$hwpx inspect file quality", "$hwpx record visual review"],
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "$hwpx create operating plan",
+      "$hwpx inspect file quality",
+      "$hwpx record visual review"
+    ],
     "brandColor": "#2563EB"
   }
 }

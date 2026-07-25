@@ -5,7 +5,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hwpx.presets import create_proposal_document, inspect_proposal_quality
+# Presets moved to the MCP owner in the 5.0 train; the skill routes here anyway.
+from hwpx_mcp_server.office.authoring.presets import (
+    create_proposal_document,
+    inspect_proposal_quality,
+)
 
 
 def main() -> None:

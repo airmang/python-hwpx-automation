@@ -9,8 +9,8 @@
       "repository": "python-hwpx",
       "distribution": "python-hwpx",
       "importName": "hwpx",
-      "currentVersion": "4.2.0",
-      "minimumCompatibleVersion": "4.2.0",
+      "currentVersion": "5.0.0",
+      "minimumCompatibleVersion": "5.0.0",
       "maturity": "alpha",
       "maturityEvidence": "Development Status :: 3 - Alpha"
     },
@@ -18,16 +18,16 @@
       "repository": "hwpx-mcp-server",
       "distribution": "hwpx-mcp-server",
       "serverId": "hwpx-mcp-server",
-      "currentVersion": "5.1.0",
-      "minimumCompatibleVersion": "5.1.0",
+      "currentVersion": "6.0.0",
+      "minimumCompatibleVersion": "6.0.0",
       "maturity": "not-declared"
     },
     "plugin": {
       "repository": "hwpx-plugins",
       "installedPluginId": "hwpx-plugin",
       "installedSkillName": "hwpx",
-      "currentVersion": "0.8.0",
-      "minimumCompatibleVersion": "0.8.0",
+      "currentVersion": "1.0.0",
+      "minimumCompatibleVersion": "1.0.0",
       "maturity": "not-declared"
     }
   },

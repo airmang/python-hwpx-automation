@@ -265,7 +265,10 @@ def build(root: Path) -> dict[str, Any]:
 
 def finalize(root: Path, judge_paths: list[Path]) -> dict[str, Any]:
     """Bind two independently produced judge passes and compute core metrics."""
-    from hwpx.benchmark import build_result_projections, measure_fixture_benchmark
+    # The blind-evaluation benchmark is repository QA and moved out of the shipped
+    # python-hwpx package in 5.0. It lives in that repository's scripts/ tree, so
+    # this harness needs a checkout rather than an install.
+    from benchmark import build_result_projections, measure_fixture_benchmark
 
     manifest = _load(root / "manifest.json")
     manifest_hash = manifest.get("manifestHash")

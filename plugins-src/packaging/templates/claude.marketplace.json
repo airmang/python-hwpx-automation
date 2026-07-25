@@ -1,6 +1,9 @@
 {
   "name": "hwpx",
-  "owner": { "name": "Kohkyuhyun", "url": "https://github.com/airmang" },
+  "owner": {
+    "name": "Kohkyuhyun",
+    "url": "https://github.com/airmang"
+  },
   "plugins": [
     {
       "name": "hwpx-plugin",

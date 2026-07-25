@@ -37,7 +37,7 @@
 
 버전 문구:
 
-> 현재 공개 릴리스는 `python-hwpx 4.2.0`입니다.
+> 현재 공개 릴리스는 `python-hwpx 5.0.0`입니다.
 
 ## `hwpx-mcp-server` README 교체 문구
 
@@ -65,5 +65,5 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 `hwpx-mcp-server 5.1.0`이며 최소 호환 코어는 `python-hwpx 4.2.0`입니다.
-> `hwpx-plugin 0.8.0` 설치 번들은 재현성을 위해 MCP를 `==5.1.0`, 코어를 `==4.2.0`으로 고정합니다.
+> 현재 공개 릴리스는 `hwpx-mcp-server 6.0.0`이며 최소 호환 코어는 `python-hwpx 5.0.0`입니다.
+> `hwpx-plugin 1.0.0` 설치 번들은 재현성을 위해 MCP를 `==6.0.0`, 코어를 `==5.0.0`으로 고정합니다.

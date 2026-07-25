@@ -49,9 +49,9 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 구성요소 버전 | `python-hwpx 4.2.0` · `hwpx-mcp-server 5.1.0` · `hwpx-plugin 0.8.0` |
+| 공개 릴리스 | 현재 공개된 구성요소 버전 | `python-hwpx 5.0.0` · `hwpx-mcp-server 6.0.0` · `hwpx-plugin 1.0.0` |
 | 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 4.2.0` · `hwpx-mcp-server >= 5.1.0` · skill `>= 0.8.0` |
-| 플러그인 설치 핀 | 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual,preview]==4.2.0` · `hwpx-mcp-server==5.1.0` |
+| 플러그인 설치 핀 | 재현 가능한 설치를 위해 고정한 정확 버전 | `python-hwpx[visual,preview]==5.0.0` · `hwpx-mcp-server==6.0.0` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.

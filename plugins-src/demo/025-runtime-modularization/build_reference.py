@@ -191,7 +191,7 @@ async def _run_protocol(server: Any, request: Mapping[str, Any]) -> dict[str, An
 
 def _verify_reopen(output: Path) -> dict[str, bool]:
     from hwpx import HwpxDocument
-    from hwpx.agent import HwpxAgentDocument
+    from hwpx_mcp_server.office.agent import HwpxAgentDocument
 
     with HwpxDocument.open(output) as document:
         first_header = document.sections[0].properties.get_header("BOTH")

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping
 
 from hwpx import HwpxDocument, validate_editor_open_safety
-from hwpx.agent import (
+from hwpx_mcp_server.office.agent import (
     MIXED_FORM_COMPILED_PLAN_SCHEMA,
     MIXED_FORM_PLAN_SCHEMA,
     HwpxAgentDocument,

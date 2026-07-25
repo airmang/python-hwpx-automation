@@ -183,7 +183,7 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
 
     for reference in references:
         text = reference.read_text(encoding="utf-8")
-        assert "`python-hwpx 4.2.0`" in text
+        assert "`python-hwpx 5.0.0`" in text
         assert "공개 릴리스" in text
         assert "최소 호환 버전" in text
         assert "플러그인 설치 핀" in text
@@ -242,12 +242,12 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v1"
     assert identity["releaseState"] == "released"
-    assert components["core"]["currentVersion"] == "4.2.0"
-    assert components["core"]["minimumCompatibleVersion"] == "4.2.0"
-    assert components["mcp"]["currentVersion"] == "5.1.0"
-    assert components["mcp"]["minimumCompatibleVersion"] == "5.1.0"
-    assert components["plugin"]["currentVersion"] == "0.8.0"
-    assert components["plugin"]["minimumCompatibleVersion"] == "0.8.0"
+    assert components["core"]["currentVersion"] == "5.0.0"
+    assert components["core"]["minimumCompatibleVersion"] == "5.0.0"
+    assert components["mcp"]["currentVersion"] == "6.0.0"
+    assert components["mcp"]["minimumCompatibleVersion"] == "6.0.0"
+    assert components["plugin"]["currentVersion"] == "1.0.0"
+    assert components["plugin"]["minimumCompatibleVersion"] == "1.0.0"
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts
     assert identity["firstPartyLabelKo"] in readme

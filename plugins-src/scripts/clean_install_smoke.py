@@ -154,9 +154,9 @@ def main() -> int:
                 "HWPX_MCP_DISABLE_LOCAL_EDITABLE": "1",
                 "HWPX_MCP_SERVER_PACKAGE": server_package,
                 "HWPX_PYTHON_HWPX_PACKAGE": core_package,
-                "HWPX_MCP_SERVER_VERSION": "5.1.0",
-                "HWPX_PYTHON_HWPX_VERSION": "4.2.0",
-                "HWPX_SKILL_VERSION": "0.8.0",
+                "HWPX_MCP_SERVER_VERSION": "6.0.0",
+                "HWPX_PYTHON_HWPX_VERSION": "5.0.0",
+                "HWPX_SKILL_VERSION": "1.0.0",
                 "HWPX_MCP_RUNTIME_ROOT": str(runtime_root),
                 "HWPX_MCP_WORKSPACE_ROOTS": json.dumps([str(workspace)]),
             }
