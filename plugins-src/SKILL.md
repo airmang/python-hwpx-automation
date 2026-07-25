@@ -64,7 +64,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 살아있는 목차(한컴이 재계산)·쪽 번호 상호참조 | `add_toc` · `add_cross_reference` · `verify_toc` | [workflows-toc](references/workflows-toc.md) |
 | 변경추적 redline 저작 (삽입/삭제/치환 + 코멘트, 사람이 한컴서 수락/거부) | `add_tracked_edit` (+ `add_memo_by_anchor`) | [workflows-redline](references/workflows-redline.md) |
 | 개인정보(PII) 탐지·마스킹 (읽기·추출 기본 마스킹, 쓰기 입력 사전 정제) | `scan_personal_info` · 읽기/추출 `mask` param | [workflows-pii](references/workflows-pii.md) |
-| 머리글·쪽번호·리치 런·병합 표 조립 생성 | `validate_document_plan` → `create_document_from_plan` (기존 local 통합만 `hwpx.builder`) | [workflows-creation](references/workflows-creation.md), [compatibility observation](references/migration-compatibility-observation.md) |
+- [`references/migration-core-5.0.md`](references/migration-core-5.0.md) — python-hwpx 5.0에서 응용 워크플로가 MCP로 이동한 내역과 직접 import 사용자를 위한 대체표.
 | 정부보고서·공문형 보고서 (□/○/※ 불릿) | `parse_government_report_text` → document plan 구성·검증 → `create_document_from_plan` | [workflows-creation](references/workflows-creation.md) |
 | 운영 계획서 제출 후보 | document-plan + `quality_profile="operating_plan"` | [workflows-creation](references/workflows-creation.md) |
 | 운영 계획서 하우스 스타일·섹션칩 변주 | skill이 genre/profile/variable slot 판단 → 기존 document-plan MCP 경로 | [workflows-house-style](references/workflows-house-style.md) |
@@ -189,12 +189,6 @@ canonical path, body anchor를 함께 넣고 **한 트랜잭션**으로 적용�
 - [`references/workflows-bulk-compare.md`](references/workflows-bulk-compare.md) — 메일머지, 표 계산, 신구대조, 생성기 3종, 스타일 프로파일/템플릿.
 - [`references/evidence-contract.md`](references/evidence-contract.md) — openSafety·visual-review v1·hard gates·제출 증거 계약.
 - [`references/api.md`](references/api.md) — python-hwpx 시그니처, MCP 도구 표, repair/recover, 번들 스크립트.
-- [`references/migration-5.0.md`](references/migration-5.0.md) — 5.0 경계: 제거 5종 대체표, DEPRECATED 1군, 2군 권장 경로.
-- [`references/migration-agent-runtime.md`](references/migration-agent-runtime.md) — MCP `office.agent` 정본, core 4.x import/CLI 동결 호환, mirror-only fix 정책, 별도 core-major 제거 gate.
-- [`references/migration-authoring-runtime.md`](references/migration-authoring-runtime.md) — MCP `office.authoring` 정본, core 4.x authoring import/CLI 동결 호환, mirror-only fix 정책, 별도 core-major 제거 gate.
-- [`references/migration-form-fill-runtime.md`](references/migration-form-fill-runtime.md) — MCP `office.form_fill` 정본, core 4.x form-fill import 동결 호환, reusable core primitive 경계와 mirror-only fix/removal gate.
-- [`references/migration-evalplan-runtime.md`](references/migration-evalplan-runtime.md) — MCP `office.evalplan` 정본, core 4.x `hwpx.evalplan_fill` 동결 호환, J1~J6 exact 보존과 S-106/S-107 제거 gate.
-- [`references/migration-document-operations.md`](references/migration-document-operations.md) — MCP `office.document_ops` 정본, core generic diff/merge/redline structure seam, 4.x compatibility와 S-106/S-107 제거 gate.
-- [`references/migration-compatibility-observation.md`](references/migration-compatibility-observation.md) — 2026-10-31까지의 공개 관찰: MCP 6 compatibility/3 deprecated, core 8 family·3 CLI·스키마의 전면 `extend`, canonical 이행·rollback·별도 next-major 제거 gate.
+- [`references/migration-mcp-5.0.md`](references/migration-mcp-5.0.md) — 5.0 경계: 제거 5종 대체표, DEPRECATED 1군, 2군 권장 경로.
 - [`references/official-document-rules.md`](references/official-document-rules.md) — 공문서 항목 표시·끝 표시·붙임·날짜/금액 규칙.
 - 설치 직후 최소 검증: `python3 examples/01_create_and_save.py` → `python3 scripts/text_extract.py examples/out/01_created.hwpx`.

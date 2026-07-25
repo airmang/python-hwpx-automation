@@ -12,7 +12,7 @@ zero-base 문서에 적용한다.
 - core: `HwpxDocument`, 표·셀·문단·스타일 같은 범용 primitive만 소유한다.
 
 `hwpx.house_style`이나 core `build_section_chip`은 사용하지 않는다. 이 둘은
-S-097의 미공개 실험 경로였고 python-hwpx 공개 표면에 들어가지 않는다.
+미공개 실험 경로였고 python-hwpx 공개 표면에 들어가지 않는다.
 
 ## 운영 계획서 판단 순서
 
@@ -42,7 +42,7 @@ S-097의 미공개 실험 경로였고 python-hwpx 공개 표면에 들어가지
    `inspect_operating_plan_quality`
 
 MCP 내부 typed house-style service는 프로필·장르 데이터 검증과 block
-composition의 정본이다. S-096에서는 ToolSpec을 바꾸지 않으므로 skill은 기존
+composition의 정본이다. ToolSpec은 바뀌지 않으므로 skill은 기존
 document-plan 도구 표면으로만 라우팅한다.
 
 ## 변주 원칙

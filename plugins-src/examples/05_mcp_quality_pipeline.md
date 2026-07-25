@@ -5,7 +5,7 @@
 
 > 5.0 경계 참고: `analyze_quality_generation`/`apply_quality_generation` 전환 stub은
 > 제거됐다. 이 예제는 canonical `create_document_from_plan` + `inspect_document_quality`
-> 흐름으로 같은 목표를 달성한다. 대체표는 `references/migration-5.0.md`.
+> 흐름으로 같은 목표를 달성한다. 대체표는 `references/migration-mcp-5.0.md`.
 
 ## 흐름
 

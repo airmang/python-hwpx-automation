@@ -21,9 +21,9 @@
 - core 4.x copy 수정은 보안·정확성 문제에만 허용하며, MCP 정본과 동일한 패리티
   테스트와 변경 receipt를 함께 남겨야 한다. 일반 개선이나 리팩터링을 양쪽에
   독립적으로 적용하지 않는다.
-- core copy의 물리 제거는 S-106 관찰 결과와 S-107에서 별도로 승인한 다음 major
-  gate를 모두 통과한 뒤에만 가능하다. 그전에는 import shim으로 축소하거나
-  조기 삭제하지 않는다.
+- core copy는 python-hwpx 5.0에서 제거됐다. 조판 정본은 MCP
+  `office.exam`이며, 직접 import 사용자는
+  [`migration-core-5.0.md`](migration-core-5.0.md)의 대체표를 따른다.
 
 ## 입력 계약
 

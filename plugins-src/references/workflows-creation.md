@@ -148,7 +148,7 @@ MCP 경로로 선택하지 않는다.
 
 예제 흐름: `examples/05_mcp_quality_pipeline.md`. 양식 경로 선택 기준은
 [`workflows-forms.md`](workflows-forms.md)의 3경로 결정표를 따른다. 5.0 제거 계약은
-[`migration-5.0.md`](migration-5.0.md)를 본다.
+[`migration-mcp-5.0.md`](migration-mcp-5.0.md)를 본다.
 
 ## 8. 공문서 작성규정 lint와 결재란
 

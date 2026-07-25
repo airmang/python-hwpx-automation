@@ -40,7 +40,7 @@
   "DEPRECATED — 5.0 경계 확정(동작 유지, 제거는 다음 major)"로 갱신했다. 2군
   (`apply_edits`/`fill_by_path`/`create_comparison_table_document`)은 분류 불변,
   교육 경로만 canonical로 이주했다.
-- 신설 [`references/migration-5.0.md`](references/migration-5.0.md) — 제거 5종
+- 신설 [`references/migration-mcp-5.0.md`](references/migration-mcp-5.0.md) — 제거 5종
   대체표 + 1군 DEPRECATED 공지 + 2군 권장 경로.
 
 ## [0.6.8] - 2026-07-21

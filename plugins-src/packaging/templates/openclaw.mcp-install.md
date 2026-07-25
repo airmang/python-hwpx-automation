@@ -22,7 +22,7 @@ Add an MCP server entry that runs the exact released packages with `uvx`:
 }
 ```
 
-These coordinates describe the public S-080 release stack.
+These coordinates describe the current public release stack.
 
 ## Local development checkout
 
