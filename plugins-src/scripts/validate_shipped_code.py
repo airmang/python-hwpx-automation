@@ -8,18 +8,16 @@ import importlib
 import importlib.util
 import json
 import re
+from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON_FENCE = re.compile(
-    r"^```(?:python|py)\s*\n(?P<code>.*?)^```\s*$",
-    re.MULTILINE | re.DOTALL,
+FENCE_OPEN = re.compile(
+    r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)"
+    r"(?:\r?\n)?$"
 )
-JSON_FENCE = re.compile(
-    r"^```json\s*\n(?P<code>.*?)^```\s*$",
-    re.MULTILINE | re.DOTALL,
-)
+SUPPORTED_FENCE_LANGUAGES = frozenset({"python", "py", "python3", "json"})
 STACK_ROOTS = frozenset({"hwpx", "hwpx_automation", "hwpx_mcp_server"})
 
 
@@ -29,6 +27,14 @@ class PythonSource(NamedTuple):
     label: str
     code: str
     first_line: int = 1
+
+
+class MarkdownFence(NamedTuple):
+    """One CommonMark fenced code block relevant to validation."""
+
+    language: str
+    code: str
+    first_line: int
 
 
 class StackImport(NamedTuple):
@@ -86,6 +92,86 @@ def _relative_label(path: Path, root: Path = ROOT) -> str:
         return path.as_posix()
 
 
+def _fence_language(info: str) -> str | None:
+    """Normalize common CommonMark info-string spellings for supported code."""
+
+    normalized = info.strip().casefold()
+    if not normalized:
+        return None
+
+    attribute_language = re.search(
+        r"(?:^|[\s{])\.(python3?|py|json)(?=[\s}#.]|$)",
+        normalized,
+    )
+    if attribute_language:
+        return attribute_language.group(1)
+
+    token = normalized.split(maxsplit=1)[0].strip("{}")
+    token = token.removeprefix(".")
+    if token.startswith("language-"):
+        token = token.removeprefix("language-")
+    if token in SUPPORTED_FENCE_LANGUAGES:
+        return token
+
+    # Do not silently ignore a fence that plainly claims to contain one of the
+    # languages this gate owns but uses an unsupported annotation spelling.
+    if re.search(
+        r"(?:^|[\s{.])(?:python3?|py|json)(?=$|[\s}:#.;,+/-])",
+        normalized,
+    ):
+        raise ValueError(f"unsupported Python/JSON fence info string: {info.strip()}")
+    return None
+
+
+def _strip_fence_indent(line: str, indent: int) -> str:
+    """Apply CommonMark's up-to-opening-indent removal to a content line."""
+
+    leading_spaces = len(line) - len(line.lstrip(" "))
+    return line[min(indent, leading_spaces) :]
+
+
+def _markdown_fences(text: str) -> Iterator[MarkdownFence]:
+    """Yield supported CommonMark fenced code blocks with exact source lines."""
+
+    lines = text.splitlines(keepends=True)
+    line_index = 0
+    while line_index < len(lines):
+        opener = FENCE_OPEN.match(lines[line_index])
+        if opener is None:
+            line_index += 1
+            continue
+
+        fence = opener.group("fence")
+        info = opener.group("info")
+        if fence[0] == "`" and "`" in info:
+            line_index += 1
+            continue
+
+        language = _fence_language(info)
+        indent = len(opener.group("indent"))
+        closing = re.compile(
+            rf"^ {{0,3}}{re.escape(fence[0])}{{{len(fence)},}}[ \t]*(?:\r?\n)?$"
+        )
+        content_start = line_index + 1
+        cursor = content_start
+        while cursor < len(lines) and closing.match(lines[cursor]) is None:
+            cursor += 1
+
+        if language is not None:
+            code = "".join(
+                _strip_fence_indent(line, indent)
+                for line in lines[content_start:cursor]
+            )
+            yield MarkdownFence(
+                language=language,
+                code=code,
+                first_line=content_start + 1,
+            )
+
+        # An unclosed fence consumes the rest of the document under CommonMark.
+        line_index = cursor + 1 if cursor < len(lines) else len(lines)
+
+
 def _markdown_sources(
     path: Path,
     *,
@@ -96,25 +182,26 @@ def _markdown_sources(
     text = path.read_text(encoding="utf-8")
     label = _relative_label(path, root)
     python_sources: list[PythonSource] = []
-    for index, match in enumerate(PYTHON_FENCE.finditer(text), 1):
-        first_line = text.count("\n", 0, match.start("code")) + 1
-        python_sources.append(
-            PythonSource(
-                label=f"{label}#python-fence-{index}",
-                code=match.group("code"),
-                first_line=first_line,
-            )
-        )
-
+    python_count = 0
     json_count = 0
-    for index, match in enumerate(JSON_FENCE.finditer(text), 1):
-        json_count += 1
-        try:
-            json.loads(match.group("code"))
-        except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"{label}#json-fence-{index}: invalid JSON: {exc}"
-            ) from exc
+    for fence in _markdown_fences(text):
+        if fence.language in {"python", "python3", "py"}:
+            python_count += 1
+            python_sources.append(
+                PythonSource(
+                    label=f"{label}#python-fence-{python_count}",
+                    code=fence.code,
+                    first_line=fence.first_line,
+                )
+            )
+        elif fence.language == "json":
+            json_count += 1
+            try:
+                json.loads(fence.code)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"{label}#json-fence-{json_count}: invalid JSON: {exc}"
+                ) from exc
     return python_sources, json_count
 
 

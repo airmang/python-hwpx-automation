@@ -137,3 +137,72 @@ def test_nested_find_spec_keyerror_after_failed_root_import_is_reported(
         "references/missing-dependency.md#python-fence-1:32: "
         "모듈 해석 실패 — hwpx.opc.package: KeyError: 'hwpx'"
     ) in failures[1]
+
+
+@pytest.mark.parametrize(
+    "markdown",
+    (
+        "   ```Python\n   import hwpx.module_that_does_not_exist\n   ```\n",
+        "~~~python3\nimport hwpx.module_that_does_not_exist\n~~~\n",
+        "```python linenums=\"1\"\nimport hwpx.module_that_does_not_exist\n```\n",
+        "```{.python #example}\nimport hwpx.module_that_does_not_exist\n```\n",
+        "```language-python\nimport hwpx.module_that_does_not_exist\n```\n",
+    ),
+    ids=(
+        "three-space-indented-uppercase",
+        "tilde-python3",
+        "annotated-info-string",
+        "attribute-info-string",
+        "language-prefix",
+    ),
+)
+def test_commonmark_python_fence_forms_fail_closed_on_missing_import(
+    tmp_path: Path,
+    markdown: str,
+) -> None:
+    validator = _validator_module()
+    path = tmp_path / "mutation.md"
+    path.write_text(markdown, encoding="utf-8")
+
+    sources, json_count = validator._markdown_sources(path, root=tmp_path)
+
+    assert len(sources) == 1
+    assert json_count == 0
+    failures = validator.find_stack_import_failures(sources)
+    assert failures
+    assert "모듈 없음 — hwpx.module_that_does_not_exist" in failures[0]
+
+
+@pytest.mark.parametrize(
+    "markdown",
+    (
+        "   ~~~JSON\n   {not-json}\n   ~~~\n",
+        "```json title=\"invalid\"\n{not-json}\n```\n",
+        "```{.json #payload}\n{not-json}\n```\n",
+    ),
+    ids=("indented-tilde-uppercase", "annotated-info-string", "attribute-info-string"),
+)
+def test_commonmark_json_fence_forms_fail_closed_on_invalid_json(
+    tmp_path: Path,
+    markdown: str,
+) -> None:
+    validator = _validator_module()
+    path = tmp_path / "mutation.md"
+    path.write_text(markdown, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="invalid JSON"):
+        validator._markdown_sources(path, root=tmp_path)
+
+
+def test_unsupported_python_or_json_fence_annotation_fails_closed(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    path = tmp_path / "mutation.md"
+    path.write_text(
+        "```python:run\nimport hwpx.module_that_does_not_exist\n```\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unsupported Python/JSON fence info string"):
+        validator._markdown_sources(path, root=tmp_path)
