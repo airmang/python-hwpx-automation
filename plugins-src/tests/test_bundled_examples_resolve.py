@@ -164,6 +164,27 @@ def test_nested_find_spec_keyerror_after_failed_root_import_is_reported(
             "\timport hwpx.module_that_does_not_exist\n"
             "\t```\n"
         ),
+        (
+            "- > ```python\n"
+            "  > import hwpx.module_that_does_not_exist\n"
+            "  > ```\n"
+        ),
+        (
+            "- - ```python\n"
+            "    import hwpx.module_that_does_not_exist\n"
+            "    ```\n"
+        ),
+        (
+            "123456789.\n"
+            "           ```python\n"
+            "           import hwpx.module_that_does_not_exist\n"
+            "           ```\n"
+        ),
+        (
+            "> - > ```python\n"
+            ">   > import hwpx.module_that_does_not_exist\n"
+            ">   > ```\n"
+        ),
     ),
     ids=(
         "three-space-indented-uppercase",
@@ -174,6 +195,10 @@ def test_nested_find_spec_keyerror_after_failed_root_import_is_reported(
         "block-quote-container",
         "ordered-list-container",
         "tab-indented-list-container",
+        "same-line-list-block-quote",
+        "same-line-nested-list",
+        "empty-nine-digit-ordered-item",
+        "block-quote-list-block-quote",
     ),
 )
 def test_commonmark_python_fence_forms_fail_closed_on_missing_import(
@@ -191,6 +216,21 @@ def test_commonmark_python_fence_forms_fail_closed_on_missing_import(
     failures = validator.find_stack_import_failures(sources)
     assert failures
     assert "모듈 없음 — hwpx.module_that_does_not_exist" in failures[0]
+
+
+def test_commonmark_container_depth_fails_closed(tmp_path: Path) -> None:
+    validator = _validator_module()
+    path = tmp_path / "mutation.md"
+    path.write_text(
+        "> " * (validator.MAX_CONTAINER_DEPTH + 1)
+        + "```python\n"
+        + "> " * (validator.MAX_CONTAINER_DEPTH + 1)
+        + "import hwpx\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Markdown container depth exceeds"):
+        validator._markdown_sources(path, root=tmp_path)
 
 
 @pytest.mark.parametrize(

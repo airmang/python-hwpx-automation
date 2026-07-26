@@ -19,9 +19,10 @@ FENCE_OPEN = re.compile(
 )
 BLOCK_QUOTE_PREFIX = re.compile(r"^ {0,3}>[ \t]?")
 LIST_ITEM_OPEN = re.compile(
-    r"^(?P<indent> {0,3})(?:[*+-]|\d{1,9}[.)])"
-    r"(?P<spacing>[ \t]+)(?P<rest>.*?)(?:\r?\n)?$"
+    r"^(?P<indent> {0,3})(?P<marker>[*+-]|\d{1,9}[.)])"
+    r"(?:(?P<spacing>[ \t]+)(?P<rest>.*?))?(?:\r?\n)?$"
 )
+MAX_CONTAINER_DEPTH = 32
 SUPPORTED_FENCE_LANGUAGES = frozenset({"python", "py", "python3", "json"})
 STACK_ROOTS = frozenset({"hwpx", "hwpx_automation", "hwpx_mcp_server"})
 
@@ -40,6 +41,13 @@ class MarkdownFence(NamedTuple):
     language: str
     code: str
     first_line: int
+
+
+class MarkdownContainer(NamedTuple):
+    """One ordered CommonMark block container surrounding a fenced block."""
+
+    kind: str
+    indent: int = 0
 
 
 class StackImport(NamedTuple):
@@ -167,70 +175,112 @@ def _strip_indent_columns(line: str, required: int) -> str | None:
     return " " * (column - required) + line[offset:]
 
 
-def _strip_all_block_quotes(line: str) -> tuple[str, int]:
-    """Strip consecutive CommonMark block-quote markers from one line."""
+def _list_item_open(line: str) -> tuple[MarkdownContainer, str] | None:
+    """Return a list container and its same-line content, if present."""
 
-    depth = 0
-    while (match := BLOCK_QUOTE_PREFIX.match(line)) is not None:
-        line = line[match.end() :]
-        depth += 1
-    return line, depth
+    match = LIST_ITEM_OPEN.match(line)
+    if match is None:
+        return None
+
+    rest = match.group("rest")
+    marker_end = match.end("marker")
+    if rest:
+        content_indent = _visual_columns(line[: match.start("rest")])
+    else:
+        # CommonMark gives an empty item W + 1 columns of content indent,
+        # including when the marker has no trailing whitespace.
+        content_indent = _visual_columns(line[:marker_end]) + 1
+    return MarkdownContainer("list", content_indent), rest or ""
 
 
-def _strip_block_quote_depth(line: str, depth: int) -> str | None:
-    """Strip exactly the opener's block-quote depth or report container end."""
+def _consume_new_containers(
+    line: str,
+    containers: tuple[MarkdownContainer, ...],
+    *,
+    depth: int = 0,
+) -> tuple[str, tuple[MarkdownContainer, ...]]:
+    """Recursively consume ordered quote/list markers from one logical line."""
 
-    for _ in range(depth):
-        match = BLOCK_QUOTE_PREFIX.match(line)
-        if match is None:
+    quote = BLOCK_QUOTE_PREFIX.match(line)
+    list_item = _list_item_open(line)
+    if depth >= MAX_CONTAINER_DEPTH:
+        if quote is not None or list_item is not None:
+            raise ValueError(
+                f"Markdown container depth exceeds {MAX_CONTAINER_DEPTH}"
+            )
+        return line, containers
+
+    if quote is not None:
+        return _consume_new_containers(
+            line[quote.end() :],
+            (*containers, MarkdownContainer("quote")),
+            depth=depth + 1,
+        )
+    if list_item is not None:
+        container, rest = list_item
+        return _consume_new_containers(
+            rest,
+            (*containers, container),
+            depth=depth + 1,
+        )
+    return line, containers
+
+
+def _strip_container_stack(
+    line: str,
+    containers: tuple[MarkdownContainer, ...],
+) -> str | None:
+    """Strip an exact ordered container stack or report that it ended."""
+
+    for container in containers:
+        if container.kind == "quote":
+            quote = BLOCK_QUOTE_PREFIX.match(line)
+            if quote is None:
+                return None
+            line = line[quote.end() :]
+            continue
+        if not line.strip(" \t\r\n"):
+            continue
+        line = _strip_indent_columns(line, container.indent)
+        if line is None:
             return None
-        line = line[match.end() :]
     return line
+
+
+def _normalize_container_line(
+    line: str,
+    active: tuple[MarkdownContainer, ...],
+) -> tuple[str, tuple[MarkdownContainer, ...]]:
+    """Apply the longest live stack prefix, then discover nested containers."""
+
+    for prefix_length in range(len(active), -1, -1):
+        prefix = active[:prefix_length]
+        logical_line = _strip_container_stack(line, prefix)
+        if logical_line is not None:
+            return _consume_new_containers(logical_line, prefix)
+    raise AssertionError("the empty Markdown container stack must always match")
 
 
 def _container_content_line(
     line: str,
-    *,
-    quote_depth: int,
-    list_indent: int | None,
+    containers: tuple[MarkdownContainer, ...],
 ) -> str | None:
-    """Normalize one line inside the opener's quote/list container."""
+    """Normalize one line inside the opener's exact container stack."""
 
-    line = _strip_block_quote_depth(line, quote_depth)
-    if line is None:
-        return None
-    if list_indent is None or not line.strip(" \t\r\n"):
-        return line
-    return _strip_indent_columns(line, list_indent)
+    return _strip_container_stack(line, containers)
 
 
 def _markdown_fences(text: str) -> Iterator[MarkdownFence]:
     """Yield supported CommonMark fenced code blocks with exact source lines."""
 
     lines = text.splitlines(keepends=True)
-    active_list_indents: dict[int, int] = {}
+    active_containers: tuple[MarkdownContainer, ...] = ()
     line_index = 0
     while line_index < len(lines):
-        logical_line, quote_depth = _strip_all_block_quotes(lines[line_index])
-        list_indent = active_list_indents.get(quote_depth)
-        if logical_line.strip(" \t\r\n"):
-            list_item = LIST_ITEM_OPEN.match(logical_line)
-            if list_item is not None:
-                list_indent = _visual_columns(
-                    logical_line[: list_item.start("rest")]
-                )
-                active_list_indents[quote_depth] = list_indent
-                logical_line = list_item.group("rest")
-            elif list_indent is not None:
-                continuation = _strip_indent_columns(
-                    logical_line,
-                    list_indent,
-                )
-                if continuation is None:
-                    active_list_indents.pop(quote_depth, None)
-                    list_indent = None
-                else:
-                    logical_line = continuation
+        logical_line, active_containers = _normalize_container_line(
+            lines[line_index],
+            active_containers,
+        )
 
         opener = FENCE_OPEN.match(logical_line)
         if opener is None:
@@ -255,8 +305,7 @@ def _markdown_fences(text: str) -> Iterator[MarkdownFence]:
         while cursor < len(lines):
             content_line = _container_content_line(
                 lines[cursor],
-                quote_depth=quote_depth,
-                list_indent=list_indent,
+                active_containers,
             )
             if content_line is None:
                 break
