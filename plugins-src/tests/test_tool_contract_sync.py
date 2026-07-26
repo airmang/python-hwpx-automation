@@ -69,6 +69,10 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert BLUEPRINT_TOOLS <= names
     assert BLUEPRINT_TOOLS <= required
     assert REMOVED_PRIVATE_PRACTICE_TOOLS.isdisjoint(required)
+    assert contract["contractHash"] == "0ce938371f0b55a6"
+    assert contract["defaultToolCount"] == 119
+    assert contract["advancedToolCount"] == 127
+    assert len(contract["skillRequiredTools"]) == 28
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )
@@ -89,13 +93,20 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
         (ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8")
     )
     components = identity["components"]
-    launcher = (ROOT / "packaging" / "templates" / "hwpx-mcp-server").read_text(
+    launcher = (ROOT / "packaging" / "templates" / "hwpx-automation-mcp").read_text(
         encoding="utf-8"
     )
-    assert contract["minMcpVersion"] == components["mcp"]["minimumCompatibleVersion"]
+    assert (
+        contract["minMcpVersion"]
+        == components["automation"]["minimumCompatibleVersion"]
+    )
     assert contract["minPythonHwpx"] == components["core"]["minimumCompatibleVersion"]
     assert contract["minSkillVersion"] == components["plugin"]["minimumCompatibleVersion"]
-    assert f"python-hwpx-automation[mcp]=={components['mcp']['currentVersion']}" in launcher
+    assert (
+        "python-hwpx-automation[mcp,oracle]"
+        f"=={components['automation']['currentVersion']}"
+        in launcher
+    )
     assert f"HWPX_SKILL_VERSION:-{components['plugin']['currentVersion']}" in launcher
     assert 'export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"' in launcher
 
@@ -290,7 +301,7 @@ def test_canonical_skill_excludes_private_practice_routing() -> None:
 
 
 def test_public_packaging_excludes_private_practice_configuration() -> None:
-    launcher = (ROOT / "packaging" / "templates" / "hwpx-mcp-server").read_text(
+    launcher = (ROOT / "packaging" / "templates" / "hwpx-automation-mcp").read_text(
         encoding="utf-8"
     )
     hosts = (ROOT / "packaging" / "hosts.json").read_text(encoding="utf-8")
@@ -315,7 +326,31 @@ def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
     assert "plugin_mcp_e2e.py" in smoke
     assert "--server-package" in smoke and "--server-runtime" in smoke
     assert "_probe_concurrent_cold_start" in smoke
-    assert "HWPX_MCP_WORKSPACE_ROOTS" in e2e
+    assert "_probe_editable_runtime" in smoke
+    assert '"editableRuntime": editable_runtime' in smoke
+    assert (
+        re.search(
+            r"(?:python-hwpx(?:-automation)?|hwpx-mcp-server|hwpx-skill)-s[0-9]{3}\b",
+            smoke,
+            re.IGNORECASE,
+        )
+        is None
+    )
+    assert "candidate checkout is required" in smoke
+    assert "no sibling or private worktree is selected implicitly" in smoke
+    assert "python-hwpx-automation[mcp,oracle]" not in smoke
+    assert "[mcp,oracle]" in smoke and "[preview]" in smoke
+    assert "editable runtime extras are incomplete" in smoke
+    assert "did not load from the selected editable checkout" in smoke
+    launcher = (
+        ROOT / "packaging" / "templates" / "hwpx-automation-mcp"
+    ).read_text(encoding="utf-8")
+    assert "uv venv --quiet --relocatable" in launcher
+    assert '"runtimeLayout": "relocatable-console-v1"' in launcher
+    assert '--with-editable "${MCP_REPO}[mcp,oracle]"' in launcher
+    assert '--with-editable "${MCP_REPO}[mcp]"' not in launcher
+    assert "HWPX_AUTOMATION_WORKSPACE_ROOTS" in e2e
+    assert "site-packages" in e2e
     assert 'parser.add_argument("--report", type=Path)' in smoke
     assert 'parser.add_argument("--report", type=Path)' in e2e
     assert "start_workflow" in e2e

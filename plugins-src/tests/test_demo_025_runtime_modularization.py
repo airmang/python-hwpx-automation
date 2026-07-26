@@ -240,6 +240,10 @@ def test_demo_025_builder_static_check_and_public_protocol_route() -> None:
     assert "create_connected_server_and_client_session" in source
     assert 'client.call_tool("apply_document_commands"' in source
     assert "apply_document_commands(" not in source
+    assert "from hwpx_mcp_server.office.agent import HwpxAgentDocument" in source
+    assert "from hwpx_mcp_server import server" in source
+    assert "import hwpx_mcp_server" in source
+    assert "hwpx_automation" not in source
     assert '"publicIndexReplay" if public_index' in source
     assert 'parser.add_argument(\n        "--check"' in source
 

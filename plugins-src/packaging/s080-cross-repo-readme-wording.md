@@ -1,8 +1,10 @@
-# S-083 cross-repository README public-release wording
+# Cross-repository README wording — 현재 공개 릴리스와 미발행 후보
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
-`python-hwpx`와 `hwpx-mcp-server` README에 적용할 때 사용할 정확 문구다. 이 저장소의
+`python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의
 번들 자산은 아니며, 각 저장소 변경 시 해당 저장소의 테스트와 함께 검증한다.
+현재 공개 스택과 아직 발행하지 않은 5.0/6.0/1.0 후보를 절대로 같은 상태로
+표현하지 않는다.
 
 ## 공통 first-party 범위
 
@@ -21,7 +23,7 @@
 제품 관계 문구:
 
 > `python-hwpx`는 HWPX 파싱·편집·생성을 제공하는 코어 라이브러리이며,
-> `hwpx-mcp-server`와 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동 구성요소입니다.
+> `python-hwpx-automation`과 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동 구성요소입니다.
 
 성숙도 문구:
 
@@ -37,13 +39,15 @@
 
 버전 문구:
 
-> 현재 공개 릴리스는 `python-hwpx 5.0.0`입니다.
+> 현재 공개 릴리스는 `python-hwpx 4.2.0`입니다. `python-hwpx 5.0.0`은
+> 아직 발행하지 않은 다음 스택 후보입니다.
 
-## `hwpx-mcp-server` README 교체 문구
+## `python-hwpx-automation` README 교체 문구
 
 제품 관계 문구:
 
-> `hwpx-mcp-server`는 python-hwpx 프로젝트가 직접 유지보수하는 first-party MCP 서버입니다.
+> `python-hwpx-automation`은 python-hwpx 프로젝트가 직접 유지보수하는
+> first-party 고수준 문서 자동화 계층입니다. MCP는 선택 가능한 `[mcp]` 어댑터이며,
 > 이는 한컴의 공식 제품 또는 인증 서버라는 뜻이 아닙니다.
 
 상태 모델 문구:
@@ -65,5 +69,9 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 `hwpx-mcp-server 6.0.0`이며 최소 호환 코어는 `python-hwpx 5.0.0`입니다.
-> `hwpx-plugin 1.0.0` 설치 번들은 재현성을 위해 MCP를 `==6.0.0`, 코어를 `==5.0.0`으로 고정합니다.
+> 현재 공개 릴리스는 `hwpx-mcp-server 5.1.0`이며 공개 플러그인은
+> `hwpx-plugin 0.8.0`, 공개 코어는 `python-hwpx 4.2.0`입니다.
+> `python-hwpx-automation 6.0.0` / `python-hwpx 5.0.0` /
+> `hwpx-plugin 1.0.0`은 미발행 후보입니다. 후보 번들은 재현 검증을 위해
+> `python-hwpx-automation[mcp,oracle]==6.0.0`과
+> `python-hwpx[preview]==5.0.0`을 고정합니다.

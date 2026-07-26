@@ -15,8 +15,6 @@ import ast
 import importlib.util
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 
 #: 이 스택이 소유하는 배포. 이 밖의 서드파티 import는 설치 여부가 환경 문제다.
@@ -27,9 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 STACK_ROOTS = ("hwpx", "hwpx_automation", "hwpx_mcp_server")
 
 
-def _stack_imports() -> list[tuple[Path, int, str, str]]:
-    """(파일, 줄, 모듈, 이름) — 번들에 실리는 자산의 스택 import 전부."""
-    found: list[tuple[Path, int, str, str]] = []
+def _stack_imports() -> list[tuple[Path, int, str, str, bool]]:
+    """(파일, 줄, 모듈, 이름, 직접호출) — 배송 자산의 스택 import 전부."""
+    found: list[tuple[Path, int, str, str, bool]] = []
     broken_syntax: list[str] = []
     for directory in ("examples", "scripts"):
         for path in sorted((ROOT / directory).rglob("*.py")):
@@ -41,15 +39,29 @@ def _stack_imports() -> list[tuple[Path, int, str, str]]:
                 # 재배선 작업이 다섯 파일의 들여쓰기를 부순 적이 있다.
                 broken_syntax.append(f"{path.relative_to(ROOT)}:{exc.lineno}: {exc.msg}")
                 continue
+            called_names = {
+                node.func.id
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            }
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom):
                     if node.module and node.module.split(".")[0] in STACK_ROOTS:
                         for alias in node.names:
-                            found.append((path, node.lineno, node.module, alias.name))
+                            local_name = alias.asname or alias.name
+                            found.append(
+                                (
+                                    path,
+                                    node.lineno,
+                                    node.module,
+                                    alias.name,
+                                    local_name in called_names,
+                                )
+                            )
                 elif isinstance(node, ast.Import):
                     for alias in node.names:
                         if alias.name.split(".")[0] in STACK_ROOTS:
-                            found.append((path, node.lineno, alias.name, ""))
+                            found.append((path, node.lineno, alias.name, "", False))
     assert not broken_syntax, (
         "번들 자산의 문법이 깨졌다 — 해석 이전의 문제다:\n  "
         + "\n  ".join(broken_syntax)
@@ -65,7 +77,7 @@ def test_every_bundled_import_resolves_against_the_installed_stack() -> None:
     """
 
     broken: list[str] = []
-    for path, line, module, name in _stack_imports():
+    for path, line, module, name, used_as_call in _stack_imports():
         try:
             spec = importlib.util.find_spec(module)
         except (ImportError, ValueError):
@@ -78,6 +90,10 @@ def test_every_bundled_import_resolves_against_the_installed_stack() -> None:
         imported = importlib.import_module(module)
         if not hasattr(imported, name):
             broken.append(f"{path.relative_to(ROOT)}:{line}: {module}에 {name} 없음")
+        elif used_as_call and not callable(getattr(imported, name)):
+            broken.append(
+                f"{path.relative_to(ROOT)}:{line}: {module}.{name}은 호출 불가"
+            )
 
     assert not broken, (
         f"번들 자산의 import {len(broken)}건이 설치본에서 해석되지 않는다:\n  "

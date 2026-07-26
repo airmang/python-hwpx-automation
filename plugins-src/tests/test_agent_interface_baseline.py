@@ -13,7 +13,9 @@ RUNNER_PATH = ROOT / "tests" / "agent_interface_gap_baseline.py"
 
 
 def _server_src() -> Path:
-    explicit = os.environ.get("HWPX_MCP_SERVER_REPO")
+    explicit = os.environ.get("HWPX_AUTOMATION_REPO") or os.environ.get(
+        "HWPX_MCP_SERVER_REPO"
+    )
     if explicit:
         candidate = Path(explicit).expanduser().resolve() / "src"
         if candidate.is_dir():
@@ -23,11 +25,9 @@ def _server_src() -> Path:
     if installed and installed.submodule_search_locations:
         return Path(next(iter(installed.submodule_search_locations))).resolve().parent
 
-    candidate = ROOT.parent / "hwpx-mcp-server" / "src"
-    if candidate.is_dir():
-        return candidate.resolve()
     raise RuntimeError(
-        "hwpx-mcp-server source not found; install it or set HWPX_MCP_SERVER_REPO"
+        "python-hwpx-automation source not found; install it or set "
+        "HWPX_AUTOMATION_REPO (HWPX_MCP_SERVER_REPO is the 6.x alias)"
     )
 
 

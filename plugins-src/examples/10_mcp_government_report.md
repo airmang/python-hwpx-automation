@@ -1,6 +1,8 @@
 # MCP government-report workflow
 
-Use this when an MCP client has `hwpx-mcp-server` connected and the user asks
+Use this when an MCP client has `python-hwpx-automation` connected. New host
+configs use the local key `hwpx`; an existing 6.x config may still use
+`hwpx-mcp-server`. Neither key is the FastMCP identity. Use this flow when the user asks
 for a Korean government-style report, official briefing note, or 공문형 보고서.
 
 ## Flow
@@ -32,7 +34,7 @@ The response contains `document_plan`, `plan_validation`, `can_create`, and
 
 ## Computed values
 
-```json
+```jsonl
 {"tool": "compute_report_value", "arguments": {"operation": "krw_hangul", "values": [8750000]}}
 {"tool": "compute_report_value", "arguments": {"operation": "commas", "values": [12500000]}}
 {"tool": "compute_report_value", "arguments": {"operation": "ratios", "values": [8750000, 12500000]}}

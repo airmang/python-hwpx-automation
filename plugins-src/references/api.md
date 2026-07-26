@@ -7,9 +7,10 @@
 
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
-| 공개 릴리스 | 현재 공개된 구성요소 버전 | `python-hwpx 5.0.0` · `python-hwpx-automation 6.0.0` · `hwpx-plugin 1.0.0` |
-| 최소 호환 버전 | 이 공개 스킬 계약이 지원하는 가장 낮은 조합 | core `>=5.0.0` · automation `>=6.0.0` · skill `>=1.0.0` |
-| 플러그인 설치 핀 | 공개 번들이 재현 가능한 설치에 사용하는 정확 버전 | `python-hwpx[visual,preview]==5.0.0` · `python-hwpx-automation[mcp]==6.0.0` |
+| 공개 릴리스 | 현재 승인·배포된 구성요소 버전 | `python-hwpx 4.2.0` · `hwpx-mcp-server 5.1.0` · `hwpx-plugin 0.8.0` |
+| 미발행 후보 | 이 checkout에서 검증 중인 다음 조합 | `python-hwpx 5.0.0` · `python-hwpx-automation 6.0.0` · `hwpx-plugin 1.0.0` |
+| 최소 호환 버전 | 1.0 후보 스킬 계약이 지원할 예정인 가장 낮은 조합 | core `>=5.0.0` · automation `>=6.0.0` · skill `>=1.0.0` |
+| 플러그인 설치 핀 | 후보 번들이 재현 검증에 사용하는 정확 버전 | `python-hwpx[preview]==5.0.0` · `python-hwpx-automation[mcp,oracle]==6.0.0` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
@@ -587,7 +588,7 @@ MCP 응답에서 확인할 필드:
 
 ## MCP 편집·서식·생성 도구 시그니처
 
-공개 릴리스 `python-hwpx-automation 6.0.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
+미발행 후보 `python-hwpx-automation 6.0.0`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
 사용 절차는 `workflows-agent-document.md` / `workflows-editing.md` /
 `workflows-bulk-compare.md`를 본다. 지원 인자와 응답 증거는 도구별로 다르며 아래 표와
 `tool-contract.generated.json`의 실제 스키마를 따른다.
@@ -849,17 +850,23 @@ visual-review v1 증거 계약(상태 규칙, screenshot 요건, blocked fallbac
 Hermes Agent, built from the repo-root skill assets by `scripts/build_hwpx_plugins.py` and
 checked by `scripts/validate_hwpx_plugin.py`.
 
-The bundled Claude launcher (`scripts/hwpx-mcp-server`) resolves, in order:
+New bundles use the host-local key `hwpx` and canonical launcher
+`scripts/hwpx-automation-mcp`, which executes the
+`hwpx-automation-mcp` console. The old `scripts/hwpx-mcp-server` path remains
+only as a 6.x wrapper that delegates to the canonical launcher; neither host
+key is the FastMCP protocol identity. The canonical launcher resolves, in order:
 
-1. `HWPX_MCP_SERVER_REPO` / `PYTHON_HWPX_REPO` env overrides
-2. a stack root discovered by walking up to sibling `hwpx-mcp-server` and `python-hwpx` checkouts
-3. an immutable plugin-local runtime fingerprinted by the exact package pair
+1. explicitly configured `HWPX_AUTOMATION_REPO` / `PYTHON_HWPX_REPO`
+   editable checkouts (`HWPX_MCP_SERVER_REPO` is the 6.x compatibility alias)
+2. an immutable plugin-local runtime fingerprinted by the exact package pair
    from the install pin above, plus the skill, Python ABI, and platform values
-4. an exact-version `uvx` fallback when `uv` is unavailable
+3. an exact-version `uvx` fallback when `uv` is unavailable
 
-Codex uses the same exact package pair directly through `uvx`. Neither host
+Sibling repositories are never auto-discovered; candidate verification must not
+silently select an unrelated checkout. Codex uses the same exact package pair
+directly through `uvx`. Neither host
 template sets `cwd`, so the server inherits the user's active workspace. For a
-deterministic single or multi-root policy, set `HWPX_MCP_WORKSPACE_ROOTS` to a
+deterministic single or multi-root policy, set `HWPX_AUTOMATION_WORKSPACE_ROOTS` to a
 JSON array of absolute directories. Relative tool paths resolve under the first
 root; absolute paths are accepted under any listed root.
 

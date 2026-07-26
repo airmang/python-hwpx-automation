@@ -5,6 +5,20 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      core_ref:
+        description: Exact 40-hex python-hwpx candidate commit
+        required: true
+        type: string
+      automation_ref:
+        description: Exact 40-hex python-hwpx-automation candidate commit
+        required: true
+        type: string
+      automation_repository:
+        description: Source repository (pre-rename default is hwpx-mcp-server)
+        required: false
+        default: airmang/hwpx-mcp-server
+        type: string
 
 permissions:
   contents: read
@@ -16,33 +30,53 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           path: hwpx-skill
+      - name: Require explicit candidate refs
+        env:
+          CORE_CANDIDATE_REF: ${{ inputs.core_ref || vars.HWPX_CORE_CANDIDATE_REF }}
+          AUTOMATION_CANDIDATE_REF: ${{ inputs.automation_ref || vars.HWPX_AUTOMATION_CANDIDATE_REF }}
+        run: |
+          test -n "${CORE_CANDIDATE_REF}" || {
+            echo "::error::Set workflow input core_ref or HWPX_CORE_CANDIDATE_REF to the reviewed candidate commit."
+            exit 2
+          }
+          test -n "${AUTOMATION_CANDIDATE_REF}" || {
+            echo "::error::Set workflow input automation_ref or HWPX_AUTOMATION_CANDIDATE_REF to the reviewed candidate commit."
+            exit 2
+          }
+          [[ "${CORE_CANDIDATE_REF}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::core_ref must be an exact lowercase 40-hex commit, not a branch or guessed SHA."
+            exit 2
+          }
+          [[ "${AUTOMATION_CANDIDATE_REF}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::automation_ref must be an exact lowercase 40-hex commit, not a branch or guessed SHA."
+            exit 2
+          }
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: airmang/python-hwpx
-          ref: f6b79f010d40a190fa6a8391eb212835022b3851
+          ref: ${{ inputs.core_ref || vars.HWPX_CORE_CANDIDATE_REF }}
           path: python-hwpx
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          repository: airmang/hwpx-mcp-server
-          # 이 두 ref는 릴리스마다 손으로 갱신해야 한다. 낡으면 CI가
-          # 조용히 옛 스택으로 번들을 검증한다 — automation 쪽에는
-          # scripts/check_pinned_core_satisfies_floor.py 가드가 있고,
-          # 여기도 릴리스 절차의 필수 단계다.
-          ref: c0cb5bb347fdb2e76333d7145845efd3d62d069a
-          path: hwpx-mcp-server
+          repository: ${{ inputs.automation_repository || vars.HWPX_AUTOMATION_CANDIDATE_REPOSITORY || 'airmang/hwpx-mcp-server' }}
+          ref: ${{ inputs.automation_ref || vars.HWPX_AUTOMATION_CANDIDATE_REF }}
+          path: python-hwpx-automation
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-      - run: uv pip install --system -e ./python-hwpx -e './hwpx-mcp-server[mcp,test]' 'ruff>=0.12'
+      - run: uv pip install --system -e './python-hwpx[preview]' -e './python-hwpx-automation[mcp,oracle,test]' 'ruff>=0.12'
       - name: Check public repository hygiene
         working-directory: hwpx-skill
         run: python scripts/check_public_hygiene.py
       - name: Run first-stage Ruff gate
         working-directory: hwpx-skill
         run: ruff check --select E9,F .
+      - name: Parse shipped Python and Markdown code
+        working-directory: hwpx-skill
+        run: python scripts/validate_shipped_code.py
       - name: ToolSpec generated files are current
-        run: python hwpx-mcp-server/scripts/render_tool_contract.py --check
+        run: python python-hwpx-automation/scripts/render_tool_contract.py --check
       - name: Skill tests
         working-directory: hwpx-skill
         run: python -m pytest -q
@@ -54,17 +88,17 @@ jobs:
           git diff --exit-code
       - name: Plugin launcher protocol E2E (editable stack)
         working-directory: hwpx-skill
-        run: python scripts/plugin_mcp_e2e.py --mcp-repo ../hwpx-mcp-server --core-repo ../python-hwpx
+        run: python scripts/plugin_mcp_e2e.py --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
       - name: Clean wheel 3-stack smoke
         working-directory: hwpx-skill
-        run: python scripts/clean_install_smoke.py
+        run: python scripts/clean_install_smoke.py --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
       - name: Generate tested-runtime SBOM
         run: |
           uv venv .sbom-runtime
-          uv pip install --python .sbom-runtime/bin/python -e ./python-hwpx -e ./hwpx-mcp-server
+          uv pip install --python .sbom-runtime/bin/python -e './python-hwpx[preview]' -e './python-hwpx-automation[mcp,oracle]'
           mkdir -p hwpx-skill/artifacts
           uvx --from "cyclonedx-bom==7.3.0" cyclonedx-py environment .sbom-runtime/bin/python \
-            --pyproject hwpx-mcp-server/pyproject.toml \
+            --pyproject python-hwpx-automation/pyproject.toml \
             --mc-type application \
             --output-reproducible \
             --output-format JSON \

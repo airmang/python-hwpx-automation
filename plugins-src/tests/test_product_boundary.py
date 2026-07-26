@@ -16,6 +16,8 @@ SPEC.loader.exec_module(boundary)
 def test_real_bundles_contain_only_approved_python_roles() -> None:
     report = boundary.evaluate(ROOT)
     assert report["ok"], report["violations"]
+    assert "detect_hwpx_viewer.py" in report["approvedSupportScripts"]
+    assert "visual_review_batch.py" in report["approvedSupportScripts"]
 
 
 def test_new_skill_runtime_implementation_fails_closed(tmp_path) -> None:

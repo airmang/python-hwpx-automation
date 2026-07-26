@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and validate the S-070 synthetic, provenance-blind fixture benchmark.
+"""Build and validate the synthetic, provenance-blind fixture benchmark.
 
 This module deliberately contains no model client.  It freezes work orders and
 blind packets, and provides empty judge-pass templates that must be completed by
@@ -467,7 +467,7 @@ def project(result_path: Path, output_dir: Path) -> None:
     write_json(output_dir / "fixture-scorecard.json", summary)
     write_json(output_dir / "fixture-gallery.json", dict(summary, artifactDisplay="anonymized_only"))
     lines = [
-        "# S-070 synthetic fixture qualification",
+        "# Synthetic fixture qualification",
         "",
         f"Status: `{summary['status']}`",
         f"Frozen work orders: {summary['coverage'].get('workOrders', result.get('workOrderCount'))}; anonymized artifacts: {summary['coverage'].get('artifacts', result.get('artifactCount'))}.",

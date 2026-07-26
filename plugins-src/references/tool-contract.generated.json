@@ -1,6 +1,7 @@
 {
   "schemaVersion": "hwpx.tool-contract.v2",
   "minPythonHwpx": "5.0.0",
+  "minAutomationVersion": "6.0.0",
   "minMcpVersion": "6.0.0",
   "minSkillVersion": "1.0.0",
   "tools": [
@@ -19226,7 +19227,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21100,7 +21101,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21133,7 +21134,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21296,7 +21297,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21329,7 +21330,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21362,7 +21363,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21395,7 +21396,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21428,7 +21429,7 @@
         "availability": "profile-gated",
         "availabilityReason": {
           "code": "PROFILE_DISABLED",
-          "message": "set HWPX_MCP_ADVANCED=1 before server import",
+          "message": "set HWPX_AUTOMATION_ADVANCED=1 before server import (HWPX_MCP_ADVANCED remains a 6.x fallback)",
           "dependency": null,
           "requiredVersion": null,
           "installedVersion": null,
@@ -21447,7 +21448,7 @@
       }
     ]
   },
-  "contractHash": "e592ede5b0eb1a35",
+  "contractHash": "0ce938371f0b55a6",
   "defaultToolCount": 119,
   "advancedToolCount": 127,
   "baselineToolCount": 131,

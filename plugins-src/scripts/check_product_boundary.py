@@ -10,11 +10,13 @@ from typing import Any
 
 APPROVED_SUPPORT_SCRIPTS = frozenset(
     {
+        "detect_hwpx_viewer.py",
         "fix_namespaces.py",
         "quickcheck.py",
         "task_eval_harness.py",
         "text_extract.py",
         "visual_review.py",
+        "visual_review_batch.py",
         "zip_replace_all.py",
     }
 )

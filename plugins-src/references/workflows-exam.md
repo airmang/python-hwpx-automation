@@ -14,14 +14,14 @@
 ## runtime 소유권과 호환 정책
 
 - 시험지 parser/IR/profile/measurement/composition의 **정본은
-  `hwpx-mcp-server`의 `hwpx_automation.office.exam`** 이다. 실제
+  `python-hwpx-automation`의 `hwpx_automation.office.exam`** 이다. 실제
   `compose_exam`·`verify_question_splits` 호출은 이 정본으로만 라우팅된다.
 - `python-hwpx 4.x`의 `hwpx.exam`은 기존 직접 사용자를 위한 **동결된 operational
   compatibility copy**다. 새 기능은 MCP 정본에만 추가한다.
 - core 4.x copy 수정은 보안·정확성 문제에만 허용하며, MCP 정본과 동일한 패리티
   테스트와 변경 receipt를 함께 남겨야 한다. 일반 개선이나 리팩터링을 양쪽에
   독립적으로 적용하지 않는다.
-- core copy는 python-hwpx 5.0에서 제거됐다. 조판 정본은 MCP
+- core copy는 python-hwpx 5.0에서 제거됐다. 조판 정본은 automation
   `office.exam`이며, 직접 import 사용자는
   [`migration-core-5.0.md`](migration-core-5.0.md)의 대체표를 따른다.
 

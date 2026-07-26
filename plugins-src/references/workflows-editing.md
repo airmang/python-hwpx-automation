@@ -1,8 +1,8 @@
 # 편집 워크플로 (트랜잭션·서식·그림·패치·프리뷰)
 
-기존 HWPX를 수정하는 주요 경로의 상세 계약. 시그니처와 응답 키는 현재 공개 릴리스
-`hwpx-mcp-server` 4.1.0의 생성 계약과 도구별 테스트를 기준으로 한다. 정확한 현재
-시그니처는 `tool-contract.generated.json`을 우선한다.
+기존 HWPX를 수정하는 주요 경로의 상세 계약. 정확한 후보 시그니처와 응답 키는
+`tool-contract.generated.json`을 정본으로 삼는다. 이전 공개 릴리스의 이름이나
+버전을 이 문서의 현재 계약으로 사용하지 않는다.
 
 ## 1. 호환 트랜잭션 편집 루프 (`apply_edits`, compatibility facade)
 
@@ -230,7 +230,8 @@ patch 항목: `{"sectionPath": "Contents/section0.xml", "paragraphIndex": N, "te
 3. `status == "ok"`이면 PNG에서 페이지 박스·여백·표 테두리·열너비·정렬·잘림을 확인하고,
    문제가 있으면 문서를 수정한 뒤 다시 실행한다.
 4. `status == "blocked"`/`"partial"`이면 `htmlPath`를 열어 HTML 프리뷰로 확인하고, 필요하면
-   Playwright browser 또는 Chrome(`HWPX_MCP_CHROME_PATH`)을 준비해 재실행한다.
+   Playwright browser 또는 Chrome(`HWPX_AUTOMATION_CHROME_PATH`)을 준비해 재실행한다
+   (`HWPX_MCP_CHROME_PATH`는 6.x 호환 별칭).
 5. `visualReviewPath`는 빠른 렌더 기반 `hwpx.visual-review.v1` evidence다. **최종 제출 가능
    주장에는 부족**하다 — 열린 문서 검토 요건은
    [`evidence-contract.md`](evidence-contract.md)를 따른다.

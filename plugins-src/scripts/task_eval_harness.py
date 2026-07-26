@@ -24,6 +24,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TASKS = ROOT / "examples" / "eval_tasks" / "tasks.json"
 DEFAULT_PROFILES = [
+    ROOT / "examples" / "eval_tasks" / "profiles" / "current-1.0.0.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.8.0.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "current-0.1.6.json",
     ROOT / "examples" / "eval_tasks" / "profiles" / "baseline-0.1.5.json",
@@ -158,21 +159,17 @@ class Profile:
 
 def _ensure_stack_imports() -> None:
     candidates: list[Path] = []
-    env_repo = os.environ.get("HWPX_MCP_SERVER_REPO")
+    env_repo = os.environ.get("HWPX_AUTOMATION_REPO") or os.environ.get(
+        "HWPX_MCP_SERVER_REPO"
+    )
     if env_repo:
         candidates.append(Path(env_repo) / "src")
     env_hwpx = os.environ.get("PYTHON_HWPX_REPO")
     if env_hwpx:
         candidates.append(Path(env_hwpx) / "src")
-    candidates.extend(
-        [
-            ROOT.parent / "hwpx-mcp-server" / "src",
-            ROOT.parent / "python-hwpx" / "src",
-        ]
-    )
-    # Insert in reverse so the explicit release-candidate checkouts remain
-    # ahead of sibling defaults.  The old forward insert(0) loop silently put
-    # the defaults first and could grade a different stack than requested.
+    # Never auto-discover sibling source trees. Candidate verification must use
+    # explicit repos or installed distributions, or it can silently grade an
+    # owner's unrelated/main checkout.
     for candidate in reversed(candidates):
         if candidate.exists():
             source = str(candidate.resolve())
@@ -853,7 +850,9 @@ class _FallbackServer:
         image_width_mm: float | None = None,
         title: str = "사진대지",
     ) -> dict[str, Any]:
-        from hwpx_automation.office.authoring.advanced_generators import build_image_grid
+        from hwpx_automation.office.authoring.advanced_generators import (
+            build_image_grid as hwpx_build_image_grid,
+        )
 
         block = hwpx_build_image_grid(
             images or [], columns=columns, image_width_mm=image_width_mm
@@ -871,7 +870,9 @@ class _FallbackServer:
         columns: int = 2,
         title: str = "회의 명패",
     ) -> dict[str, Any]:
-        from hwpx_automation.office.authoring.advanced_generators import build_meeting_nameplates
+        from hwpx_automation.office.authoring.advanced_generators import (
+            build_meeting_nameplates as hwpx_build_meeting_nameplates,
+        )
 
         block = hwpx_build_meeting_nameplates(names or [], size=size, columns=columns)
         return {
@@ -886,7 +887,9 @@ class _FallbackServer:
         max_depth: int = 3,
         title: str = "조직도",
     ) -> dict[str, Any]:
-        from hwpx_automation.office.authoring.advanced_generators import build_organization_chart
+        from hwpx_automation.office.authoring.advanced_generators import (
+            build_organization_chart as hwpx_build_organization_chart,
+        )
 
         block = hwpx_build_organization_chart(hierarchy or {}, max_depth=max_depth)
         return {
@@ -902,7 +905,7 @@ def _fallback_permitted(exc: BaseException) -> bool:
     Any other import failure means the stack itself is broken (for example a
     stale sibling python-hwpx shadowing the required one); scoring through the
     fallback there would misreport an environment failure as a legitimate
-    0-point task result (S-083).
+    0-point task result.
     """
 
     return (
@@ -922,15 +925,15 @@ def _load_server_module() -> Any:
                 "hwpx_automation.server failed to import with a broken stack "
                 f"({exc!r}); refusing the fallback adapter because its scores "
                 "would disguise an environment failure as task results. Point "
-                "HWPX_MCP_SERVER_REPO and PYTHON_HWPX_REPO at matching "
+                "HWPX_AUTOMATION_REPO and PYTHON_HWPX_REPO at matching "
                 "checkouts or install matching packages in this interpreter."
             ) from exc
         try:
             return _FallbackServer()
         except Exception as fallback_exc:  # pragma: no cover - environment diagnostic
             raise RuntimeError(
-                "hwpx_automation is unavailable. Set HWPX_MCP_SERVER_REPO to a local "
-                "checkout or install hwpx-mcp-server in this interpreter. "
+                "hwpx_automation is unavailable. Set HWPX_AUTOMATION_REPO to a local "
+                "checkout or install python-hwpx-automation in this interpreter. "
                 f"FastMCP import error: {exc}; fallback error: {fallback_exc}"
             ) from fallback_exc
     return server
@@ -1320,9 +1323,11 @@ def run(
             shutil.rmtree(work_dir)
         work_dir.mkdir(parents=True)
 
-    previous_workspace_roots = os.environ.get("HWPX_MCP_WORKSPACE_ROOTS")
+    previous_workspace_roots = os.environ.get("HWPX_AUTOMATION_WORKSPACE_ROOTS")
     previous_sandbox_root = os.environ.pop("HWPX_MCP_SANDBOX_ROOT", None)
-    os.environ["HWPX_MCP_WORKSPACE_ROOTS"] = json.dumps([str(work_dir.resolve())])
+    os.environ["HWPX_AUTOMATION_WORKSPACE_ROOTS"] = json.dumps(
+        [str(work_dir.resolve())]
+    )
     try:
         server = _load_server_module()
         if hasattr(server, "_OPS"):
@@ -1383,9 +1388,9 @@ def run(
         return report
     finally:
         if previous_workspace_roots is None:
-            os.environ.pop("HWPX_MCP_WORKSPACE_ROOTS", None)
+            os.environ.pop("HWPX_AUTOMATION_WORKSPACE_ROOTS", None)
         else:
-            os.environ["HWPX_MCP_WORKSPACE_ROOTS"] = previous_workspace_roots
+            os.environ["HWPX_AUTOMATION_WORKSPACE_ROOTS"] = previous_workspace_roots
         if previous_sandbox_root is not None:
             os.environ["HWPX_MCP_SANDBOX_ROOT"] = previous_sandbox_root
         if temp_dir is not None:

@@ -9,7 +9,7 @@ from zipfile import ZipFile
 
 from hwpx import HwpxDocument, inspect_mail_merge_placeholders, validate_editor_open_safety
 from hwpx_automation.office.authoring import create_document_from_plan, validate_document_plan
-from hwpx_automation.office.document_ops import mail_merge
+from hwpx_automation.office.document_ops import build_mail_merge
 from hwpx_automation.office.utilities import table_compute
 
 
@@ -59,7 +59,7 @@ def run_mail_merge() -> Path:
     if placeholders["keys"] != ["class_name", "notice", "student", "teacher"]:
         raise RuntimeError(f"unexpected placeholders: {placeholders['keys']}")
 
-    report = mail_merge(
+    report = build_mail_merge(
         template,
         data,
         output_dir=OUTPUT_DIR / "notices",

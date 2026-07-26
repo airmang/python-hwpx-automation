@@ -109,11 +109,18 @@ def _revision(payload: dict[str, Any]) -> str:
 
 def _default_launcher() -> Path:
     here = Path(__file__).resolve()
-    canonical = here.parents[1] / "plugins" / "codex" / "hwpx-plugin" / "scripts" / "hwpx-mcp-server"
+    canonical = (
+        here.parents[1]
+        / "plugins"
+        / "codex"
+        / "hwpx-plugin"
+        / "scripts"
+        / "hwpx-automation-mcp"
+    )
     if canonical.is_file():
         return canonical
     for parent in here.parents:
-        candidate = parent / "scripts" / "hwpx-mcp-server"
+        candidate = parent / "scripts" / "hwpx-automation-mcp"
         if candidate.is_file() and candidate != here:
             return candidate
     return canonical
@@ -131,16 +138,20 @@ async def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     output = args.output.resolve()
     output_dir = args.output_dir.resolve()
     sandbox_root = args.sandbox_root.resolve()
-    env = dict(os.environ)
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
+    }
     env.update(
         {
-            "HWPX_MCP_SANDBOX_ROOT": str(sandbox_root),
-            "HWPX_MCP_ADVANCED": "0",
+            "HWPX_AUTOMATION_WORKSPACE_ROOTS": json.dumps([str(sandbox_root)]),
+            "HWPX_AUTOMATION_ADVANCED": "0",
             "LOG_LEVEL": "ERROR",
         }
     )
-    if args.mcp_repo:
-        env["HWPX_MCP_SERVER_REPO"] = str(args.mcp_repo.resolve())
+    if args.automation_repo:
+        env["HWPX_AUTOMATION_REPO"] = str(args.automation_repo.resolve())
     if args.core_repo:
         env["PYTHON_HWPX_REPO"] = str(args.core_repo.resolve())
 
@@ -279,7 +290,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--sandbox-root", type=Path, required=True)
     parser.add_argument("--launcher", type=Path, default=_default_launcher())
-    parser.add_argument("--mcp-repo", type=Path)
+    parser.add_argument(
+        "--automation-repo",
+        "--mcp-repo",
+        dest="automation_repo",
+        type=Path,
+    )
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--expected-category", action="append", default=[])
     parser.add_argument("--idempotency-key", default="installed-fixture-leap-demo")

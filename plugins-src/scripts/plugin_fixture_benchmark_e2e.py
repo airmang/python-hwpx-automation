@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise S-070 fixture benchmark through the installed MCP launcher."""
+"""Exercise the fixture benchmark through the installed MCP launcher."""
 
 from __future__ import annotations
 
@@ -71,9 +71,15 @@ async def run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             manifest = generated / "final-manifest.json"
         else:
             manifest = generated / "manifest.json"
-    env = dict(os.environ, HWPX_MCP_SANDBOX_ROOT=str(args.sandbox_root.resolve()), LOG_LEVEL="ERROR")
-    if args.mcp_repo:
-        env["HWPX_MCP_SERVER_REPO"] = str(args.mcp_repo.resolve())
+    env = dict(
+        os.environ,
+        HWPX_AUTOMATION_WORKSPACE_ROOTS=json.dumps(
+            [str(args.sandbox_root.resolve())]
+        ),
+        LOG_LEVEL="ERROR",
+    )
+    if args.automation_repo:
+        env["HWPX_AUTOMATION_REPO"] = str(args.automation_repo.resolve())
     if args.core_repo:
         env["PYTHON_HWPX_REPO"] = str(args.core_repo.resolve())
     params = StdioServerParameters(command=str(args.launcher.resolve()), env=env, cwd=args.launcher.resolve().parent.parent)
@@ -122,9 +128,25 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, default=root / "examples/s070_fixture_benchmark/manifest.json")
     parser.add_argument("--output", type=Path, default=root / "examples/out/s070_fixture_benchmark")
-    parser.add_argument("--launcher", type=Path, default=root / "plugins/codex/hwpx-plugin/scripts/hwpx-mcp-server")
+    parser.add_argument(
+        "--launcher",
+        type=Path,
+        default=(
+            root
+            / "plugins"
+            / "codex"
+            / "hwpx-plugin"
+            / "scripts"
+            / "hwpx-automation-mcp"
+        ),
+    )
     parser.add_argument("--sandbox-root", type=Path, default=root.parent)
-    parser.add_argument("--mcp-repo", type=Path)
+    parser.add_argument(
+        "--automation-repo",
+        "--mcp-repo",
+        dest="automation_repo",
+        type=Path,
+    )
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--require-tools", action="store_true")

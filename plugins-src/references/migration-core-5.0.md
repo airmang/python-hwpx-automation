@@ -1,7 +1,8 @@
 # python-hwpx 5.0 — 무엇이 어디로 갔나
 
 `python-hwpx` 5.0은 HWPX 객체 모델·OXML·OPC와 그 위의 형식 고유 primitive만
-남긴다. 라이브러리 안에서 자라던 응용 워크플로는 `hwpx-mcp-server`로 옮겼다.
+남긴다. 라이브러리 안에서 자라던 응용 워크플로는
+`python-hwpx-automation`으로 옮겼다.
 그 구현의 정본은 4.x 시절부터 이미 MCP에 있었고, 이번에 core에서 사본이 사라진
 것이다.
 
@@ -16,8 +17,16 @@
 ## `hwpx`를 직접 import하고 있다면
 
 ```bash
-pip install python-hwpx-automation[mcp]
+pip install python-hwpx-automation
 ```
+
+Python API만 직접 쓸 때는 기본 배포면 충분하다. MCP 서버도 실행할 때에만
+`python-hwpx-automation[mcp]`를 설치하고 정식 콘솔
+`hwpx-automation-mcp`를 사용한다. `hwpx-mcp-server` 배포·import·콘솔은 6.x
+호환 별칭이다. 새 host 설정은 local key `hwpx`와
+`scripts/hwpx-automation-mcp` launcher를 사용한다. 기존
+`hwpx-mcp-server` key와 동명 launcher wrapper는 6.x 호환용이며 key는
+프로토콜 식별자가 아니다.
 
 | 4.x import | 5.0 대체 |
 |---|---|

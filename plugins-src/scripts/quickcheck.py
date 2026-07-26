@@ -197,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
             _open_safety_command(operating_plan_output),
         ))
         check_code = (
-            "from hwpx import inspect_operating_plan_quality; "
+            "from hwpx_automation.office.authoring import inspect_operating_plan_quality; "
             f"report = inspect_operating_plan_quality({str(operating_plan_output)!r}); "
             "checks = ["
             "(report.get('report_version') == 'operating-plan-quality-v1', 'report_version mismatch'), "
@@ -218,10 +218,11 @@ def main(argv: list[str] | None = None) -> int:
         ))
         government_report_output = EXAMPLES_DIR / "out" / "10_government_report.hwpx"
         check_code = (
-            "from hwpx import HwpxDocument, inspect_document_authoring_quality; "
+            "from hwpx import HwpxDocument; "
+            "from hwpx_automation.office.authoring import inspect_document_authoring_quality; "
+            "from hwpx_automation.office.authoring.report_parser import parse_government_report_text; "
             "from hwpx.tools.package_validator import validate_editor_open_safety, validate_package; "
             "from hwpx.tools.validator import validate_document; "
-            "from hwpx.tools.report_parser import parse_government_report_text; "
             "from hwpx.tools.report_utils import format_krw_hangul; "
             f"path = {str(government_report_output)!r}; "
             "doc = HwpxDocument.open(path); "

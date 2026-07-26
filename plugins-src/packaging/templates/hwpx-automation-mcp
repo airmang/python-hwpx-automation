@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Canonical python-hwpx-automation MCP launcher.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SERVER_PACKAGE="${HWPX_AUTOMATION_PACKAGE:-${HWPX_MCP_SERVER_PACKAGE:-python-hwpx-automation[mcp,oracle]==6.0.0}}"
+CORE_PACKAGE="${HWPX_PYTHON_HWPX_PACKAGE:-python-hwpx[preview]==5.0.0}"
+EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-6.0.0}}"
+EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-5.0.0}"
+export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-1.0.0}"
+export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
+
+# Editable mode is deliberately opt-in.  Auto-discovering sibling repositories
+# can silently select an owner's unrelated/main checkout and make candidate
+# verification pass against the wrong source.
+MCP_REPO="${HWPX_AUTOMATION_REPO:-${HWPX_MCP_SERVER_REPO:-}}"
+PYTHON_HWPX_REPO="${PYTHON_HWPX_REPO:-}"
+
+if [ "${HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE:-${HWPX_MCP_DISABLE_LOCAL_EDITABLE:-0}}" != "1" ] \
+  && command -v uv >/dev/null 2>&1 \
+  && [ -n "${MCP_REPO}" ] && [ -f "${MCP_REPO}/pyproject.toml" ] \
+  && [ -n "${PYTHON_HWPX_REPO}" ] && [ -f "${PYTHON_HWPX_REPO}/pyproject.toml" ]; then
+  exec uv run --no-project --no-sources \
+    --with-editable "${PYTHON_HWPX_REPO}[preview]" \
+    --with-editable "${MCP_REPO}[mcp,oracle]" \
+    hwpx-automation-mcp "$@"
+fi
+
+if command -v uv >/dev/null 2>&1; then
+  RUNTIME_ROOT="${HWPX_AUTOMATION_RUNTIME_ROOT:-${HWPX_MCP_RUNTIME_ROOT:-${HWPX_MCP_SERVER_VENV:-${PLUGIN_ROOT}/.hwpx-mcp-runtime}}}"
+  ENV_ROOT="${RUNTIME_ROOT}/envs"
+  LOCK_DIR="${RUNTIME_ROOT}/install.lock"
+  RECOVERY_LOCK_DIR="${RUNTIME_ROOT}/install.lock.recovery"
+  mkdir -p "${ENV_ROOT}"
+
+  UV_PYTHON="$(uv python find)"
+  FINGERPRINT="$(
+    "${UV_PYTHON}" - "${SERVER_PACKAGE}" "${CORE_PACKAGE}" "${HWPX_SKILL_VERSION}" <<'PY'
+import hashlib
+import json
+import platform
+import sys
+import sysconfig
+
+payload = {
+    "serverPackage": sys.argv[1],
+    "corePackage": sys.argv[2],
+    "skillVersion": sys.argv[3],
+    "runtimeLayout": "relocatable-console-v1",
+    "implementation": sys.implementation.name,
+    "python": platform.python_version(),
+    "abi": sysconfig.get_config_var("SOABI"),
+    "platform": sysconfig.get_platform(),
+}
+encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+print(hashlib.sha256(encoded).hexdigest())
+PY
+  )"
+
+  VENV_DIR="${ENV_ROOT}/${FINGERPRINT}"
+  VERSION_FILE="${VENV_DIR}/.hwpx-stack-fingerprint"
+  RUNTIME_PYTHON="${VENV_DIR}/bin/python"
+  RUNTIME_CONSOLE="${VENV_DIR}/bin/hwpx-automation-mcp"
+
+  runtime_ready() {
+    [ -x "${RUNTIME_PYTHON}" ] \
+      && [ -x "${RUNTIME_CONSOLE}" ] \
+      && [ -f "${VERSION_FILE}" ] \
+      && [ "$(cat "${VERSION_FILE}")" = "${FINGERPRINT}" ]
+  }
+
+  if ! runtime_ready; then
+    acquired=0
+    for _attempt in $(seq 1 1200); do
+      if [ -d "${RECOVERY_LOCK_DIR}" ]; then
+        sleep 0.1
+        continue
+      fi
+      if mkdir "${LOCK_DIR}" 2>/dev/null; then
+        printf '%s\n' "$$" > "${LOCK_DIR}/pid"
+        acquired=1
+        break
+      fi
+      lock_pid=""
+      if [ -f "${LOCK_DIR}/pid" ]; then
+        lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
+      fi
+      if [ -n "${lock_pid}" ] && ! kill -0 "${lock_pid}" 2>/dev/null; then
+        if mkdir "${RECOVERY_LOCK_DIR}" 2>/dev/null; then
+          current_lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
+          if [ "${current_lock_pid}" = "${lock_pid}" ] \
+            && ! kill -0 "${current_lock_pid}" 2>/dev/null; then
+            stale_lock="${RUNTIME_ROOT}/install.lock.stale.$$.$_attempt"
+            if mv "${LOCK_DIR}" "${stale_lock}" 2>/dev/null; then
+              rm -rf "${stale_lock}"
+            fi
+          fi
+          rmdir "${RECOVERY_LOCK_DIR}" 2>/dev/null || true
+        fi
+        continue
+      fi
+      sleep 0.1
+    done
+    if [ "${acquired}" != "1" ]; then
+      echo "timed out waiting for the HWPX runtime installation lock" >&2
+      exit 75
+    fi
+
+    BUILD_DIR="${RUNTIME_ROOT}/.build-${FINGERPRINT}-$$"
+    cleanup_runtime_build() {
+      rm -rf "${BUILD_DIR}"
+      rm -rf "${LOCK_DIR}"
+    }
+    trap cleanup_runtime_build EXIT INT TERM
+
+    if ! runtime_ready; then
+      rm -rf "${BUILD_DIR}"
+      uv venv --quiet --relocatable "${BUILD_DIR}"
+      uv pip install --quiet \
+        --refresh-package python-hwpx-automation \
+        --refresh-package python-hwpx \
+        --python "${BUILD_DIR}/bin/python" \
+        "${SERVER_PACKAGE}" \
+        "${CORE_PACKAGE}"
+      "${BUILD_DIR}/bin/python" - "${EXPECTED_SERVER_VERSION}" "${EXPECTED_CORE_VERSION}" <<'PY'
+from importlib.metadata import PackageNotFoundError, version
+
+
+def _version_of(*names):
+    for name in names:
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            continue
+    raise PackageNotFoundError(names[0])
+import sys
+
+expected_server, expected_core = sys.argv[1:]
+observed = {
+    "python-hwpx-automation": _version_of("python-hwpx-automation"),
+    "python-hwpx": version("python-hwpx"),
+}
+expected = {
+    "python-hwpx-automation": expected_server,
+    "python-hwpx": expected_core,
+}
+if observed != expected:
+    raise SystemExit(f"installed HWPX stack version mismatch: {observed!r} != {expected!r}")
+PY
+      "${BUILD_DIR}/bin/hwpx-automation-mcp" --help >/dev/null
+      OLD_VENV="${VENV_DIR}.previous.$$"
+      OLD_VENV_PRESENT=0
+      if [ -e "${VENV_DIR}" ]; then
+        mv "${VENV_DIR}" "${OLD_VENV}"
+        OLD_VENV_PRESENT=1
+      fi
+      mv "${BUILD_DIR}" "${VENV_DIR}"
+      if ! "${RUNTIME_CONSOLE}" --help >/dev/null 2>&1; then
+        FAILED_VENV="${VENV_DIR}.failed.$$"
+        mv "${VENV_DIR}" "${FAILED_VENV}"
+        if [ "${OLD_VENV_PRESENT}" = "1" ]; then
+          mv "${OLD_VENV}" "${VENV_DIR}"
+        fi
+        rm -rf "${FAILED_VENV}"
+        echo "relocated hwpx-automation-mcp console self-check failed" >&2
+        exit 70
+      fi
+      printf '%s\n' "${FINGERPRINT}" > "${VERSION_FILE}"
+      if [ "${OLD_VENV_PRESENT}" = "1" ]; then
+        rm -rf "${OLD_VENV}"
+      fi
+    fi
+
+    trap - EXIT INT TERM
+    rm -rf "${LOCK_DIR}"
+  fi
+
+  exec "${RUNTIME_CONSOLE}" "$@"
+fi
+
+if command -v uvx >/dev/null 2>&1; then
+  exec uvx \
+    --refresh-package python-hwpx-automation \
+    --refresh-package python-hwpx \
+    --with "${CORE_PACKAGE}" \
+    --from "${SERVER_PACKAGE}" \
+    hwpx-automation-mcp "$@"
+fi
+
+echo "hwpx-plugin requires uv or uvx to install and run ${SERVER_PACKAGE}. Install uv, or set HWPX_AUTOMATION_REPO (HWPX_MCP_SERVER_REPO is the 6.x alias) and PYTHON_HWPX_REPO to local checkouts." >&2
+exit 127

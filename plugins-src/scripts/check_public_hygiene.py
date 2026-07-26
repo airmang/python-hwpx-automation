@@ -46,6 +46,13 @@ _PUBLIC_RUNTIME_PREFIXES = (
     "plugins/",
     "references/",
 )
+_INTERNAL_CODENAME_RE = re.compile(
+    rb"(?<![A-Za-z0-9])(?:S-[0-9]{3}|STG-[A-Za-z0-9_-]+)(?![A-Za-z0-9])"
+)
+_INTERNAL_WORKTREE_RE = re.compile(
+    rb"(?:python-hwpx(?:-automation)?|hwpx-mcp-server|hwpx-skill)-s[0-9]{3}\b",
+    re.IGNORECASE,
+)
 
 
 def _git_paths(*args: str) -> list[str]:
@@ -136,6 +143,29 @@ def _private_practice_surface_failures(tracked: list[str]) -> list[str]:
                 "removed internal-QA marker(s) "
                 f"{', '.join(hits)} in public runtime surface: {rel}"
             )
+    return failures
+
+
+def _internal_identifier_failures(tracked: list[str]) -> list[str]:
+    failures: list[str] = []
+    public_root_files = {"README.md", "SKILL.md", "CHANGELOG.md", "CONTRIBUTING.md"}
+    for rel in tracked:
+        if not (
+            rel in public_root_files
+            or rel.startswith("plugins/")
+            or rel.startswith("scripts/")
+        ):
+            continue
+        data = _text_bytes(ROOT / rel)
+        if data is None:
+            continue
+        matches = sorted(
+            set(_INTERNAL_CODENAME_RE.findall(data))
+            | set(_INTERNAL_WORKTREE_RE.findall(data))
+        )
+        if matches:
+            rendered = ", ".join(value.decode("ascii", "replace") for value in matches)
+            failures.append(f"internal Stage/worktree identifier: {rel}: {rendered}")
     return failures
 
 
@@ -241,6 +271,7 @@ def main() -> int:
     failures.extend(_action_pin_failures(tracked))
     failures.extend(_wheel_failures())
     failures.extend(_private_practice_surface_failures(tracked))
+    failures.extend(_internal_identifier_failures(tracked))
     if failures:
         for failure in failures:
             print(f"[FAIL] {failure}")

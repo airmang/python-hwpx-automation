@@ -8,6 +8,7 @@ or unnecessary calls. Never cite its score as live-agent evidence.
 ```bash
 python3 scripts/task_eval_harness.py \
   --tasks examples/eval_tasks/tasks.json \
+  --profile examples/eval_tasks/profiles/current-1.0.0.json \
   --profile examples/eval_tasks/profiles/current-0.8.0.json \
   --profile examples/eval_tasks/profiles/current-0.1.6.json \
   --profile examples/eval_tasks/profiles/baseline-0.1.5.json \

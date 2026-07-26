@@ -1,6 +1,9 @@
 # MCP Operating Plan Workflow
 
-Use this when an MCP client is connected to `hwpx-mcp-server` from the operating-plan stack.
+Use this when an MCP client is connected to `python-hwpx-automation` from the
+operating-plan stack. New configs use the host-local key `hwpx`; an existing
+`hwpx-mcp-server` key may remain for 6.x compatibility. Neither key is the
+FastMCP protocol identity.
 
 ## 1. Validate Without Writing
 

@@ -1,6 +1,8 @@
 # MCP document-plan workflow
 
-Use this when an MCP client has `hwpx-mcp-server` connected and the user asks
+Use this when an MCP client has `python-hwpx-automation` connected. New host
+configs use the local key `hwpx`; an existing 6.x config may still use
+`hwpx-mcp-server`. Neither key is the FastMCP identity. Use this flow when the user asks
 for a new HWPX document, report, form draft, meeting record, or operating plan.
 
 ## Flow

@@ -4,14 +4,26 @@
 
 ## [1.0.0] - unreleased
 
-5.0 스택 트레인. `python-hwpx` 5.0이 응용 워크플로를 내려놓고 `hwpx-mcp-server`
-6.0이 그 유일한 소유자가 된다. 스킬의 라우팅 정책 자체는 바뀌지 않았다 —
+5.0 스택 트레인의 **미발행 후보**. 현재 공개 스택은
+`python-hwpx 4.2.0` / `hwpx-mcp-server 5.1.0` / `hwpx-plugin 0.8.0`이다.
+후보에서는 `python-hwpx` 5.0이 응용 워크플로를 내려놓고
+`python-hwpx-automation` 6.0이 그 유일한 소유자가 된다. 스킬의 라우팅 정책 자체는 바뀌지 않았다 —
 바뀐 것은 core 직접 import 대안이 더 이상 존재하지 않는다는 사실이다.
 
 ### Changed — BREAKING
-- 스택 핀 갱신: `python-hwpx[visual,preview]==5.0.0` ·
-  `hwpx-mcp-server==6.0.0`. 계약 `429cb6706323e762` → `e592ede5b0eb1a35`
+- 후보 스택 핀 갱신: `python-hwpx[preview]==5.0.0` ·
+  `python-hwpx-automation[mcp,oracle]==6.0.0`. 정식 MCP 콘솔은
+  `hwpx-automation-mcp`이고, `hwpx-mcp-server` 배포/import/콘솔은 6.x
+  호환 표면이다. 계약 `429cb6706323e762` → `0ce938371f0b55a6`
   (119/127/28 불변 — 이름·순서·스키마·분류·오류계약 전부 동일).
+  검토 중이던 `e592ede5b0eb1a35`는 advanced 환경변수 안내가 옛 이름만
+  가리킨 후보였고, `9abec41b740f3e0e`는 `minAutomationVersion`을 정식
+  이름으로 싣기 전 후보였으므로 둘 다 발행하지 않고 supersede했다.
+- 새 4-host 설정의 local key를 `hwpx`, bundle launcher를
+  `scripts/hwpx-automation-mcp`로 통일했다. 기존 `hwpx-mcp-server` key와
+  `scripts/hwpx-mcp-server`는 각각 명시적 기존 설정 override와 canonical
+  launcher 위임 wrapper로만 6.x에서 유지한다. FastMCP 이름은 별개인
+  `python-hwpx-automation`이다.
 - 4.x 호환 창 안내 문서 7종을 완료된 이행 하나
   (`references/migration-core-5.0.md`)로 대체했다. 이미 끝난 이행을 아직
   진행 중인 것처럼 설명하는 문서를 남기는 것이 코드네임을 지우는 것보다 나쁘다.
@@ -108,7 +120,7 @@
 ## [0.6.5] - 2026-07-20
 
 ### Changed
-- Repins the bundle core to `python-hwpx[visual,preview]==3.8.0` (S-087 structural
+- Repins the bundle core to `python-hwpx[visual,preview]==3.8.0` (structural
   form-fill fix: inline-control width modeled, impossible fills are typed
   refusals; silent breakage 47%->16.7% on the wild differential).
   `hwpx-mcp-server` stays `==4.3.0`, contract hash unchanged.
@@ -120,7 +132,7 @@
 
 ### Changed
 - Repins the bundle core to `python-hwpx[visual,preview]==3.8.0` so the installed
-  surface reaches the S-085 height-budget fit engine (form-fill shrink and
+  surface reaches the height-budget fit engine (form-fill shrink and
   typed overflow refusal are now real, reachable via `mail_merge`'s
   `fit_mode`). `hwpx-mcp-server` stays `==4.3.0` and the contract hash is
   unchanged (`f82caecbcfc742e9`) — no MCP change. Replay profile renamed to
@@ -174,10 +186,10 @@
   mismatched sibling stack previously degraded to the fallback adapter and
   reported a plausible-looking 0/44 score; it now raises an explicit
   environment error instead.
-- Replaced stale "S-079 `hwpx-mcp-server>=4.0.0`" contract labels in SKILL.md
+- Replaced stale internal-stage `hwpx-mcp-server>=4.0.0` contract labels in SKILL.md
   and the toc/reading/exam workflow references with the current declared floor
   (stage labels age; version floors stay true).
-- Publishes the S-081 triplet pins: `python-hwpx==3.3.0`,
+- Publishes the 0.5.1 triplet pins: `python-hwpx==3.3.0`,
   `hwpx-mcp-server==4.2.1`, plugin `0.5.1`. The tool surface stays exactly
   121 default / 132 advanced / 28 skill-required; the contract hash moves to
   `fff2c9093ca4677b` purely through the version coordinates embedded in the
@@ -190,7 +202,7 @@
 ## [0.4.0] - 2026-07-17
 
 ### Added
-- Documents the S-080 command-only existing-header story path for
+- Documents the command-only existing-header story path for
   `apply_document_commands`, allowing body, table-cell, and one simple existing section
   header to commit in the same revision-bound, idempotent transaction without adding an
   MCP tool or changing the public node catalog.
@@ -233,7 +245,7 @@
 ### Fixed
 - Bundles the previously missing TOC reference, changelog, and product identity in every host artifact and validates
   safe, existing relative Markdown links so broken or traversal links fail closed.
-- Refreshes the API reference from obsolete 2.x baseline language to the public S-079
+- Refreshes the API reference from obsolete 2.x baseline language to the public
   `3.1.0 / 4.0.0 / 0.3.0` stack.
 
 ## [0.2.0] - 2026-07-16
@@ -262,7 +274,7 @@
 ### Changed
 - Raises the bundle contract to `python-hwpx==2.29.2`, `hwpx-mcp-server==2.23.1`, and skill `0.1.31`
   without changing the 133 default / 143 advanced tool names.
-- S070 benchmark outputs are generated in disposable workspaces. Installed host bundles no longer carry
+- Synthetic benchmark outputs are generated in disposable workspaces. Installed host bundles no longer carry
   duplicate blind packets, routing, scored passes, or result projections.
 
 ## [0.1.30] - 2026-07-15
@@ -279,7 +291,7 @@
 - 비동기 실한컴 `render_health` → `render_submit` → `render_status`/`render_cancel` 라우팅과
   입력·출력 hash, Hancom build, worker provenance, PDF/페이지 PNG 검증 절차.
 - 설치 플러그인 MCP E2E에 4개 render 도구와 honest unavailable/선택적 real-render 게이트 추가.
-- S-070 합성 블라인드 qualification fixture: 6개 family의 work order 72개, must-abstain 12개,
+- 합성 블라인드 qualification fixture: 6개 family의 work order 72개, must-abstain 12개,
   versioned fixture profile 3개와 익명 artifact 216개. 독립 `agent_judge` 2회용 템플릿과 단일 result
   manifest 기반 report/gallery/scorecard projection 및 drift gate를 포함한다.
 
@@ -344,25 +356,25 @@
 
 ## [0.1.18] - 2026-07-03
 ### Added
-- `references/workflows-forms.md` **④ 구조 변경 보존 채움** 경로 (M10/S-064): 채우며 표 구조를 바꿔야 하는 양식(안 쓰는 표·열 삭제, 내용에 맞춰 행 증설)을 `apply_table_ops`(fill_cell + delete_column/delete_row/delete_table + insert_row_by_clone)로 **원본 서식 보존한 채** 수술하고 `verify_form_fill`(실한컴 렌더 게이트)로 검증. "표 재생성 금지" 철칙 배너 + 매 학기 재사용 레시피(빈 양식 + 콘텐츠 md + 규칙). SKILL.md 라우팅 추가.
+- `references/workflows-forms.md` **④ 구조 변경 보존 채움** 경로 (M10): 채우며 표 구조를 바꿔야 하는 양식(안 쓰는 표·열 삭제, 내용에 맞춰 행 증설)을 `apply_table_ops`(fill_cell + delete_column/delete_row/delete_table + insert_row_by_clone)로 **원본 서식 보존한 채** 수술하고 `verify_form_fill`(실한컴 렌더 게이트)로 검증. "표 재생성 금지" 철칙 배너 + 매 학기 재사용 레시피(빈 양식 + 콘텐츠 md + 규칙). SKILL.md 라우팅 추가.
 ### Changed
 - 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.13.0`(M10 form-fill 도구)으로 갱신, `python-hwpx>=2.21.0`(`hwpx.table_patch`) 필요.
 
 ## [0.1.15] - 2026-07-01
 ### Added
-- `references/workflows-pii.md` — 개인정보(PII) 마스킹 워크플로 (M5/S-059). 양식채움·메일머지·추출이 기계검증 PII(주민등록번호·휴대폰·이메일·카드)를 **기본 마스킹**하고, `scan_personal_info` 로 감사. 기계세트=항상-on, 맥락형=라벨게이트 low-confidence(과마스킹 방지). SKILL.md 라우터 + 참조 목록 연결.
+- `references/workflows-pii.md` — 개인정보(PII) 마스킹 워크플로 (M5). 양식채움·메일머지·추출이 기계검증 PII(주민등록번호·휴대폰·이메일·카드)를 **기본 마스킹**하고, `scan_personal_info` 로 감사. 기계세트=항상-on, 맥락형=라벨게이트 low-confidence(과마스킹 방지). SKILL.md 라우터 + 참조 목록 연결.
 ### Changed
 - 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.10.0`(PII 마스킹 표면)으로 갱신, `python-hwpx>=2.18.0`(`hwpx.tools.pii`) 필요.
 
 ## [0.1.14] - 2026-06-30
 ### Added
-- `references/workflows-redline.md` — 변경추적(redline) 저작 워크플로 (M4/S-058). `add_tracked_edit`(insert/delete/replace + 코멘트)로 에이전트가 redline을 저작하고 사람이 한컴 검토 리본에서 수락/거부. verify 영수증(render_checked 정직 강등)·byte-identity/수락방식의 정직 한계 명시. SKILL.md 라우터 + 참조 목록에 연결.
+- `references/workflows-redline.md` — 변경추적(redline) 저작 워크플로 (M4). `add_tracked_edit`(insert/delete/replace + 코멘트)로 에이전트가 redline을 저작하고 사람이 한컴 검토 리본에서 수락/거부. verify 영수증(render_checked 정직 강등)·byte-identity/수락방식의 정직 한계 명시. SKILL.md 라우터 + 참조 목록에 연결.
 ### Changed
 - 번들 런처/MCP 설치 핀을 `hwpx-mcp-server==2.9.0`(`add_tracked_edit` redline 표면)으로 갱신, `python-hwpx>=2.17.0`(redline 저작 API + 메모 본문 픽스) 필요.
 
 ## [0.1.13] - 2026-06-29
 ### Added
-- `references/workflows-authoring.md` + SKILL.md routing row — M3 document authoring (S-057): 공문/보고서/가정통신문 작성 루프(`create_document_from_plan` with `metadata.document_type` + `gyeolmun`), 공문 구조 hard-gate 해석, 맞춤법/각주 정직 라벨, HWPX-only. Added to `packaging/hosts.json` sharedAssets; 4 host bundles rebuilt.
+- `references/workflows-authoring.md` + SKILL.md routing row — M3 document authoring: 공문/보고서/가정통신문 작성 루프(`create_document_from_plan` with `metadata.document_type` + `gyeolmun`), 공문 구조 hard-gate 해석, 맞춤법/각주 정직 라벨, HWPX-only. Added to `packaging/hosts.json` sharedAssets; 4 host bundles rebuilt.
 ### Changed
 - Launcher pins `hwpx-mcp-server==2.8.0` (M3 surface: document_type routing, 결문 IR, 공문 hard-gate, `render_checked`; pulls `python-hwpx>=2.16.0`).
 
@@ -370,7 +382,7 @@
 ### Added
 - Route 시험지 조판(출제 md를 학교 양식에 재조판) → `compose_exam` · `verify_question_splits` and a new `references/workflows-exam.md`: 문항 keep-together(단/쪽 경계 미분리), 관리박스·머리글/꼬리글 무손실 보존, `[그림N]`/`[표N]`은 텍스트 placeholder, 한컴 커브-export 양식의 정직 게이트(`splits=null`+`needsReview` → `render_preview` 시각 증거, 텍스트 0 사칭 금지). 4개 호스트 번들에 reference 동봉. leap 데모: `demo/exam-typesetting/`.
 ### Changed
-- 번들 Codex/Claude/OpenClaw/Hermes 런처 + MCP 설치 문서 핀을 `hwpx-mcp-server==2.7.0`(시험지 조판 `compose_exam`/`verify_question_splits` + keep-together)으로 갱신, `python-hwpx>=2.15.0`(`hwpx.exam`) 필요 (S-056 다운스트림 릴리스).
+- 번들 Codex/Claude/OpenClaw/Hermes 런처 + MCP 설치 문서 핀을 `hwpx-mcp-server==2.7.0`(시험지 조판 `compose_exam`/`verify_question_splits` + keep-together)으로 갱신, `python-hwpx>=2.15.0`(`hwpx.exam`) 필요 (다운스트림 릴리스).
 
 ## [0.1.11] - 2026-06-25
 ### Added
@@ -435,7 +447,7 @@
 
 ## [0.1.0]
 ### Added
-- Added `hwpx.builder` onboarding docs, API reference, example, and quickcheck coverage for the S-013 builder core.
+- Added `hwpx.builder` onboarding docs, API reference, example, and quickcheck coverage for the builder core.
 
 ### Changed
 - Updated bundled MCP fallback launchers to `hwpx-mcp-server==2.3.0`, which requires `python-hwpx>=2.10.0`.

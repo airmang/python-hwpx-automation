@@ -67,10 +67,60 @@ def host_frontmatter(host: dict, identity: dict) -> str:
     return extra
 
 
+def remove_previous_generated_files(out: Path) -> None:
+    """Remove only files recorded by the previous build.
+
+    Host skill directories are also legitimate runtime workspaces.  In
+    particular, examples write user-owned artifacts below ``examples/out``.
+    A blanket ``rmtree(out)`` destroyed those artifacts during a rebuild.
+    """
+    if not out.exists():
+        return
+    sync_path = out / "plugin-sync.json"
+    if not sync_path.is_file():
+        raise SystemExit(
+            f"refusing to replace existing bundle without plugin-sync.json: {out}"
+        )
+    try:
+        sync = json.loads(sync_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"invalid previous sync manifest: {sync_path}: {exc}") from exc
+    records = sync.get("files")
+    if not isinstance(records, list):
+        raise SystemExit(f"invalid previous sync records: {sync_path}")
+
+    resolved_out = out.resolve()
+    for index, rec in enumerate(records):
+        if not isinstance(rec, dict) or not isinstance(rec.get("dest"), str):
+            raise SystemExit(f"invalid previous sync record {index}: {sync_path}")
+        target = (ROOT / rec["dest"]).resolve()
+        try:
+            target.relative_to(resolved_out)
+        except ValueError:
+            raise SystemExit(
+                f"previous sync destination escapes bundle {out}: {rec['dest']}"
+            ) from None
+        if target.is_file() or target.is_symlink():
+            target.unlink()
+    sync_path.unlink()
+
+    # Prune directories made empty by generated-file removal.  Non-empty
+    # runtime/output directories remain untouched.
+    directories = sorted(
+        (path for path in out.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    )
+    for directory in directories:
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
+
+
 def build_host(host: dict, config: dict, identity: dict) -> None:
     out = ROOT / host["outputDir"]
-    if out.exists():
-        shutil.rmtree(out)
+    remove_previous_generated_files(out)
     skill_dir = skill_dir_for(host)
     skill_dir.mkdir(parents=True, exist_ok=True)
     records: list[dict] = []
@@ -122,10 +172,22 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
 
     if host.get("bundleLauncher"):
         launcher_src = PACKAGING / config["launcherTemplate"]
-        launcher_dest = out / "scripts" / "hwpx-mcp-server"
+        launcher_dest = out / "scripts" / config["launcherName"]
         copy_file(launcher_src, launcher_dest)
         launcher_dest.chmod(0o755)
         records.append(record(f"packaging/{config['launcherTemplate']}", launcher_src, launcher_dest, transformed=False))
+        compatibility_src = PACKAGING / config["compatibilityLauncherTemplate"]
+        compatibility_dest = out / "scripts" / config["compatibilityLauncherName"]
+        copy_file(compatibility_src, compatibility_dest)
+        compatibility_dest.chmod(0o755)
+        records.append(
+            record(
+                f"packaging/{config['compatibilityLauncherTemplate']}",
+                compatibility_src,
+                compatibility_dest,
+                transformed=False,
+            )
+        )
 
     for rec in records:
         text = (ROOT / rec["dest"]).read_text(encoding="utf-8", errors="ignore")

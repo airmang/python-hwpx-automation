@@ -13,35 +13,14 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-try:
-    import anyio
-    from mcp import ClientSession
-    from mcp.client.stdio import StdioServerParameters, stdio_client
-except ModuleNotFoundError:
-    if os.environ.get("HWPX_E2E_BOOTSTRAPPED") == "1":
-        raise
-    env = dict(os.environ, HWPX_E2E_BOOTSTRAPPED="1")
-    raise SystemExit(
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "--no-project",
-                "--with",
-                "mcp>=1.2",
-                "--with",
-                "anyio>=4",
-                "python",
-                __file__,
-                *sys.argv[1:],
-            ],
-            env=env,
-            check=False,
-        ).returncode
-    )
-
-
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_MCP_CONFIG_KEY = "hwpx"
+LEGACY_MCP_CONFIG_KEY = "hwpx-mcp-server"
+_SOURCE_AFFECTING_ENV = ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV")
+anyio: Any = None
+ClientSession: Any = None
+StdioServerParameters: Any = None
+stdio_client: Any = None
 WORKFLOW_TOOLS = {
     "start_workflow",
     "get_workflow",
@@ -51,6 +30,72 @@ WORKFLOW_TOOLS = {
     "resume_workflow",
 }
 RENDER_TOOLS = {"render_submit", "render_status", "render_cancel", "render_health"}
+
+
+def _sanitized_environment(
+    base: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """Drop ambient Python source selectors from installed/E2E execution."""
+
+    env = dict(os.environ if base is None else base)
+    for name in _SOURCE_AFFECTING_ENV:
+        env.pop(name, None)
+    return env
+
+
+def _ensure_mcp_dependencies() -> None:
+    global anyio, ClientSession, StdioServerParameters, stdio_client
+    try:
+        import anyio as anyio_module
+        from mcp import ClientSession as client_session
+        from mcp.client.stdio import StdioServerParameters as server_parameters
+        from mcp.client.stdio import stdio_client as stdio_client_function
+    except ModuleNotFoundError:
+        if os.environ.get("HWPX_E2E_BOOTSTRAPPED") == "1":
+            raise
+        env = _sanitized_environment()
+        env["HWPX_E2E_BOOTSTRAPPED"] = "1"
+        raise SystemExit(
+            subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "--no-project",
+                    "--with",
+                    "mcp>=1.2",
+                    "--with",
+                    "anyio>=4",
+                    "python",
+                    __file__,
+                    *sys.argv[1:],
+                ],
+                env=env,
+                check=False,
+            ).returncode
+        )
+    anyio = anyio_module
+    ClientSession = client_session
+    StdioServerParameters = server_parameters
+    stdio_client = stdio_client_function
+
+
+def _select_mcp_server(
+    config_payload: dict[str, Any],
+    key: str,
+    *,
+    source: Path,
+) -> dict[str, Any]:
+    """Select exactly the requested host-local alias.
+
+    The default is the new ``hwpx`` key. Passing ``hwpx-mcp-server`` remains an
+    explicit 6.x compatibility override, never a silent fallback.
+    """
+
+    servers = config_payload.get("mcpServers") or {}
+    server_config = servers.get(key) if isinstance(servers, dict) else None
+    if not isinstance(server_config, dict):
+        raise RuntimeError(f"MCP server {key!r} is absent from {source}")
+    return server_config
 
 
 def _structured(result: Any) -> dict[str, Any]:
@@ -80,6 +125,76 @@ def _mcp_error_code(exc: BaseException) -> str | None:
     return None
 
 
+def _probe_installed_runtime(args: argparse.Namespace) -> dict[str, Any]:
+    if args.server_runtime is None:
+        return {"mode": "editable-or-direct", "originChecked": False}
+    env_root = args.server_runtime / "envs"
+    candidates = sorted(env_root.glob("*/bin/python")) if env_root.is_dir() else []
+    if len(candidates) != 1:
+        raise RuntimeError(
+            f"expected exactly one installed launcher runtime, found {candidates}"
+        )
+    code = r"""
+import importlib.util
+import json
+from importlib.metadata import version
+from pathlib import Path
+
+import hwpx
+import hwpx_automation
+
+print(json.dumps({
+    "versions": {
+        "python-hwpx": version("python-hwpx"),
+        "python-hwpx-automation": version("python-hwpx-automation"),
+    },
+    "origins": {
+        "hwpx": str(Path(hwpx.__file__).resolve()),
+        "hwpx_automation": str(Path(hwpx_automation.__file__).resolve()),
+    },
+    "capabilities": {
+        "mcp": importlib.util.find_spec("mcp") is not None,
+        "pymupdf": importlib.util.find_spec("fitz") is not None,
+        "pillow": importlib.util.find_spec("PIL") is not None,
+        "numpy": importlib.util.find_spec("numpy") is not None,
+        "previewMath": importlib.util.find_spec("latex2mathml") is not None,
+    },
+}))
+"""
+    completed = subprocess.run(
+        [str(candidates[0]), "-c", code],
+        env=_sanitized_environment(),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(completed.stdout)
+    expected = {
+        "python-hwpx": args.expected_core_version,
+        "python-hwpx-automation": args.expected_server_version,
+    }
+    if payload.get("versions") != expected:
+        raise RuntimeError(
+            f"installed runtime version mismatch: {payload.get('versions')} != {expected}"
+        )
+    excluded = [
+        path.resolve()
+        for path in (args.core_repo, args.automation_repo)
+        if path is not None
+    ]
+    for module, raw_origin in payload.get("origins", {}).items():
+        origin = Path(raw_origin).resolve()
+        if "site-packages" not in origin.as_posix():
+            raise RuntimeError(f"{module} did not load from site-packages: {origin}")
+        if any(origin == root or root in origin.parents for root in excluded):
+            raise RuntimeError(f"{module} leaked from source checkout: {origin}")
+    capabilities = payload.get("capabilities")
+    if not isinstance(capabilities, dict) or not all(capabilities.values()):
+        raise RuntimeError(f"installed runtime extras are incomplete: {capabilities}")
+    payload.update({"mode": "installed-wheel", "originChecked": True})
+    return payload
+
+
 async def _run(args: argparse.Namespace) -> dict[str, Any]:
     contract = json.loads(args.contract.read_text(encoding="utf-8"))
     active_contract_names = {
@@ -97,15 +212,14 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
     ):
         sandbox = Path(tmp)
         denied_root = Path(denied_tmp)
-        env = dict(os.environ)
+        env = _sanitized_environment()
         if args.mcp_config:
             config_payload = json.loads(args.mcp_config.read_text(encoding="utf-8"))
-            servers = config_payload.get("mcpServers") or {}
-            server_config = servers.get(args.mcp_server_name)
-            if not isinstance(server_config, dict):
-                raise RuntimeError(
-                    f"MCP server {args.mcp_server_name!r} is absent from {args.mcp_config}"
-                )
+            server_config = _select_mcp_server(
+                config_payload,
+                args.mcp_server_name,
+                source=args.mcp_config,
+            )
             command = server_config.get("command")
             command_args = server_config.get("args") or []
             config_env = server_config.get("env") or {}
@@ -142,28 +256,30 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
             launch_surface = str(args.launcher)
         env.update(
             {
-                "HWPX_MCP_WORKSPACE_ROOTS": json.dumps([str(sandbox)]),
+                "HWPX_AUTOMATION_WORKSPACE_ROOTS": json.dumps([str(sandbox)]),
                 "HWPX_SKILL_VERSION": args.skill_version,
-                "HWPX_MCP_ADVANCED": "1" if args.advanced else "0",
-                "HWPX_WORKFLOW_STORE": str(sandbox / "workflow.sqlite3"),
+                "HWPX_AUTOMATION_ADVANCED": "1" if args.advanced else "0",
+                "HWPX_AUTOMATION_WORKFLOW_STORE": str(
+                    sandbox / "workflow.sqlite3"
+                ),
                 "LOG_LEVEL": "ERROR",
             }
         )
-        if args.mcp_repo:
-            env["HWPX_MCP_SERVER_REPO"] = str(args.mcp_repo.resolve())
+        if args.automation_repo:
+            env["HWPX_AUTOMATION_REPO"] = str(args.automation_repo.resolve())
         if args.core_repo:
             env["PYTHON_HWPX_REPO"] = str(args.core_repo.resolve())
         if args.server_package:
-            env["HWPX_MCP_SERVER_PACKAGE"] = args.server_package
-            env["HWPX_MCP_DISABLE_LOCAL_EDITABLE"] = "1"
+            env["HWPX_AUTOMATION_PACKAGE"] = args.server_package
+            env["HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE"] = "1"
         if args.core_package:
             env["HWPX_PYTHON_HWPX_PACKAGE"] = args.core_package
         if args.expected_server_version:
-            env["HWPX_MCP_SERVER_VERSION"] = args.expected_server_version
+            env["HWPX_AUTOMATION_VERSION"] = args.expected_server_version
         if args.expected_core_version:
             env["HWPX_PYTHON_HWPX_VERSION"] = args.expected_core_version
         if args.server_runtime:
-            env["HWPX_MCP_RUNTIME_ROOT"] = str(args.server_runtime)
+            env["HWPX_AUTOMATION_RUNTIME_ROOT"] = str(args.server_runtime)
 
         params = StdioServerParameters(
             command=command,
@@ -418,13 +534,37 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                         "installed runtime contract hash mismatch: "
                         f"{runtime_contract_hash} != {contract['contractHash']}"
                     )
+                expected_versions = {
+                    "version": args.expected_server_version,
+                    "pythonHwpxVersion": args.expected_core_version,
+                    "skillBundleVersion": args.skill_version,
+                }
+                observed_versions = {
+                    key: health.get(key) for key in expected_versions
+                }
+                if observed_versions != expected_versions:
+                    raise RuntimeError(
+                        "installed health version mismatch: "
+                        f"{observed_versions} != {expected_versions}"
+                    )
+                server_info = health.get("serverInfo") or {}
+                if (
+                    health.get("server") != "python-hwpx-automation"
+                    or server_info.get("name") != "python-hwpx-automation"
+                    or server_info.get("canonicalMcpConsole")
+                    != "hwpx-automation-mcp"
+                    or server_info.get("hostConfigKeyRole") != "host-local-alias"
+                ):
+                    raise RuntimeError(
+                        f"installed product/MCP identity mismatch: {health}"
+                    )
                 workspace = health.get("workspace") or {}
                 observed_roots = [
                     Path(value).resolve() for value in workspace.get("roots", [])
                 ]
                 if workspace.get(
                     "source"
-                ) != "HWPX_MCP_WORKSPACE_ROOTS" or observed_roots != [
+                ) != "HWPX_AUTOMATION_WORKSPACE_ROOTS" or observed_roots != [
                     sandbox.resolve()
                 ]:
                     raise RuntimeError(
@@ -522,7 +662,20 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                     "renderReceipt": render_receipt,
                     "renderErrorCode": render_error_code,
                     "realRenderRequired": args.require_real_render,
-                    "versions": health.get("capability", {}).get("versions"),
+                    "versions": observed_versions,
+                    "serverInfo": server_info,
+                    "identity": {
+                        "fastMcpName": health.get("server"),
+                        "canonicalMcpConsole": server_info.get(
+                            "canonicalMcpConsole"
+                        ),
+                        "hostConfigKey": (
+                            args.mcp_server_name if args.mcp_config else None
+                        ),
+                        "hostConfigKeyRole": server_info.get(
+                            "hostConfigKeyRole"
+                        ),
+                    },
                     "workspace": workspace,
                     "outsideWorkspaceDenial": workspace_denials["outside"],
                     "workspaceDenials": workspace_denials,
@@ -540,35 +693,54 @@ def main() -> int:
         type=Path,
     )
     launch_group.add_argument("--mcp-config", type=Path)
-    parser.add_argument("--mcp-server-name", default="hwpx-mcp-server")
+    parser.add_argument(
+        "--mcp-server-name",
+        default=DEFAULT_MCP_CONFIG_KEY,
+        help=(
+            "host-local config key (default: hwpx); pass hwpx-mcp-server only "
+            "to exercise an existing 6.x config"
+        ),
+    )
     parser.add_argument(
         "--contract",
         type=Path,
         default=ROOT / "references" / "tool-contract.generated.json",
     )
-    parser.add_argument("--mcp-repo", type=Path)
+    parser.add_argument(
+        "--automation-repo",
+        "--mcp-repo",
+        dest="automation_repo",
+        type=Path,
+    )
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--server-package")
     parser.add_argument("--core-package")
-    parser.add_argument("--expected-server-version", default="4.3.0")
-    parser.add_argument("--expected-core-version", default="3.6.0")
+    parser.add_argument("--expected-server-version", default="6.0.0")
+    parser.add_argument("--expected-core-version", default="5.0.0")
     parser.add_argument(
         "--server-runtime", "--server-venv", dest="server_runtime", type=Path
     )
-    parser.add_argument("--skill-version", default="0.8.0")
+    parser.add_argument("--skill-version", default="1.0.0")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--require-real-render", action="store_true")
     parser.add_argument("--advanced", action="store_true")
     args = parser.parse_args()
     if args.launcher is None and args.mcp_config is None:
         args.launcher = (
-            ROOT / "plugins" / "codex" / "hwpx-plugin" / "scripts" / "hwpx-mcp-server"
+            ROOT
+            / "plugins"
+            / "codex"
+            / "hwpx-plugin"
+            / "scripts"
+            / "hwpx-automation-mcp"
         )
     if args.launcher is not None and not args.launcher.is_file():
         parser.error(f"launcher not found: {args.launcher}")
     if args.mcp_config is not None and not args.mcp_config.is_file():
         parser.error(f"MCP config not found: {args.mcp_config}")
+    _ensure_mcp_dependencies()
     report = anyio.run(_run, args)
+    report["installedRuntime"] = _probe_installed_runtime(args)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(
