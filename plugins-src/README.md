@@ -21,13 +21,13 @@ HWPX를 잘 모르는 사용자도 스킬만 설치하면 Claude Code·Codex·Cu
 알맞은 스크립트나 MCP 도구를 스스로 호출하고, 문서 처리는 코어 [python-hwpx](https://github.com/airmang/python-hwpx)가
 순수 파이썬으로 수행합니다.
 
-| | 레포 | 역할 |
+| 계층 | 저장소 | 정본 책임 |
 |---|---|---|
-| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | 순수 파이썬 HWPX 코어 |
-| 🤖 | [`python-hwpx-automation`](https://github.com/airmang/hwpx-mcp-server) | 고수준 문서 워크플로·정책·렌더·MCP 어댑터 |
-| 🎯 | **`hwpx-plugins`** | 에이전트용 플러그인·스킬 번들 (이 레포) |
+| Core | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX package/object model·OPC/OXML·직렬화·재사용 primitive |
+| Automation | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Python 자동화·워크플로·profile/policy·렌더·선택형 MCP adapter |
+| Judgment | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트 intent/genre 판단·ambiguity 처리·plugin/skill 가이드 |
 
-응용 저장소는 아직 GitHub에서 pre-rename 경로
+이 저장소는 위 표의 Judgment 정본입니다. 응용 저장소는 아직 GitHub에서 pre-rename 경로
 `airmang/hwpx-mcp-server`에 있지만, 6.0 후보의 정식 배포/import/MCP 콘솔은 각각
 `python-hwpx-automation`, `hwpx_automation`, `hwpx-automation-mcp`입니다.
 새 4-host 설정은 프로토콜 식별자와 별개인 host-local key `hwpx`와 canonical
