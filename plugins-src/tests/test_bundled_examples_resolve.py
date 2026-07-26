@@ -147,6 +147,23 @@ def test_nested_find_spec_keyerror_after_failed_root_import_is_reported(
         "```python linenums=\"1\"\nimport hwpx.module_that_does_not_exist\n```\n",
         "```{.python #example}\nimport hwpx.module_that_does_not_exist\n```\n",
         "```language-python\nimport hwpx.module_that_does_not_exist\n```\n",
+        (
+            "> ```python\n"
+            "> import hwpx.module_that_does_not_exist\n"
+            "> ```\n"
+        ),
+        (
+            "10. list item\n\n"
+            "    ```python\n"
+            "    import hwpx.module_that_does_not_exist\n"
+            "    ```\n"
+        ),
+        (
+            "-\tlist item\n\n"
+            "\t```python\n"
+            "\timport hwpx.module_that_does_not_exist\n"
+            "\t```\n"
+        ),
     ),
     ids=(
         "three-space-indented-uppercase",
@@ -154,6 +171,9 @@ def test_nested_find_spec_keyerror_after_failed_root_import_is_reported(
         "annotated-info-string",
         "attribute-info-string",
         "language-prefix",
+        "block-quote-container",
+        "ordered-list-container",
+        "tab-indented-list-container",
     ),
 )
 def test_commonmark_python_fence_forms_fail_closed_on_missing_import(
@@ -179,8 +199,14 @@ def test_commonmark_python_fence_forms_fail_closed_on_missing_import(
         "   ~~~JSON\n   {not-json}\n   ~~~\n",
         "```json title=\"invalid\"\n{not-json}\n```\n",
         "```{.json #payload}\n{not-json}\n```\n",
+        "> ```JSON\n> {not-json}\n> ```\n",
     ),
-    ids=("indented-tilde-uppercase", "annotated-info-string", "attribute-info-string"),
+    ids=(
+        "indented-tilde-uppercase",
+        "annotated-info-string",
+        "attribute-info-string",
+        "block-quote-container",
+    ),
 )
 def test_commonmark_json_fence_forms_fail_closed_on_invalid_json(
     tmp_path: Path,

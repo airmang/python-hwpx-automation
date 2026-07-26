@@ -17,6 +17,11 @@ FENCE_OPEN = re.compile(
     r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})(?P<info>[^\r\n]*)"
     r"(?:\r?\n)?$"
 )
+BLOCK_QUOTE_PREFIX = re.compile(r"^ {0,3}>[ \t]?")
+LIST_ITEM_OPEN = re.compile(
+    r"^(?P<indent> {0,3})(?:[*+-]|\d{1,9}[.)])"
+    r"(?P<spacing>[ \t]+)(?P<rest>.*?)(?:\r?\n)?$"
+)
 SUPPORTED_FENCE_LANGUAGES = frozenset({"python", "py", "python3", "json"})
 STACK_ROOTS = frozenset({"hwpx", "hwpx_automation", "hwpx_mcp_server"})
 
@@ -130,13 +135,104 @@ def _strip_fence_indent(line: str, indent: int) -> str:
     return line[min(indent, leading_spaces) :]
 
 
+def _visual_columns(text: str) -> int:
+    """Return CommonMark-style columns, expanding tabs to four-column stops."""
+
+    column = 0
+    for character in text:
+        column = (
+            column + (4 - column % 4)
+            if character == "\t"
+            else column + 1
+        )
+    return column
+
+
+def _strip_indent_columns(line: str, required: int) -> str | None:
+    """Remove required leading columns while preserving tab overshoot."""
+
+    column = 0
+    offset = 0
+    while offset < len(line) and column < required:
+        character = line[offset]
+        if character == " ":
+            column += 1
+        elif character == "\t":
+            column += 4 - column % 4
+        else:
+            return None
+        offset += 1
+    if column < required:
+        return None
+    return " " * (column - required) + line[offset:]
+
+
+def _strip_all_block_quotes(line: str) -> tuple[str, int]:
+    """Strip consecutive CommonMark block-quote markers from one line."""
+
+    depth = 0
+    while (match := BLOCK_QUOTE_PREFIX.match(line)) is not None:
+        line = line[match.end() :]
+        depth += 1
+    return line, depth
+
+
+def _strip_block_quote_depth(line: str, depth: int) -> str | None:
+    """Strip exactly the opener's block-quote depth or report container end."""
+
+    for _ in range(depth):
+        match = BLOCK_QUOTE_PREFIX.match(line)
+        if match is None:
+            return None
+        line = line[match.end() :]
+    return line
+
+
+def _container_content_line(
+    line: str,
+    *,
+    quote_depth: int,
+    list_indent: int | None,
+) -> str | None:
+    """Normalize one line inside the opener's quote/list container."""
+
+    line = _strip_block_quote_depth(line, quote_depth)
+    if line is None:
+        return None
+    if list_indent is None or not line.strip(" \t\r\n"):
+        return line
+    return _strip_indent_columns(line, list_indent)
+
+
 def _markdown_fences(text: str) -> Iterator[MarkdownFence]:
     """Yield supported CommonMark fenced code blocks with exact source lines."""
 
     lines = text.splitlines(keepends=True)
+    active_list_indents: dict[int, int] = {}
     line_index = 0
     while line_index < len(lines):
-        opener = FENCE_OPEN.match(lines[line_index])
+        logical_line, quote_depth = _strip_all_block_quotes(lines[line_index])
+        list_indent = active_list_indents.get(quote_depth)
+        if logical_line.strip(" \t\r\n"):
+            list_item = LIST_ITEM_OPEN.match(logical_line)
+            if list_item is not None:
+                list_indent = _visual_columns(
+                    logical_line[: list_item.start("rest")]
+                )
+                active_list_indents[quote_depth] = list_indent
+                logical_line = list_item.group("rest")
+            elif list_indent is not None:
+                continuation = _strip_indent_columns(
+                    logical_line,
+                    list_indent,
+                )
+                if continuation is None:
+                    active_list_indents.pop(quote_depth, None)
+                    list_indent = None
+                else:
+                    logical_line = continuation
+
+        opener = FENCE_OPEN.match(logical_line)
         if opener is None:
             line_index += 1
             continue
@@ -154,13 +250,26 @@ def _markdown_fences(text: str) -> Iterator[MarkdownFence]:
         )
         content_start = line_index + 1
         cursor = content_start
-        while cursor < len(lines) and closing.match(lines[cursor]) is None:
+        content_lines: list[str] = []
+        closed = False
+        while cursor < len(lines):
+            content_line = _container_content_line(
+                lines[cursor],
+                quote_depth=quote_depth,
+                list_indent=list_indent,
+            )
+            if content_line is None:
+                break
+            if closing.match(content_line) is not None:
+                closed = True
+                break
+            content_lines.append(content_line)
             cursor += 1
 
         if language is not None:
             code = "".join(
                 _strip_fence_indent(line, indent)
-                for line in lines[content_start:cursor]
+                for line in content_lines
             )
             yield MarkdownFence(
                 language=language,
@@ -168,8 +277,15 @@ def _markdown_fences(text: str) -> Iterator[MarkdownFence]:
                 first_line=content_start + 1,
             )
 
-        # An unclosed fence consumes the rest of the document under CommonMark.
-        line_index = cursor + 1 if cursor < len(lines) else len(lines)
+        # A top-level unclosed fence consumes the rest of the document. A
+        # quote/list fence ends when its container ends, and that outside line
+        # must be processed normally.
+        if closed:
+            line_index = cursor + 1
+        elif cursor < len(lines):
+            line_index = cursor
+        else:
+            line_index = len(lines)
 
 
 def _markdown_sources(
