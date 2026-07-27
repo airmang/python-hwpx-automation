@@ -3,15 +3,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import os
 import re
 import subprocess
+import tarfile
 import zipfile
 from pathlib import Path
 from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
+PINNED_ROOT = ROOT
 
 # Internal corpus-practice machinery is preserved outside the public repositories.
 # Keep this denylist exact: public fixture/oracle and real-Hancom verification
@@ -53,6 +56,35 @@ _INTERNAL_CODENAME_RE = re.compile(
 _INTERNAL_WORKTREE_RE = re.compile(
     rb"(?:python-hwpx(?:-automation)?|hwpx-mcp-server|hwpx-skill)-s[0-9]{3}\b",
     re.IGNORECASE,
+)
+_INTERNAL_IDENTIFIER_COUNT = 13
+_INTERNAL_IDENTIFIER_SHA256 = (
+    "77148a88acca7a059919a6c2ca40a6eed354297a823ea63784b546e9808c0de5"
+)
+_WORKSTATION_PATH = re.compile(
+    ("/" + "Users" + r"/[^/\s]+/").encode()
+    + b"|"
+    + ("/" + "home" + r"/[^/\s]+/").encode()
+    + b"|[A-Za-z]:\\\\[Uu]sers\\\\"
+)
+_TEXT_ARTIFACT_SUFFIXES = (
+    ".cfg",
+    ".json",
+    ".md",
+    ".py",
+    ".rst",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+)
+_REJECTED_ARTIFACT_PREFIXES = (
+    "tests/",
+    "shared/hwpx/",
+    "docs/superpowers/",
+    "examples/out/",
+    ".harness/",
+    ".omx/",
 )
 
 
@@ -292,6 +324,65 @@ def _internal_identifier_failures(files: list[RepositoryFile]) -> list[str]:
     return failures
 
 
+def _internal_identifier_inventory_failures(
+    files: list[RepositoryFile],
+    root: Path = ROOT,
+) -> list[str]:
+    """Reject drift beyond the frozen historical identifier inventory."""
+
+    if root != PINNED_ROOT:
+        return []
+    records = sorted(
+        {
+            f"{item.path}\0{match.decode('ascii')}"
+            for item in files
+            if (data := _text_bytes(item.data)) is not None
+            for pattern in (_INTERNAL_CODENAME_RE, _INTERNAL_WORKTREE_RE)
+            for match in pattern.findall(data)
+        }
+    )
+    digest = hashlib.sha256(
+        ("\n".join(records) + "\n").encode("utf-8")
+    ).hexdigest()
+    if (
+        len(records) == _INTERNAL_IDENTIFIER_COUNT
+        and digest == _INTERNAL_IDENTIFIER_SHA256
+    ):
+        return []
+    return [
+        (
+            "internal identifier source inventory differs from frozen baseline: "
+            f"count={len(records)} sha256={digest}"
+        )
+    ]
+
+
+def _rejected_artifact_member(member: str) -> bool:
+    return member.startswith(_REJECTED_ARTIFACT_PREFIXES) or any(
+        f"/{part}" in f"/{member}" for part in _REJECTED_ARTIFACT_PREFIXES
+    )
+
+
+def _artifact_text_failures(
+    item: RepositoryFile,
+    member: str,
+    data: bytes,
+) -> list[str]:
+    basename = Path(member).name
+    if not (
+        member.casefold().endswith(_TEXT_ARTIFACT_SUFFIXES)
+        or basename in {"METADATA", "PKG-INFO"}
+    ):
+        return []
+    display = f"{_location(item)}!{member}"
+    failures: list[str] = []
+    if _INTERNAL_CODENAME_RE.search(data) or _INTERNAL_WORKTREE_RE.search(data):
+        failures.append(f"internal Stage/worktree identifier in artifact: {display}")
+    if _WORKSTATION_PATH.search(data):
+        failures.append(f"workstation-shaped path in artifact: {display}")
+    return failures
+
+
 def _wheel_failures(
     files: list[RepositoryFile],
     root: Path = ROOT,
@@ -299,21 +390,13 @@ def _wheel_failures(
     """Inspect candidate wheel blobs plus ignored local dist artifacts."""
 
     failures: list[str] = []
-    rejected = (
-        "tests/",
-        "shared/hwpx/",
-        "docs/superpowers/",
-        "examples/out/",
-        ".harness/",
-        ".omx/",
-    )
     wheels = [
         item
         for item in files
         if item.path.startswith("dist/") and item.path.endswith(".whl")
     ]
     known = {(item.path, item.data) for item in wheels}
-    for wheel in sorted((root / "dist").glob("*.whl")):
+    for wheel in sorted((root / "dist").rglob("*.whl")):
         item = RepositoryFile(
             wheel.relative_to(root).as_posix(),
             "worktree",
@@ -331,10 +414,10 @@ def _wheel_failures(
         with archive_context as archive:
             names = archive.namelist()
             for name in names:
-                if name.startswith(rejected) or any(
-                    f"/{part}" in f"/{name}" for part in rejected
-                ):
+                data = archive.read(name)
+                if _rejected_artifact_member(name):
                     failures.append(f"{_location(item)} contains {name}")
+                failures.extend(_artifact_text_failures(item, name, data))
             for name in names:
                 if not name.endswith(".dist-info/METADATA"):
                     continue
@@ -350,6 +433,57 @@ def _wheel_failures(
                     for line in requirements
                 ):
                     failures.append(f"{_location(item)} declares modelcontextprotocol")
+    return failures
+
+
+def _sdist_failures(
+    files: list[RepositoryFile],
+    root: Path = ROOT,
+) -> list[str]:
+    """Inspect candidate sdist blobs plus ignored local dist artifacts."""
+
+    failures: list[str] = []
+    sdists = [
+        item
+        for item in files
+        if item.path.startswith("dist/") and item.path.endswith(".tar.gz")
+    ]
+    known = {(item.path, item.data) for item in sdists}
+    for sdist in sorted((root / "dist").rglob("*.tar.gz")):
+        item = RepositoryFile(
+            sdist.relative_to(root).as_posix(),
+            "worktree",
+            sdist.read_bytes(),
+        )
+        if (item.path, item.data) not in known:
+            sdists.append(item)
+
+    for item in sdists:
+        try:
+            with tarfile.open(
+                fileobj=io.BytesIO(item.data),
+                mode="r:gz",
+            ) as archive:
+                for member in archive.getmembers():
+                    if _rejected_artifact_member(member.name):
+                        failures.append(
+                            f"{_location(item)} contains {member.name}"
+                        )
+                    if not member.isfile():
+                        continue
+                    extracted = archive.extractfile(member)
+                    if extracted is None:
+                        continue
+                    failures.extend(
+                        _artifact_text_failures(
+                            item,
+                            member.name,
+                            extracted.read(),
+                        )
+                    )
+        except tarfile.TarError:
+            failures.append(f"invalid sdist archive: {_location(item)}")
+            continue
     return failures
 
 
@@ -420,12 +554,6 @@ def _collect_failures(root: Path = ROOT) -> tuple[str, int, list[str]]:
     )
     failures.extend(f"tracked file is ignored: {path}" for path in tracked_ignored)
 
-    workstation_path = re.compile(
-        ("/" + "Users" + r"/[^/\s]+/").encode()
-        + b"|"
-        + ("/" + "home" + r"/[^/\s]+/").encode()
-        + b"|[A-Za-z]:\\\\[Uu]sers\\\\"
-    )
     private_markers = [b">" + b"ko" + b"kyu" + b"<"]
     private_markers.extend(
         value.strip().encode("utf-8")
@@ -437,16 +565,18 @@ def _collect_failures(root: Path = ROOT) -> tuple[str, int, list[str]]:
         data = _text_bytes(item.data)
         if data is None:
             continue
-        if workstation_path.search(data):
+        if _WORKSTATION_PATH.search(data):
             failures.append(f"workstation-shaped path: {_location(item)}")
         if any(marker in data for marker in private_markers):
             failures.append(f"private-origin marker: {_location(item)}")
 
-    failures.extend(_hwpx_member_failures(files, workstation_path, private_markers))
+    failures.extend(_hwpx_member_failures(files, _WORKSTATION_PATH, private_markers))
     failures.extend(_action_pin_failures(files))
     failures.extend(_wheel_failures(files, root))
+    failures.extend(_sdist_failures(files, root))
     failures.extend(_private_practice_surface_failures(files))
     failures.extend(_internal_identifier_failures(files))
+    failures.extend(_internal_identifier_inventory_failures(files, root))
     return kind, len(paths), sorted(set(failures))
 
 

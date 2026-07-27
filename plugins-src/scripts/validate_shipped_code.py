@@ -8,6 +8,7 @@ import importlib
 import importlib.util
 import json
 import re
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
@@ -25,6 +26,8 @@ LIST_ITEM_OPEN = re.compile(
 MAX_CONTAINER_DEPTH = 32
 SUPPORTED_FENCE_LANGUAGES = frozenset({"python", "py", "python3", "json"})
 STACK_ROOTS = frozenset({"hwpx", "hwpx_automation", "hwpx_mcp_server"})
+# Optional repository-QA projections are intentionally not shipped in bundles.
+ABSOLUTE_IMPORT_ALLOWLIST = frozenset({"benchmark"})
 
 
 class PythonSource(NamedTuple):
@@ -68,6 +71,14 @@ class StackAttributeUse(NamedTuple):
     module: str
     attributes: tuple[str, ...]
     used_as_call: bool
+
+
+class AbsoluteImport(NamedTuple):
+    """One absolute import root that must exist in the shipped environment."""
+
+    label: str
+    line: int
+    root: str
 
 
 def _skill_roots(root: Path = ROOT) -> list[Path]:
@@ -462,6 +473,72 @@ def _stack_references(
     return imports, attribute_uses
 
 
+def _absolute_imports(source: PythonSource) -> list[AbsoluteImport]:
+    """Return every absolute import root, excluding relative imports."""
+
+    tree = ast.parse(source.code, filename=source.label)
+    imports: set[AbsoluteImport] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            line = source.first_line + node.lineno - 1
+            imports.update(
+                AbsoluteImport(source.label, line, alias.name.split(".")[0])
+                for alias in node.names
+            )
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module
+        ):
+            line = source.first_line + node.lineno - 1
+            imports.add(
+                AbsoluteImport(
+                    source.label,
+                    line,
+                    node.module.split(".")[0],
+                )
+            )
+    return sorted(imports)
+
+
+def _source_module_search_paths(source: PythonSource) -> list[Path]:
+    """Return script-local paths that normal direct execution puts on sys.path."""
+
+    label_path = Path(source.label.split("#", 1)[0])
+    source_path = label_path if label_path.is_absolute() else ROOT / label_path
+    candidates = [source_path.parent]
+    for skill_root in _skill_roots():
+        candidates.extend(
+            (
+                skill_root,
+                skill_root / "scripts",
+                skill_root / "examples",
+            )
+        )
+    return list(dict.fromkeys(path for path in candidates if path.is_dir()))
+
+
+def _find_absolute_spec(
+    module: str,
+    source: PythonSource,
+):
+    """Resolve globally installed or shipped script-local top-level modules."""
+
+    inserted: list[str] = []
+    for path in reversed(_source_module_search_paths(source)):
+        rendered = str(path)
+        if rendered not in sys.path:
+            sys.path.insert(0, rendered)
+            inserted.append(rendered)
+    try:
+        importlib.invalidate_caches()
+        return importlib.util.find_spec(module)
+    finally:
+        for rendered in inserted:
+            sys.path.remove(rendered)
+        importlib.invalidate_caches()
+
+
 def find_stack_import_failures(sources: list[PythonSource]) -> list[str]:
     """Resolve module, imported name, and relevant direct-call contracts."""
 
@@ -469,10 +546,36 @@ def find_stack_import_failures(sources: list[PythonSource]) -> list[str]:
     for source in sources:
         try:
             imports, attribute_uses = _stack_references(source)
+            absolute_imports = _absolute_imports(source)
         except SyntaxError as exc:
             line = source.first_line + (exc.lineno or 1) - 1
             failures.append(f"{source.label}:{line}: 문법 오류 — {exc.msg}")
             continue
+
+        for item in absolute_imports:
+            if (
+                item.root in STACK_ROOTS
+                or item.root in ABSOLUTE_IMPORT_ALLOWLIST
+            ):
+                continue
+            location = f"{item.label}:{item.line}"
+            try:
+                spec = _find_absolute_spec(item.root, source)
+            except (
+                ImportError,
+                KeyError,
+                ModuleNotFoundError,
+                ValueError,
+            ) as exc:
+                failures.append(
+                    f"{location}: 절대 import 모듈 해석 실패 — {item.root}: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                continue
+            if spec is None:
+                failures.append(
+                    f"{location}: 절대 import 모듈 없음 — {item.root}"
+                )
 
         for item in imports:
             location = f"{item.label}:{item.line}"

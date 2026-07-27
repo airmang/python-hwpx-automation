@@ -101,6 +101,47 @@ def test_markdown_stack_import_mutations_fail_closed(
     assert f"references/mutation.md#python-fence-1:{expected_line}" in failures[0]
 
 
+@pytest.mark.parametrize(
+    ("code", "expected_line"),
+    (
+        ("import module_that_does_not_exist_anywhere\n", 23),
+        ("from module_that_does_not_exist_anywhere import value\n", 23),
+    ),
+    ids=("absolute-import", "absolute-import-from"),
+)
+def test_non_stack_absolute_imports_must_resolve(
+    code: str,
+    expected_line: int,
+) -> None:
+    validator = _validator_module()
+    source = validator.PythonSource(
+        "references/mutation.md#python-fence-1",
+        code,
+        expected_line,
+    )
+
+    failures = validator.find_stack_import_failures([source])
+
+    assert failures == [
+        (
+            "references/mutation.md#python-fence-1:"
+            f"{expected_line}: 절대 import 모듈 없음 — "
+            "module_that_does_not_exist_anywhere"
+        )
+    ]
+
+
+def test_relative_imports_are_outside_standalone_fence_resolution() -> None:
+    validator = _validator_module()
+    source = validator.PythonSource(
+        "references/relative.md#python-fence-1",
+        "from . import sibling\nfrom ..package import value\n",
+        11,
+    )
+
+    assert validator.find_stack_import_failures([source]) == []
+
+
 def test_nested_find_spec_keyerror_after_failed_root_import_is_reported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
