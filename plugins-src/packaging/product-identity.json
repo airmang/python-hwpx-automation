@@ -6,9 +6,9 @@
     "candidate": {
       "pythonHwpx": "5.0.1",
       "canonicalDistribution": "python-hwpx-automation",
-      "canonicalAutomation": "6.0.1",
+      "canonicalAutomation": "6.0.2",
       "compatibilityDistribution": "hwpx-mcp-server",
-      "compatibility": "6.0.1",
+      "compatibility": "6.0.2",
       "plugin": "1.0.0",
       "contractHash": "0ce938371f0b55a6"
     },
@@ -58,7 +58,7 @@
       "hostConfigKey": "hwpx",
       "hostConfigKeyKind": "local-alias",
       "launcherPath": "scripts/hwpx-automation-mcp",
-      "currentVersion": "6.0.1",
+      "currentVersion": "6.0.2",
       "minimumCompatibleVersion": "6.0.0",
       "maturity": "not-declared",
       "mcpExtra": "mcp",
