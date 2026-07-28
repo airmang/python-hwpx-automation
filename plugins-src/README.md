@@ -14,7 +14,7 @@
   </p>
 </p>
 
-<!-- release-state: release-approved -->
+<!-- release-state: released -->
 
 HWPX를 잘 모르는 사용자도 스킬만 설치하면 Claude Code·Codex·Cursor 같은 에이전트에게 자연어로
 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는 `SKILL.md`의 의사결정 트리를 따라
@@ -27,9 +27,10 @@ HWPX를 잘 모르는 사용자도 스킬만 설치하면 Claude Code·Codex·Cu
 | Automation | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Python 자동화·워크플로·profile/policy·렌더·선택형 MCP adapter |
 | Judgment | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트 intent/genre 판단·ambiguity 처리·plugin/skill 가이드 |
 
-이 저장소는 위 표의 Judgment 정본입니다. 응용 저장소는 아직 GitHub에서 pre-rename 경로
-`airmang/hwpx-mcp-server`에 있지만, 6.0 후보의 정식 배포/import/MCP 콘솔은 각각
-`python-hwpx-automation`, `hwpx_automation`, `hwpx-automation-mcp`입니다.
+이 저장소는 위 표의 Judgment 정본입니다. 응용 저장소는
+`airmang/python-hwpx-automation`으로 rename 완료됐으며, 정식
+배포/import/MCP 콘솔은 각각 `python-hwpx-automation`, `hwpx_automation`,
+`hwpx-automation-mcp`입니다.
 새 4-host 설정은 프로토콜 식별자와 별개인 host-local key `hwpx`와 canonical
 launcher `scripts/hwpx-automation-mcp`를 사용합니다. 기존
 `hwpx-mcp-server` 배포·import·콘솔·설정 키와 `scripts/hwpx-mcp-server`
@@ -59,10 +60,9 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 마지막으로 plugin 설치까지 함께 검증한 조합 | `python-hwpx 4.2.0` · `hwpx-mcp-server 5.1.0` · `hwpx-plugin 0.8.0` |
-| 미발행 후보 | 이 checkout에서 검증 중이며 아직 공개 릴리스가 아닌 조합 | `python-hwpx 5.0.1` · `python-hwpx-automation 6.0.4` · `hwpx-plugin 1.0.0` |
-| 최소 호환 버전 | 1.0 후보 스킬 계약이 지원할 예정인 가장 낮은 조합 | `python-hwpx >= 5.0.0` · `python-hwpx-automation >= 6.0.0` · skill `>= 1.0.0` |
-| 플러그인 설치 핀 | 후보 검증용 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.0.1` · `python-hwpx-automation[mcp,oracle]==6.0.4` |
+| 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (released 2026-07-28) | `python-hwpx 5.0.1` · `python-hwpx-automation 6.0.4` · `hwpx-plugin 1.0.0` |
+| 최소 호환 버전 | 1.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 5.0.0` · `python-hwpx-automation >= 6.0.0` · skill `>= 1.0.0` |
+| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.0.1` · `python-hwpx-automation[mcp,oracle]==6.0.4` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
@@ -94,7 +94,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 ## 실측은 코어가 말합니다
 
 이 번들의 문서 능력은 코어 [python-hwpx](https://github.com/airmang/python-hwpx)와
-응용 계층 [python-hwpx-automation](https://github.com/airmang/hwpx-mcp-server)이 수행합니다. 산출물이 실제
+응용 계층 [python-hwpx-automation](https://github.com/airmang/python-hwpx-automation)이 수행합니다. 산출물이 실제
 한컴오피스에서 열리는지는 코어가 동결 코퍼스 전수를 측정해 그대로 공개합니다 —
 [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html). 스킬은 이 계약 위에서
 도구 선택과 evidence 루프만 조율합니다.
@@ -118,7 +118,7 @@ canonical `SKILL.md`·`references/`·`examples/`·`scripts/`를 편집한 뒤
 
 ## 감사의 말
 
-[python-hwpx](https://github.com/airmang/python-hwpx) · [python-hwpx-automation](https://github.com/airmang/hwpx-mcp-server) 위에서 동작하며, 아래 공개 표준·프로젝트에 빚지고 있습니다.
+[python-hwpx](https://github.com/airmang/python-hwpx) · [python-hwpx-automation](https://github.com/airmang/python-hwpx-automation) 위에서 동작하며, 아래 공개 표준·프로젝트에 빚지고 있습니다.
 
 - **[OWPML — 개방형 워드프로세서 마크업 언어 (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985)** — HWPX가 기반하는 한국 산업 표준
 - **[hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model)** — OWPML 요소 구조 참조 모델 · **[neolord0/hwpxlib](https://github.com/neolord0/hwpxlib)** — 오라클 샘플 코퍼스

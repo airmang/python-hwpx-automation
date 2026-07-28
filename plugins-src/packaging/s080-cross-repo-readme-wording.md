@@ -1,7 +1,7 @@
-# Cross-repository README wording — 현재 공개 릴리스와 승인된 train
+# Cross-repository README wording — 현재 공개 릴리스
 
-릴리스 상태: `release-approved` — 6.0.4/5.0.1/1.0.0 train 발행이 승인되어 진행
-중이며, 원격 truth 관찰 전까지 공개 좌표는 4.2.0/5.1.0/0.8.0이다.
+릴리스 상태: `released` (2026-07-28) — 공개 트레인은
+core 5.0.1 / `python-hwpx-automation` 6.0.4 / plugin 1.0.0이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
 `python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의
@@ -72,9 +72,8 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 `hwpx-mcp-server 5.1.0`이며 공개 플러그인은
-> `hwpx-plugin 0.8.0`, 공개 코어는 `python-hwpx 4.2.0`입니다.
-> `python-hwpx-automation 6.0.4` / `python-hwpx 5.0.1` /
-> `hwpx-plugin 1.0.0`은 미발행 후보입니다. 후보 번들은 재현 검증을 위해
+> 현재 공개 릴리스는 `python-hwpx-automation 6.0.4`이며 공개 플러그인은
+> `hwpx-plugin 1.0.0`, 공개 코어는 `python-hwpx 5.0.1`입니다(released
+> 2026-07-28). 번들은 재현 검증을 위해
 > `python-hwpx-automation[mcp,oracle]==6.0.4`과
 > `python-hwpx[preview]==5.0.1`을 고정합니다.
