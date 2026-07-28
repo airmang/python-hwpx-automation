@@ -4,7 +4,7 @@
   "releaseState": {
     "status": "release-approved",
     "candidate": {
-      "pythonHwpx": "5.0.0",
+      "pythonHwpx": "5.0.1",
       "canonicalDistribution": "python-hwpx-automation",
       "canonicalAutomation": "6.0.0",
       "compatibilityDistribution": "hwpx-mcp-server",
@@ -42,7 +42,7 @@
       "repository": "python-hwpx",
       "distribution": "python-hwpx",
       "importName": "hwpx",
-      "currentVersion": "5.0.0",
+      "currentVersion": "5.0.1",
       "minimumCompatibleVersion": "5.0.0",
       "maturity": "alpha",
       "maturityEvidence": "Development Status :: 3 - Alpha"

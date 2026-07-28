@@ -261,7 +261,7 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "`python-hwpx 4.2.0`" in text
         assert "`hwpx-mcp-server 5.1.0`" in text
         assert "`hwpx-plugin 0.8.0`" in text
-        assert "`python-hwpx 5.0.0`" in text
+        assert "`python-hwpx 5.0.1`" in text
         assert "`python-hwpx-automation 6.0.0`" in text
         assert "`hwpx-plugin 1.0.0`" in text
         assert "공개 릴리스" in text
@@ -326,7 +326,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert identity["releaseState"] == {
         "status": "release-approved",
         "candidate": {
-            "pythonHwpx": "5.0.0",
+            "pythonHwpx": "5.0.1",
             "canonicalDistribution": "python-hwpx-automation",
             "canonicalAutomation": "6.0.0",
             "compatibilityDistribution": "hwpx-mcp-server",
@@ -358,7 +358,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         "application": {"distribution": "hwpx-mcp-server", "version": "5.1.0"},
         "plugin": {"installedPluginId": "hwpx-plugin", "version": "0.8.0"},
     }
-    assert components["core"]["currentVersion"] == "5.0.0"
+    assert components["core"]["currentVersion"] == "5.0.1"
     assert components["core"]["minimumCompatibleVersion"] == "5.0.0"
     assert components["automation"]["currentVersion"] == "6.0.0"
     assert components["automation"]["minimumCompatibleVersion"] == "6.0.0"
@@ -419,7 +419,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         cross_readme += "\nrelease-approved: remote truth is still pending.\n"
     else:
         promoted = {
-            "pythonHwpx": "5.0.0",
+            "pythonHwpx": "5.0.1",
             "primaryDistribution": "python-hwpx-automation",
             "primaryApplication": "6.0.0",
             "plugin": "1.0.0",
@@ -427,7 +427,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         }
         identity["releaseState"]["currentPublic"] = promoted
         identity["currentPublicStack"] = {
-            "core": {"distribution": "python-hwpx", "version": "5.0.0"},
+            "core": {"distribution": "python-hwpx", "version": "5.0.1"},
             "application": {
                 "distribution": "python-hwpx-automation",
                 "version": "6.0.0",
@@ -447,7 +447,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         api += "\nreleased\n"
         cross_readme += (
             "\nreleased\n"
-            "python-hwpx 5.0.0\n"
+            "python-hwpx 5.0.1\n"
             "python-hwpx-automation 6.0.0\n"
             "hwpx-plugin 1.0.0\n"
         )

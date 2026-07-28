@@ -19,7 +19,7 @@ hermes skills publish plugins/hermes/hwpx --to github --repo airmang/hwpx-plugin
 mcp_servers:
   hwpx:
     command: uvx
-    args: ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==5.0.0", "--from", "python-hwpx-automation[mcp,oracle]==6.0.0", "hwpx-automation-mcp"]
+    args: ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==5.0.1", "--from", "python-hwpx-automation[mcp,oracle]==6.0.0", "hwpx-automation-mcp"]
     env:
       HWPX_AUTOMATION_ADVANCED: "0"
       HWPX_AUTOMATION_AUTOBACKUP: "1"
