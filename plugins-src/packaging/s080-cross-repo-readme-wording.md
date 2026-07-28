@@ -1,4 +1,7 @@
-# Cross-repository README wording — 현재 공개 릴리스와 미발행 후보
+# Cross-repository README wording — 현재 공개 릴리스와 승인된 train
+
+릴리스 상태: `release-approved` — 6.0.0/5.0.0/1.0.0 train 발행이 승인되어 진행
+중이며, 원격 truth 관찰 전까지 공개 좌표는 4.2.0/5.1.0/0.8.0이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
 `python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의

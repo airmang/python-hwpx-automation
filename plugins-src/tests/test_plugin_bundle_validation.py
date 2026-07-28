@@ -324,7 +324,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     assert identity["releaseState"] == {
-        "status": "unreleased-candidate",
+        "status": "release-approved",
         "candidate": {
             "pythonHwpx": "5.0.0",
             "canonicalDistribution": "python-hwpx-automation",
@@ -405,9 +405,11 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
     cross_readme_path = (
         checkout / "packaging" / "s080-cross-repo-readme-wording.md"
     )
-    readme = readme_path.read_text(encoding="utf-8").replace(
-        "<!-- release-state: unreleased-candidate -->",
+    readme = re.sub(
+        r"<!-- release-state: [a-z-]+ -->",
         f"<!-- release-state: {status} -->",
+        readme_path.read_text(encoding="utf-8"),
+        count=1,
     )
     api = api_path.read_text(encoding="utf-8")
     cross_readme = cross_readme_path.read_text(encoding="utf-8")
