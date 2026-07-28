@@ -162,7 +162,7 @@ def _probe_installed_runtime(
     )
     payload = json.loads(completed.stdout)
     expected_versions = {
-        "python-hwpx": "5.0.0",
+        "python-hwpx": "5.0.1",
         "python-hwpx-automation": "6.0.0",
     }
     if payload.get("versions") != expected_versions:
@@ -232,7 +232,7 @@ def _probe_editable_runtime(
     )
     payload = json.loads(completed.stdout)
     expected_versions = {
-        "python-hwpx": "5.0.0",
+        "python-hwpx": "5.0.1",
         "python-hwpx-automation": "6.0.0",
     }
     if payload.get("versions") != expected_versions:
