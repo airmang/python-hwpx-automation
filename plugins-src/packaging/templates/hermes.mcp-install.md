@@ -6,7 +6,7 @@ server there.
 
 ## Candidate publishing command (do not run before release approval)
 
-The `1.0.0 / 6.0.0 / 5.0.0` coordinates below are an unpublished candidate.
+The `1.0.0 / 6.0.0 / 5.0.1` coordinates below are an unpublished candidate.
 The current public stack remains `0.8.0 / 5.1.0 / 4.2.0`.
 
 ```bash
