@@ -14,7 +14,7 @@
   </p>
 </p>
 
-<!-- release-state: unreleased-candidate -->
+<!-- release-state: release-approved -->
 
 HWPX를 잘 모르는 사용자도 스킬만 설치하면 Claude Code·Codex·Cursor 같은 에이전트에게 자연어로
 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는 `SKILL.md`의 의사결정 트리를 따라
