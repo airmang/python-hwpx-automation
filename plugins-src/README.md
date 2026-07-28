@@ -8,7 +8,7 @@
   </p>
   <p align="center">
     <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=core" alt="core"></a>
-    <a href="https://pypi.org/project/hwpx-mcp-server/"><img src="https://img.shields.io/pypi/v/hwpx-mcp-server?color=blue&label=mcp" alt="mcp"></a>
+    <a href="https://pypi.org/project/python-hwpx-automation/"><img src="https://img.shields.io/pypi/v/python-hwpx-automation?color=blue&label=automation" alt="automation"></a>
     <a href="https://github.com/airmang/hwpx-plugins"><img src="https://img.shields.io/badge/plugin-hwpx--plugin-181717" alt="plugin"></a>
     <a href="https://github.com/airmang/hwpx-plugins/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
   </p>
@@ -16,25 +16,22 @@
 
 <!-- release-state: released -->
 
-HWPX를 잘 모르는 사용자도 스킬만 설치하면 Claude Code·Codex·Cursor 같은 에이전트에게 자연어로
-말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는 `SKILL.md`의 의사결정 트리를 따라
-알맞은 스크립트나 MCP 도구를 스스로 호출하고, 문서 처리는 코어 [python-hwpx](https://github.com/airmang/python-hwpx)가
-순수 파이썬으로 수행합니다.
+HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
+에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
+`SKILL.md`의 의사결정 트리를 따라 알맞은 스크립트와 MCP 도구를 스스로 고르고,
+문서 처리는 코어 [python-hwpx](https://github.com/airmang/python-hwpx)가 순수
+파이썬으로 수행합니다.
 
-| 계층 | 저장소 | 정본 책임 |
+| | 저장소 | 역할 |
 |---|---|---|
-| Core | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX package/object model·OPC/OXML·직렬화·재사용 primitive |
-| Automation | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | Python 자동화·워크플로·profile/policy·렌더·선택형 MCP adapter |
-| Judgment | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트 intent/genre 판단·ambiguity 처리·plugin/skill 가이드 |
+| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX 문서를 읽고·고치고·만드는 순수 파이썬 엔진 |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 저작·양식 채움 워크플로, `hwpx` CLI, 선택형 MCP 서버 |
+| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트가 알맞은 도구를 고르도록 돕는 플러그인/스킬 번들 |
 
-이 저장소는 위 표의 Judgment 정본입니다. 응용 저장소는
-`airmang/python-hwpx-automation`으로 rename 완료됐으며, 정식
-배포/import/MCP 콘솔은 각각 `python-hwpx-automation`, `hwpx_automation`,
-`hwpx-automation-mcp`입니다.
-새 4-host 설정은 프로토콜 식별자와 별개인 host-local key `hwpx`와 canonical
-launcher `scripts/hwpx-automation-mcp`를 사용합니다. 기존
-`hwpx-mcp-server` 배포·import·콘솔·설정 키와 `scripts/hwpx-mcp-server`
-wrapper는 6.x 호환 표면입니다.
+응용 저장소는 `python-hwpx-automation`으로 이름을 바꿨습니다 — 정식 배포·
+import·콘솔은 각각 `python-hwpx-automation` · `hwpx_automation` ·
+`hwpx-automation-mcp`이고, 기존 `hwpx-mcp-server` 표면은 6.x 동안 그대로
+동작합니다.
 
 ## 시작하기
 
@@ -56,28 +53,7 @@ Cursor는 canonical skill 파일을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.
 `plugins/hermes/hwpx`)에 MCP 배선 안내가 함께 들어 있습니다. 저장소 이름 `hwpx-plugins`와 설치되는
 skill 이름 `hwpx`를 혼동하지 마세요.
 
-### 버전·호환성·성숙도
-
-| 구분 | 의미 | 현재 값 |
-|---|---|---|
-| 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (released 2026-07-28) | `python-hwpx 5.0.1` · `python-hwpx-automation 6.0.4` · `hwpx-plugin 1.0.0` |
-| 최소 호환 버전 | 1.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 5.0.0` · `python-hwpx-automation >= 6.0.0` · skill `>= 1.0.0` |
-| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.0.1` · `python-hwpx-automation[mcp,oracle]==6.0.4` |
-
-- 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
-- MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
-
-## 무엇을 하나
-
-- **에이전트 온보딩 스킬** — `SKILL.md` 의사결정 트리로 에이전트가 요청 성격에 따라 알맞은 스크립트·MCP 도구를 스스로 고름
-- **문서 능력 한 벌** — 코어의 HWPX primitive와 automation의 고수준 워크플로를 조합해 읽기·양식 채움·생성·편집·공문서·신구대조표·mail merge 수행
-- **MCP 서버 동봉 배선** — 호스트별 MCP 설정과 런처가 포함되어 스킬과 도구가 한 번에 로드됨
-- **호스트별 번들** — Claude Code·Codex·Cursor·OpenClaw·Hermes 진입점을 한 canonical 소스에서 빌드
-- **신뢰 루프** — `render_preview` 페이지 PNG 자기검증·package/schema/text 검증·시각 검토 evidence 계약
-
-자세한 내용: [SKILL.md](SKILL.md) · [references/](references/)
-
-### 에이전트에게 말 걸기
+## 에이전트에게 말 걸기
 
 설치 후 사용자가 직접 파이썬을 칠 일은 거의 없습니다. 에이전트에게 자연어로 말하면 스킬이 트리거됩니다.
 
@@ -91,13 +67,29 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 > **예시 —** 사용자: "첨부한 가정통신문 양식에서 학교명이랑 날짜만 우리 학교 걸로 바꿔서 새 파일로 줘."
 > 에이전트가 원본을 보존한 채 form-fit으로 값을 채우고, 패키지·스키마 검증을 거친 새 파일을 돌려줍니다.
 
-## 실측은 코어가 말합니다
+## 무엇을 하나
 
-이 번들의 문서 능력은 코어 [python-hwpx](https://github.com/airmang/python-hwpx)와
-응용 계층 [python-hwpx-automation](https://github.com/airmang/python-hwpx-automation)이 수행합니다. 산출물이 실제
-한컴오피스에서 열리는지는 코어가 동결 코퍼스 전수를 측정해 그대로 공개합니다 —
-[실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html). 스킬은 이 계약 위에서
-도구 선택과 evidence 루프만 조율합니다.
+- **에이전트 온보딩 스킬** — `SKILL.md` 의사결정 트리로 요청 성격에 맞는 스크립트·MCP 도구를 스스로 선택
+- **문서 능력 한 벌** — 읽기·양식 채움·생성·편집·공문서·신구대조표·mail merge
+- **MCP 서버 동봉 배선** — 호스트별 MCP 설정과 런처가 포함되어 스킬과 도구가 한 번에 로드
+- **호스트별 번들** — Claude Code·Codex·Cursor·OpenClaw·Hermes 진입점을 한 canonical 소스에서 빌드
+- **신뢰 루프** — `render_preview` 페이지 PNG 자기검증·package/schema/text 검증·시각 검토 evidence
+
+자세한 내용: [SKILL.md](SKILL.md) · [references/](references/)
+
+## 버전·호환성·성숙도
+
+| 구분 | 의미 | 현재 값 |
+|---|---|---|
+| 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (released 2026-07-28) | `python-hwpx 5.0.1` · `python-hwpx-automation 6.0.4` · `hwpx-plugin 1.0.0` |
+| 최소 호환 버전 | 1.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 5.0.0` · `python-hwpx-automation >= 6.0.0` · skill `>= 1.0.0` |
+| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.0.1` · `python-hwpx-automation[mcp,oracle]==6.0.4` |
+
+- 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
+- MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
+
+산출물이 실제 한컴오피스에서 열리는지는 코어가 동결 코퍼스 전수로 측정해 그대로
+공개합니다 — [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html).
 
 ## 알려진 제약
 
