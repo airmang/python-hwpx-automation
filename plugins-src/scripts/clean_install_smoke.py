@@ -163,7 +163,7 @@ def _probe_installed_runtime(
     payload = json.loads(completed.stdout)
     expected_versions = {
         "python-hwpx": "5.0.1",
-        "python-hwpx-automation": "6.0.2",
+        "python-hwpx-automation": "6.0.3",
     }
     if payload.get("versions") != expected_versions:
         raise RuntimeError(
@@ -233,7 +233,7 @@ def _probe_editable_runtime(
     payload = json.loads(completed.stdout)
     expected_versions = {
         "python-hwpx": "5.0.1",
-        "python-hwpx-automation": "6.0.2",
+        "python-hwpx-automation": "6.0.3",
     }
     if payload.get("versions") != expected_versions:
         raise RuntimeError(
@@ -365,7 +365,7 @@ def main() -> int:
                 "HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE": "1",
                 "HWPX_AUTOMATION_PACKAGE": server_package,
                 "HWPX_PYTHON_HWPX_PACKAGE": core_package,
-                "HWPX_AUTOMATION_VERSION": "6.0.2",
+                "HWPX_AUTOMATION_VERSION": "6.0.3",
                 "HWPX_PYTHON_HWPX_VERSION": "5.0.1",
                 "HWPX_SKILL_VERSION": "1.0.0",
                 "HWPX_AUTOMATION_RUNTIME_ROOT": str(runtime_root),

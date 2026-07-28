@@ -715,7 +715,7 @@ def main() -> int:
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--server-package")
     parser.add_argument("--core-package")
-    parser.add_argument("--expected-server-version", default="6.0.2")
+    parser.add_argument("--expected-server-version", default="6.0.3")
     parser.add_argument("--expected-core-version", default="5.0.1")
     parser.add_argument(
         "--server-runtime", "--server-venv", dest="server_runtime", type=Path
