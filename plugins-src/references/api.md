@@ -86,10 +86,10 @@ table.set_cell_text(1, 1, "홍길동")
 doc.save_to_path("table-example.hwpx")
 ```
 
-현재 공개 문서화 기준(4.2.0) 시그니처:
+현재 공개 문서화 기준(5.0.1) 시그니처:
 
-- `add_table(rows, cols, *, section=None, section_index=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style_id_ref=None, char_pr_id_ref=None, run_attributes=None, **extra_attrs) -> HwpxOxmlTable`
-- `set_cell_text(row_index, col_index, text, *, logical=False, split_merged=False) -> None`
+- `add_table(rows, cols, *, section=None, section_index=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style_id_ref=None, char_pr_id_ref=None, run_attributes=None, inherit_style=False, **extra_attrs) -> HwpxOxmlTable`
+- `set_cell_text(row_index, col_index, text, *, logical=False, split_merged=False, preserve_format=True, split_paragraphs=False, fit=None, ledger=None) -> FitResult | None`
 
 주의:
 
@@ -111,7 +111,7 @@ memo, anchor_paragraph, field_value = doc.add_memo_with_anchor(
 )
 ```
 
-현재 공개 문서화 기준(4.2.0) 시그니처:
+현재 공개 문서화 기준(5.0.1) 시그니처:
 
 - `add_memo_with_anchor(text="", *, paragraph=None, section=None, section_index=None, paragraph_text=None, memo_shape_id_ref=None, memo_id=None, char_pr_id_ref=None, attributes=None, field_id=None, author=None, created=None, number=1, anchor_char_pr_id_ref=None) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]`
 
@@ -132,7 +132,7 @@ with HwpxDocument.open("input.hwpx") as doc:
     doc.save_to_path("output.hwpx")
 ```
 
-현재 공개 문서화 기준(4.2.0) 시그니처:
+현재 공개 문서화 기준(5.0.1) 시그니처:
 
 - `find_runs_by_style(*, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None) -> list[HwpxOxmlRun]`
 - `replace_text_in_runs(search, replacement, *, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None, limit=None) -> int`
@@ -443,7 +443,7 @@ text = tex.extract_text(
 )
 ```
 
-현재 공개 문서화 기준(4.2.0) 시그니처:
+현재 공개 문서화 기준(5.0.1) 시그니처:
 
 - `extract_text(*, paragraph_separator="\n", skip_empty=True, include_nested=True, object_behavior="skip", object_placeholder=None, preserve_breaks=True, annotations=None) -> str`
 
@@ -457,7 +457,7 @@ for paragraph in tex.iter_document_paragraphs(include_nested=True):
     print(paragraph.section.index, paragraph.index, paragraph.path, paragraph.text())
 ```
 
-현재 공개 문서화 기준(4.2.0) 시그니처:
+현재 공개 문서화 기준(5.0.1) 시그니처:
 
 - `iter_document_paragraphs(*, include_nested=True) -> Iterator[ParagraphInfo]`
 
@@ -482,7 +482,7 @@ texts = finder.find_all(tag="t", limit=20)
 first_table = finder.find_first(tag="tbl")
 ```
 
-현재 공개 문서화 기준(4.2.0) 시그니처:
+현재 공개 문서화 기준(5.0.1) 시그니처:
 
 - `find_all(*, tag=None, attrs=None, xpath=None, section_filter=None, limit=None) -> list[FoundElement]`
 - `find_first(*, tag=None, attrs=None, xpath=None, section_filter=None) -> FoundElement | None`
