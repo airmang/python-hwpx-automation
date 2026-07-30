@@ -264,9 +264,9 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "`hwpx-plugin 0.8.0`" not in text
         assert "`python-hwpx 5.0.1`" not in text
         assert "`hwpx-plugin 1.0.0`" not in text
-        assert "`python-hwpx 5.0.2`" in text
-        assert "`python-hwpx-automation 6.0.4`" in text
-        assert "`hwpx-plugin 1.0.1`" in text
+        assert "`python-hwpx 5.1.1`" in text
+        assert "`python-hwpx-automation 6.1.3`" in text
+        assert "`hwpx-plugin 1.1.0`" in text
         assert "공개 릴리스" in text
         if status == "released":
             assert "미발행 후보" not in text
@@ -342,7 +342,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     assert identity["releaseState"] == {
-        "status": "unreleased-candidate",
+        "status": "released",
         "candidate": {
             "pythonHwpx": "5.1.1",
             "canonicalDistribution": "python-hwpx-automation",
@@ -353,11 +353,11 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
             "contractHash": "ac1a422376b5ac84",
         },
         "currentPublic": {
-            "pythonHwpx": "5.0.2",
+            "pythonHwpx": "5.1.1",
             "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "6.0.4",
-            "plugin": "1.0.1",
-            "contractHash": "0ce938371f0b55a6",
+            "primaryApplication": "6.1.3",
+            "plugin": "1.1.0",
+            "contractHash": "ac1a422376b5ac84",
         },
         "promotionGate": (
             "Three states are mandatory: unreleased-candidate while auditing; "
@@ -372,12 +372,12 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         ),
     }
     assert identity["currentPublicStack"] == {
-        "core": {"distribution": "python-hwpx", "version": "5.0.2"},
+        "core": {"distribution": "python-hwpx", "version": "5.1.1"},
         "application": {
             "distribution": "python-hwpx-automation",
-            "version": "6.0.4",
+            "version": "6.1.3",
         },
-        "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.0.1"},
+        "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.1.0"},
     }
     assert components["core"]["currentVersion"] == "5.1.1"
     assert components["core"]["minimumCompatibleVersion"] == "5.1.0"
@@ -460,11 +460,14 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         prior = (
             "\n미발행 후보: `python-hwpx 5.1.1` · `python-hwpx-automation 6.1.3` ·"
             " `hwpx-plugin 1.1.0`\n"
+            "\n직전 공개 트레인: `python-hwpx 5.0.2` ·"
+            " `python-hwpx-automation 6.0.4` · `hwpx-plugin 1.0.1`\n"
         )
         readme += prior + "\nrelease-approved: remote truth is still pending.\n"
         api += prior + "\nrelease-approved: remote truth is still pending.\n"
         cross_readme += (
             "\npython-hwpx-automation 6.1.3 / python-hwpx 5.1.1 / hwpx-plugin 1.1.0\n"
+            "\npython-hwpx-automation 6.0.4 / python-hwpx 5.0.2 / hwpx-plugin 1.0.1\n"
             "\nrelease-approved: remote truth is still pending.\n"
         )
     else:
