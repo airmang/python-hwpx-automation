@@ -213,10 +213,10 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         "product identity release candidate does not match stack/config truth",
     )
     previous_public = {
-        "pythonHwpx": "5.0.1",
+        "pythonHwpx": "5.0.2",
         "primaryDistribution": "python-hwpx-automation",
         "primaryApplication": "6.0.4",
-        "plugin": "1.0.0",
+        "plugin": "1.0.1",
         "contractHash": "0ce938371f0b55a6",
     }
     promoted_public = {
@@ -292,9 +292,9 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         }
         if status == "released"
         else {
-            "core": ("distribution", "python-hwpx", "5.0.1"),
+            "core": ("distribution", "python-hwpx", "5.0.2"),
             "application": ("distribution", "python-hwpx-automation", "6.0.4"),
-            "plugin": ("installedPluginId", "hwpx-plugin", "1.0.0"),
+            "plugin": ("installedPluginId", "hwpx-plugin", "1.0.1"),
         }
     )
     for key, (name_field, expected_name, expected_version) in public_specs.items():

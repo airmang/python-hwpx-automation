@@ -97,6 +97,30 @@ apply_evalplan_fill(
 `analyze_form_fill` → `apply_form_fill` 한 트랜잭션이 기본 경로이며, 같은 작업을
 두 프리미티브의 별도 commit으로 쪼개 원자성을 깨지 않는다.
 
+## 누름틀 생성 (`add_form_field`) — 양식 수명주기의 시작점
+
+6.1.0부터 누름틀(click-here) 필드를 **생성**할 수 있다. 실한컴이 만드는
+CLICKHERE 형상 그대로 방출되므로, 만든 필드는 기존 `list_form_fields`·
+canonical 채움 경로·실제 한컴오피스가 특수분기 없이 소비한다. 이로써
+빈 양식 저작 → 배포 → 채움 → 검증 전체 수명주기가 한컴 수동 준비 없이 닫힌다.
+
+**언제 쓰는가**
+- 백지에서 양식 템플릿을 저작할 때: `add_table`로 라벨/값 표를 만들고 값 셀마다
+  `add_form_field(tableIndex, row, col)`로 필드를 심는다.
+- 기존 문서를 양식화할 때: 채움 위치에 필드를 추가해 이후 작업을 구조적
+  채움으로 전환한다.
+
+**판단 규칙**
+1. `name`은 채움 시 선택자다 — 사람이 읽고 의미를 알 수 있는 고유 이름을 쓴다
+   (예: `성명`, `연락처`). 같은 이름을 중복으로 만들지 않는다.
+2. `prompt`(안내문)는 **화면 전용**이다 — 한컴이 인쇄/PDF에 표기하지 않는다.
+   빈 필드의 `current_value`는 안내문 텍스트로 읽히며, `is_placeholder=true`·
+   `dirty="0"`이 실값 없음의 판정 기준이다.
+3. 배치 주소는 셋 중 하나만: 생략(문서 끝 새 문단) · `paragraph_index` ·
+   `tableIndex`+`row`+`col`(셀). 조합이 어긋나면 typed 오류로 거부된다.
+4. 생성 직후 `list_form_fields`로 왕복 확인하고, 채움은 평소처럼 canonical
+   경로(`analyze_form_fill` → `apply_form_fill`의 `nativeField` op)로 잇는다.
+
 ## Compatibility facade 경계
 
 다음 이름은 기존 호출자를 위한 전환 표면이거나 집중 검사 도구다. generated contract가

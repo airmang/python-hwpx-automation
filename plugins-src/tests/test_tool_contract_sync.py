@@ -69,9 +69,9 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert BLUEPRINT_TOOLS <= names
     assert BLUEPRINT_TOOLS <= required
     assert REMOVED_PRIVATE_PRACTICE_TOOLS.isdisjoint(required)
-    assert contract["contractHash"] == "0ce938371f0b55a6"
-    assert contract["defaultToolCount"] == 119
-    assert contract["advancedToolCount"] == 127
+    assert contract["contractHash"] == "ac1a422376b5ac84"
+    assert contract["defaultToolCount"] == 120
+    assert contract["advancedToolCount"] == 128
     assert len(contract["skillRequiredTools"]) == 28
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]

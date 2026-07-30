@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [1.1.0] - 2026-07-31
+
+누름틀 필드 저작 트레인. `add_form_field` 도구(automation 6.1.0, 계약
+`ac1a422376b5ac84`, 기본 120/고급 128/스킬 필수 28)로 양식 수명주기
+(create→list→fill→verify)가 한컴 수동 준비 없이 자급된다.
+
+- 번들 핀 갱신: `python-hwpx[preview]==5.1.0` ·
+  `python-hwpx-automation[mcp,oracle]==6.1.0`.
+- `references/workflows-forms.md`: 누름틀 생성 판단 규칙(이름=선택자·안내문
+  미인쇄·배치 주소 3형·생성 직후 왕복 확인) 추가.
+- generated tool-contract 참조 재생성(128 도구), task-eval 프로파일
+  `current-1.1.0` 회전.
+
 ## [1.0.1] - 2026-07-31
 
 core `python-hwpx 5.0.2` repin 트레인. automation은 `6.0.4` 그대로이고 MCP
