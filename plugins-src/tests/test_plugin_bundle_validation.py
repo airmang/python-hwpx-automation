@@ -261,13 +261,13 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "`python-hwpx 4.2.0`" not in text
         assert "`hwpx-mcp-server 5.1.0`" not in text
         assert "`hwpx-plugin 0.8.0`" not in text
-        assert "`python-hwpx 5.0.1`" in text
-        assert "`python-hwpx-automation 6.0.4`" in text
-        assert "`hwpx-plugin 1.0.0`" in text
+        assert "`python-hwpx 5.0.1`" not in text
+        assert "`hwpx-plugin 1.0.0`" not in text
         assert "`python-hwpx 5.0.2`" in text
+        assert "`python-hwpx-automation 6.0.4`" in text
         assert "`hwpx-plugin 1.0.1`" in text
         assert "공개 릴리스" in text
-        assert "미발행 후보" in text
+        assert "미발행 후보" not in text
         assert "최소 호환 버전" in text
         assert "플러그인 설치 핀" in text
         assert "validate_editor_open_safety(path).ok == True" in text
@@ -333,7 +333,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     assert identity["releaseState"] == {
-        "status": "release-approved",
+        "status": "released",
         "candidate": {
             "pythonHwpx": "5.0.2",
             "canonicalDistribution": "python-hwpx-automation",
@@ -344,10 +344,10 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
             "contractHash": "0ce938371f0b55a6",
         },
         "currentPublic": {
-            "pythonHwpx": "5.0.1",
+            "pythonHwpx": "5.0.2",
             "primaryDistribution": "python-hwpx-automation",
             "primaryApplication": "6.0.4",
-            "plugin": "1.0.0",
+            "plugin": "1.0.1",
             "contractHash": "0ce938371f0b55a6",
         },
         "promotionGate": (
@@ -363,12 +363,12 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         ),
     }
     assert identity["currentPublicStack"] == {
-        "core": {"distribution": "python-hwpx", "version": "5.0.1"},
+        "core": {"distribution": "python-hwpx", "version": "5.0.2"},
         "application": {
             "distribution": "python-hwpx-automation",
             "version": "6.0.4",
         },
-        "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.0.0"},
+        "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.0.1"},
     }
     assert components["core"]["currentVersion"] == "5.0.2"
     assert components["core"]["minimumCompatibleVersion"] == "5.0.0"
@@ -445,10 +445,19 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
     api = api_path.read_text(encoding="utf-8")
     cross_readme = cross_readme_path.read_text(encoding="utf-8")
     if status == "release-approved":
-        # The real checkout is release-approved: it already carries the
-        # previous public train, the unpublished-candidate row, and the state
-        # literal, so the synthesis only needs the status stamp above.
-        pass
+        # The pre-released fragment sets also require the previous public
+        # coordinates to be visible; the released checkout no longer carries
+        # them, so the synthesis injects them alongside the state note.
+        prior = (
+            "\n미발행 후보: `python-hwpx 5.0.1` · `python-hwpx-automation 6.0.4` ·"
+            " `hwpx-plugin 1.0.0`\n"
+        )
+        readme += prior + "\nrelease-approved: remote truth is still pending.\n"
+        api += prior + "\nrelease-approved: remote truth is still pending.\n"
+        cross_readme += (
+            "\npython-hwpx-automation 6.0.4 / python-hwpx 5.0.1 / hwpx-plugin 1.0.0\n"
+            "\nrelease-approved: remote truth is still pending.\n"
+        )
     else:
         promoted = {
             "pythonHwpx": "5.0.2",

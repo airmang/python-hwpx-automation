@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## [1.0.1] - 2026-07-31 (release-approved)
+## [1.0.1] - 2026-07-31
 
 core `python-hwpx 5.0.2` repin 트레인. automation은 `6.0.4` 그대로이고 MCP
 계약 해시도 `0ce938371f0b55a6`으로 불변이다(core-only 패치 + 핀 추종).
