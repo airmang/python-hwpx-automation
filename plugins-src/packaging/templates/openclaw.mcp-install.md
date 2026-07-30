@@ -13,7 +13,7 @@ release.
 {
   "hwpx": {
     "command": "uvx",
-    "args": ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==5.1.1", "--from", "python-hwpx-automation[mcp,oracle]==6.1.2", "hwpx-automation-mcp"],
+    "args": ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==5.1.1", "--from", "python-hwpx-automation[mcp,oracle]==6.1.3", "hwpx-automation-mcp"],
     "env": {
       "HWPX_AUTOMATION_ADVANCED": "0",
       "HWPX_AUTOMATION_AUTOBACKUP": "1",
