@@ -274,7 +274,7 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
             # candidate checkout: the doc must distinguish the unreleased
             # candidate train from the public train, not hide it
             assert "미발행 후보" in text
-            assert "`python-hwpx 5.1.0`" in text
+            assert "`python-hwpx 5.1.1`" in text
             assert "`python-hwpx-automation 6.1.0`" in text
             assert "`hwpx-plugin 1.1.0`" in text
         assert "최소 호환 버전" in text
@@ -344,7 +344,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert identity["releaseState"] == {
         "status": "unreleased-candidate",
         "candidate": {
-            "pythonHwpx": "5.1.0",
+            "pythonHwpx": "5.1.1",
             "canonicalDistribution": "python-hwpx-automation",
             "canonicalAutomation": "6.1.0",
             "compatibilityDistribution": "hwpx-mcp-server",
@@ -379,7 +379,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         },
         "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.0.1"},
     }
-    assert components["core"]["currentVersion"] == "5.1.0"
+    assert components["core"]["currentVersion"] == "5.1.1"
     assert components["core"]["minimumCompatibleVersion"] == "5.1.0"
     assert components["automation"]["currentVersion"] == "6.1.0"
     assert components["automation"]["minimumCompatibleVersion"] == "6.1.0"
@@ -458,18 +458,18 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         # coordinates to be visible; the released checkout no longer carries
         # them, so the synthesis injects them alongside the state note.
         prior = (
-            "\n미발행 후보: `python-hwpx 5.1.0` · `python-hwpx-automation 6.1.0` ·"
+            "\n미발행 후보: `python-hwpx 5.1.1` · `python-hwpx-automation 6.1.0` ·"
             " `hwpx-plugin 1.1.0`\n"
         )
         readme += prior + "\nrelease-approved: remote truth is still pending.\n"
         api += prior + "\nrelease-approved: remote truth is still pending.\n"
         cross_readme += (
-            "\npython-hwpx-automation 6.1.0 / python-hwpx 5.1.0 / hwpx-plugin 1.1.0\n"
+            "\npython-hwpx-automation 6.1.0 / python-hwpx 5.1.1 / hwpx-plugin 1.1.0\n"
             "\nrelease-approved: remote truth is still pending.\n"
         )
     else:
         promoted = {
-            "pythonHwpx": "5.1.0",
+            "pythonHwpx": "5.1.1",
             "primaryDistribution": "python-hwpx-automation",
             "primaryApplication": "6.1.0",
             "plugin": "1.1.0",
@@ -477,7 +477,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         }
         identity["releaseState"]["currentPublic"] = promoted
         identity["currentPublicStack"] = {
-            "core": {"distribution": "python-hwpx", "version": "5.1.0"},
+            "core": {"distribution": "python-hwpx", "version": "5.1.1"},
             "application": {
                 "distribution": "python-hwpx-automation",
                 "version": "6.1.0",
@@ -500,7 +500,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         api += "\nreleased\n"
         cross_readme += (
             "\nreleased\n"
-            "python-hwpx 5.1.0\n"
+            "python-hwpx 5.1.1\n"
             "python-hwpx-automation 6.1.0\n"
             "hwpx-plugin 1.1.0\n"
         )

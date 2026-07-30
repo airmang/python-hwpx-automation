@@ -77,4 +77,4 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 > 2026-07-31). 문서는 현재 공개 릴리스와 미발행 후보를 항상 구분해 적습니다:
 > 이 checkout은 `python-hwpx-automation 6.1.0` 후보 트레인이며, 번들은 재현
 > 검증을 위해 `python-hwpx-automation[mcp,oracle]==6.1.0`과
-> `python-hwpx[preview]==5.1.0`을 고정합니다.
+> `python-hwpx[preview]==5.1.1`을 고정합니다.
