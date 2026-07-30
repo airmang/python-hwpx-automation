@@ -2,14 +2,14 @@
   "schemaVersion": "hwpx.product-identity.v3",
   "stackName": "HWPX stack",
   "releaseState": {
-    "status": "released",
+    "status": "release-approved",
     "candidate": {
-      "pythonHwpx": "5.0.1",
+      "pythonHwpx": "5.0.2",
       "canonicalDistribution": "python-hwpx-automation",
       "canonicalAutomation": "6.0.4",
       "compatibilityDistribution": "hwpx-mcp-server",
       "compatibility": "6.0.4",
-      "plugin": "1.0.0",
+      "plugin": "1.0.1",
       "contractHash": "0ce938371f0b55a6"
     },
     "currentPublic": {
@@ -42,7 +42,7 @@
       "repository": "python-hwpx",
       "distribution": "python-hwpx",
       "importName": "hwpx",
-      "currentVersion": "5.0.1",
+      "currentVersion": "5.0.2",
       "minimumCompatibleVersion": "5.0.0",
       "maturity": "alpha",
       "maturityEvidence": "Development Status :: 3 - Alpha"
@@ -72,7 +72,7 @@
       "repository": "hwpx-plugins",
       "installedPluginId": "hwpx-plugin",
       "installedSkillName": "hwpx",
-      "currentVersion": "1.0.0",
+      "currentVersion": "1.0.1",
       "minimumCompatibleVersion": "1.0.0",
       "maturity": "not-declared"
     }

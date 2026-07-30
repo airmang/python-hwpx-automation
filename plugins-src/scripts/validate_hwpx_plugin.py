@@ -213,11 +213,11 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         "product identity release candidate does not match stack/config truth",
     )
     previous_public = {
-        "pythonHwpx": "4.2.0",
-        "primaryDistribution": "hwpx-mcp-server",
-        "primaryApplication": "5.1.0",
-        "plugin": "0.8.0",
-        "contractHash": "429cb6706323e762",
+        "pythonHwpx": "5.0.1",
+        "primaryDistribution": "python-hwpx-automation",
+        "primaryApplication": "6.0.4",
+        "plugin": "1.0.0",
+        "contractHash": "0ce938371f0b55a6",
     }
     promoted_public = {
         "pythonHwpx": core.get("currentVersion"),
@@ -292,9 +292,9 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         }
         if status == "released"
         else {
-            "core": ("distribution", "python-hwpx", "4.2.0"),
-            "application": ("distribution", "hwpx-mcp-server", "5.1.0"),
-            "plugin": ("installedPluginId", "hwpx-plugin", "0.8.0"),
+            "core": ("distribution", "python-hwpx", "5.0.1"),
+            "application": ("distribution", "python-hwpx-automation", "6.0.4"),
+            "plugin": ("installedPluginId", "hwpx-plugin", "1.0.0"),
         }
     )
     for key, (name_field, expected_name, expected_version) in public_specs.items():
@@ -469,6 +469,8 @@ def validate_product_identity(config: dict, identity: dict) -> None:
                         "`python-hwpx 4.2.0`",
                         "`hwpx-mcp-server 5.1.0`",
                         "`hwpx-plugin 0.8.0`",
+                        "`python-hwpx 5.0.1`",
+                        "`hwpx-plugin 1.0.0`",
                     )
                 ),
                 f"{current_path}: released current-facing text retains old public coordinates",

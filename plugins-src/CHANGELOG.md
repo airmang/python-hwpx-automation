@@ -2,10 +2,23 @@
 
 ## Unreleased
 
-## [1.0.0] - unreleased
+## [1.0.1] - 2026-07-31 (release-approved)
 
-5.0 스택 트레인의 **미발행 후보**. 현재 공개 스택은
-`python-hwpx 4.2.0` / `hwpx-mcp-server 5.1.0` / `hwpx-plugin 0.8.0`이다.
+core `python-hwpx 5.0.2` repin 트레인. automation은 `6.0.4` 그대로이고 MCP
+계약 해시도 `0ce938371f0b55a6`으로 불변이다(core-only 패치 + 핀 추종).
+
+### Changed
+- 번들 핀 갱신: `python-hwpx[preview]==5.0.2` (5.0.2 = 조용한 첫 실행
+  경고 픽스 + Python 3.13/3.14 공식 지원 + 릴리스 검증기 수정).
+- `references/api.md` 시그니처 기준을 5.0.1 실측으로 현대화(드리프트 2건
+  교정: `add_table`의 `inherit_style`, `set_cell_text`의 fit 계약).
+- 검증기의 트레인 락 상수(previous public train)를 2026-07-28 발행 트레인
+  (5.0.1/6.0.4/1.0.0)으로 전진, task-eval 프로파일 `current-1.0.1` 추가.
+
+## [1.0.0] - 2026-07-28
+
+5.0 스택 트레인. 발행 당시 직전 공개 스택은
+`python-hwpx 4.2.0` / `hwpx-mcp-server 5.1.0` / `hwpx-plugin 0.8.0`이었다.
 후보에서는 `python-hwpx` 5.0이 응용 워크플로를 내려놓고
 `python-hwpx-automation` 6.0이 그 유일한 소유자가 된다. 스킬의 라우팅 정책 자체는 바뀌지 않았다 —
 바뀐 것은 core 직접 import 대안이 더 이상 존재하지 않는다는 사실이다.

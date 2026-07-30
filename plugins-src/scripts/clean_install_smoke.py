@@ -162,7 +162,7 @@ def _probe_installed_runtime(
     )
     payload = json.loads(completed.stdout)
     expected_versions = {
-        "python-hwpx": "5.0.1",
+        "python-hwpx": "5.0.2",
         "python-hwpx-automation": "6.0.4",
     }
     if payload.get("versions") != expected_versions:
@@ -199,7 +199,7 @@ def _probe_editable_runtime(
             "HWPX_AUTOMATION_REPO": str(automation_repo),
             "HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE": "0",
             "HWPX_AUTOMATION_WORKSPACE_ROOTS": json.dumps([str(workspace)]),
-            "HWPX_SKILL_VERSION": "1.0.0",
+            "HWPX_SKILL_VERSION": "1.0.1",
         }
     )
     help_probe = subprocess.run(
@@ -232,7 +232,7 @@ def _probe_editable_runtime(
     )
     payload = json.loads(completed.stdout)
     expected_versions = {
-        "python-hwpx": "5.0.1",
+        "python-hwpx": "5.0.2",
         "python-hwpx-automation": "6.0.4",
     }
     if payload.get("versions") != expected_versions:
@@ -366,8 +366,8 @@ def main() -> int:
                 "HWPX_AUTOMATION_PACKAGE": server_package,
                 "HWPX_PYTHON_HWPX_PACKAGE": core_package,
                 "HWPX_AUTOMATION_VERSION": "6.0.4",
-                "HWPX_PYTHON_HWPX_VERSION": "5.0.1",
-                "HWPX_SKILL_VERSION": "1.0.0",
+                "HWPX_PYTHON_HWPX_VERSION": "5.0.2",
+                "HWPX_SKILL_VERSION": "1.0.1",
                 "HWPX_AUTOMATION_RUNTIME_ROOT": str(runtime_root),
                 "HWPX_AUTOMATION_WORKSPACE_ROOTS": json.dumps([str(workspace)]),
             }
@@ -442,7 +442,7 @@ def main() -> int:
             "--server-runtime",
             str(runtime_root),
             "--skill-version",
-            "1.0.0",
+            "1.0.1",
             "--report",
             str(e2e_report),
         ]
@@ -460,7 +460,7 @@ def main() -> int:
                             "command": str(compatibility_launcher),
                             "args": [],
                             "env": {
-                                "HWPX_SKILL_VERSION": "1.0.0",
+                                "HWPX_SKILL_VERSION": "1.0.1",
                             },
                         }
                     }
@@ -488,7 +488,7 @@ def main() -> int:
                 "--server-runtime",
                 str(runtime_root),
                 "--skill-version",
-                "1.0.0",
+                "1.0.1",
                 "--report",
                 str(legacy_e2e_report),
             ],
