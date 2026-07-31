@@ -4,7 +4,7 @@
 
 ## [1.3.0] - 2026-07-31
 
-차트 생성 트레인. `add_chart` 도구(automation 6.3.0, 계약
+차트 생성 트레인. `add_chart` 도구(automation 6.3.1, 계약
 `236f8ea855c875fe`, 기본 122/고급 130/스킬 필수 28)로 데이터 시리즈를
 네이티브 차트(막대·꺾은선·원)로 삽입한다 — ECMA-376 chartML만 저장하고
 실한컴이 그대로 그리며(OLE 폴백 없음), 밖의 유형은 typed 거부.
@@ -12,7 +12,7 @@
 - 라우팅: SKILL.md 차트 행 + `references/workflows-authoring.md` 차트 삽입
   판단 규칙(유형 제한·시리즈 정합·배치 주소·시각 확인).
 - 번들 핀 갱신: `python-hwpx[preview]==5.3.0` ·
-  `python-hwpx-automation[mcp,oracle]==6.3.0`.
+  `python-hwpx-automation[mcp,oracle]==6.3.1`.
 
 ## [1.2.0] - 2026-07-31
 
