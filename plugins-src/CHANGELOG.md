@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [1.2.0] - 2026-07-31
+
+수식 저작 트레인. `add_equation` 도구(automation 6.2.0, 계약
+`342cf672f29cd183`, 기본 121/고급 129/스킬 필수 28)로 LaTeX 수식을 네이티브
+`<hp:equation>`으로 삽입한다 — 렌더 검증된 토큰셋 밖은 typed 거부(무음 근사
+없음), 응답의 `readerLatex`가 자기 왕복 증거.
+
+- 라우팅: SKILL.md 수식 행 + `references/workflows-authoring.md` 수식 삽입
+  판단 규칙(커버리지 밖 대응·왕복 확인·표 셀 배치·줄높이 주의).
+- 번들 핀 갱신: `python-hwpx[preview]==5.2.0` ·
+  `python-hwpx-automation[mcp,oracle]==6.2.0`.
+
 ## [1.1.0] - 2026-07-31
 
 누름틀 필드 저작 트레인. `add_form_field` 도구(automation 6.1.0, 계약

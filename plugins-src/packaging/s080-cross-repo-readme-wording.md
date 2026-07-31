@@ -72,8 +72,11 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 `python-hwpx-automation 6.1.3`이며 공개 플러그인은
-> `hwpx-plugin 1.1.0`, 공개 코어는 `python-hwpx 5.1.1`입니다(released
-> 2026-07-31). 번들은 재현 검증을 위해
-> `python-hwpx-automation[mcp,oracle]==6.1.3`과
-> `python-hwpx[preview]==5.1.1`을 고정합니다.
+> 현재 공개 릴리스와 미발행 후보를 구분합니다. 현재 공개 릴리스는
+> `python-hwpx-automation 6.1.3`이며 공개 플러그인은 `hwpx-plugin 1.1.0`,
+> 공개 코어는 `python-hwpx 5.1.1`입니다(released 2026-07-31). 이 checkout의
+> main은 아직 공개되지 않은 후보 `python-hwpx-automation 6.2.0` ·
+> `hwpx-plugin 1.2.0` · `python-hwpx 5.2.0`(수식 저작 `add_equation`
+> 트레인)이며, 번들은 재현 검증을 위해
+> `python-hwpx-automation[mcp,oracle]==6.2.0`과
+> `python-hwpx[preview]==5.2.0`을 고정합니다.
