@@ -199,7 +199,7 @@ def _probe_editable_runtime(
             "HWPX_AUTOMATION_REPO": str(automation_repo),
             "HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE": "0",
             "HWPX_AUTOMATION_WORKSPACE_ROOTS": json.dumps([str(workspace)]),
-            "HWPX_SKILL_VERSION": "1.3.0",
+            "HWPX_SKILL_VERSION": "1.4.0",
         }
     )
     help_probe = subprocess.run(
@@ -365,9 +365,9 @@ def main() -> int:
                 "HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE": "1",
                 "HWPX_AUTOMATION_PACKAGE": server_package,
                 "HWPX_PYTHON_HWPX_PACKAGE": core_package,
-                "HWPX_AUTOMATION_VERSION": "6.3.1",
-                "HWPX_PYTHON_HWPX_VERSION": "5.3.0",
-                "HWPX_SKILL_VERSION": "1.3.0",
+                "HWPX_AUTOMATION_VERSION": "6.4.0",
+                "HWPX_PYTHON_HWPX_VERSION": "5.4.0",
+                "HWPX_SKILL_VERSION": "1.4.0",
                 "HWPX_AUTOMATION_RUNTIME_ROOT": str(runtime_root),
                 "HWPX_AUTOMATION_WORKSPACE_ROOTS": json.dumps([str(workspace)]),
             }
@@ -460,7 +460,7 @@ def main() -> int:
                             "command": str(compatibility_launcher),
                             "args": [],
                             "env": {
-                                "HWPX_SKILL_VERSION": "1.3.0",
+                                "HWPX_SKILL_VERSION": "1.4.0",
                             },
                         }
                     }

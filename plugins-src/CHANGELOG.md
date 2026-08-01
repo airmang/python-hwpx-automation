@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.4.0] - 2026-08-01
+
+표 서식·저작 기본값 수리 트레인. `format_table` 테두리·음영 확장
+(automation 6.4.0, 계약 `dbdbdfaac26148b7`, 기본 122/고급 130/스킬 필수
+28) — `border_type`(OWPML 선 종류 어휘, 밖은 typed 거부)·`border_color`·
+`border_width`·`fill_color`·`row`/`col` 셀 단위 적용. core 5.4.0은 표
+기본값(셀 안여백 510/141·본문폭·중첩=부모 셀 폭), 목록 paraPr 비상속,
+하이퍼링크 파랑/밑줄 관례, 첨자 offset 부호 정정, `ensure_run_style`
+확장 7종을 담는다.
+
+- 라우팅: SKILL.md 표 행 확장 + `references/workflows-editing.md` 테두리·
+  음영 판단 규칙(표 단위 vs 셀 단위·DASH 렌더 패턴 주의).
+- 번들 핀 갱신: `python-hwpx[preview]==5.4.0` ·
+  `python-hwpx-automation[mcp,oracle]==6.4.0`.
+
 ## [1.3.0] - 2026-07-31
 
 차트 생성 트레인. `add_chart` 도구(automation 6.3.1, 계약

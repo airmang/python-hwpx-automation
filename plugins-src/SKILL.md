@@ -10,7 +10,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 host-local key `hwpx`, launcher `scripts/hwpx-automation-mcp`, 콘솔
 `hwpx-automation-mcp`를 사용한다. `hwpx-mcp-server` 이름과 launcher wrapper는
 6.x 호환 표면이며 host key는 MCP 프로토콜 식별자가 아니다.
-MCP가 없을 때의 local Python(`python-hwpx >= 5.1.0`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 5.4.0`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
@@ -57,7 +57,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 기존 문단을 불릿/번호 목록으로 | `set_list_format` | [workflows-editing](references/workflows-editing.md) |
 | 그림 삽입 / 그림만 교체 | `insert_picture` · `replace_picture` | [workflows-editing](references/workflows-editing.md) |
 | 굵게·색·글꼴 등 글자 서식, 사용자 스타일 | `format_text` · `create_custom_style` · `list_styles` | [workflows-editing](references/workflows-editing.md) |
-| 표 병합·분할·머리행 표시 | `merge_table_cells` · `split_table_cell` · `format_table` | [workflows-editing](references/workflows-editing.md) |
+| 표 병합·분할·머리행·테두리(선 종류/색/굵기)·셀 음영 | `merge_table_cells` · `split_table_cell` · `format_table` | [workflows-editing](references/workflows-editing.md) |
 | 검토 메모 추가·삭제 | `add_memo` · `add_memo_by_anchor` · `remove_memo` | [workflows-editing](references/workflows-editing.md) |
 | 충실도 민감·대형 문서의 문단 텍스트 패치 | `byte_preserving_patch` | [workflows-editing](references/workflows-editing.md) |
 | 생성/편집 후 레이아웃 확인 | `render_preview` self-check 루프 | [workflows-editing](references/workflows-editing.md) |

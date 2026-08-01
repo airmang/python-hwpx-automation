@@ -2,15 +2,15 @@
  "schemaVersion": "hwpx.product-identity.v3",
  "stackName": "HWPX stack",
  "releaseState": {
-  "status": "released",
+  "status": "unreleased-candidate",
   "candidate": {
-   "pythonHwpx": "5.3.0",
+   "pythonHwpx": "5.4.0",
    "canonicalDistribution": "python-hwpx-automation",
-   "canonicalAutomation": "6.3.1",
+   "canonicalAutomation": "6.4.0",
    "compatibilityDistribution": "hwpx-mcp-server",
-   "compatibility": "6.3.1",
-   "plugin": "1.3.0",
-   "contractHash": "236f8ea855c875fe"
+   "compatibility": "6.4.0",
+   "plugin": "1.4.0",
+   "contractHash": "dbdbdfaac26148b7"
   },
   "currentPublic": {
    "pythonHwpx": "5.3.0",
@@ -42,8 +42,8 @@
    "repository": "python-hwpx",
    "distribution": "python-hwpx",
    "importName": "hwpx",
-   "currentVersion": "5.3.0",
-   "minimumCompatibleVersion": "5.3.0",
+   "currentVersion": "5.4.0",
+   "minimumCompatibleVersion": "5.4.0",
    "maturity": "alpha",
    "maturityEvidence": "Development Status :: 3 - Alpha"
   },
@@ -58,8 +58,8 @@
    "hostConfigKey": "hwpx",
    "hostConfigKeyKind": "local-alias",
    "launcherPath": "scripts/hwpx-automation-mcp",
-   "currentVersion": "6.3.1",
-   "minimumCompatibleVersion": "6.3.0",
+   "currentVersion": "6.4.0",
+   "minimumCompatibleVersion": "6.4.0",
    "maturity": "not-declared",
    "mcpExtra": "mcp",
    "pluginInstallExtras": [
@@ -72,8 +72,8 @@
    "repository": "hwpx-plugins",
    "installedPluginId": "hwpx-plugin",
    "installedSkillName": "hwpx",
-   "currentVersion": "1.3.0",
-   "minimumCompatibleVersion": "1.3.0",
+   "currentVersion": "1.4.0",
+   "minimumCompatibleVersion": "1.4.0",
    "maturity": "not-declared"
   }
  },

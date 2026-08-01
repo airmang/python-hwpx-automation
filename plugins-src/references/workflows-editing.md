@@ -96,8 +96,13 @@ undo 후 `.bak`에는 직전 상태가 들어가므로 한 번 더 호출하면 
   `replace_by_anchor`, `fill_by_path`, `add_memo`, `add_memo_by_anchor`,
   `remove_memo`, `create_document`, `copy_document`
 - 글자/표 서식: `format_text`(문단 내 구간 bold/italic/underline/font/size/color),
-  `create_custom_style`, `list_styles`, `format_table`(머리행),
-  `merge_table_cells`, `split_table_cell`
+  `create_custom_style`, `list_styles`, `format_table`(머리행 강조 +
+  테두리·음영: `border_type`은 OWPML 선 종류 어휘[SOLID/DASH/DOT/
+  DOUBLE_SLIM/WAVE 등, 밖은 typed 거부], `border_color`/`border_width`/
+  `fill_color`, `row`+`col`을 함께 주면 그 셀에만 적용 — 판단 기준: 표
+  전체 선 스타일은 표 단위로, 강조 셀 하나는 셀 단위로; 한컴 DASH는
+  가는 점선형 패턴으로 그려지는 것이 정상), `merge_table_cells`,
+  `split_table_cell`
 - 읽기: `get_document_map`(개요+표+양식 필드+앵커 통합), `get_document_info`,
   `get_document_text`, `get_document_outline`, `get_paragraph_text`,
   `get_paragraphs_text`, `get_location_text`, `get_table_text`, `get_table_map`,
