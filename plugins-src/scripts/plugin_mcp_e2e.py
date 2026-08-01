@@ -715,8 +715,16 @@ def main() -> int:
     parser.add_argument("--core-repo", type=Path)
     parser.add_argument("--server-package")
     parser.add_argument("--core-package")
-    parser.add_argument("--expected-server-version", default="6.1.3")
-    parser.add_argument("--expected-core-version", default="5.1.1")
+    parser.add_argument(
+        "--expected-server-version",
+        default=None,
+        help="기본값은 packaging/product-identity.json의 automation currentVersion",
+    )
+    parser.add_argument(
+        "--expected-core-version",
+        default=None,
+        help="기본값은 packaging/product-identity.json의 core currentVersion",
+    )
     parser.add_argument(
         "--server-runtime", "--server-venv", dest="server_runtime", type=Path
     )
@@ -729,12 +737,18 @@ def main() -> int:
     parser.add_argument("--require-real-render", action="store_true")
     parser.add_argument("--advanced", action="store_true")
     args = parser.parse_args()
-    if args.skill_version is None:
+    if None in (args.skill_version, args.expected_server_version, args.expected_core_version):
         identity = json.loads(
             (Path(__file__).resolve().parents[1] / "packaging" / "product-identity.json")
             .read_text(encoding="utf-8")
         )
-        args.skill_version = identity["components"]["plugin"]["currentVersion"]
+        components = identity["components"]
+        if args.skill_version is None:
+            args.skill_version = components["plugin"]["currentVersion"]
+        if args.expected_server_version is None:
+            args.expected_server_version = components["automation"]["currentVersion"]
+        if args.expected_core_version is None:
+            args.expected_core_version = components["core"]["currentVersion"]
     if args.launcher is None and args.mcp_config is None:
         args.launcher = (
             ROOT
