@@ -442,7 +442,7 @@ def main() -> int:
             "--server-runtime",
             str(runtime_root),
             "--skill-version",
-            "1.1.0",
+            "1.4.0",
             "--report",
             str(e2e_report),
         ]
@@ -488,7 +488,7 @@ def main() -> int:
                 "--server-runtime",
                 str(runtime_root),
                 "--skill-version",
-                "1.1.0",
+                "1.4.0",
                 "--report",
                 str(legacy_e2e_report),
             ],

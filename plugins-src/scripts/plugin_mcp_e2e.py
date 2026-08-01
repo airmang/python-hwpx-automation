@@ -720,11 +720,21 @@ def main() -> int:
     parser.add_argument(
         "--server-runtime", "--server-venv", dest="server_runtime", type=Path
     )
-    parser.add_argument("--skill-version", default="1.1.0")
+    parser.add_argument(
+        "--skill-version",
+        default=None,
+        help="기본값은 packaging/product-identity.json의 plugin currentVersion",
+    )
     parser.add_argument("--report", type=Path)
     parser.add_argument("--require-real-render", action="store_true")
     parser.add_argument("--advanced", action="store_true")
     args = parser.parse_args()
+    if args.skill_version is None:
+        identity = json.loads(
+            (Path(__file__).resolve().parents[1] / "packaging" / "product-identity.json")
+            .read_text(encoding="utf-8")
+        )
+        args.skill_version = identity["components"]["plugin"]["currentVersion"]
     if args.launcher is None and args.mcp_config is None:
         args.launcher = (
             ROOT
