@@ -15,6 +15,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# 후보 정확 좌표의 단일 진실 원천은 product identity다 — 하드코딩 리터럴이
+# 트레인마다 뒤처져 CI를 잡아먹던 이력(1.1.0 기본값·6.3.1 동결) 재발 방지.
+_IDENTITY = json.loads(
+    (ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8")
+)
+EXPECTED_STACK_VERSIONS = {
+    "python-hwpx": _IDENTITY["components"]["core"]["currentVersion"],
+    "python-hwpx-automation": _IDENTITY["components"]["automation"]["currentVersion"],
+}
 _SOURCE_AFFECTING_ENV = ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV")
 _RUNTIME_PROBE = r"""
 import importlib.util
@@ -161,10 +171,7 @@ def _probe_installed_runtime(
         text=True,
     )
     payload = json.loads(completed.stdout)
-    expected_versions = {
-        "python-hwpx": "5.3.0",
-        "python-hwpx-automation": "6.3.1",
-    }
+    expected_versions = dict(EXPECTED_STACK_VERSIONS)
     if payload.get("versions") != expected_versions:
         raise RuntimeError(
             f"installed candidate version mismatch: {payload.get('versions')}"
@@ -231,10 +238,7 @@ def _probe_editable_runtime(
         text=True,
     )
     payload = json.loads(completed.stdout)
-    expected_versions = {
-        "python-hwpx": "5.3.0",
-        "python-hwpx-automation": "6.3.1",
-    }
+    expected_versions = dict(EXPECTED_STACK_VERSIONS)
     if payload.get("versions") != expected_versions:
         raise RuntimeError(
             f"editable candidate version mismatch: {payload.get('versions')}"
