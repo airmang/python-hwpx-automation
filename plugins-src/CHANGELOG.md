@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## [1.4.1] - 2026-08-02
+
+각주/미주 렌더 계약 수리 트레인(core-only — automation 6.4.2·계약
+`dbdbdfaac26148b7` 불변). core 5.5.0은 실한컴 gold 리버스로 각주 방출을
+수리해 **실한컴에서 각주가 실제로 그려지고**, 리더가 실한컴산 문서의
+ctrl-래핑 각주를 읽습니다.
+
+- 번들 핀 갱신: `python-hwpx[preview]==5.5.0` ·
+  `python-hwpx-automation[mcp,oracle]==6.4.2`.
+
 ## [1.4.0] - 2026-08-01
 
 표 서식·저작 기본값 수리 트레인. `format_table` 테두리·음영 확장
