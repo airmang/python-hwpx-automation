@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## [1.6.0] - 2026-08-03
+
+에이전트 계약 표면 트레인 — 핀은 `python-hwpx[preview]==5.6.0` ·
+`python-hwpx-automation[mcp,oracle]==6.6.1`(계약 126/134/29 @
+`19898dba41495c47`)입니다.
+
+### 추가
+- **`run_edit_plan` 라우팅**: SKILL.md 케이스 표에 "부분 적용이 허용 안 되는
+  바이트-스플라이스 다단 편집 → 계획 1파일(dry_run 승인 루프)" 행을
+  추가했습니다. `references/workflows-editing.md` §5-b가 판단 규칙(두뇌=스킬·
+  손=계획)·원자성 계약·`hwpx://schemas/edit-plan-v1` 리소스 구독을 안내합니다.
+- **MCP resources 구독**: 계약 문서 4종(support-matrix·recipes-traversal·
+  mutation-semantics·known-traps)과 스키마 4종을 도구 호출 없이 리소스로
+  읽을 수 있습니다.
+
+### 변경
+- `run_edit_plan`은 `apply_table_ops`/`apply_body_ops`와 같은 skill-required
+  등급입니다(28→29).
+
 ## [1.5.0] - 2026-08-02
 
 운영계획 zero-base 저작 트레인(automation 6.5.0, 계약
