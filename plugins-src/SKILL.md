@@ -10,7 +10,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 host-local key `hwpx`, launcher `scripts/hwpx-automation-mcp`, 콘솔
 `hwpx-automation-mcp`를 사용한다. `hwpx-mcp-server` 이름과 launcher wrapper는
 6.x 호환 표면이며 host key는 MCP 프로토콜 식별자가 아니다.
-MCP가 없을 때의 local Python(`python-hwpx >= 5.4.0`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 5.5.0`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
@@ -77,6 +77,7 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 출제 md를 학교 시험지 양식에 재조판 (문항 keep-together, 그림은 placeholder) | `compose_exam` · `verify_question_splits` | [workflows-exam](references/workflows-exam.md) |
 | LaTeX 수식을 네이티브 `<hp:equation>`으로 삽입 (커버리지 밖 typed 거부) | `add_equation` | [workflows-authoring](references/workflows-authoring.md) |
 | 데이터 시리즈를 네이티브 차트로 삽입 (막대·꺾은선·원, 밖은 typed 거부) | `add_chart` | [workflows-authoring](references/workflows-authoring.md) |
+| 운영계획서를 백지에서 장르-충실하게 저작(섹션칩·개조식·박스 조직도) | `get_genre_grammar` · `compose_section_chip` · `add_boxed_org_chart` | [workflows-authoring](references/workflows-authoring.md) |
 | **평가계획(교수학습운영 및 평가계획) 전문 채움** (J1~J6 두뇌 판단·붙여넣기용 MD 저작) | `apply_evalplan_fill(filename=..., review_md=..., output=..., phase="clean", render_check="required", score_gold_path=...)` → 필요 시 advanced `score_form_fill` | [workflows-evalplan](references/workflows-evalplan.md) |
 | 낯선 양식·누름틀·라벨 셀·경로 셀·표 밖 본문이 섞인 채움 | `analyze_form_fill(plan=...)` → plan 승인 → `apply_form_fill(plan=...)` (`plan.dryRun` dry-run → commit) → `verify_form_fill(plan=...)` | [workflows-forms](references/workflows-forms.md) |
 | 메일머지 N부 대량생산 (상장·수료증·안내장·명부 CSV/XLSX) · 셀 넘침 격리(fit) | `mail_merge` (`fit_mode`) | [workflows-bulk-compare](references/workflows-bulk-compare.md) |

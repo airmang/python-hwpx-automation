@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [1.5.0] - 2026-08-02
+
+운영계획 zero-base 저작 트레인(automation 6.5.0, 계약
+`f61d2c60c0aa0413`, 기본 125/고급 133/스킬 필수 28). 브리프만으로
+장르-충실 운영계획서를 백지 합성 — 섹션칩(`compose_section_chip`)·표-기반
+박스 조직도(`add_boxed_org_chart`)·장르 문법 조회(`get_genre_grammar`)와
+`style_preset="genre:operating_plan"`(뱅크-구동 타이포).
+
+- 라우팅: SKILL.md 운영계획 행 + `references/workflows-authoring.md`
+  zero-base 판단 블록(변주 슬롯·inline 칩 번호 위임·accent 후처리).
+- 번들 핀 갱신: `python-hwpx[preview]==5.5.0` ·
+  `python-hwpx-automation[mcp,oracle]==6.5.0`.
+
 ## [1.4.1] - 2026-08-02
 
 각주/미주 렌더 계약 수리 트레인(core-only — automation 6.4.2·계약

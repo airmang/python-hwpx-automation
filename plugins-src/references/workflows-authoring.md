@@ -66,3 +66,29 @@
 ## 데모
 
 `demo/M3-authoring/` — 공문·보고서·가정통신문 3종을 이 표면으로 생성해 실제 한컴 opens-clean 확인(증거 PNG + verdict).
+
+## 운영계획서 zero-base 저작 (장르-충실 백지 합성)
+
+운영계획 브리프를 받으면 **장르 문법은 조회하고, 변주는 스킬이 판단**한다
+— 엔진에 장르 하드코딩이 없으므로 판단을 코드에 기대지 말 것.
+
+1. **장르 문법 조회**: `get_genre_grammar("operating_plan")` — 타이포
+   역할(HY헤드라인M 헤더·휴먼명조 본문, portable 대체는 함초롬 계열)과
+   구조 문법을 얻는다.
+2. **변주 슬롯 결정**(문서마다 스킬이 판단): 번호 체계(Ⅰ… vs 1.…)·섹션칩
+   렌더(`box`=accent 칩 vs `inline`)·accent 색·등장 블록(조직도/비교표/
+   현황표/FAQ 중 브리프가 요구하는 것만).
+   - **inline 칩이면 `number`를 비워** heading 자동번호에 맡긴다(번호
+     중복 렌더 방지).
+3. **plan 조립**: `compose_section_chip`의 block을 그대로 끼우고, 표는
+   columns 객체+rows 매핑으로. 타이틀 밴드·칩은 `showHeader:false`가
+   이미 담겨 온다. `validate_document_plan` → 오류는 repairHints로 수리.
+4. **생성**: `create_document_from_plan(..., style_preset="genre:operating_plan")`
+   — 장르 타이포가 뱅크에서 적용된다.
+5. **box 칩 accent**: 생성 후 각 칩 표에
+   `format_table(fill_color=<accent>, row=0, col=0)`.
+6. **조직도**: `add_boxed_org_chart(filename, hierarchy, accent_color=…)`
+   — 노드는 `{"label", "sublabel"?, "children"?}`; 깊이 4·박스 40 초과는
+   typed 거부되니 큰 조직은 분할을 브리프와 상의.
+7. **검수**: `render_preview` self-check로 칩·커넥터·표를 눈으로 확인.
+   기계 통과를 "제출 가능"으로 번역하지 말고 오너 검수로 넘긴다.

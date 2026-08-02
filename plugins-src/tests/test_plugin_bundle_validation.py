@@ -342,15 +342,15 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     assert identity["releaseState"] == {
-        "status": "released",
+        "status": "unreleased-candidate",
         "candidate": {
             "pythonHwpx": "5.5.0",
             "canonicalDistribution": "python-hwpx-automation",
-            "canonicalAutomation": "6.4.2",
+            "canonicalAutomation": "6.5.0",
             "compatibilityDistribution": "hwpx-mcp-server",
-            "compatibility": "6.4.2",
-            "plugin": "1.4.1",
-            "contractHash": "dbdbdfaac26148b7",
+            "compatibility": "6.5.0",
+            "plugin": "1.5.0",
+            "contractHash": "f61d2c60c0aa0413",
         },
         "currentPublic": {
             "pythonHwpx": "5.5.0",
@@ -380,17 +380,17 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.4.1"},
     }
     assert components["core"]["currentVersion"] == "5.5.0"
-    assert components["core"]["minimumCompatibleVersion"] == "5.4.0"
-    assert components["automation"]["currentVersion"] == "6.4.2"
-    assert components["automation"]["minimumCompatibleVersion"] == "6.4.0"
+    assert components["core"]["minimumCompatibleVersion"] == "5.5.0"
+    assert components["automation"]["currentVersion"] == "6.5.0"
+    assert components["automation"]["minimumCompatibleVersion"] == "6.5.0"
     assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
     assert components["automation"]["hostConfigKey"] == "hwpx"
     assert components["automation"]["hostConfigKeyKind"] == "local-alias"
     assert components["automation"]["launcherPath"] == "scripts/hwpx-automation-mcp"
     assert identity["compatibility"]["hostConfigKey"] == "hwpx-mcp-server"
     assert identity["compatibility"]["launcherPath"] == "scripts/hwpx-mcp-server"
-    assert components["plugin"]["currentVersion"] == "1.4.1"
-    assert components["plugin"]["minimumCompatibleVersion"] == "1.4.0"
+    assert components["plugin"]["currentVersion"] == "1.5.0"
+    assert components["plugin"]["minimumCompatibleVersion"] == "1.5.0"
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts
     assert identity["firstPartyLabelKo"] in readme
@@ -425,19 +425,19 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         # validator requires unreleased/approved states to keep naming the
         # last coherent public train (the 2026-07-28 5.0.1 train).
         identity["releaseState"]["currentPublic"] = {
-            "pythonHwpx": "5.4.0",
+            "pythonHwpx": "5.5.0",
             "primaryDistribution": "python-hwpx-automation",
             "primaryApplication": "6.4.2",
-            "plugin": "1.4.0",
+            "plugin": "1.4.1",
             "contractHash": "dbdbdfaac26148b7",
         }
         identity["currentPublicStack"] = {
-            "core": {"distribution": "python-hwpx", "version": "5.4.0"},
+            "core": {"distribution": "python-hwpx", "version": "5.5.0"},
             "application": {
                 "distribution": "python-hwpx-automation",
                 "version": "6.4.2",
             },
-            "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.4.0"},
+            "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.4.1"},
         }
 
     readme_path = checkout / "README.md"
@@ -458,34 +458,34 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         # coordinates to be visible; the released checkout no longer carries
         # them, so the synthesis injects them alongside the state note.
         prior = (
-            "\n미발행 후보: `python-hwpx 5.5.0` · `python-hwpx-automation 6.4.2` ·"
-            " `hwpx-plugin 1.4.1`\n"
-            "\n직전 공개 트레인: `python-hwpx 5.4.0` ·"
-            " `python-hwpx-automation 6.4.2` · `hwpx-plugin 1.4.0`\n"
+            "\n미발행 후보: `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.0` ·"
+            " `hwpx-plugin 1.5.0`\n"
+            "\n직전 공개 트레인: `python-hwpx 5.5.0` ·"
+            " `python-hwpx-automation 6.4.2` · `hwpx-plugin 1.4.1`\n"
         )
         readme += prior + "\nrelease-approved: remote truth is still pending.\n"
         api += prior + "\nrelease-approved: remote truth is still pending.\n"
         cross_readme += (
+            "\npython-hwpx-automation 6.5.0 / python-hwpx 5.5.0 / hwpx-plugin 1.5.0\n"
             "\npython-hwpx-automation 6.4.2 / python-hwpx 5.5.0 / hwpx-plugin 1.4.1\n"
-            "\npython-hwpx-automation 6.4.2 / python-hwpx 5.4.0 / hwpx-plugin 1.4.0\n"
             "\nrelease-approved: remote truth is still pending.\n"
         )
     else:
         promoted = {
             "pythonHwpx": "5.5.0",
             "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "6.4.2",
-            "plugin": "1.4.1",
-            "contractHash": "dbdbdfaac26148b7",
+            "primaryApplication": "6.5.0",
+            "plugin": "1.5.0",
+            "contractHash": "f61d2c60c0aa0413",
         }
         identity["releaseState"]["currentPublic"] = promoted
         identity["currentPublicStack"] = {
             "core": {"distribution": "python-hwpx", "version": "5.5.0"},
             "application": {
                 "distribution": "python-hwpx-automation",
-                "version": "6.4.2",
+                "version": "6.5.0",
             },
-            "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.4.1"},
+            "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.5.0"},
         }
         for stale in (
             "아직 공개되지 않은 1.1.0 미발행 후보",
@@ -504,8 +504,8 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         cross_readme += (
             "\nreleased\n"
             "python-hwpx 5.5.0\n"
-            "python-hwpx-automation 6.4.2\n"
-            "hwpx-plugin 1.4.1\n"
+            "python-hwpx-automation 6.5.0\n"
+            "hwpx-plugin 1.5.0\n"
         )
 
     identity_path.write_text(
