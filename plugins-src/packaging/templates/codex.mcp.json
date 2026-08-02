@@ -6,7 +6,7 @@
         "--refresh-package", "python-hwpx-automation",
         "--refresh-package", "python-hwpx",
         "--with", "python-hwpx[preview]==5.5.0",
-        "--from", "python-hwpx-automation[mcp,oracle]==6.5.0",
+        "--from", "python-hwpx-automation[mcp,oracle]==6.5.1",
         "hwpx-automation-mcp"
       ],
       "env": {

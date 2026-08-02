@@ -19,7 +19,7 @@
 > [!NOTE]
 > 이 저장소의 main은 아직 공개되지 않은 미발행 후보 `hwpx-plugin 1.5.0`
 > (운영계획 zero-base 저작 — 섹션칩·박스 조직도·장르 문법 트레인,
-> `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.0`)입니다. 현재 공개
+> `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.1`)입니다. 현재 공개
 > 릴리스는 `hwpx-plugin 1.4.1`입니다.
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
@@ -89,7 +89,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (released 2026-08-02, 각주/미주 렌더 계약 수리 트레인) | `python-hwpx 5.5.0` · `python-hwpx-automation 6.4.2` · `hwpx-plugin 1.4.1` |
 | 최소 호환 버전 | 1.5 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 5.5.0` · `python-hwpx-automation >= 6.5.0` · skill `>= 1.5.0` |
-| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.5.0` · `python-hwpx-automation[mcp,oracle]==6.5.0` |
+| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.5.0` · `python-hwpx-automation[mcp,oracle]==6.5.1` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.

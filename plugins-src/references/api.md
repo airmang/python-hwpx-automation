@@ -8,9 +8,9 @@
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 마지막으로 plugin 설치까지 함께 검증한 조합 (released 2026-08-02, 각주/미주 렌더 계약 수리 트레인) | `python-hwpx 5.5.0` · `python-hwpx-automation 6.4.2` · `hwpx-plugin 1.4.1` |
-| 릴리스 상태 | 이 checkout의 train 상태 — `unreleased-candidate`: 미발행 후보 (운영계획 zero-base 저작 트레인) | `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.0` · `hwpx-plugin 1.5.0` |
+| 릴리스 상태 | 이 checkout의 train 상태 — `unreleased-candidate`: 미발행 후보 (운영계획 zero-base 저작 트레인) | `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.1` · `hwpx-plugin 1.5.0` |
 | 최소 호환 버전 | 1.4 스킬 계약이 지원하는 가장 낮은 조합 | core `>=5.4.0` · automation `>=6.4.2` · skill `>=1.4.0` |
-| 플러그인 설치 핀 | 번들이 재현 검증에 사용하는 정확 버전 | `python-hwpx[preview]==5.5.0` · `python-hwpx-automation[mcp,oracle]==6.5.0` |
+| 플러그인 설치 핀 | 번들이 재현 검증에 사용하는 정확 버전 | `python-hwpx[preview]==5.5.0` · `python-hwpx-automation[mcp,oracle]==6.5.1` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
