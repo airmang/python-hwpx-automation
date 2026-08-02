@@ -18,7 +18,7 @@
 
 > [!NOTE]
 > 이 소스 트리는 **아직 공개되지 않은 미발행 후보**입니다 — 후보 좌표는
-> `python-hwpx 5.6.0` · `python-hwpx-automation 6.6.1` · `hwpx-plugin 1.6.0`
+> `python-hwpx 5.6.0` · `python-hwpx-automation 6.6.4` · `hwpx-plugin 1.6.0`
 > (선언적 편집 계획 `run_edit_plan` 라우팅·MCP 리소스 구독 트레인). 현재 공개
 > 트레인은 여전히 `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.1` ·
 > `hwpx-plugin 1.5.0`입니다.
@@ -88,9 +88,9 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 현재 공개 릴리스와 미발행 후보를 구분한다 — 공개는 plugin 설치까지 함께 검증한 조합 (released 2026-08-02, 운영계획 zero-base 저작 트레인) | 공개 `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.1` · `hwpx-plugin 1.5.0` / 후보 `python-hwpx-automation 6.6.1` |
+| 완전한 공개 트레인 | 현재 공개 릴리스와 미발행 후보를 구분한다 — 공개는 plugin 설치까지 함께 검증한 조합 (released 2026-08-02, 운영계획 zero-base 저작 트레인) | 공개 `python-hwpx 5.5.0` · `python-hwpx-automation 6.5.1` · `hwpx-plugin 1.5.0` / 후보 `python-hwpx-automation 6.6.4` |
 | 최소 호환 버전 | 1.6 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 5.6.0` · `python-hwpx-automation >= 6.5.0` · skill `>= 1.6.0` |
-| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.6.0` · `python-hwpx-automation[mcp,oracle]==6.6.1` |
+| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==5.6.0` · `python-hwpx-automation[mcp,oracle]==6.6.4` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.

@@ -346,9 +346,9 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         "candidate": {
             "pythonHwpx": "5.6.0",
             "canonicalDistribution": "python-hwpx-automation",
-            "canonicalAutomation": "6.6.1",
+            "canonicalAutomation": "6.6.4",
             "compatibilityDistribution": "hwpx-mcp-server",
-            "compatibility": "6.6.1",
+            "compatibility": "6.6.4",
             "plugin": "1.6.0",
             "contractHash": "19898dba41495c47",
         },
@@ -381,7 +381,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     }
     assert components["core"]["currentVersion"] == "5.6.0"
     assert components["core"]["minimumCompatibleVersion"] == "5.6.0"
-    assert components["automation"]["currentVersion"] == "6.6.1"
+    assert components["automation"]["currentVersion"] == "6.6.4"
     assert components["automation"]["minimumCompatibleVersion"] == "6.5.0"
     assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
     assert components["automation"]["hostConfigKey"] == "hwpx"
@@ -474,7 +474,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         promoted = {
             "pythonHwpx": "5.6.0",
             "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "6.6.1",
+            "primaryApplication": "6.6.4",
             "plugin": "1.6.0",
             "contractHash": "19898dba41495c47",
         }
@@ -483,7 +483,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
             "core": {"distribution": "python-hwpx", "version": "5.6.0"},
             "application": {
                 "distribution": "python-hwpx-automation",
-                "version": "6.6.1",
+                "version": "6.6.4",
             },
             "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.6.0"},
         }
@@ -504,7 +504,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         cross_readme += (
             "\nreleased\n"
             "python-hwpx 5.6.0\n"
-            "python-hwpx-automation 6.6.1\n"
+            "python-hwpx-automation 6.6.4\n"
             "hwpx-plugin 1.5.0\n"
         )
 
