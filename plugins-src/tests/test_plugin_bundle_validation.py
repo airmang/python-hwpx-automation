@@ -265,8 +265,8 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "`python-hwpx 5.0.1`" not in text
         assert "`hwpx-plugin 1.0.0`" not in text
         assert "`python-hwpx 5.5.0`" in text
-        assert "`python-hwpx-automation 6.4.2`" in text
-        assert "`hwpx-plugin 1.4.1`" in text
+        assert "`python-hwpx-automation 6.5.1`" in text
+        assert "`hwpx-plugin 1.5.0`" in text
         assert "공개 릴리스" in text
         if status == "released":
             assert "미발행 후보" not in text
@@ -275,8 +275,8 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
             # candidate train from the public train, not hide it
             assert "미발행 후보" in text
             assert "`python-hwpx 5.5.0`" in text
-            assert "`python-hwpx-automation 6.4.2`" in text
-            assert "`hwpx-plugin 1.4.1`" in text
+            assert "`python-hwpx-automation 6.5.1`" in text
+            assert "`hwpx-plugin 1.5.0`" in text
         assert "최소 호환 버전" in text
         assert "플러그인 설치 핀" in text
         assert "validate_editor_open_safety(path).ok == True" in text
@@ -342,7 +342,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     assert identity["releaseState"] == {
-        "status": "unreleased-candidate",
+        "status": "released",
         "candidate": {
             "pythonHwpx": "5.5.0",
             "canonicalDistribution": "python-hwpx-automation",
@@ -355,9 +355,9 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         "currentPublic": {
             "pythonHwpx": "5.5.0",
             "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "6.4.2",
-            "plugin": "1.4.1",
-            "contractHash": "dbdbdfaac26148b7",
+            "primaryApplication": "6.5.1",
+            "plugin": "1.5.0",
+            "contractHash": "f61d2c60c0aa0413",
         },
         "promotionGate": (
             "Three states are mandatory: unreleased-candidate while auditing; "
@@ -375,9 +375,9 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         "core": {"distribution": "python-hwpx", "version": "5.5.0"},
         "application": {
             "distribution": "python-hwpx-automation",
-            "version": "6.4.2",
+            "version": "6.5.1",
         },
-        "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.4.1"},
+        "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.5.0"},
     }
     assert components["core"]["currentVersion"] == "5.5.0"
     assert components["core"]["minimumCompatibleVersion"] == "5.5.0"
