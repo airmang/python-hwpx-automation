@@ -10,6 +10,7 @@ CONTRACT_PATH = ROOT / "references" / "tool-contract.generated.json"
 RECOVERED_TOOLS = {
     "apply_table_ops",
     "apply_body_ops",
+    "run_edit_plan",
     "scan_form_guidance",
     "inspect_fill_residue",
     "verify_form_fill",
@@ -69,10 +70,10 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert BLUEPRINT_TOOLS <= names
     assert BLUEPRINT_TOOLS <= required
     assert REMOVED_PRIVATE_PRACTICE_TOOLS.isdisjoint(required)
-    assert contract["contractHash"] == "f61d2c60c0aa0413"
-    assert contract["defaultToolCount"] == 125
-    assert contract["advancedToolCount"] == 133
-    assert len(contract["skillRequiredTools"]) == 28
+    assert contract["contractHash"] == "19898dba41495c47"
+    assert contract["defaultToolCount"] == 126
+    assert contract["advancedToolCount"] == 134
+    assert len(contract["skillRequiredTools"]) == 29
     assert contract["defaultToolCount"] == sum(
         tool["profile"] == "default" for tool in contract["tools"]
     )

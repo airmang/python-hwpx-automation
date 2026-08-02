@@ -225,6 +225,48 @@ patch 항목: `{"sectionPath": "Contents/section0.xml", "paragraphIndex": N, "te
   `apply_edits`의 `replace_text`/`set_table_cell_text` 경로로 폴백한다.
 - open-safety 검증을 통과한 경우에만 대상 파일이 교체된다.
 
+## 5-b. 선언적 편집 계획 — `run_edit_plan` (all-or-nothing)
+
+```
+run_edit_plan(plan, dry_run=False)
+```
+
+바이트-스플라이스 다단 편집을 계획 1파일(`hwpx.edit-plan/v1`)로 합성해
+*정적 선검증 → 전 체인 인메모리 실행 → 최종 open-safety 검증 → 단 1회 원자
+쓰기*로 실행한다. **중간 step이 하나라도 실패하면 output·source는 바이트
+불변**이고 `ok=false` 리포트(`failedStepId`·step `error`)가 돌아온다 — 부분
+적용이 구조적으로 불가능하다.
+
+```json
+{
+  "schemaVersion": "hwpx.edit-plan/v1",
+  "source": "양식.hwpx",
+  "output": "산출.hwpx",
+  "steps": [
+    {"id": "s1", "op": "apply_body_ops",
+     "args": {"ops": [{"op": "replace_text", "find": "…", "replace": "…", "count": 1}]}},
+    {"id": "s2", "op": "fill_cells",
+     "args": {"cells": [{"table_index": 0, "row": 0, "col": 1, "text": "…"}]}}
+  ]
+}
+```
+
+- step `op` 어휘(7종): `paragraph_patch` · `fill_cells` · `apply_table_ops` ·
+  `apply_body_ops` · `recolor_runs_by_color` · `strip_runs_by_color` ·
+  `strip_trailing_table_captions`. `args`는 각 op의 기존 인자 그대로다.
+  전체 스키마는 리소스 `hwpx://schemas/edit-plan-v1`로 구독한다.
+- **판단 규칙(두뇌)**: 표 구조 변경+본문 치환+셀 채움이 섞이고 "부분 적용이
+  남으면 안 되는" 작업이면 개별 도구 연타 대신 이 경로를 쓴다. 먼저
+  `dry_run=true`로 전 체인을 실제 실행해(검증·거부 전부 실동작, 쓰기만 생략)
+  step별 transcript·리포트를 사용자 승인 근거로 보여주고, 승인 후 같은 계획을
+  실행한다 — 미리보기와 실행은 정의상 같은 결과다.
+- 응답 `hwpx.plan-report/v1`: step별 + 원본→최종 실측
+  `hwpx.mutation-report/v1` 사영(`aggregate`), `preservationFloor:"patch"`,
+  저널(`journalPath` 지정 시 JSONL). `delete_table` 여러 건은 역순 배열
+  (lints의 `delete-table-order` 경고를 따른다).
+- 렌더 검증이 필요한 산출물은 실행 후 `render_submit` 경로로 실한컴 게이트를
+  별도 통과시킨다(계획 실행기는 렌더를 내장하지 않는다 — 정직 분리).
+
 ## 6. 레이아웃 프리뷰 self-check — `render_preview`
 
 레이아웃 민감 작업(표 폭, 페이지 나눔, 머리글/그림) 후에는 생성→프리뷰→수정 루프를 돈다.
