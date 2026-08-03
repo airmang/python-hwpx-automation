@@ -2,7 +2,7 @@
   "schemaVersion": "hwpx.product-identity.v3",
   "stackName": "HWPX stack",
   "releaseState": {
-    "status": "unreleased-candidate",
+    "status": "released",
     "candidate": {
       "pythonHwpx": "5.7.0",
       "canonicalDistribution": "python-hwpx-automation",
@@ -13,26 +13,26 @@
       "contractHash": "98510af22d13899c"
     },
     "currentPublic": {
-      "pythonHwpx": "5.6.0",
+      "pythonHwpx": "5.7.0",
       "primaryDistribution": "python-hwpx-automation",
-      "primaryApplication": "6.6.4",
-      "plugin": "1.6.0",
-      "contractHash": "19898dba41495c47"
+      "primaryApplication": "6.7.1",
+      "plugin": "1.7.0",
+      "contractHash": "98510af22d13899c"
     },
     "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication."
   },
   "currentPublicStack": {
     "core": {
       "distribution": "python-hwpx",
-      "version": "5.6.0"
+      "version": "5.7.0"
     },
     "application": {
       "distribution": "python-hwpx-automation",
-      "version": "6.6.4"
+      "version": "6.7.1"
     },
     "plugin": {
       "installedPluginId": "hwpx-plugin",
-      "version": "1.6.0"
+      "version": "1.7.0"
     }
   },
   "firstPartyLabelKo": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬",
