@@ -2,7 +2,7 @@
   "id": "hwpx-plugin",
   "name": "HWPX Plugin",
   "description": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬. 편집은 순수 Python이며 최종 시각 검증은 필요 시 한컴 오라클을 사용합니다.",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "skills": [
     "./skills"
   ],

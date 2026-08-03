@@ -5,14 +5,14 @@
       "args": [
         "--refresh-package", "python-hwpx-automation",
         "--refresh-package", "python-hwpx",
-        "--with", "python-hwpx[preview]==5.7.0",
-        "--from", "python-hwpx-automation[mcp,oracle]==6.7.1",
+        "--with", "python-hwpx[preview]==5.8.0",
+        "--from", "python-hwpx-automation[mcp,oracle]==6.8.1",
         "hwpx-automation-mcp"
       ],
       "env": {
         "HWPX_AUTOMATION_ADVANCED": "0",
         "HWPX_AUTOMATION_AUTOBACKUP": "1",
-        "HWPX_SKILL_VERSION": "1.7.0"
+        "HWPX_SKILL_VERSION": "1.8.0"
       }
     }
   }

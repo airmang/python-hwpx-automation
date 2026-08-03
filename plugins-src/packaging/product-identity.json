@@ -4,35 +4,35 @@
   "releaseState": {
     "status": "released",
     "candidate": {
-      "pythonHwpx": "5.7.0",
+      "pythonHwpx": "5.8.0",
       "canonicalDistribution": "python-hwpx-automation",
-      "canonicalAutomation": "6.7.1",
+      "canonicalAutomation": "6.8.1",
       "compatibilityDistribution": "hwpx-mcp-server",
-      "compatibility": "6.7.1",
-      "plugin": "1.7.0",
-      "contractHash": "98510af22d13899c"
+      "compatibility": "6.8.1",
+      "plugin": "1.8.0",
+      "contractHash": "6ba7bc0ca7226f2f"
     },
     "currentPublic": {
-      "pythonHwpx": "5.7.0",
+      "pythonHwpx": "5.8.0",
       "primaryDistribution": "python-hwpx-automation",
-      "primaryApplication": "6.7.1",
-      "plugin": "1.7.0",
-      "contractHash": "98510af22d13899c"
+      "primaryApplication": "6.8.1",
+      "plugin": "1.8.0",
+      "contractHash": "6ba7bc0ca7226f2f"
     },
     "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication."
   },
   "currentPublicStack": {
     "core": {
       "distribution": "python-hwpx",
-      "version": "5.7.0"
+      "version": "5.8.0"
     },
     "application": {
       "distribution": "python-hwpx-automation",
-      "version": "6.7.1"
+      "version": "6.8.1"
     },
     "plugin": {
       "installedPluginId": "hwpx-plugin",
-      "version": "1.7.0"
+      "version": "1.8.0"
     }
   },
   "firstPartyLabelKo": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬",
@@ -42,8 +42,8 @@
       "repository": "python-hwpx",
       "distribution": "python-hwpx",
       "importName": "hwpx",
-      "currentVersion": "5.7.0",
-      "minimumCompatibleVersion": "5.7.0",
+      "currentVersion": "5.8.0",
+      "minimumCompatibleVersion": "5.8.0",
       "maturity": "alpha",
       "maturityEvidence": "Development Status :: 3 - Alpha"
     },
@@ -58,7 +58,7 @@
       "hostConfigKey": "hwpx",
       "hostConfigKeyKind": "local-alias",
       "launcherPath": "scripts/hwpx-automation-mcp",
-      "currentVersion": "6.7.1",
+      "currentVersion": "6.8.1",
       "minimumCompatibleVersion": "6.5.0",
       "maturity": "not-declared",
       "mcpExtra": "mcp",
@@ -72,8 +72,8 @@
       "repository": "hwpx-plugins",
       "installedPluginId": "hwpx-plugin",
       "installedSkillName": "hwpx",
-      "currentVersion": "1.7.0",
-      "minimumCompatibleVersion": "1.7.0",
+      "currentVersion": "1.8.0",
+      "minimumCompatibleVersion": "1.8.0",
       "maturity": "not-declared"
     }
   },
