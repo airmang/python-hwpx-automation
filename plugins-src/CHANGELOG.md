@@ -5,7 +5,7 @@
 ## [1.7.0] - 2026-08-03
 
 양식개체·기안문 장르 트레인 — 핀은 `python-hwpx[preview]==5.7.0` ·
-`python-hwpx-automation[mcp,oracle]==6.7.0`(계약 128/136/29 @
+`python-hwpx-automation[mcp,oracle]==6.7.1`(계약 128/136/29 @
 `98510af22d13899c`)입니다.
 
 ### 추가

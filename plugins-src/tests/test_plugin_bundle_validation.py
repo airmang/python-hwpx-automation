@@ -346,9 +346,9 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         "candidate": {
             "pythonHwpx": "5.7.0",
             "canonicalDistribution": "python-hwpx-automation",
-            "canonicalAutomation": "6.7.0",
+            "canonicalAutomation": "6.7.1",
             "compatibilityDistribution": "hwpx-mcp-server",
-            "compatibility": "6.7.0",
+            "compatibility": "6.7.1",
             "plugin": "1.7.0",
             "contractHash": "98510af22d13899c",
         },
@@ -381,7 +381,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     }
     assert components["core"]["currentVersion"] == "5.7.0"
     assert components["core"]["minimumCompatibleVersion"] == "5.7.0"
-    assert components["automation"]["currentVersion"] == "6.7.0"
+    assert components["automation"]["currentVersion"] == "6.7.1"
     assert components["automation"]["minimumCompatibleVersion"] == "6.5.0"
     assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
     assert components["automation"]["hostConfigKey"] == "hwpx"
@@ -458,7 +458,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         # coordinates to be visible; the released checkout no longer carries
         # them, so the synthesis injects them alongside the state note.
         prior = (
-            "\n미발행 후보: `python-hwpx 5.7.0` · `python-hwpx-automation 6.7.0` ·"
+            "\n미발행 후보: `python-hwpx 5.7.0` · `python-hwpx-automation 6.7.1` ·"
             " `hwpx-plugin 1.7.0`\n"
             "\n직전 공개 트레인: `python-hwpx 5.6.0` ·"
             " `python-hwpx-automation 6.6.4` · `hwpx-plugin 1.6.0`\n"
@@ -466,7 +466,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         readme += prior + "\nrelease-approved: remote truth is still pending.\n"
         api += prior + "\nrelease-approved: remote truth is still pending.\n"
         cross_readme += (
-            "\npython-hwpx-automation 6.7.0 / python-hwpx 5.7.0 / hwpx-plugin 1.7.0\n"
+            "\npython-hwpx-automation 6.7.1 / python-hwpx 5.7.0 / hwpx-plugin 1.7.0\n"
             "\npython-hwpx-automation 6.6.4 / python-hwpx 5.6.0 / hwpx-plugin 1.6.0\n"
             "\nrelease-approved: remote truth is still pending.\n"
         )
@@ -474,7 +474,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         promoted = {
             "pythonHwpx": "5.7.0",
             "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "6.7.0",
+            "primaryApplication": "6.7.1",
             "plugin": "1.7.0",
             "contractHash": "98510af22d13899c",
         }
@@ -483,7 +483,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
             "core": {"distribution": "python-hwpx", "version": "5.7.0"},
             "application": {
                 "distribution": "python-hwpx-automation",
-                "version": "6.7.0",
+                "version": "6.7.1",
             },
             "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.7.0"},
         }
@@ -504,7 +504,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         cross_readme += (
             "\nreleased\n"
             "python-hwpx 5.7.0\n"
-            "python-hwpx-automation 6.7.0\n"
+            "python-hwpx-automation 6.7.1\n"
             "hwpx-plugin 1.5.0\n"
         )
 
