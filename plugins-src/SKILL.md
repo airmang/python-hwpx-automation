@@ -73,6 +73,8 @@ MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호�
 | 운영 계획서 제출 후보 | document-plan + `quality_profile="operating_plan"` | [workflows-creation](references/workflows-creation.md) |
 | 운영 계획서 하우스 스타일·섹션칩 변주 | skill이 genre/profile/variable slot 판단 → 기존 document-plan MCP 경로 | [workflows-house-style](references/workflows-house-style.md) |
 | 제안서·기획안 | proposal document plan → `create_document_from_plan` → `inspect_document_quality` | [workflows-creation](references/workflows-creation.md) |
+| 기안문 서식 저작 (별지 제1호 일반기안문 / 제2호 간이기안문) | `compose_official_draft` · `compose_simple_draft` → `validate_document_plan` → `create_document_from_plan` (결재란 칸은 결재자 수만큼만·결문 라벨 미인쇄·선택항목은 `[ ]`+√) | [workflows-authoring](references/workflows-authoring.md) |
+| 체크박스 양식개체가 실제로 쓰이는 서식(공문서 아님) | `add_check_box` 계열 core API (공문서는 `[ ]` 텍스트 관례) | [workflows-authoring](references/workflows-authoring.md) |
 | 공문서 작성규정 lint·결재란 | `inspect_official_document_style` | [workflows-creation](references/workflows-creation.md), [규정](references/official-document-rules.md) |
 | 직인/관인 날인 (발신명의 끝글자에 도장) · 날인 규정 pass/fail 검사 | `place_seal` · `check_seal_compliance` | [workflows-forms](references/workflows-forms.md) |
 | 출제 md를 학교 시험지 양식에 재조판 (문항 keep-together, 그림은 placeholder) | `compose_exam` · `verify_question_splits` | [workflows-exam](references/workflows-exam.md) |
