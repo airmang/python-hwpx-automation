@@ -1,6 +1,30 @@
 # Changelog
 
-## [1.8.0] - 2026-08-03
+## [2.0.0] - unreleased candidate
+
+엔진 완전성 트레인입니다. 스킬 계약의 도구 어휘는 그대로이고(128/136/29
+불변), 스택이 major로 이동합니다 — 핀 `python-hwpx 6.0.0 ·
+python-hwpx-automation 7.0.0`, 계약 해시 `eb92b284e35eb40e`(플로어 전진만으로
+이동: minPythonHwpx 6.0.0 · minAutomationVersion 7.0.0 · minSkillVersion
+2.0.0).
+
+### 상류 반영
+
+- python-hwpx 6.0.0: 루트 표면 102→34, 도메인 네임스페이스
+  (`doc.notes`/`fields`/`shapes`/`styles`/`page`), 스타일 이름 해석,
+  `add_heading`, 단일 반환 규약, 공개 경로 typed error 100%. 5.x 루트
+  이름 79개는 deprecation shim으로 7.0까지 유지됩니다.
+- python-hwpx-automation 7.0.0: 전 콜사이트가 6.0 네임스페이스 표면으로
+  이동(`DeprecationWarning`=테스트 실패 게이트), compat 셸은 ==7.0.0 위임.
+- 동봉 tool-contract 참조를 7.0.0 계약으로 재생성했습니다.
+
+### 주의
+
+- [1.8.0]은 발행되지 않았습니다 — release-approved 후보 상태에서 이
+  트레인에 흡수되었고, 그 정직성 수리 내용은 아래 항목과 상류 CHANGELOG에
+  그대로 남아 있습니다. 마지막 공개 스택은 `5.7.0 / 6.7.1 / 1.7.0`입니다.
+
+## [1.8.0] - 2026-08-03 (unpublished — absorbed into 2.0.0)
 
 정직성 트레인입니다 — 스킬 계약(도구 어휘·라우팅)은 그대로이고, 스택 핀이
 `python-hwpx 5.8.0 · python-hwpx-automation 6.8.0`(계약 `6ba7bc0ca7226f2f`)으로

@@ -213,11 +213,11 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         "product identity release candidate does not match stack/config truth",
     )
     previous_public = {
-        "pythonHwpx": "5.6.0",
+        "pythonHwpx": "5.7.0",
         "primaryDistribution": "python-hwpx-automation",
-        "primaryApplication": "6.6.4",
-        "plugin": "1.6.0",
-        "contractHash": "19898dba41495c47",
+        "primaryApplication": "6.7.1",
+        "plugin": "1.7.0",
+        "contractHash": "98510af22d13899c",
     }
     promoted_public = {
         "pythonHwpx": core.get("currentVersion"),
@@ -270,8 +270,8 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         and compatibility.get("console") == "hwpx-mcp-server"
         and compatibility.get("hostConfigKey") == "hwpx-mcp-server"
         and compatibility.get("launcherPath") == "scripts/hwpx-mcp-server"
-        and compatibility.get("supportedSeries") == "6.x",
-        "6.x compatibility identity mismatch",
+        and compatibility.get("supportedSeries") == "7.x",
+        "7.x compatibility identity mismatch",
     )
 
     public = identity.get("currentPublicStack")
@@ -292,9 +292,9 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         }
         if status == "released"
         else {
-            "core": ("distribution", "python-hwpx", "5.6.0"),
-            "application": ("distribution", "python-hwpx-automation", "6.6.4"),
-            "plugin": ("installedPluginId", "hwpx-plugin", "1.6.0"),
+            "core": ("distribution", "python-hwpx", "5.7.0"),
+            "application": ("distribution", "python-hwpx-automation", "6.7.1"),
+            "plugin": ("installedPluginId", "hwpx-plugin", "1.7.0"),
         }
     )
     for key, (name_field, expected_name, expected_version) in public_specs.items():

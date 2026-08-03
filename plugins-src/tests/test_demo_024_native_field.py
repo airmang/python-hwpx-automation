@@ -112,9 +112,12 @@ def test_demo_024_uses_hancom_native_click_here_field_shape() -> None:
         with module.HwpxDocument.open(package_path) as document:
             fields = document.list_form_fields()
         assert len(fields) == 1
-        assert fields[0]["field_id"] == native["controlId"]
-        assert fields[0]["fieldid"] == native["fieldId"]
-        assert fields[0]["name"] == native["name"]
+        # 6.0 return contract: list_form_fields() yields FormField objects.
+        # The OWPML fieldid attribute stays an element-level fact, so the XML
+        # expectation reads it from the fieldBegin element the object wraps.
+        assert fields[0].field_id == native["controlId"]
+        assert fields[0].element.get("fieldid") == native["fieldId"]
+        assert fields[0].name == native["name"]
 
 
 def test_demo_024_table_anchor_is_separate_from_frozen_table_host() -> None:
