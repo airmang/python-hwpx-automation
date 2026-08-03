@@ -24,7 +24,6 @@
 
 - 공문은 `structure_pass=true` 를 **확인**하고 넘긴다.
 - 맞춤법·각주·시각완성은 자동 검증되지 않으면 **`unverified` 라벨 그대로** 보고한다(거짓 통과 금지).
-- **각주(footnote)** 는 현재 한컴 렌더 미지원 → 사용하지 않거나 unverified로 표기.
 
 ## 수식 삽입 (`add_equation`) — 네이티브 `<hp:equation>` 저작
 

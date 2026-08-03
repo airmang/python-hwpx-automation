@@ -186,7 +186,7 @@ mutation 전에 실패한다. `remove_section()`도 같은 section count 계약�
 child는 `{"type": "run", "text": "...", "bold": True, ...}` 또는
 `{"type": "page_number", "format": "page"}`다.
 
-## hwpx.builder
+## 문서 빌더 — `hwpx_automation.office.authoring.builder`
 
 `hwpx_automation.office.authoring.builder`는 docx-js처럼 문서를 객체 노드로 조립한 뒤 `HwpxDocument` facade를
 통해 HWPX로 lowering하는 새 문서 생성 API다. builder 내부에서 임의 XML을 직접

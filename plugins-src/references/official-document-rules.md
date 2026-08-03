@@ -35,6 +35,6 @@
 
 ## 결재란
 
-- builder 경로에서는 `hwpx.approval_box()` 또는 `hwpx.builder.approval_box()`를 사용한다.
+- builder 경로에서는 `hwpx_automation.office.authoring.builder.approval_box()`를 사용한다.
 - document-plan v2에서는 `{"type": "approval_box"}` block을 사용한다.
 - 기본 열은 `기안`, `검토`, `결재`, `전결`이며 내부적으로 서명 영역을 병합 표로 만든다.
