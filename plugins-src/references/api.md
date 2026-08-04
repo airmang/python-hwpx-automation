@@ -7,8 +7,8 @@
 
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 마지막으로 plugin 설치까지 함께 검증한 조합 (released 2026-08-03, 양식개체·기안문 장르 트레인) | `python-hwpx 5.7.0` · `python-hwpx-automation 6.7.1` · `hwpx-plugin 1.7.0` |
-| 릴리스 상태 | 이 checkout의 train 상태 — `release-approved`: 미발행 후보 승인됨, 원격 진실 관찰 대기 | `python-hwpx 6.0.2` · `python-hwpx-automation 7.0.1` · `hwpx-plugin 2.0.0` |
+| 완전한 공개 트레인 | 마지막으로 plugin 설치까지 함께 검증한 조합 (released 2026-08-04, 엔진 완전성 트레인) | `python-hwpx 6.0.2` · `python-hwpx-automation 7.0.1` · `hwpx-plugin 2.0.0` |
+| 릴리스 상태 | 이 checkout의 train 상태 — `released`: 3스택 원격 정본과 실제 설치까지 관찰 완료 | `python-hwpx 6.0.2` · `python-hwpx-automation 7.0.1` · `hwpx-plugin 2.0.0` |
 | 최소 호환 버전 | 1.6 스킬 계약이 지원하는 가장 낮은 조합 | core `>=5.7.0` · automation `>=6.5.0` · skill `>=1.7.0` |
 | 플러그인 설치 핀 | 번들이 재현 검증에 사용하는 정확 버전 | `python-hwpx[preview]==6.0.2` · `python-hwpx-automation[mcp,oracle]==7.0.1` |
 
