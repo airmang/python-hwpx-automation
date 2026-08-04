@@ -370,7 +370,7 @@ def main() -> int:
                 "HWPX_AUTOMATION_PACKAGE": server_package,
                 "HWPX_PYTHON_HWPX_PACKAGE": core_package,
                 "HWPX_AUTOMATION_VERSION": "7.0.0",
-                "HWPX_PYTHON_HWPX_VERSION": "6.0.1",
+                "HWPX_PYTHON_HWPX_VERSION": "6.0.2",
                 "HWPX_SKILL_VERSION": "2.0.0",
                 "HWPX_AUTOMATION_RUNTIME_ROOT": str(runtime_root),
                 "HWPX_AUTOMATION_WORKSPACE_ROOTS": json.dumps([str(workspace)]),
