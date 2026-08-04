@@ -342,7 +342,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     assert identity["releaseState"] == {
-        "status": "unreleased-candidate",
+        "status": "release-approved",
         "candidate": {
             "pythonHwpx": "6.0.0",
             "canonicalDistribution": "python-hwpx-automation",

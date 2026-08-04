@@ -2,7 +2,7 @@
   "schemaVersion": "hwpx.product-identity.v3",
   "stackName": "HWPX stack",
   "releaseState": {
-    "status": "unreleased-candidate",
+    "status": "release-approved",
     "candidate": {
       "pythonHwpx": "6.0.0",
       "canonicalDistribution": "python-hwpx-automation",

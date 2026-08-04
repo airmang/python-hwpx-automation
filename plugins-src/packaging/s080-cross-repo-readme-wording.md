@@ -80,3 +80,8 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 > hwpx-plugin 2.0.0(엔진 완전성 트레인)이며, 번들은 재현 검증을 위해
 > `python-hwpx-automation[mcp,oracle]==7.0.0`과
 > `python-hwpx[preview]==6.0.0`을 고정합니다.
+
+상태 문구:
+
+> 이 소스 트리는 release-approved 단계에서도 원격 진실 관찰 전까지
+> 공개 좌표를 승격하지 않습니다.

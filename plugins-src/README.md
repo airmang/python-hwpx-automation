@@ -14,13 +14,15 @@
   </p>
 </p>
 
-<!-- release-state: unreleased-candidate -->
+<!-- release-state: release-approved -->
 
 > [!NOTE]
 > 현재 공개 트레인은 `python-hwpx 5.7.0` · `python-hwpx-automation 6.7.1` ·
 > `hwpx-plugin 1.7.0`입니다 (released 2026-08-03 — 양식개체·기안문 장르 트레인).
 > 이 체크아웃은 미발행 후보를 담고 있습니다 (엔진 완전성 트레인):
 > `python-hwpx 6.0.0` · `python-hwpx-automation 7.0.0` · `hwpx-plugin 2.0.0`.
+> 상태는 release-approved — 원격 진실(PyPI·GitHub Release·marketplace 설치)
+> 관찰 전까지 공개 좌표를 승격하지 않습니다.
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
