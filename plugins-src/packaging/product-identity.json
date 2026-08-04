@@ -4,13 +4,13 @@
   "releaseState": {
     "status": "release-approved",
     "candidate": {
-      "pythonHwpx": "6.0.0",
+      "pythonHwpx": "6.0.1",
       "canonicalDistribution": "python-hwpx-automation",
       "canonicalAutomation": "7.0.0",
       "compatibilityDistribution": "hwpx-mcp-server",
       "compatibility": "7.0.0",
       "plugin": "2.0.0",
-      "contractHash": "eb92b284e35eb40e"
+      "contractHash": "b468d0cab8179f79"
     },
     "currentPublic": {
       "pythonHwpx": "5.7.0",
@@ -42,8 +42,8 @@
       "repository": "python-hwpx",
       "distribution": "python-hwpx",
       "importName": "hwpx",
-      "currentVersion": "6.0.0",
-      "minimumCompatibleVersion": "6.0.0",
+      "currentVersion": "6.0.1",
+      "minimumCompatibleVersion": "6.0.1",
       "maturity": "alpha",
       "maturityEvidence": "Development Status :: 3 - Alpha"
     },

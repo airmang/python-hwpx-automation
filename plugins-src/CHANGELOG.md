@@ -4,7 +4,7 @@
 
 엔진 완전성 트레인입니다. 스킬 계약의 도구 어휘는 그대로이고(128/136/29
 불변), 스택이 major로 이동합니다 — 핀 `python-hwpx 6.0.0 ·
-python-hwpx-automation 7.0.0`, 계약 해시 `eb92b284e35eb40e`(플로어 전진만으로
+python-hwpx-automation 7.0.0`, 계약 해시 `b468d0cab8179f79`(플로어 전진만으로
 이동: minPythonHwpx 6.0.0 · minAutomationVersion 7.0.0 · minSkillVersion
 2.0.0).
 

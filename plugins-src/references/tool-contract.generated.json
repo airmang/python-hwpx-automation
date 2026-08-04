@@ -1,6 +1,6 @@
 {
   "schemaVersion": "hwpx.tool-contract.v2",
-  "minPythonHwpx": "6.0.0",
+  "minPythonHwpx": "6.0.1",
   "minAutomationVersion": "7.0.0",
   "minMcpVersion": "7.0.0",
   "minSkillVersion": "2.0.0",
@@ -13,7 +13,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -94,7 +94,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -184,7 +184,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -463,7 +463,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -566,7 +566,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -649,7 +649,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -713,7 +713,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -767,7 +767,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -816,7 +816,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -857,7 +857,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -947,7 +947,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -995,7 +995,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1048,7 +1048,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1097,7 +1097,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1156,7 +1156,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1210,7 +1210,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1259,7 +1259,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1324,7 +1324,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1372,7 +1372,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1420,7 +1420,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1479,7 +1479,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1553,7 +1553,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1623,7 +1623,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1678,7 +1678,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1731,7 +1731,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1779,7 +1779,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1842,7 +1842,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1889,7 +1889,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -1982,7 +1982,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -2057,7 +2057,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -2145,7 +2145,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -2243,7 +2243,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -2323,7 +2323,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -2377,7 +2377,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -3892,7 +3892,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -4751,7 +4751,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -4808,7 +4808,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -4869,7 +4869,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -5887,7 +5887,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -5935,7 +5935,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -6029,7 +6029,7 @@
       "lifecycle": "deprecated",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -6112,7 +6112,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -6170,7 +6170,7 @@
       "lifecycle": "compatibility",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -6247,7 +6247,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -7802,7 +7802,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -10124,7 +10124,7 @@
       "lifecycle": "deprecated",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -10209,7 +10209,7 @@
       "lifecycle": "deprecated",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -10299,7 +10299,7 @@
       "lifecycle": "compatibility",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -10988,7 +10988,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11064,7 +11064,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11128,7 +11128,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11212,7 +11212,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11266,7 +11266,7 @@
       "lifecycle": "compatibility",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11337,7 +11337,7 @@
       "lifecycle": "compatibility",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11405,7 +11405,7 @@
       "lifecycle": "compatibility",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11497,7 +11497,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11538,7 +11538,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11588,7 +11588,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11660,7 +11660,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11725,7 +11725,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11778,7 +11778,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11841,7 +11841,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11913,7 +11913,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -11961,7 +11961,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12021,7 +12021,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12095,7 +12095,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12176,7 +12176,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12262,7 +12262,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12331,7 +12331,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12390,7 +12390,7 @@
       "lifecycle": "compatibility",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12856,7 +12856,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12906,7 +12906,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -12990,7 +12990,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13097,7 +13097,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13171,7 +13171,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13247,7 +13247,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13319,7 +13319,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13472,7 +13472,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13575,7 +13575,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13669,7 +13669,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13775,7 +13775,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13860,7 +13860,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -13954,7 +13954,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14038,7 +14038,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14112,7 +14112,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14211,7 +14211,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14319,7 +14319,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14367,7 +14367,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14456,7 +14456,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14674,7 +14674,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14806,7 +14806,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14910,7 +14910,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -14959,7 +14959,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15027,7 +15027,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15103,7 +15103,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15151,7 +15151,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15394,7 +15394,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15504,7 +15504,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15622,7 +15622,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15696,7 +15696,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15765,7 +15765,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15823,7 +15823,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15889,7 +15889,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -15968,7 +15968,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16073,7 +16073,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16148,7 +16148,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16297,7 +16297,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16355,7 +16355,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16467,7 +16467,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16515,7 +16515,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16580,7 +16580,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16647,7 +16647,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16716,7 +16716,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16787,7 +16787,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16850,7 +16850,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16900,7 +16900,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -16950,7 +16950,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17040,7 +17040,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17119,7 +17119,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17204,7 +17204,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17563,7 +17563,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17643,7 +17643,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17684,7 +17684,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17738,7 +17738,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17806,7 +17806,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17854,7 +17854,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17902,7 +17902,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -17955,7 +17955,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18022,7 +18022,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18084,7 +18084,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18146,7 +18146,7 @@
       "lifecycle": "public",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18208,7 +18208,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18256,7 +18256,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18314,7 +18314,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18372,7 +18372,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18435,7 +18435,7 @@
       "lifecycle": "advanced",
       "availabilityRequirement": {
         "dependency": "python-hwpx",
-        "minimumVersion": "6.0.0",
+        "minimumVersion": "6.0.1",
         "optional": false,
         "extra": null
       },
@@ -18505,7 +18505,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18532,7 +18532,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18559,7 +18559,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18587,7 +18587,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18614,7 +18614,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18642,7 +18642,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18669,7 +18669,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18696,7 +18696,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18723,7 +18723,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18749,7 +18749,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18776,7 +18776,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18802,7 +18802,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18828,7 +18828,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18855,7 +18855,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18882,7 +18882,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18909,7 +18909,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18936,7 +18936,7 @@
         "lifecycle": "internal",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -18969,7 +18969,7 @@
         "lifecycle": "internal",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19002,7 +19002,7 @@
         "lifecycle": "internal",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19035,7 +19035,7 @@
         "lifecycle": "internal",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19068,7 +19068,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19094,7 +19094,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19120,7 +19120,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19146,7 +19146,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19173,7 +19173,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19199,7 +19199,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19225,7 +19225,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19251,7 +19251,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19277,7 +19277,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19303,7 +19303,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19329,7 +19329,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19355,7 +19355,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19381,7 +19381,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19407,7 +19407,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19433,7 +19433,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19459,7 +19459,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19485,7 +19485,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19512,7 +19512,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19540,7 +19540,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19568,7 +19568,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19596,7 +19596,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19623,7 +19623,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19650,7 +19650,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19676,7 +19676,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19703,7 +19703,7 @@
         "lifecycle": "deprecated",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19734,7 +19734,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19760,7 +19760,7 @@
         "lifecycle": "compatibility",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19791,7 +19791,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19817,7 +19817,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19844,7 +19844,7 @@
         "lifecycle": "deprecated",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19874,7 +19874,7 @@
         "lifecycle": "deprecated",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19905,7 +19905,7 @@
         "lifecycle": "compatibility",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19937,7 +19937,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19971,7 +19971,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -19998,7 +19998,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20026,7 +20026,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20053,7 +20053,7 @@
         "lifecycle": "compatibility",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20083,7 +20083,7 @@
         "lifecycle": "compatibility",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20112,7 +20112,7 @@
         "lifecycle": "compatibility",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20141,7 +20141,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20167,7 +20167,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20193,7 +20193,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20219,7 +20219,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20245,7 +20245,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20271,7 +20271,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20297,7 +20297,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20324,7 +20324,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20351,7 +20351,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20377,7 +20377,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20404,7 +20404,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20431,7 +20431,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20458,7 +20458,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20485,7 +20485,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20512,7 +20512,7 @@
         "lifecycle": "compatibility",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20542,7 +20542,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20570,7 +20570,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20598,7 +20598,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20625,7 +20625,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20652,7 +20652,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20679,7 +20679,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20707,7 +20707,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20734,7 +20734,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20761,7 +20761,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20788,7 +20788,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20815,7 +20815,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20842,7 +20842,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20869,7 +20869,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20896,7 +20896,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20923,7 +20923,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20950,7 +20950,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -20978,7 +20978,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21004,7 +21004,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21031,7 +21031,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21058,7 +21058,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21085,7 +21085,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21112,7 +21112,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21139,7 +21139,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21166,7 +21166,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21192,7 +21192,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21218,7 +21218,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21245,7 +21245,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21272,7 +21272,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21299,7 +21299,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21326,7 +21326,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21353,7 +21353,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21379,7 +21379,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21405,7 +21405,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21433,7 +21433,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21461,7 +21461,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21487,7 +21487,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21514,7 +21514,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21540,7 +21540,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21568,7 +21568,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21594,7 +21594,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21621,7 +21621,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21648,7 +21648,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21675,7 +21675,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21702,7 +21702,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21728,7 +21728,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21754,7 +21754,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21780,7 +21780,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21807,7 +21807,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21835,7 +21835,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21862,7 +21862,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21890,7 +21890,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21918,7 +21918,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21944,7 +21944,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21970,7 +21970,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -21996,7 +21996,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22029,7 +22029,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22062,7 +22062,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22088,7 +22088,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22114,7 +22114,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22140,7 +22140,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22166,7 +22166,7 @@
         "lifecycle": "public",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22192,7 +22192,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22225,7 +22225,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22258,7 +22258,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22291,7 +22291,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22324,7 +22324,7 @@
         "lifecycle": "advanced",
         "availabilityRequirement": {
           "dependency": "python-hwpx",
-          "minimumVersion": "6.0.0",
+          "minimumVersion": "6.0.1",
           "optional": false,
           "extra": null
         },
@@ -22351,7 +22351,7 @@
       }
     ]
   },
-  "contractHash": "eb92b284e35eb40e",
+  "contractHash": "b468d0cab8179f79",
   "defaultToolCount": 128,
   "advancedToolCount": 136,
   "baselineToolCount": 140,
