@@ -346,11 +346,11 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         "candidate": {
             "pythonHwpx": "6.0.2",
             "canonicalDistribution": "python-hwpx-automation",
-            "canonicalAutomation": "7.0.0",
+            "canonicalAutomation": "7.0.1",
             "compatibilityDistribution": "hwpx-mcp-server",
-            "compatibility": "7.0.0",
+            "compatibility": "7.0.1",
             "plugin": "2.0.0",
-            "contractHash": "7c5f93b6e2b2e6c3",
+            "contractHash": "34a91560759dc47a",
         },
         "currentPublic": {
             "pythonHwpx": "5.7.0",
@@ -381,8 +381,8 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     }
     assert components["core"]["currentVersion"] == "6.0.2"
     assert components["core"]["minimumCompatibleVersion"] == "6.0.2"
-    assert components["automation"]["currentVersion"] == "7.0.0"
-    assert components["automation"]["minimumCompatibleVersion"] == "7.0.0"
+    assert components["automation"]["currentVersion"] == "7.0.1"
+    assert components["automation"]["minimumCompatibleVersion"] == "7.0.1"
     assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
     assert components["automation"]["hostConfigKey"] == "hwpx"
     assert components["automation"]["hostConfigKeyKind"] == "local-alias"
@@ -474,16 +474,16 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         promoted = {
             "pythonHwpx": "6.0.2",
             "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "7.0.0",
+            "primaryApplication": "7.0.1",
             "plugin": "2.0.0",
-            "contractHash": "7c5f93b6e2b2e6c3",
+            "contractHash": "34a91560759dc47a",
         }
         identity["releaseState"]["currentPublic"] = promoted
         identity["currentPublicStack"] = {
             "core": {"distribution": "python-hwpx", "version": "6.0.2"},
             "application": {
                 "distribution": "python-hwpx-automation",
-                "version": "7.0.0",
+                "version": "7.0.1",
             },
             "plugin": {"installedPluginId": "hwpx-plugin", "version": "2.0.0"},
         }

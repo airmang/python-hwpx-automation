@@ -4,7 +4,7 @@
 
 엔진 완전성 트레인입니다. 스킬 계약의 도구 어휘는 그대로이고(128/136/29
 불변), 스택이 major로 이동합니다 — 핀 `python-hwpx 6.0.0 ·
-python-hwpx-automation 7.0.0`, 계약 해시 `7c5f93b6e2b2e6c3`(플로어 전진만으로
+python-hwpx-automation 7.0.1`, 계약 해시 `34a91560759dc47a`(플로어 전진만으로
 이동: minPythonHwpx 6.0.0 · minAutomationVersion 7.0.0 · minSkillVersion
 2.0.0).
 
@@ -14,8 +14,8 @@ python-hwpx-automation 7.0.0`, 계약 해시 `7c5f93b6e2b2e6c3`(플로어 전진
   (`doc.notes`/`fields`/`shapes`/`styles`/`page`), 스타일 이름 해석,
   `add_heading`, 단일 반환 규약, 공개 경로 typed error 100%. 5.x 루트
   이름 79개는 deprecation shim으로 7.0까지 유지됩니다.
-- python-hwpx-automation 7.0.0: 전 콜사이트가 6.0 네임스페이스 표면으로
-  이동(`DeprecationWarning`=테스트 실패 게이트), compat 셸은 ==7.0.0 위임.
+- python-hwpx-automation 7.0.1: 전 콜사이트가 6.0 네임스페이스 표면으로
+  이동(`DeprecationWarning`=테스트 실패 게이트), compat 셸은 ==7.0.1 위임.
 - 동봉 tool-contract 참조를 7.0.0 계약으로 재생성했습니다.
 
 ### 주의
