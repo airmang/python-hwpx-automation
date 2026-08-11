@@ -1,3 +1,5 @@
+[![MCP Toplist](https://mcptoplist.com/badge/smithery%2Fairmang%2Fhwpx-mcp-server.svg)](https://mcptoplist.com/server/smithery%2Fairmang%2Fhwpx-mcp-server)
+
 <p align="center">
   <h1 align="center">python-hwpx-automation</h1>
   <p align="center">
