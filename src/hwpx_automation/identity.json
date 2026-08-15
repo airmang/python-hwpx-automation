@@ -5,7 +5,7 @@
   "releaseState": {
     "status": "released",
     "candidate": {
-      "pythonHwpx": "6.0.2",
+      "pythonHwpx": "6.1.0",
       "canonicalDistribution": "python-hwpx-automation",
       "canonicalAutomation": "7.0.1",
       "compatibilityDistribution": "hwpx-mcp-server",
@@ -14,7 +14,7 @@
       "contractHash": "34a91560759dc47a"
     },
     "currentPublic": {
-      "pythonHwpx": "6.0.2",
+      "pythonHwpx": "6.1.0",
       "primaryDistribution": "python-hwpx-automation",
       "primaryApplication": "7.0.1",
       "plugin": "2.0.0",
