@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -41,6 +42,57 @@ def test_native_probe_executes_owned_imaging_stack_without_gui() -> None:
     assert "np.asarray" in probe
     assert "fitz-pillow-numpy-passed" in probe
     assert "MacHancomOracle" not in probe
+    assert smoke._PROBE_RECEIPT_PREFIX in probe
+
+
+def test_probe_receipt_parser_ignores_unowned_stdout() -> None:
+    receipt = {"oracleBackend": "NullOracle", "renderChecked": False}
+    completed = subprocess.CompletedProcess(
+        args=["python", "-c", "probe"],
+        returncode=0,
+        stdout=(
+            "optional dependency diagnostic\n"
+            f"{smoke._PROBE_RECEIPT_PREFIX}{json.dumps(receipt)}\n"
+        ),
+        stderr="native library diagnostic\n",
+    )
+
+    assert smoke._parse_probe_receipt(completed) == receipt
+
+
+@pytest.mark.parametrize(
+    "stdout, message",
+    [
+        ("", "got 0"),
+        (
+            f"{smoke._PROBE_RECEIPT_PREFIX}not-json\n",
+            "malformed receipt",
+        ),
+        (
+            "".join(
+                [
+                    f"{smoke._PROBE_RECEIPT_PREFIX}{{}}\n",
+                    f"{smoke._PROBE_RECEIPT_PREFIX}{{}}\n",
+                ]
+            ),
+            "got 2",
+        ),
+    ],
+)
+def test_probe_receipt_parser_fails_closed(
+    stdout: str,
+    message: str,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        args=["python", "-c", "probe"],
+        returncode=0,
+        stdout=stdout,
+        stderr="captured probe stderr",
+    )
+
+    with pytest.raises(RuntimeError, match=message) as caught:
+        smoke._parse_probe_receipt(completed)
+    assert "captured probe stderr" in str(caught.value)
 
 
 def test_platform_optional_smoke_sanitizes_source_resolution(

@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MINIMUM_PYTHON = (3, 10)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from release_coordinates import coordinates as _release_coordinates  # noqa: E402
+from release_coordinates import coordinates as _release_coordinates
 
 # Train coordinates are derived from identity.json, never restated here. A
 # stale wheel-filename pin in this very file produced the preserved failure
@@ -48,6 +48,7 @@ _SOURCE_AFFECTING_ENV = (
     "PYTHONUSERBASE",
     "VIRTUAL_ENV",
 )
+_PROBE_RECEIPT_PREFIX = "HWPX_PLATFORM_SMOKE_RECEIPT="
 
 
 def _isolated_env(
@@ -171,6 +172,40 @@ def _resolve_probe(script: str) -> str:
     return resolved
 
 
+def _parse_probe_receipt(
+    completed: subprocess.CompletedProcess[str],
+) -> dict[str, Any]:
+    """Extract the probe receipt without trusting third-party stdout silence."""
+
+    receipts = [
+        line.removeprefix(_PROBE_RECEIPT_PREFIX)
+        for line in completed.stdout.splitlines()
+        if line.startswith(_PROBE_RECEIPT_PREFIX)
+    ]
+    if len(receipts) != 1:
+        raise RuntimeError(
+            "probe must emit exactly one prefixed receipt; "
+            f"got {len(receipts)}\n"
+            f"stdout={completed.stdout!r}\n"
+            f"stderr={completed.stderr!r}"
+        )
+    try:
+        receipt = json.loads(receipts[0])
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "probe emitted a malformed receipt\n"
+            f"stdout={completed.stdout!r}\n"
+            f"stderr={completed.stderr!r}"
+        ) from exc
+    if not isinstance(receipt, dict):
+        raise TypeError(
+            "probe receipt must be a JSON object\n"
+            f"stdout={completed.stdout!r}\n"
+            f"stderr={completed.stderr!r}"
+        )
+    return receipt
+
+
 def _probe_script() -> str:
     return r"""
 import importlib.util
@@ -244,7 +279,7 @@ assert report.warnings
 assert "RENDER_ORACLE_UNAVAILABLE" in report.warnings[0]
 assert "unverified" in report.warnings[0]
 
-print(json.dumps(
+print("HWPX_PLATFORM_SMOKE_RECEIPT=" + json.dumps(
     {
         "python": platform.python_version(),
         "platform": sys.platform,
@@ -258,7 +293,7 @@ print(json.dumps(
         "renderWarning": report.warnings[0],
     },
     sort_keys=True,
-))
+), flush=True)
 """
 
 
@@ -374,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
             cwd=probe_cwd,
             env=probe_env,
         )
-        probe_receipt: dict[str, Any] = json.loads(probe.stdout)
+        probe_receipt = _parse_probe_receipt(probe)
 
         task_cli = _run(
             [str(venv_python), "-m", "hwpx_automation", "--help"],
