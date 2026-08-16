@@ -211,11 +211,8 @@ class TableService:
         new_id = header._allocate_border_fill_id(border_fills_element)
         _build_border_fill_element(border_fills_element, new_id, spec)
 
-        if hasattr(header, "_update_border_fills_item_count"):
-            header._update_border_fills_item_count(border_fills_element)
-        else:
-            count = len(border_fills_element.findall(f"{HH_NS}borderFill"))
-            border_fills_element.set("itemCnt", str(count))
+        count = len(border_fills_element.findall(f"{HH_NS}borderFill"))
+        border_fills_element.set("itemCnt", str(count))
         header.mark_dirty()
         return new_id
 
