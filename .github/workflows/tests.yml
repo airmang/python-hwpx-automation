@@ -132,6 +132,31 @@ jobs:
           python scripts/render_contract_delta.py --check
         working-directory: python-hwpx-automation
 
+  # Issue #98: every Windows save failed because os.open defaulted to CRT
+  # text mode, so snapshot digests never matched binary reads. POSIX runners
+  # cannot reproduce text-mode descriptor semantics, so the workspace
+  # publication fallback must be exercised on a real Windows runner.
+  windows-publish-gate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          path: python-hwpx-automation
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: airmang/python-hwpx
+          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || 'main' }}
+          path: python-hwpx
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -e "../python-hwpx[visual,preview]"
+        working-directory: python-hwpx-automation
+      - run: python -m pip install -e ".[mcp,test]"
+        working-directory: python-hwpx-automation
+      - run: python -m pytest -q tests/test_workspace_windows_gate.py
+        working-directory: python-hwpx-automation
+
   clean-package-install:
     runs-on: ubuntu-latest
     strategy:

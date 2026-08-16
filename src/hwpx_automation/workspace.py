@@ -107,6 +107,9 @@ def _snapshot_target(
         os.O_RDONLY
         | getattr(os, "O_NOFOLLOW", 0)
         | getattr(os, "O_NONBLOCK", 0)
+        # Windows os.open defaults to CRT text mode, which rewrites CRLF and
+        # stops reading at 0x1A; digests must hash the exact on-disk bytes.
+        | getattr(os, "O_BINARY", 0)
     )
     try:
         descriptor = os.open(path, flags)
@@ -226,6 +229,7 @@ def _relative_file_snapshot(
         os.O_RDONLY
         | getattr(os, "O_NOFOLLOW", 0)
         | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_BINARY", 0)
     )
     descriptor = os.open(name, flags, dir_fd=parent_fd)
     try:

@@ -10,6 +10,21 @@
   에러와 "파일을 PC에 저장한 뒤 실제 로컬 경로를 전달하세요" 안내를
   돌려줍니다. 기여: @adity982.
 
+### 고쳐짐
+
+- **Windows에서 모든 저장·삭제 경로가 `WORKSPACE_PATH_CHANGED`
+  (`output_target_changed` / `output_candidate_changed`)로 실패하던 결함을
+  수정했습니다 (#98).** Windows `os.open`은 CRT 텍스트 모드가 기본이라
+  workspace 스냅샷 digest가 CRLF 변환과 0x1A 조기 EOF를 거친 바이트를
+  해시했고, 바이너리로 읽은 실제 파일 바이트와 절대 일치할 수 없었습니다.
+  ZIP 컨테이너인 HWPX에는 두 바이트 패턴이 항상 존재하므로 Windows의
+  portable 폴백 공표는 전부 차단됐습니다. `_snapshot_target`과
+  `_relative_file_snapshot`이 `O_BINARY`로 열도록 고치고, 실제 Windows
+  러너에서 공표 폴백을 실행하는 CI 게이트
+  (`tests/test_workspace_windows_gate.py`, `windows-publish-gate` 잡)를
+  추가했습니다.
+>>>>>>> origin/main
+
 ## [7.0.1] - 2026-08-04
 
 `v7.0.0`은 보존된 실패 태그입니다 — 아무것도 게시되지 않았습니다.
