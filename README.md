@@ -15,9 +15,9 @@
 <!-- release-state: released -->
 > [!NOTE]
 > 공개 트레인: `python-hwpx 6.1.0 → python-hwpx-automation 7.0.2 →
-> hwpx-plugin 2.0.0` (automation 7.0.2 released 2026-08-16,
-> automation-단독 패치 트레인 — Windows 저장 수리 #98·업로드 경로 안내
-> #75, core/plugin과 계약 `34a91560759dc47a` 불변).
+> hwpx-plugin 2.0.1` (automation 7.0.2 · plugin 2.0.1 released 2026-08-16,
+> Windows 저장 수리 패치 트레인 — 저장 수리 #98·업로드 경로 안내
+> #75, core와 계약 `34a91560759dc47a` 불변).
 > 공개 좌표는 원격 진실(core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치) 관찰 후에만
 > 승격됩니다 — [릴리스 runbook](docs/release-runbook.md)
@@ -74,7 +74,7 @@ Gemini CLI는 `~/.gemini/settings.json`, Cursor·Windsurf는 각 에디터의 MC
       "command": "uvx",
       "args": [
         "--from",
-        "python-hwpx-automation[mcp]==6.1.3",
+        "python-hwpx-automation[mcp]==7.0.2",
         "hwpx-automation-mcp"
       ],
       "env": {

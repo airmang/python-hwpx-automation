@@ -418,12 +418,24 @@ def main() -> int:
         "canonicalAutomation": version,
         "compatibilityDistribution": compat["name"],
         "compatibility": compat["version"],
-        "plugin": contract["minSkillVersion"],
+        "plugin": candidate.get("plugin"),
         "contractHash": contract["contractHash"],
     }
     _require(
         candidate == expected_candidate,
         "identity release candidate does not match package/contract truth",
+        errors,
+    )
+    # The plugin version has no same-repository package truth (it lives in
+    # hwpx-plugins); the contract only pins its floor. Equality with the floor
+    # held while every train advanced the floor, but a plugin patch train
+    # moves the version without moving the floor. Remote observation
+    # (check_current_public_remote.py) verifies the actual public version.
+    candidate_plugin = candidate.get("plugin", "")
+    _require(
+        bool(candidate_plugin)
+        and Version(candidate_plugin) >= Version(contract["minSkillVersion"]),
+        "identity candidate plugin does not satisfy the contract skill floor",
         errors,
     )
     status = release_state.get("status")

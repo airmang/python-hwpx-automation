@@ -352,4 +352,4 @@ python3 ../hwpx-skill/scripts/visual_review.py work/output.hwpx --evidence work/
 as final visual clearance.
 
 
-> 릴리스 상태 참고: 현재 공개 트레인은 python-hwpx 6.1.0 · python-hwpx-automation 7.0.2 · hwpx-plugin 2.0.0입니다 (automation 7.0.2 released 2026-08-16, automation-단독 패치 트레인).
+> 릴리스 상태 참고: 현재 공개 트레인은 python-hwpx 6.1.0 · python-hwpx-automation 7.0.2 · hwpx-plugin 2.0.1입니다 (automation 7.0.2 · plugin 2.0.1 released 2026-08-16, Windows 저장 수리 패치 트레인).
