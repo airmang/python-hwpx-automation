@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [7.0.2] - 2026-08-16
+
+Windows 사용자 전원에게 영향을 주던 저장 차단 결함의 패치 트레인입니다.
+도구 표면·계약 해시(`34a91560759dc47a`)·플로어는 불변이고, core 의존 창
+(`python-hwpx>=6.0.2,<7`)도 그대로입니다. 첫 외부 기여가 포함된
+릴리스입니다 — [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
 ### 추가됨
 
 - **클라이언트 업로드 경로 안내 에러 (#75, #84).** 대화창에 업로드된 파일의
@@ -22,8 +29,11 @@
   `_relative_file_snapshot`이 `O_BINARY`로 열도록 고치고, 실제 Windows
   러너에서 공표 폴백을 실행하는 CI 게이트
   (`tests/test_workspace_windows_gate.py`, `windows-publish-gate` 잡)를
-  추가했습니다.
->>>>>>> origin/main
+  추가했습니다. 정밀 재현·진단 리포트: @rainforest80.
+- core 6.1.0에서 제거된 private 헬퍼(`_update_border_fills_item_count`)
+  참조를 정리해 core main 기준 타입 게이트를 복원했습니다 (#100). 함께
+  적발된 stale `PYTHON_HWPX_CANDIDATE_REF` 저장소 변수(코어 6.0.2 핀)도
+  제거했습니다 — 코어 릴리스가 main에 안착하면 main이 정본입니다.
 
 ## [7.0.1] - 2026-08-04
 

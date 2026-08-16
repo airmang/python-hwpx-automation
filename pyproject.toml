@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx-automation"
-version = "7.0.1"
+version = "7.0.2"
 description = "Task-oriented HWPX document automation for Python, with an optional MCP adapter."
 readme = "README.md"
 authors = [{ name = "Kohkyuhyun" }]

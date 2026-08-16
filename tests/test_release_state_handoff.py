@@ -151,14 +151,22 @@ def test_identity_requires_complete_three_stack_remote_truth() -> None:
     # While a train is in flight the public stack must still differ from the
     # candidate; once promoted the two agree. Stating the expected plugin
     # version here was a fourth copy of a coordinate that only identity.json
-    # should own.
+    # should own. An automation-only patch train moves neither core nor
+    # plugin, so the difference may live in any of the three coordinates.
     if release["status"] != "released":
-        assert release["currentPublic"]["plugin"] != release["candidate"]["plugin"] or (
-            release["currentPublic"]["pythonHwpx"]
+        assert (
+            release["currentPublic"]["plugin"] != release["candidate"]["plugin"]
+            or release["currentPublic"]["pythonHwpx"]
             != release["candidate"]["pythonHwpx"]
+            or release["currentPublic"]["primaryApplication"]
+            != release["candidate"]["canonicalAutomation"]
         )
     else:
         assert release["currentPublic"]["plugin"] == release["candidate"]["plugin"]
+        assert (
+            release["currentPublic"]["primaryApplication"]
+            == release["candidate"]["canonicalAutomation"]
+        )
     gate = release["promotionGate"]
     assert all(
         requirement in gate
