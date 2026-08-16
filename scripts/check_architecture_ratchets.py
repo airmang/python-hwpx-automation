@@ -64,7 +64,10 @@ EXPECTED_SERVICE_LINES = {
     # printed a byteIdentical receipt onto a rewritten document. The seam now
     # refuses the impossible combination rather than forwarding it.
     "save_policy.py": 616,
-    "tables.py": 539,
+    # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
+    # hasattr fallback (equivalent direct itemCnt computation) is now the only
+    # branch, so the dead private call went away.
+    "tables.py": 536,
     "transactions.py": 616,
 }
 
