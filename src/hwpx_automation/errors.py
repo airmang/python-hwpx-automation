@@ -36,6 +36,7 @@ class CommonErrorModel(BaseModel):
 
 
 ERROR_CODE_TO_MCP_CODE: dict[str, int] = {
+    "CLIENT_UPLOAD_PATH_UNAVAILABLE": -32602,
     "DOCUMENT_NOT_FOUND": -32044,
     "PERMISSION_DENIED": -32043,
     "TABLE_INDEX_OUT_OF_RANGE": -32042,
@@ -57,6 +58,7 @@ DEFAULT_ERROR_SUGGESTIONS: dict[str, str] = {
     "AMBIGUOUS_TARGET": "검색 조건을 더 구체화하거나 limit=1로 미리보기를 다시 생성하세요.",
     "BYTE_PATCH_OPEN_SAFETY_FAILED": "반환된 openSafety 진단을 확인하고 일반 저장/복구 경로로 다시 생성하세요.",
     "CAPABILITY_SKEW": "core/automation/plugin ToolSpec 계약 불일치로 쓰기가 차단되었습니다. mcp_server_health의 최소 버전과 contract hash에 맞춰 다시 설치한 뒤 호스트를 재시작하세요.",
+    "CLIENT_UPLOAD_PATH_UNAVAILABLE": "대화에 업로드된 파일의 내부 경로는 로컬 MCP 서버에서 읽을 수 없습니다. 파일을 PC에 저장한 뒤 실제 로컬 경로를 전달하세요.",
     "FIELD_OVERFLOW": "값이 칸에 넘칩니다. fitPolicy(mode=wrap_then_shrink/shrink/truncate_with_report) 또는 overflow=warn으로 다시 채우거나 값을 줄이세요. details.visualComplete.suggestedRetry 참고.",
     "STALE_LINESEG_DETECTED": "오래된 lineseg 레이아웃 캐시가 남았습니다. 해당 문단을 다시 편집해 캐시를 무효화한 뒤 저장하세요.",
     "VISUAL_COMPLETE_FAILED": "한컴 렌더에서 겹침/넘침 등 시각 결함이 감지되었습니다. details.visualComplete를 확인하고 수정 후 다시 저장하세요.",
@@ -120,6 +122,7 @@ def category_for_error(error_code: str) -> ErrorCategory:
     if error_code.startswith("NETWORK_"):
         return "network"
     if error_code in {
+        "CLIENT_UPLOAD_PATH_UNAVAILABLE",
         "INVALID_ARGUMENT",
         "WORKSPACE_PATH_INVALID",
         "DOCUMENT_LOCATOR_REQUIRED",

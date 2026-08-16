@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### 추가됨
+
+- **클라이언트 업로드 경로 안내 에러 (#75, #84).** 대화창에 업로드된 파일의
+  내부 경로(`/mnt/user-data/...`)가 도구에 전달되면, 일반 workspace 해석보다
+  먼저 감지해 typed·redacted `CLIENT_UPLOAD_PATH_UNAVAILABLE` validation
+  에러와 "파일을 PC에 저장한 뒤 실제 로컬 경로를 전달하세요" 안내를
+  돌려줍니다. 기여: @adity982.
+
 ### 고쳐짐
 
 - **Windows에서 모든 저장·삭제 경로가 `WORKSPACE_PATH_CHANGED`
@@ -15,6 +23,7 @@
   러너에서 공표 폴백을 실행하는 CI 게이트
   (`tests/test_workspace_windows_gate.py`, `windows-publish-gate` 잡)를
   추가했습니다.
+>>>>>>> origin/main
 
 ## [7.0.1] - 2026-08-04
 

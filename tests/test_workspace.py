@@ -111,6 +111,27 @@ def test_malformed_file_uri_raises_workspace_path_error() -> None:
     assert "inside.hwpx" not in json.dumps(excinfo.value.safe_details())
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "/mnt/user-data/uploads/document.hwpx",
+        r"\mnt\user-data\uploads\document.hwpx",
+        "/MNT/USER-DATA/document.hwpx",
+    ],
+)
+def test_client_upload_paths_fail_with_actionable_typed_error(
+    tmp_path: Path, value: str
+) -> None:
+    resolver = WorkspaceResolver.from_roots([tmp_path])
+
+    with pytest.raises(WorkspacePathError) as excinfo:
+        resolver.resolve(value)
+
+    assert excinfo.value.code == "CLIENT_UPLOAD_PATH_UNAVAILABLE"
+    assert excinfo.value.reason == "client_upload_path"
+    assert "document.hwpx" not in json.dumps(excinfo.value.safe_details())
+
+
 def test_missing_output_parent_is_created_inside_root(tmp_path: Path) -> None:
     root = tmp_path / "workspace"
     root.mkdir()
