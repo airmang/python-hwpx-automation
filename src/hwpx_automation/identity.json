@@ -3,7 +3,7 @@
   "product": "python-hwpx-automation",
   "releaseMajor": 6,
   "releaseState": {
-    "status": "release-approved",
+    "status": "released",
     "candidate": {
       "pythonHwpx": "6.1.0",
       "canonicalDistribution": "python-hwpx-automation",
@@ -16,7 +16,7 @@
     "currentPublic": {
       "pythonHwpx": "6.1.0",
       "primaryDistribution": "python-hwpx-automation",
-      "primaryApplication": "7.0.1",
+      "primaryApplication": "7.0.2",
       "plugin": "2.0.0",
       "contractHash": "34a91560759dc47a"
     },
