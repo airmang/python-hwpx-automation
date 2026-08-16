@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.1] - 2026-08-16
+
+automation 7.0.2 패치를 따라가는 핀 범프 릴리스입니다. 스킬 내용·도구
+표면·계약 해시(`34a91560759dc47a`)·플로어는 그대로입니다.
+
+- 번들 설치 핀이 `python-hwpx-automation[mcp,oracle]==7.0.2`로
+  전진합니다 — Windows에서 모든 저장이 `WORKSPACE_PATH_CHANGED`로
+  실패하던 결함 수정(automation #98)과 클라이언트 업로드 경로
+  (`/mnt/user-data/...`) 안내 에러(automation #75, 기여 @adity982)가
+  플러그인 설치 경로에도 전달됩니다.
+- 코어 핀은 `python-hwpx[preview]==6.1.0` 그대로입니다.
+
 ## [2.0.0] - 2026-08-04
 
 엔진 완전성 트레인입니다. 스킬 계약의 도구 어휘는 그대로이고(128/136/29

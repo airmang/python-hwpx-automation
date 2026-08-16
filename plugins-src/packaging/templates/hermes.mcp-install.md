@@ -6,8 +6,8 @@ server there.
 
 ## Candidate publishing command (do not run before release approval)
 
-The `2.0.0 / 7.0.0 / 6.0.0` coordinates below are an unpublished candidate.
-The current public stack remains `0.8.0 / 5.1.0 / 4.2.0`.
+The `2.0.1 / 7.0.2 / 6.1.0` coordinates below are the current public stack.
+
 
 ```bash
 hermes skills publish plugins/hermes/hwpx --to github --repo airmang/hwpx-plugins
@@ -19,7 +19,7 @@ hermes skills publish plugins/hermes/hwpx --to github --repo airmang/hwpx-plugin
 mcp_servers:
   hwpx:
     command: uvx
-    args: ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==6.1.0", "--from", "python-hwpx-automation[mcp,oracle]==7.0.1", "hwpx-automation-mcp"]
+    args: ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==6.1.0", "--from", "python-hwpx-automation[mcp,oracle]==7.0.2", "hwpx-automation-mcp"]
     env:
       HWPX_AUTOMATION_ADVANCED: "0"
       HWPX_AUTOMATION_AUTOBACKUP: "1"
