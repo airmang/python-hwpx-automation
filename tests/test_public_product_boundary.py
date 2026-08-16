@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import zipfile
 from pathlib import Path
 
@@ -55,7 +56,14 @@ def test_fastmcp_dependency_stays_on_the_audited_minor_line() -> None:
     dependencies = project["project"]["dependencies"]
     optional_dependencies = project["project"]["optional-dependencies"]
 
-    assert project["project"]["version"] == "7.0.1"
+    identity = json.loads(
+        (ROOT / "src" / "hwpx_automation" / "identity.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert project["project"]["version"] == (
+        identity["releaseState"]["candidate"]["canonicalAutomation"]
+    )
     # WP-F (core 6.0 namespace adaptation, design §9): the floor moved to the
     # 6.x line the automation code now targets. The dev-window pin
     # (>=6.0.0.dev0) served the pre-tag phase; the release narrows it to the

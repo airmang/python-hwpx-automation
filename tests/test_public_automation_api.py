@@ -120,15 +120,26 @@ def test_installed_identity_contract_is_machine_readable() -> None:
         "release-approved",
         "released",
     }
-    assert release["candidate"] == {
-        "pythonHwpx": "6.1.0",
-        "canonicalDistribution": "python-hwpx-automation",
-        "canonicalAutomation": "7.0.1",
-        "compatibilityDistribution": "hwpx-mcp-server",
-        "compatibility": "7.0.1",
-        "plugin": "2.0.0",
-        "contractHash": "34a91560759dc47a",
+    # Coordinate values are owned by identity.json alone and verified by
+    # scripts/release_coordinates.py --verify on every CI run; restating them
+    # here produced a stale copy each train (the non-released branch below
+    # had fossilized at the 6.7.1-era stack). This contract checks shape and
+    # cross-field coherence, not the moving values.
+    assert set(release["candidate"]) == {
+        "pythonHwpx",
+        "canonicalDistribution",
+        "canonicalAutomation",
+        "compatibilityDistribution",
+        "compatibility",
+        "plugin",
+        "contractHash",
     }
+    assert release["candidate"]["canonicalDistribution"] == "python-hwpx-automation"
+    assert release["candidate"]["compatibilityDistribution"] == "hwpx-mcp-server"
+    assert release["candidate"]["compatibility"] == (
+        release["candidate"]["canonicalAutomation"]
+    )
+    assert all(release["candidate"].values())
     promotion_gate = release["promotionGate"]
     assert all(
         required in promotion_gate
@@ -143,22 +154,34 @@ def test_installed_identity_contract_is_machine_readable() -> None:
             "attached receipt",
         )
     )
+    assert set(release["currentPublic"]) == {
+        "pythonHwpx",
+        "primaryDistribution",
+        "primaryApplication",
+        "plugin",
+        "contractHash",
+    }
+    assert release["currentPublic"]["primaryDistribution"] == (
+        "python-hwpx-automation"
+    )
+    assert all(release["currentPublic"].values())
+    public_triple = (
+        release["currentPublic"]["pythonHwpx"],
+        release["currentPublic"]["primaryApplication"],
+        release["currentPublic"]["plugin"],
+    )
+    candidate_triple = (
+        release["candidate"]["pythonHwpx"],
+        release["candidate"]["canonicalAutomation"],
+        release["candidate"]["plugin"],
+    )
     if release["status"] != "released":
-        assert release["currentPublic"] == {
-            "pythonHwpx": "5.7.0",
-            "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "6.7.1",
-            "plugin": "1.7.0",
-            "contractHash": "98510af22d13899c",
-        }
+        assert public_triple != candidate_triple
     else:
-        assert release["currentPublic"] == {
-            "pythonHwpx": "6.1.0",
-            "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "7.0.1",
-            "plugin": "2.0.0",
-            "contractHash": "34a91560759dc47a",
-        }
+        assert public_triple == candidate_triple
+        assert release["currentPublic"]["contractHash"] == (
+            release["candidate"]["contractHash"]
+        )
 
 
 def test_canonical_environment_precedes_legacy_fallback(monkeypatch) -> None:
