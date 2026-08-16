@@ -459,6 +459,15 @@ class WorkspaceResolver:
                 code="WORKSPACE_PATH_INVALID",
                 reason="empty_or_invalid_path",
             )
+        portable_path = text.replace("\\", "/").casefold().rstrip("/")
+        if portable_path == "/mnt/user-data" or portable_path.startswith(
+            "/mnt/user-data/"
+        ):
+            raise WorkspacePathError(
+                "client-uploaded files are not accessible to the local MCP server",
+                code="CLIENT_UPLOAD_PATH_UNAVAILABLE",
+                reason="client_upload_path",
+            )
         candidate = Path(text).expanduser()
         return candidate if candidate.is_absolute() else self.primary_root / candidate
 

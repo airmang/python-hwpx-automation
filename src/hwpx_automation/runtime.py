@@ -89,9 +89,14 @@ def _classified_error_payload(exc: BaseException | None) -> dict[str, Any]:
                     message="문서 에이전트 계약을 안전하게 해석할 수 없습니다.",
                 )
             if isinstance(item, WorkspacePathError):
+                message = (
+                    "대화에 업로드된 파일의 내부 경로는 로컬 MCP 서버에서 접근할 수 없습니다."
+                    if item.code == "CLIENT_UPLOAD_PATH_UNAVAILABLE"
+                    else "요청한 경로가 허용된 HWPX 작업공간 경계를 벗어났습니다."
+                )
                 return build_error_payload(
                     code=item.code,
-                    message="요청한 경로가 허용된 HWPX 작업공간 경계를 벗어났습니다.",
+                    message=message,
                     details=item.safe_details(),
                 )
             if isinstance(item, WorkspaceConfigurationError):

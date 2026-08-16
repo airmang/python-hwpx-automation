@@ -45,6 +45,33 @@ def test_protocol_workspace_denial_is_typed_and_redacted(
     assert "arguments" not in error.data
 
 
+def test_protocol_client_upload_path_has_local_save_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def reject_upload(_tool_name: str, _arguments: dict):
+        raise WorkspacePathError(
+            "client upload path",
+            code="CLIENT_UPLOAD_PATH_UNAVAILABLE",
+            reason="client_upload_path",
+        )
+
+    monkeypatch.setattr(server.mcp, "call_tool", reject_upload)
+    error = asyncio.run(
+        server._strict_call_tool_handler(
+            _request({"filename": "/mnt/user-data/uploads/document.hwpx"})
+        )
+    )
+
+    assert isinstance(error, mcp_types.ErrorData)
+    assert error.code == -32602
+    assert error.data["errorCode"] == "CLIENT_UPLOAD_PATH_UNAVAILABLE"
+    payload = error.data["error"]
+    assert payload["category"] == "validation"
+    assert "PC" in payload["suggestion"]
+    assert payload["details"] == {"reason": "client_upload_path"}
+    assert "document.hwpx" not in json.dumps(error.data, ensure_ascii=False)
+
+
 def test_protocol_validation_failure_uses_invalid_params(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
