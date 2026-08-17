@@ -45,7 +45,7 @@ dependencies = [
 # MCP는 이 제품의 어댑터 하나지 본체가 아니다. office/·workflow/·
 # ops_services/·core/ 122개 파일 중 mcp를 import하는 것은 0개다. 파이썬으로
 # 문서 자동화만 하는 사용자가 MCP SDK를 강제로 깔 이유가 없다.
-mcp = ["mcp==1.28.1"]
+mcp = ["mcp==2.0.0"]
 
 # Legacy .hwp (HWP5/OLE2) reading. Lazy-imported; clear error if missing.
 hwp = ["olefile>=0.47"]
