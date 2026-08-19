@@ -170,4 +170,4 @@ Reason:
 If future workflow prompting becomes important, keep the contract narrow and register it against the active FastMCP surface instead of reviving legacy behavior by default.
 
 
-> 릴리스 상태 참고: 현재 공개 트레인은 python-hwpx 6.1.0 · python-hwpx-automation 7.0.2 · hwpx-plugin 2.0.1입니다 (automation 7.0.2 · plugin 2.0.1 released 2026-08-16, Windows 저장 수리 패치 트레인).
+> 릴리스 상태 참고: 현재 공개 트레인은 python-hwpx 6.2.1 · python-hwpx-automation 7.0.2 · hwpx-plugin 2.0.1입니다 (python-hwpx 6.2.1 released 2026-08-19, Windows 편집기 표면 core-only 트레인 — v6.2.0은 보존된 실패 태그).
