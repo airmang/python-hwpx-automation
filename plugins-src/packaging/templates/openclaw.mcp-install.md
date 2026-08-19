@@ -5,7 +5,7 @@ server is registered through your OpenClaw MCP configuration.
 
 ## Unpublished candidate wiring
 
-The source checkout carries the exact `6.1.0 / 7.0.2 / 2.0.1` public pins
+The source checkout carries the exact `6.2.1 / 7.0.2 / 2.0.1` public pins
 below for pre-release verification. They are not the current public marketplace
 release.
 
@@ -13,7 +13,7 @@ release.
 {
   "hwpx": {
     "command": "uvx",
-    "args": ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==6.1.0", "--from", "python-hwpx-automation[mcp,oracle]==7.0.2", "hwpx-automation-mcp"],
+    "args": ["--refresh-package", "python-hwpx-automation", "--refresh-package", "python-hwpx", "--with", "python-hwpx[preview]==6.2.1", "--from", "python-hwpx-automation[mcp,oracle]==7.0.2", "hwpx-automation-mcp"],
     "env": {
       "HWPX_AUTOMATION_ADVANCED": "0",
       "HWPX_AUTOMATION_AUTOBACKUP": "1",

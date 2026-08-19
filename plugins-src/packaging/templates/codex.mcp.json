@@ -5,7 +5,7 @@
       "args": [
         "--refresh-package", "python-hwpx-automation",
         "--refresh-package", "python-hwpx",
-        "--with", "python-hwpx[preview]==6.1.0",
+        "--with", "python-hwpx[preview]==6.2.1",
         "--from", "python-hwpx-automation[mcp,oracle]==7.0.2",
         "hwpx-automation-mcp"
       ],
