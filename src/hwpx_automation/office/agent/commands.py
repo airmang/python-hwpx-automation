@@ -1024,7 +1024,11 @@ def _identity_attribute_names(local: str, node: Any) -> tuple[str, ...]:
     if local in {"p", "tbl", "pic", "memo", "fieldBegin", *_SHAPE_KINDS}:
         return tuple(name for name in ("id", "instid", "instId") if node.get(name) is not None)
     if local in {"footNote", "endNote"}:
-        return tuple(name for name in ("instId", "id") if node.get(name) is not None)
+        # 정본 속성명은 실한컴이 쓰는 소문자 "instid"; "instId"는 과거 코어
+        # 저작이 방출한 카멜케이스 산출물 호환(재발급 대상 유지). #101
+        return tuple(
+            name for name in ("instid", "instId", "id") if node.get(name) is not None
+        )
     return ()
 
 
@@ -1036,7 +1040,11 @@ def _refresh_one_identity(
     field_ids: dict[str, str],
 ) -> None:
     names = _identity_attribute_names(local, node)
-    paired_identity = allocate() if len(names) > 1 and local in {"pic", *_SHAPE_KINDS} else None
+    # 한 요소에 실린 여러 식별 속성(id+instid, 또는 instid/instId 별칭 쌍)은
+    # 같은 정체성이다 — 하나의 새 값을 페어로 재발급한다. 노트(footNote/endNote)
+    # 는 정본 instid와 과거 산출물 instId가 공존할 수 있어 #101에서 편입.
+    paired_kinds = {"pic", "footNote", "endNote", *_SHAPE_KINDS}
+    paired_identity = allocate() if len(names) > 1 and local in paired_kinds else None
     for name in names:
         old = str(node.get(name))
         new = paired_identity or allocate()

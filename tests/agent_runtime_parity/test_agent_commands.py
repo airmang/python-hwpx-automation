@@ -29,8 +29,14 @@ def _write_fixture(path: Path, *, merged: bool = False) -> None:
         shape = second.add_rectangle(width=7200, height=3600, fill_color="#FFFFFF")
         shape.element.set("id", "401")
         shape.element.set("instid", "401")
-        second.add_footnote("각주 원문").element.set("instId", "501")
-        second.add_endnote("미주 원문").element.set("instId", "502")
+        # 정본(소문자 instid)과 과거 산출물(instId) 양쪽에 같은 값을 실어
+        # 코어 리더의 신/구 우선순위와 무관하게 식별자가 501/502가 되게 한다.
+        footnote_el = second.add_footnote("각주 원문").element
+        footnote_el.set("instid", "501")
+        footnote_el.set("instId", "501")
+        endnote_el = second.add_endnote("미주 원문").element
+        endnote_el.set("instid", "502")
+        endnote_el.set("instId", "502")
         image_data = (
             Path(__file__).parent
             / "fixtures/fuzz_regressions/visual_review_seed_000000_000999_screenshots/seed-000003-710dbd610d8d.png"
@@ -1112,3 +1118,40 @@ def test_batch_invokes_save_pipeline_exactly_once(tmp_path: Path) -> None:
     )
     assert result.ok, result.to_dict()
     assert pipeline.calls == 1
+
+
+def test_copy_footnote_refreshes_real_corpus_instid(tmp_path: Path) -> None:
+    """실한컴 산출물 형태(소문자 instid만)의 각주도 copy 시 재발급되어야 한다 (#101).
+
+    과거 identity 튜플이 ("instId", "id")만 봐서 실코퍼스 각주의 instid가
+    복제본에 그대로 남았다(중복 인스턴스 ID).
+    """
+
+    source = tmp_path / "input.hwpx"
+    output = tmp_path / "output.hwpx"
+    with HwpxDocument.new() as document:
+        first = document.sections[0].paragraphs[0]
+        first.text = "본문"
+        note = first.add_footnote("각주 원문")
+        note.element.attrib.pop("instId", None)
+        note.element.set("instid", "777")
+        destination = document.add_paragraph("붙일 곳")
+        destination.element.set("id", "900")
+        document.save_to_path(source)
+
+    with HwpxAgentDocument.open(source) as agent:
+        footnote = _record(agent, "footnote", "777")
+        dest = _record(agent, "paragraph", "900")
+    result = apply_document_commands(
+        _batch(
+            source,
+            output,
+            [{"commandId": "foot", "op": "copy", "path": footnote.path, "parent": dest.path}],
+        )
+    )
+    assert result.ok, result.to_dict()
+    generated = result.command_results[0]["generatedIdentities"]
+    assert any(
+        entry["attribute"] == "instid" and entry["old"] == "777" and entry["new"] != "777"
+        for entry in generated
+    ), f"instid 재발급이 identity map에 없다: {generated}"
