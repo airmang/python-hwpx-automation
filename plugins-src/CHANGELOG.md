@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.2] - 2026-08-22
+
+core 6.3.0(왕복 충실도 트레인)·automation 7.0.3을 따라가는 핀 범프
+릴리스입니다. 스킬 내용·도구 표면은 그대로이고 계약 해시는
+`8c278ebd5becba08`로 이동합니다(floor-only 델타 — `minPythonHwpx`
+6.0.2 → 6.3.0, 도구 136 불변).
+
+- 번들 설치 핀이 `python-hwpx[preview]==6.3.0` ·
+  `python-hwpx-automation[mcp,oracle]==7.0.3`으로 전진합니다 — instid
+  속성명 수리(core #88·automation #101: 각주/미주 복제 시 인스턴스 ID
+  재발급, 실한컴 파일의 각주 식별)·hp:audio 분류 정직화(core #89)·표
+  정렬 프리미티브 `reorder_rows`가 플러그인 설치 경로에 전달됩니다.
+- 공개 왕복 충실도 지표 신설: 실한컴 저장본 76건 무편집 왕복 실질 변화
+  0 · 재개봉 판정 가능 73/73 무손상 (corpus-metrics 페이지).
+
 ## [2.0.1] - 2026-08-16
 
 automation 7.0.2 패치를 따라가는 핀 범프 릴리스입니다. 스킬 내용·도구

@@ -1,0 +1,30 @@
+{
+ "schemaVersion": "hwpx.task-eval-profile.v1",
+ "id": "current-2.0.2",
+ "label": "deterministic direct-call replay profile (2.0.2 candidate)",
+ "pluginVersion": "2.0.2",
+ "availableTools": {
+  "source": "generated-contract",
+  "profile": "default"
+ },
+ "brokenTools": [],
+ "guidanceTags": [
+  "generation",
+  "editing",
+  "formatting",
+  "forms",
+  "media",
+  "compare",
+  "inspection",
+  "render-preview-review",
+  "transaction-edits",
+  "format-edits",
+  "picture-edits",
+  "doc-compare",
+  "advanced-generators",
+  "document-map",
+  "task-replay",
+  "blueprint-routing",
+  "blueprint-refusals"
+ ]
+}

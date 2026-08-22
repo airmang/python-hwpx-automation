@@ -4,11 +4,11 @@ set -euo pipefail
 # Canonical python-hwpx-automation MCP launcher.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SERVER_PACKAGE="${HWPX_AUTOMATION_PACKAGE:-${HWPX_MCP_SERVER_PACKAGE:-python-hwpx-automation[mcp,oracle]==7.0.2}}"
-CORE_PACKAGE="${HWPX_PYTHON_HWPX_PACKAGE:-python-hwpx[preview]==6.2.1}"
-EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-7.0.2}}"
+SERVER_PACKAGE="${HWPX_AUTOMATION_PACKAGE:-${HWPX_MCP_SERVER_PACKAGE:-python-hwpx-automation[mcp,oracle]==7.0.3}}"
+CORE_PACKAGE="${HWPX_PYTHON_HWPX_PACKAGE:-python-hwpx[preview]==6.3.0}"
+EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-7.0.3}}"
 EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-6.0.2}"
-export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.0.1}"
+export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.0.2}"
 export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
 
 # Editable mode is deliberately opt-in.  Auto-discovering sibling repositories
