@@ -103,7 +103,7 @@
   "default": 122,
   "advanced": 130,
   "skillRequired": 29,
-  "hash": "34a91560759dc47a"
+  "hash": "8c278ebd5becba08"
  },
  "packageFilesNote": "이전 6-file 동결에서 10개로 늘었다. 늘어난 4개(block_splits·detectors·diff·qa_contracts)는 신규 코드가 아니라 core가 계속 들고 있던 것이고, 이 소유자의 oracle이 그중 셋을 core에서 import하고 있었다. 5.0 경계 마감으로 실소유자에게 왔다."
 }

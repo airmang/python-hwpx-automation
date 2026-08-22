@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hwpx-mcp-server"
-version = "7.0.2"
+version = "7.0.3"
 description = "Compatibility shell — installs python-hwpx-automation[mcp] under its former name."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,7 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-dependencies = ["python-hwpx-automation[mcp]==7.0.2"]
+dependencies = ["python-hwpx-automation[mcp]==7.0.3"]
 
 [project.scripts]
 "hwpx-mcp-server" = "hwpx_automation.mcp_cli:main"
@@ -37,12 +37,12 @@ dependencies = ["python-hwpx-automation[mcp]==7.0.2"]
 # 명령은 성공하고 아무것도 설치되지 않는다 — 실측으로 확인했다. 조용히 아무
 # 일도 안 일어나는 설치 안내는 없는 것만 못하다.
 [project.optional-dependencies]
-mcp = ["python-hwpx-automation[mcp]==7.0.2"]
-hwp = ["python-hwpx-automation[hwp]==7.0.2"]
-http = ["python-hwpx-automation[http]==7.0.2"]
-ingest = ["python-hwpx-automation[ingest]==7.0.2"]
-oracle = ["python-hwpx-automation[oracle]==7.0.2"]
-vision = ["python-hwpx-automation[vision]==7.0.2"]
+mcp = ["python-hwpx-automation[mcp]==7.0.3"]
+hwp = ["python-hwpx-automation[hwp]==7.0.3"]
+http = ["python-hwpx-automation[http]==7.0.3"]
+ingest = ["python-hwpx-automation[ingest]==7.0.3"]
+oracle = ["python-hwpx-automation[oracle]==7.0.3"]
+vision = ["python-hwpx-automation[vision]==7.0.3"]
 
 [project.urls]
 Homepage = "https://github.com/airmang/python-hwpx-automation"

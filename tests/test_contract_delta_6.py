@@ -16,16 +16,16 @@ def _load(name: str) -> dict:
     return json.loads((ROOT / "docs" / name).read_text(encoding="utf-8"))
 
 
-def test_7_0_1_contract_delta_matches_the_live_contract() -> None:
+def test_7_0_3_contract_delta_matches_the_live_contract() -> None:
     """The engine-completeness major adds no tool; the hash moves on floors alone."""
 
-    delta = _load("tool-contract-delta-7.0.1.json")
+    delta = _load("tool-contract-delta-7.0.3.json")
     contract = _load("tool-contract.generated.json")
 
     assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "34a91560759dc47a"
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "8c278ebd5becba08"
 
-    assert delta["baseline"]["contractHash"] == "6ba7bc0ca7226f2f"
+    assert delta["baseline"]["contractHash"] == "34a91560759dc47a"
     assert delta["baseline"]["defaultToolCount"] == 128
     assert delta["baseline"]["advancedToolCount"] == 136
     assert delta["target"]["defaultToolCount"] == 128
@@ -38,7 +38,7 @@ def test_7_0_1_contract_delta_matches_the_live_contract() -> None:
     assert delta["delta"]["profileMoves"] == []
 
     assert contract["minAutomationVersion"] == contract["minMcpVersion"] == "7.0.1"
-    assert contract["minPythonHwpx"] == "6.0.2"
+    assert contract["minPythonHwpx"] == "6.3.0"
     assert contract["minSkillVersion"] == "2.0.0"
 
 

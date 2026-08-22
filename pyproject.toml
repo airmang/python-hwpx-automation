@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx-automation"
-version = "7.0.2"
+version = "7.0.3"
 description = "Task-oriented HWPX document automation for Python, with an optional MCP adapter."
 readme = "README.md"
 authors = [{ name = "Kohkyuhyun" }]
@@ -31,7 +31,7 @@ dependencies = [
     # breaking an already-published automation line. WP-F (engine surface 6.0):
     # this line adapted to the new namespace surface (design §9 WP-F) — the dev0
     # pre-release qualifier tracks core's own not-yet-tagged 6.0 identity.
-    "python-hwpx>=6.0.2,<7", # HWPX object model, OXML/OPC, format-native primitives
+    "python-hwpx>=6.3.0,<7", # HWPX object model, OXML/OPC, format-native primitives
 
     "pydantic>=2.11,<3",
     "cryptography>=42.0",

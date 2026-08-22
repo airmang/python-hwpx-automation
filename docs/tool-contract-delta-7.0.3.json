@@ -1,0 +1,30 @@
+{
+ "schemaVersion": "hwpx.tool-contract-delta/v1",
+ "release": "7.0.3",
+ "baseline": {
+  "release": "7.0.2",
+  "contractHash": "34a91560759dc47a",
+  "defaultToolCount": 128,
+  "advancedToolCount": 136
+ },
+ "target": {
+  "release": "7.0.3",
+  "contractHash": "8c278ebd5becba08",
+  "defaultToolCount": 128,
+  "advancedToolCount": 136,
+  "skillRequiredToolCount": 29
+ },
+ "delta": {
+  "addedTools": [],
+  "removedTools": [],
+  "promotedTools": [],
+  "profileMoves": []
+ },
+ "floors": {
+  "minPythonHwpx": "6.3.0",
+  "minAutomationVersion": "7.0.3",
+  "minSkillVersion": "2.0.0",
+  "automation": "7.0.3"
+ },
+ "note": "Floor-only delta: no tool surface change (136 advanced / 128 default unchanged). The contract hash moves solely because minPythonHwpx advances 6.0.2 -> 6.3.0: footnote/endnote record identity depends on core 6.3.0's schema-case instid reader (core #88 / automation #101), so the python-hwpx dependency window moves to >=6.3.0,<7 and the capability handshake floor advances atomically with the observed core."
+}

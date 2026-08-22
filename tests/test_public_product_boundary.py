@@ -68,7 +68,7 @@ def test_fastmcp_dependency_stays_on_the_audited_minor_line() -> None:
     # 6.x line the automation code now targets. The dev-window pin
     # (>=6.0.0.dev0) served the pre-tag phase; the release narrows it to the
     # first published core of the line.
-    assert "python-hwpx>=6.0.2,<7" in dependencies
+    assert "python-hwpx>=6.3.0,<7" in dependencies
     # The imaging stack is declared here since the 5.0 boundary closed: core
     # stopped reading PDFs and images, so its `visual` extra is empty and
     # deferring to it would have installed nothing.
@@ -126,7 +126,7 @@ def test_contract_and_live_registry_exclude_internal_product_boundaries() -> Non
         MIN_MCP_VERSION,
         MIN_SKILL_VERSION,
     ) == (
-        "6.0.2",
+        "6.3.0",
         "7.0.1",
         "7.0.1",
         "2.0.0",

@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## [7.0.3] - 2026-08-22
+
+core `python-hwpx 6.3.0`(왕복 충실도 트레인)을 따르는 패치 릴리스입니다.
+계약 해시는 `34a91560759dc47a` → `8c278ebd5becba08`로 바뀌지만 델타는
+**floor-only**입니다(도구 136 불변 — `minPythonHwpx` 6.0.2 → 6.3.0).
+
+### 고쳐짐
+
+- **각주/미주 copy 시 실한컴 정본 `instid`(소문자) 재발급 누락 (#101).**
+  `_identity_attribute_names`의 footNote/endNote 분기가 과거 코어 산출물의
+  카멜케이스 `instId`만 봐서, 실한컴이 저장한 문서의 각주를 copy 하면
+  인스턴스 ID가 재발급되지 않고 그대로 복제됐습니다. `("instid", "instId",
+  "id")`로 확장하고, 한 요소에 정본과 과거 별칭이 공존하면 하나의 새 값을
+  페어로 재발급합니다. 각주 record identity가 코어의 `inst_id` 리더(6.3.0
+  수리)에 의존하므로 core 의존 창을 `>=6.3.0,<7`로 올렸습니다
+  (`_project_note` — `office/agent/document.py`).
+
+### 추가됨
+
+- **왕복 산출물 실한컴(Mac) 재개봉 판정 배치** (`scripts/roundtrip_reopen_mac.py`,
+  dev 도구). core 왕복 충실도 하니스의 나머지 절반 — 음성 대조 없이는 실행을
+  거부하는 fail-closed 판정 채널. 첫 전건: 판정 가능 73/73 무손상, 음성 2/2
+  정확 거부 (Mac 12.30.0 build 6446).
+
 ## [7.0.2] - 2026-08-16
 
 Windows 사용자 전원에게 영향을 주던 저장 차단 결함의 패치 트레인입니다.

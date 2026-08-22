@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Mapping
 
-MIN_PYTHON_HWPX = "6.0.2"
+MIN_PYTHON_HWPX = "6.3.0"
 # The 5.0 train: core drops the workflow surfaces and the `hwpx` console name,
 # this package picks the name up, and the plugin pins both. The three move
 # together — a mixed set is what "no valid install has two declarers" rules out.
@@ -33,7 +33,7 @@ MIN_SKILL_VERSION = "2.0.0"
 # recomputes and verifies the bound callable/schema contract through
 # ``contract_hash()``; this constant prevents those services from importing the
 # runtime composer merely to stamp the approved release receipt.
-RELEASED_CONTRACT_HASH = "34a91560759dc47a"
+RELEASED_CONTRACT_HASH = "8c278ebd5becba08"
 
 
 def describe_callables(entries: Any) -> Any:
