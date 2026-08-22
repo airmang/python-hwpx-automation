@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Codex 번들 `.mcp.json`에 `env_vars` 전달 목록을 추가했습니다. Codex는
+  화이트리스트에 없는 환경 변수를 MCP 서버 자식 프로세스에 전달하지 않으므로,
+  사용자가 셸에 export한 `HWPX_AUTOMATION_CHROME_PATH`(6.x 레거시 별칭
+  `HWPX_MCP_CHROME_PATH` 포함)가 이제 서버까지 전달되어 `render_preview`
+  스크린샷 백엔드 차단이 해소됩니다 (#19, 기여 @Jaempark).
+
 ## [2.0.2] - 2026-08-22
 
 core 6.3.0(왕복 충실도 트레인)·automation 7.0.3을 따라가는 핀 범프
