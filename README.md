@@ -12,12 +12,11 @@
   </p>
 </p>
 
-<!-- release-state: release-approved -->
+<!-- release-state: released -->
 > [!NOTE]
-> 공개 트레인: `python-hwpx 6.2.1 → python-hwpx-automation 7.0.2 →
-> hwpx-plugin 2.0.1` — 7.0.3 트레인(core 6.3.0 · plugin 2.0.2)은 오너 발행
-> 승인 완료(`release-approved`), 원격 관찰 대기 중.
-> (automation 7.0.2 · plugin 2.0.1 released 2026-08-16,
+> 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.3 →
+> hwpx-plugin 2.0.2` (2026-08-22 왕복 충실도 트레인 — 계약 `8c278ebd5becba08`,
+> floor-only 델타로 도구 표면 불변.
 > Windows 저장 수리 패치 트레인 — 저장 수리 #98·업로드 경로 안내
 > #75, core와 계약 `34a91560759dc47a` 불변).
 > 공개 좌표는 원격 진실(core·automation PyPI와 plugin GitHub
