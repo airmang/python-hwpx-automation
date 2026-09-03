@@ -29,9 +29,15 @@ primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단�
 
 MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호출해
 `version`, `pythonHwpxVersion`, `toolSurface.status`, `toolSurface.missingKeyTools`를 확인한다.
-`toolSurface.status != "ok"`이거나 핵심 도구가 누락되면 플러그인 재설치
-(`codex plugin remove hwpx-plugin@hwpx` 후 `codex plugin add hwpx-plugin@hwpx`)
-또는 stale plugin venv/cache 제거 후 **새 호스트 세션**을 시작하라고 안내한다.
+`toolSurface.status != "ok"`이거나 핵심 도구가 누락되면 플러그인 번들을 갱신하고 **새 호스트 세션**을
+시작하라고 안내한다 — Claude Code: `claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx`,
+Codex: `codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`. 그래도 같으면 stale
+런타임(`.hwpx-mcp-runtime`) 제거 후 재시도.
+응답에 `stackUpdate`가 있으면(automation 7.1.0 이상) 세션당 한 번만 본다.
+`stackUpdate.pluginBundle.latestKnown`이 `installed`보다 높으면 위 호스트별 갱신 명령을 사용자에게
+**한 번** 안내하고 작업을 계속한다. `stackUpdate.lastError`는 런타임 자동 갱신이 마지막에 실패했다는
+기록이지 작업 차단 사유가 아니다 — 보고만 한다. 런타임(`python-hwpx`·`python-hwpx-automation`)은
+런처가 하루 1회 같은 메이저 안의 최신으로 스스로 갱신하므로 사용자에게 재설치를 요구하지 않는다.
 단위는 인간 단위다: 글자 크기 pt, 줄간격 %, 들여쓰기 mm, 문단 간격 pt, 용지/여백 mm.
 
 ## 케이스 → 경로 라우팅 표

@@ -794,3 +794,14 @@ def test_shipped_python_and_markdown_code_blocks_parse() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "JSON Markdown fences" in result.stdout
+
+
+def test_skill_start_check_routes_updates_per_host() -> None:
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    assert "claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx" in skill
+    assert "codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx" in skill
+    assert "stackUpdate" in skill and "한 번" in skill
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "HWPX_STACK_AUTO_UPDATE=0" in readme and "HWPX_STACK_CHANNEL=verified" in readme
+    for bundle in sorted(ROOT.glob("plugins/*/hwpx*/SKILL.md")):
+        assert "stackUpdate" in bundle.read_text(encoding="utf-8"), bundle

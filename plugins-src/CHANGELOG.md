@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+3스택 자동 갱신 트레인(검증된 플로어 핀). 스킬 계약·도구 표면·계약 해시 `8c278ebd5becba08`은 그대로입니다.
+
+- **핀 정책 변경**: `exact-candidate` → `verified-floor`. 번들 런처는 검증 좌표
+  이상, 같은 메이저 안의 최신 조합(`python-hwpx[preview]>=6.3.0,<7` ·
+  `python-hwpx-automation[mcp,oracle]>=7.0.3,<8`)을 설치하고, 하루 1회 백그라운드에서
+  새 세대를 빌드·자기검증한 뒤 원자적으로 교체합니다. 기동은 네트워크를 기다리지
+  않고, 검증에 실패한 후보는 절대 활성화되지 않으며, 직전 세대는 롤백용으로 남습니다.
+  `HWPX_STACK_AUTO_UPDATE=0`(끄기), `HWPX_STACK_UPDATE_INTERVAL_HOURS`(기본 24),
+  `HWPX_STACK_CHANNEL=verified`(검증 좌표 고정).
+- 런타임 상태 `update-state.json`을 `HWPX_STACK_UPDATE_STATE`로 서버에 전달합니다.
+  automation 7.1.0 이상은 `mcp_server_health().stackUpdate`로 보고하고, SKILL.md는 새
+  플러그인 번들이 있으면 호스트별 갱신 명령을 한 번 안내합니다.
+- 런처 런타임 레이아웃이 `envs/<fingerprint>/gen-<core>-<automation>/` + `current`
+  포인터로 바뀝니다. 기존 `envs/<fingerprint>/` 단일 venv는 그대로 두어도 무해하며
+  첫 기동에서 새 레이아웃이 빌드됩니다(`.hwpx-mcp-runtime`를 지우면 공간이 회수됨).
+- OpenClaw·Hermes 배선은 설치 창으로 이동했고, `uvx`가 스스로 갱신하지 않는다는 점과
+  수동 갱신 명령을 문서화했습니다.
+
 ## [2.0.3] - 2026-09-03
 
 Claude Code 번들 런처 수리 패치입니다. 코어·automation 핀(`python-hwpx[preview]==6.3.0` ·

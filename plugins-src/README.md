@@ -53,6 +53,13 @@ codex plugin marketplace add airmang/hwpx-plugins
 codex plugin add hwpx-plugin@hwpx
 ```
 
+설치 뒤 런타임(`python-hwpx`·`python-hwpx-automation`)은 번들 런처가 하루 1회 같은 메이저 안의
+최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
+`HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
+Claude Code는 `/plugin` → Marketplaces → `hwpx`에서 자동 업데이트를 켜거나
+`claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx`, Codex는
+`codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`를 실행합니다.
+
 Cursor는 canonical skill 파일을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.cursor/skills/hwpx/`)에 복사하고
 `.cursor/rules/hwpx.mdc` 트리거 룰을 둡니다. OpenClaw·Hermes는 각 호스트 번들(`plugins/openclaw/hwpx-plugin`,
 `plugins/hermes/hwpx`)에 MCP 배선 안내가 함께 들어 있습니다. 저장소 이름 `hwpx-plugins`와 설치되는
