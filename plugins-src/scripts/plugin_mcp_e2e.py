@@ -129,11 +129,17 @@ def _probe_installed_runtime(args: argparse.Namespace) -> dict[str, Any]:
     if args.server_runtime is None:
         return {"mode": "editable-or-direct", "originChecked": False}
     env_root = args.server_runtime / "envs"
-    candidates = sorted(env_root.glob("*/bin/python")) if env_root.is_dir() else []
-    if len(candidates) != 1:
+    fingerprints = sorted(path for path in env_root.iterdir() if path.is_dir()) if env_root.is_dir() else []
+    if len(fingerprints) != 1:
         raise RuntimeError(
-            f"expected exactly one installed launcher runtime, found {candidates}"
+            f"expected exactly one installed launcher runtime, found {fingerprints}"
         )
+    pointer = fingerprints[0] / "current"
+    if not pointer.is_file():
+        raise RuntimeError(f"installed launcher runtime has no current generation: {fingerprints[0]}")
+    candidates = [fingerprints[0] / pointer.read_text(encoding="utf-8").strip() / "bin" / "python"]
+    if not candidates[0].is_file():
+        raise RuntimeError(f"current generation is missing its Python: {candidates[0]}")
     code = r"""
 import importlib.util
 import json
