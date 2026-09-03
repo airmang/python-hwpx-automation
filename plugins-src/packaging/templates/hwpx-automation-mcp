@@ -255,15 +255,23 @@ _build_generation() {
 }
 
 # $1 = build dir, $2 = "<core> <automation>". Moves the build into its
-# generation slot and repoints `current` atomically. Prints the gen dir.
+# generation slot and repoints `current` atomically. An existing slot is
+# reused only if its console still answers; a slot whose executables are
+# missing or failing is replaced, otherwise a broken directory would block
+# every later start. A server already running from a replaced directory keeps
+# its open files (POSIX); only new starts are affected. Prints the gen dir.
 _install_generation() {
   local build="$1" core automation name target
   read -r core automation <<<"$2"
   name="gen-${core}-${automation}"
   target="${ENV_DIR}/${name}"
-  if [ -d "${target}" ]; then
+  if [ -d "${target}" ] && "${target}/bin/hwpx-automation-mcp" --help >/dev/null 2>&1; then
     rm -rf "${build}"
   else
+    if [ -d "${target}" ]; then
+      mv "${target}" "${target}.broken.$$"
+      rm -rf "${target}.broken.$$"
+    fi
     mv "${build}" "${target}"
   fi
   printf '%s\n' "${name}" > "${POINTER_FILE}.tmp.$$"
@@ -325,7 +333,111 @@ os.replace(tmp, path)
 PY
 }
 
-# Task 3: refresh functions and job entry go here.
+# $1 = python. Prints the plugin version published at STACK_IDENTITY_URL
+# (the marketplace source's main), or nothing. Bounded, never fatal.
+_fetch_plugin_latest() {
+  "$1" - "${STACK_IDENTITY_URL}" <<'PY' 2>/dev/null || true
+import json
+import sys
+import urllib.request
+
+try:
+    with urllib.request.urlopen(sys.argv[1], timeout=3) as response:
+        print(json.load(response)["components"]["plugin"]["currentVersion"])
+except Exception:
+    pass
+PY
+}
+
+# One refresh pass. Runs only inside the detached job (HWPX_STACK_REFRESH_JOB=1)
+# or by an operator invoking the launcher with that variable. Exits 0 on every
+# path: a refresh failure is recorded in update-state.json, never surfaced as
+# a start failure.
+_run_refresh() {
+  local current_dir current_python core automation latest_core latest_automation
+  local plugin_latest dry_run_output build result previous_name new_dir
+  if [ "${STACK_AUTO_UPDATE}" != "1" ] || ! _request_is_floating; then
+    exit 0
+  fi
+  if ! mkdir "${REFRESH_LOCK_DIR}" 2>/dev/null; then
+    exit 0
+  fi
+  trap 'rmdir "${REFRESH_LOCK_DIR}" 2>/dev/null || true' EXIT INT TERM
+  touch "${STAMP_FILE}"
+  current_dir="$(_current_generation)"
+  if [ -z "${current_dir}" ]; then
+    exit 0
+  fi
+  current_python="${current_dir}/bin/python"
+  read -r core automation <<<"$(_installed_versions "${current_python}")"
+  plugin_latest="$(_fetch_plugin_latest "${current_python}")"
+  if ! dry_run_output="$(uv pip install --dry-run --upgrade --python "${current_python}" "${SERVER_PACKAGE}" "${CORE_PACKAGE}" 2>&1)"; then
+    _write_state "${current_python}" "${core}" "${automation}" "" "" \
+      "refresh: dependency resolution failed: $(printf '%s\n' "${dry_run_output}" | tail -n 1)" "${plugin_latest}"
+    exit 0
+  fi
+  latest_core="$(printf '%s\n' "${dry_run_output}" | sed -n 's/^ + python-hwpx==\(.*\)$/\1/p' | head -n 1)"
+  latest_automation="$(printf '%s\n' "${dry_run_output}" | sed -n 's/^ + python-hwpx-automation==\(.*\)$/\1/p' | head -n 1)"
+  if [ -z "${latest_core}${latest_automation}" ]; then
+    _write_state "${current_python}" "${core}" "${automation}" "" "" "" "${plugin_latest}"
+    exit 0
+  fi
+  build="${RUNTIME_ROOT}/.build-${FINGERPRINT}-$$"
+  if ! result="$(_build_generation "${build}")"; then
+    rm -rf "${build}"
+    _write_state "${current_python}" "${core}" "${automation}" "${latest_core}" "${latest_automation}" \
+      "refresh: candidate ${latest_core:-${core}}/${latest_automation:-${automation}} failed the self-check; keeping ${core}/${automation}" \
+      "${plugin_latest}"
+    exit 0
+  fi
+  previous_name="$(cat "${POINTER_FILE}" 2>/dev/null || true)"
+  new_dir="$(_install_generation "${build}" "${result}")"
+  if ! "${new_dir}/bin/hwpx-automation-mcp" --help >/dev/null 2>&1; then
+    printf '%s\n' "${previous_name}" > "${POINTER_FILE}.tmp.$$"
+    mv -f "${POINTER_FILE}.tmp.$$" "${POINTER_FILE}"
+    rm -rf "${new_dir}"
+    _write_state "${current_python}" "${core}" "${automation}" "${latest_core}" "${latest_automation}" \
+      "refresh: relocated console self-check failed for ${latest_core:-${core}}/${latest_automation:-${automation}}; keeping ${core}/${automation}" \
+      "${plugin_latest}"
+    exit 0
+  fi
+  read -r core automation <<<"${result}"
+  _collect_generations
+  _write_state "${new_dir}/bin/python" "${core}" "${automation}" "" "" "" "${plugin_latest}"
+  exit 0
+}
+
+if [ "${HWPX_STACK_REFRESH_JOB:-0}" = "1" ]; then
+  _run_refresh
+  exit 0
+fi
+
+# Due when the stamp is missing or older than the interval; 0 = always due.
+_refresh_due() {
+  if [ "${STACK_UPDATE_INTERVAL_HOURS}" = "0" ]; then
+    return 0
+  fi
+  if [ ! -f "${STAMP_FILE}" ]; then
+    return 0
+  fi
+  [ -n "$(find "${STAMP_FILE}" -mmin +"$((STACK_UPDATE_INTERVAL_HOURS * 60))" 2>/dev/null)" ]
+}
+
+# Spawns one detached refresh job. The subshell redirects every fd first so
+# the job never inherits the MCP stdio pipes (a held pipe would make the host
+# wait on the job). macOS has no setsid; nohup + redirected fds is enough.
+_maybe_spawn_refresh() {
+  if [ "${STACK_AUTO_UPDATE}" != "1" ] || ! _request_is_floating; then
+    return 0
+  fi
+  if [ -d "${REFRESH_LOCK_DIR}" ] || ! _refresh_due; then
+    return 0
+  fi
+  (
+    exec >>"${REFRESH_LOG}" 2>&1 </dev/null
+    HWPX_STACK_REFRESH_JOB=1 nohup bash "${BASH_SOURCE[0]}" &
+  )
+}
 
 current_dir="$(_current_generation)"
 if [ -z "${current_dir}" ]; then
@@ -391,5 +503,5 @@ if [ -z "${current_dir}" ]; then
   rm -rf "${LOCK_DIR}"
 fi
 
-# Task 3: _maybe_spawn_refresh goes here.
+_maybe_spawn_refresh
 exec "${current_dir}/bin/hwpx-automation-mcp" "$@"

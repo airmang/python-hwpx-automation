@@ -145,3 +145,124 @@ def test_concurrent_cold_start_yields_one_generation(tmp_path: Path) -> None:
     assert all(r.returncode == 0 for r in results), [r.stderr for r in results]
     assert _generations(_env_dir(tmp_path)) == [f"gen-{CORE}-{AUTOMATION}"]
     _no_leftovers(tmp_path)
+
+
+def _refresh(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    return _launch({**env, "HWPX_STACK_REFRESH_JOB": "1"})
+
+
+def test_refresh_is_a_noop_when_nothing_newer_exists(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    assert _launch(env, "--help").returncode == 0
+    result = _refresh(env)
+    assert result.returncode == 0, result.stderr
+    env_dir = _env_dir(tmp_path)
+    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
+    state = _state(env_dir)
+    assert state["runtime"]["latestAvailable"] == state["runtime"]["installed"] and state["lastError"] is None
+    assert not (env_dir / "refresh.lock").exists()
+
+
+def test_refresh_installs_a_newer_generation_and_repoints_current(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    assert _launch(env, "--help").returncode == 0
+    env["FAKE_UV_INDEX"] = json.dumps(INDEX_V2)
+    assert _refresh(env).returncode == 0
+    env_dir = _env_dir(tmp_path)
+    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}", f"gen-6.3.1-{AUTOMATION}"]
+    assert (env_dir / "current").read_text().strip() == f"gen-6.3.1-{AUTOMATION}"
+    assert _state(env_dir)["runtime"]["installed"]["python-hwpx"] == "6.3.1"
+    served = _launch(env, "x")
+    assert served.stdout.startswith(f"FAKE-SERVER core=6.3.1 automation={AUTOMATION} ")
+    _no_leftovers(tmp_path)
+
+
+def test_refresh_keeps_current_when_the_candidate_fails_the_self_check(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    assert _launch(env, "--help").returncode == 0
+    env.update({"FAKE_UV_INDEX": json.dumps(INDEX_V2), "FAKE_UV_BROKEN_VERSION": "6.3.1"})
+    assert _refresh(env).returncode == 0
+    env_dir = _env_dir(tmp_path)
+    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
+    assert (env_dir / "current").read_text().strip() == f"gen-{CORE}-{AUTOMATION}"
+    state = _state(env_dir)
+    assert state["runtime"]["latestAvailable"]["python-hwpx"] == "6.3.1"
+    assert "self-check" in state["lastError"]
+    _no_leftovers(tmp_path)
+
+
+def test_refresh_records_offline_failure_and_the_server_still_starts(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    assert _launch(env, "--help").returncode == 0
+    offline = {**env, "FAKE_UV_OFFLINE": "1"}
+    assert _refresh(offline).returncode == 0
+    state = _state(_env_dir(tmp_path))
+    assert "resolution failed" in state["lastError"]
+    assert state["runtime"]["installed"]["python-hwpx"] == CORE
+    started = _launch(offline, "--help")
+    assert started.returncode == 0 and started.stdout.startswith("usage:")
+
+
+def test_generation_gc_keeps_current_and_one_previous(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    assert _launch(env, "--help").returncode == 0
+    for index in (INDEX_V2, INDEX_V3):
+        env["FAKE_UV_INDEX"] = json.dumps(index)
+        assert _refresh(env).returncode == 0
+    env_dir = _env_dir(tmp_path)
+    assert _generations(env_dir) == [f"gen-6.3.1-{AUTOMATION}", f"gen-6.3.2-{AUTOMATION}"]
+    assert (env_dir / "current").read_text().strip() == f"gen-6.3.2-{AUTOMATION}"
+
+
+def test_refresh_is_not_spawned_when_auto_update_is_off_or_request_is_exact(tmp_path: Path) -> None:
+    for extra in ({"HWPX_STACK_AUTO_UPDATE": "0"}, {"HWPX_STACK_CHANNEL": "verified"}):
+        root = tmp_path / ("off" if "HWPX_STACK_AUTO_UPDATE" in extra else "verified")
+        env = _env(root, HWPX_STACK_UPDATE_INTERVAL_HOURS="0", **extra)
+        root.mkdir()
+        assert _launch(env, "--help").returncode == 0
+        assert _launch(env, "--help").returncode == 0
+        env_dir = _env_dir(root)
+        assert not (env_dir / "refresh.log").exists() and not (env_dir / "refresh.lock").exists()
+        assert _refresh(env).returncode == 0
+        assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
+
+
+def test_detached_refresh_never_delays_server_start(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    assert _launch(env, "--help").returncode == 0
+    env.update({"HWPX_STACK_UPDATE_INTERVAL_HOURS": "0", "FAKE_UV_INDEX": json.dumps(INDEX_V2), "FAKE_UV_SLEEP": "4"})
+    started = time.monotonic()
+    result = _launch(env, "--transport", "stdio")
+    elapsed = time.monotonic() - started
+    assert result.returncode == 0 and result.stdout.startswith("FAKE-SERVER")
+    assert elapsed < 3.0, f"start blocked on the refresh job: {elapsed:.1f}s"
+    env_dir = _env_dir(tmp_path)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline and (env_dir / "current").read_text().strip() != f"gen-6.3.1-{AUTOMATION}":
+        time.sleep(0.5)
+    assert (env_dir / "current").read_text().strip() == f"gen-6.3.1-{AUTOMATION}"
+    assert (env_dir / "refresh.log").exists()
+
+
+def test_refresh_records_the_latest_plugin_bundle_from_identity(tmp_path: Path) -> None:
+    identity = tmp_path / "identity.json"
+    identity.write_text(json.dumps({"components": {"plugin": {"currentVersion": "9.9.9"}}}))
+    env = _env(tmp_path, HWPX_STACK_IDENTITY_URL=identity.as_uri())
+    assert _launch(env, "--help").returncode == 0
+    assert _refresh(env).returncode == 0
+    state = _state(_env_dir(tmp_path))
+    assert state["pluginBundle"] == {"installed": IDENTITY["components"]["plugin"]["currentVersion"], "latestKnown": "9.9.9"}
+
+
+def test_cold_start_replaces_a_generation_whose_console_is_missing(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    assert _launch(env, "--help").returncode == 0
+    env_dir = _env_dir(tmp_path)
+    gen = env_dir / f"gen-{CORE}-{AUTOMATION}"
+    (gen / "bin" / "hwpx-automation-mcp").unlink()
+    result = _launch(env, "--help")
+    assert result.returncode == 0, result.stderr
+    assert (gen / "bin" / "hwpx-automation-mcp").exists()
+    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
+    assert not list(env_dir.glob("gen-*.broken.*"))
+    _no_leftovers(tmp_path)
