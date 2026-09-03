@@ -161,23 +161,31 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
 
 
 def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> None:
-    identity = _identity()
-    components = identity["components"]
+    # Probe result (Feature 066 Task 7, evidence/p2-receipt.md): Codex does not
+    # resolve a relative `command` against the plugin root (no implicit cwd —
+    # confirmed against the working wily-client plugin, which needs an
+    # explicit "cwd": "." to make its relative launcher resolve). The bundled
+    # command must therefore stay PATH-resolved (`bash`/`uvx`), never a
+    # relative launcher path, and must not carry a "cwd" override of its own
+    # (that would break the thread's workspace-relative file access).
     config = json.loads(
         (ROOT / "plugins/codex/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
     )
     assert set(config["mcpServers"]) == {"hwpx"}
     config = config["mcpServers"]["hwpx"]
-    assert config["command"] == "uvx"
+    assert config["command"] == "bash"
     assert "cwd" not in config
-    # codex's bundled uvx wiring installs the constraint window (>= verified,
-    # < next major) — only the launcher's verified channel carries exact ==
-    # pins (Feature 066 D1); extras (mcp,oracle) ride along inside the window.
-    automation = components["automation"]
-    assert identity["installConstraint"]["automation"] in config["args"]
-    assert identity["installConstraint"]["core"] in config["args"]
-    assert automation["mcpConsole"] in config["args"]
-    assert config["env"]["HWPX_AUTOMATION_ADVANCED"] == "0"
+
+
+def test_codex_bundle_refreshes_uvx_daily_without_blocking_start() -> None:
+    config = json.loads((ROOT / "plugins" / "codex" / "hwpx-plugin" / ".mcp.json").read_text(encoding="utf-8"))
+    server = config["mcpServers"]["hwpx"]
+    identity = _identity()
+    script = server["args"][1]
+    assert server["command"] == "bash" and server["args"][0] == "-c"
+    assert identity["installConstraint"]["automation"] in script and identity["installConstraint"]["core"] in script
+    assert "nohup uvx --refresh" in script and script.rstrip().endswith("exec uvx --with \"$C\" --from \"$S\" hwpx-automation-mcp")
+    assert "HWPX_STACK_AUTO_UPDATE" in server["env_vars"]
 
 
 def test_claude_mcp_command_preserves_project_cwd() -> None:
@@ -803,5 +811,7 @@ def test_skill_start_check_routes_updates_per_host() -> None:
     assert "stackUpdate" in skill and "한 번" in skill
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "HWPX_STACK_AUTO_UPDATE=0" in readme and "HWPX_STACK_CHANNEL=verified" in readme
-    for bundle in sorted(ROOT.glob("plugins/*/hwpx*/SKILL.md")):
+    bundles = sorted([*ROOT.glob("plugins/*/hwpx-plugin/skills/hwpx/SKILL.md"), *ROOT.glob("plugins/hermes/hwpx/SKILL.md")])
+    assert len(bundles) == 4
+    for bundle in bundles:
         assert "stackUpdate" in bundle.read_text(encoding="utf-8"), bundle

@@ -1,11 +1,10 @@
 {
   "mcpServers": {
     "hwpx": {
-      "command": "uvx",
+      "command": "bash",
       "args": [
-        "--with", "python-hwpx[preview]>=6.3.0,<7",
-        "--from", "python-hwpx-automation[mcp,oracle]>=7.0.3,<8",
-        "hwpx-automation-mcp"
+        "-c",
+        "S='python-hwpx-automation[mcp,oracle]>=7.0.3,<8'; C='python-hwpx[preview]>=6.3.0,<7'; H=\"${HWPX_STACK_UPDATE_INTERVAL_HOURS:-24}\"; case \"$H\" in ''|*[!0-9]*) H=24;; esac; D=\"${XDG_CACHE_HOME:-$HOME/.cache}/hwpx-plugin\"; mkdir -p \"$D\"; if [ \"${HWPX_STACK_AUTO_UPDATE:-1}\" = 1 ] && { [ \"$H\" = 0 ] || [ ! -f \"$D/last-check\" ] || [ -n \"$(find \"$D/last-check\" -mmin +$((H*60)) 2>/dev/null)\" ]; }; then touch \"$D/last-check\"; ( exec >>\"$D/refresh.log\" 2>&1 </dev/null; nohup uvx --refresh --with \"$C\" --from \"$S\" hwpx-automation-mcp --help & ); fi; exec uvx --with \"$C\" --from \"$S\" hwpx-automation-mcp"
       ],
       "env": {
         "HWPX_AUTOMATION_ADVANCED": "0",
@@ -14,7 +13,9 @@
       },
       "env_vars": [
         "HWPX_AUTOMATION_CHROME_PATH",
-        "HWPX_MCP_CHROME_PATH"
+        "HWPX_MCP_CHROME_PATH",
+        "HWPX_STACK_AUTO_UPDATE",
+        "HWPX_STACK_UPDATE_INTERVAL_HOURS"
       ]
     }
   }

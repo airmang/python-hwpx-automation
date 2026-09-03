@@ -898,14 +898,25 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
             require("cwd" not in server, "claude: .mcp.json must preserve project cwd")
         if host["id"] == "codex":
             args = server.get("args", [])
-            require(command == "uvx", "codex: .mcp.json command must be root-independent uvx")
+            script = args[1] if len(args) > 1 else ""
+            require(
+                command == "bash" and args[:1] == ["-c"],
+                "codex: .mcp.json command must be the daily-refresh uvx wrapper (hwpx-plugins Feature 066 Task 7)",
+            )
             require("cwd" not in server, "codex: .mcp.json must preserve the thread workspace cwd")
             constraints = install_constraints(identity)
-            require(constraints["automation"] in args, "codex: automation install constraint missing")
-            require(constraints["core"] in args, "codex: core install constraint missing")
+            require(constraints["automation"] in script, "codex: automation install constraint missing")
+            require(constraints["core"] in script, "codex: core install constraint missing")
             require(
-                automation["mcpConsole"] in args,
+                automation["mcpConsole"] in script,
                 "codex: canonical MCP console missing",
+            )
+            require(
+                "nohup uvx --refresh" in script
+                and script.rstrip().endswith(
+                    'exec uvx --with "$C" --from "$S" hwpx-automation-mcp'
+                ),
+                "codex: .mcp.json wrapper must refresh in the background and exec uvx synchronously",
             )
         require(
             server.get("env", {}).get("HWPX_SKILL_VERSION") == plugin_version,
