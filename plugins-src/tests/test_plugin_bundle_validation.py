@@ -148,7 +148,8 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
         assert "Editable mode is deliberately opt-in" in text
         assert '"runtimeLayout": "generations-v2"' in text
         assert "uv venv --quiet --relocatable" in text
-        assert 'exec "${current_dir}/bin/hwpx-automation-mcp" "$@"' in text
+        assert 'POINTER_FILE="${ENV_DIR}/current"' in text
+        assert 'name="gen-${core}-${automation}"' in text
         assert "relocated hwpx-automation-mcp console self-check failed" in text
         assert "-m hwpx_automation.server" not in text
         assert 'rm -rf "${VENV_DIR}"' not in text
