@@ -93,7 +93,7 @@ def test_default_pins_derive_to_the_product_identity_versions() -> None:
 
 def test_self_check_skips_packages_without_an_expectation() -> None:
     text = TEMPLATE.read_text(encoding="utf-8")
-    check = re.search(r'"\$\{BUILD_DIR\}/bin/python" - "\$\{EXPECTED_SERVER_VERSION\}" "\$\{EXPECTED_CORE_VERSION\}" <<\'PY\'\n(.*?)\nPY\n', text, re.S)
+    check = re.search(r'"\$\{dir\}/bin/python" - "\$\{EXPECTED_SERVER_VERSION\}" "\$\{EXPECTED_CORE_VERSION\}" <<\'PY\'\n(.*?)\nPY\n', text, re.S)
     assert check, "post-install self-check missing"
     body = check.group(1)
     assert "if value" in body and "mismatched" in body

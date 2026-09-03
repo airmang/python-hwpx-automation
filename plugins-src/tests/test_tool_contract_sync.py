@@ -347,7 +347,7 @@ def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
         ROOT / "packaging" / "templates" / "hwpx-automation-mcp"
     ).read_text(encoding="utf-8")
     assert "uv venv --quiet --relocatable" in launcher
-    assert '"runtimeLayout": "relocatable-console-v1"' in launcher
+    assert '"runtimeLayout": "generations-v2"' in launcher
     assert '--with-editable "${MCP_REPO}[mcp,oracle]"' in launcher
     assert '--with-editable "${MCP_REPO}[mcp]"' not in launcher
     assert "HWPX_AUTOMATION_WORKSPACE_ROOTS" in e2e

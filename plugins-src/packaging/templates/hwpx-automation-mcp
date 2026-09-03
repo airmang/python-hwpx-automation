@@ -1,18 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Canonical python-hwpx-automation MCP launcher.
+# Canonical python-hwpx-automation MCP launcher (hwpx-plugins Feature 066).
+#
+# Coordinates come from packaging/product-identity.json at build time and are
+# cross-checked by scripts/validate_hwpx_plugin.py:
+#   VERIFIED_*   the exact pair this plugin release was verified with;
+#   CONSTRAINT_* the install window: >= verified, < next major.
+# HWPX_STACK_CHANNEL=floor (default) installs the newest pair inside the window
+# and refreshes it in the background at most once per
+# HWPX_STACK_UPDATE_INTERVAL_HOURS. HWPX_STACK_CHANNEL=verified installs the
+# exact verified pair and never refreshes. Once a runtime exists, starting the
+# server never waits on the network. A runtime becomes current only after it
+# passes the self-check below; the running server's directory is never moved
+# or deleted underneath it.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SERVER_PACKAGE="${HWPX_AUTOMATION_PACKAGE:-${HWPX_MCP_SERVER_PACKAGE:-python-hwpx-automation[mcp,oracle]==7.0.3}}"
-CORE_PACKAGE="${HWPX_PYTHON_HWPX_PACKAGE:-python-hwpx[preview]==6.3.0}"
-# The expected versions are derived from the package requests above, never
-# kept as separate literals: a literal that has to be advanced by hand on every
-# release drifted once (2.0.1/2.0.2 shipped a 6.0.2 expectation against a 6.3.0
-# pin) and made every fresh Claude Code install fail its own self-check.
-# Supported request shapes: an exact `name[extras]==X` pin, or a local wheel
-# path `.../name-X-py3-none-any.whl[extras]`. Anything else yields an empty
-# expectation and the self-check only requires the package to be importable.
+
+VERIFIED_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]==7.0.3"
+VERIFIED_CORE_PACKAGE="python-hwpx[preview]==6.3.0"
+CONSTRAINT_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]>=7.0.3,<8"
+CONSTRAINT_CORE_PACKAGE="python-hwpx[preview]>=6.3.0,<7"
+
+STACK_CHANNEL="${HWPX_STACK_CHANNEL:-floor}"
+case "${STACK_CHANNEL}" in
+  floor)
+    DEFAULT_SERVER_PACKAGE="${CONSTRAINT_SERVER_PACKAGE}"
+    DEFAULT_CORE_PACKAGE="${CONSTRAINT_CORE_PACKAGE}"
+    ;;
+  verified)
+    DEFAULT_SERVER_PACKAGE="${VERIFIED_SERVER_PACKAGE}"
+    DEFAULT_CORE_PACKAGE="${VERIFIED_CORE_PACKAGE}"
+    ;;
+  *)
+    echo "HWPX_STACK_CHANNEL must be 'floor' or 'verified' (got '${STACK_CHANNEL}')" >&2
+    exit 64
+    ;;
+esac
+SERVER_PACKAGE="${HWPX_AUTOMATION_PACKAGE:-${HWPX_MCP_SERVER_PACKAGE:-${DEFAULT_SERVER_PACKAGE}}}"
+CORE_PACKAGE="${HWPX_PYTHON_HWPX_PACKAGE:-${DEFAULT_CORE_PACKAGE}}"
+STACK_AUTO_UPDATE="${HWPX_STACK_AUTO_UPDATE:-1}"
+STACK_UPDATE_INTERVAL_HOURS="${HWPX_STACK_UPDATE_INTERVAL_HOURS:-24}"
+case "${STACK_UPDATE_INTERVAL_HOURS}" in ''|*[!0-9]*) STACK_UPDATE_INTERVAL_HOURS=24 ;; esac
+STACK_IDENTITY_URL="${HWPX_STACK_IDENTITY_URL:-https://raw.githubusercontent.com/airmang/hwpx-plugins/main/packaging/product-identity.json}"
+
+# Expected versions derive from the package requests, never from separate
+# literals: a hand-advanced literal drifted once (2.0.1/2.0.2 expected 6.0.2
+# against a 6.3.0 pin) and failed every fresh install (hwpx-plugins #26).
+# Shapes: exact `name[extras]==X`, local wheel `.../name-X-py3-none-any.whl`.
+# Anything else (the floor constraints) yields an empty expectation: the
+# self-check then requires importability and a clean capability handshake.
 _pinned_version() {
   local spec="$1" base
   case "${spec}" in
@@ -52,16 +89,34 @@ if [ "${HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE:-${HWPX_MCP_DISABLE_LOCAL_EDITABL
     hwpx-automation-mcp "$@"
 fi
 
-if command -v uv >/dev/null 2>&1; then
-  RUNTIME_ROOT="${HWPX_AUTOMATION_RUNTIME_ROOT:-${HWPX_MCP_RUNTIME_ROOT:-${HWPX_MCP_SERVER_VENV:-${PLUGIN_ROOT}/.hwpx-mcp-runtime}}}"
-  ENV_ROOT="${RUNTIME_ROOT}/envs"
-  LOCK_DIR="${RUNTIME_ROOT}/install.lock"
-  RECOVERY_LOCK_DIR="${RUNTIME_ROOT}/install.lock.recovery"
-  mkdir -p "${ENV_ROOT}"
+if ! command -v uv >/dev/null 2>&1; then
+  if command -v uvx >/dev/null 2>&1; then
+    # No index refresh flags on a per-start path (hwpx-plugins #23): they
+    # force a PyPI round-trip every start and fail offline with a valid cache.
+    # uvx caches the pair it resolves first; users on this fallback refresh
+    # with `uvx --refresh ...` by hand — the managed runtime below is the
+    # path that self-updates.
+    exec uvx \
+      --with "${CORE_PACKAGE}" \
+      --from "${SERVER_PACKAGE}" \
+      hwpx-automation-mcp "$@"
+  fi
+  echo "hwpx-plugin requires uv or uvx to install and run ${SERVER_PACKAGE}. Install uv, or set HWPX_AUTOMATION_REPO (HWPX_MCP_SERVER_REPO is the 6.x alias) and PYTHON_HWPX_REPO to local checkouts." >&2
+  exit 127
+fi
 
-  UV_PYTHON="$(uv python find)"
-  FINGERPRINT="$(
-    "${UV_PYTHON}" - "${SERVER_PACKAGE}" "${CORE_PACKAGE}" "${HWPX_SKILL_VERSION}" <<'PY'
+RUNTIME_ROOT="${HWPX_AUTOMATION_RUNTIME_ROOT:-${HWPX_MCP_RUNTIME_ROOT:-${HWPX_MCP_SERVER_VENV:-${PLUGIN_ROOT}/.hwpx-mcp-runtime}}}"
+ENV_ROOT="${RUNTIME_ROOT}/envs"
+LOCK_DIR="${RUNTIME_ROOT}/install.lock"
+RECOVERY_LOCK_DIR="${RUNTIME_ROOT}/install.lock.recovery"
+mkdir -p "${ENV_ROOT}"
+
+UV_PYTHON="$(uv python find)"
+# The fingerprint keys the *request* (constraint window or exact pin) plus the
+# interpreter, not the resolved versions: upstream releases land as new
+# generations inside one fingerprint directory instead of new fingerprints.
+FINGERPRINT="$(
+  "${UV_PYTHON}" - "${SERVER_PACKAGE}" "${CORE_PACKAGE}" "${STACK_CHANNEL}" <<'PY'
 import hashlib
 import json
 import platform
@@ -71,8 +126,8 @@ import sysconfig
 payload = {
     "serverPackage": sys.argv[1],
     "corePackage": sys.argv[2],
-    "skillVersion": sys.argv[3],
-    "runtimeLayout": "relocatable-console-v1",
+    "channel": sys.argv[3],
+    "runtimeLayout": "generations-v2",
     "implementation": sys.implementation.name,
     "python": platform.python_version(),
     "abi": sysconfig.get_config_var("SOABI"),
@@ -81,74 +136,65 @@ payload = {
 encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
 print(hashlib.sha256(encoded).hexdigest())
 PY
-  )"
+)"
 
-  VENV_DIR="${ENV_ROOT}/${FINGERPRINT}"
-  VERSION_FILE="${VENV_DIR}/.hwpx-stack-fingerprint"
-  RUNTIME_PYTHON="${VENV_DIR}/bin/python"
-  RUNTIME_CONSOLE="${VENV_DIR}/bin/hwpx-automation-mcp"
+ENV_DIR="${ENV_ROOT}/${FINGERPRINT}"
+POINTER_FILE="${ENV_DIR}/current"
+STATE_FILE="${ENV_DIR}/update-state.json"
+STAMP_FILE="${ENV_DIR}/last-check"
+REFRESH_LOCK_DIR="${ENV_DIR}/refresh.lock"
+REFRESH_LOG="${ENV_DIR}/refresh.log"
+mkdir -p "${ENV_DIR}"
+export HWPX_STACK_UPDATE_STATE="${STATE_FILE}"
 
-  runtime_ready() {
-    [ -x "${RUNTIME_PYTHON}" ] \
-      && [ -x "${RUNTIME_CONSOLE}" ] \
-      && [ -f "${VERSION_FILE}" ] \
-      && [ "$(cat "${VERSION_FILE}")" = "${FINGERPRINT}" ]
-  }
+# Prints the active generation directory, or nothing when there is none.
+_current_generation() {
+  local name
+  if [ ! -f "${POINTER_FILE}" ]; then
+    return 0
+  fi
+  name="$(cat "${POINTER_FILE}" 2>/dev/null || true)"
+  case "${name}" in
+    gen-*) ;;
+    *) return 0 ;;
+  esac
+  if [ -x "${ENV_DIR}/${name}/bin/python" ] && [ -x "${ENV_DIR}/${name}/bin/hwpx-automation-mcp" ]; then
+    printf '%s\n' "${ENV_DIR}/${name}"
+  fi
+}
 
-  if ! runtime_ready; then
-    acquired=0
-    for _attempt in $(seq 1 1200); do
-      if [ -d "${RECOVERY_LOCK_DIR}" ]; then
-        sleep 0.1
-        continue
-      fi
-      if mkdir "${LOCK_DIR}" 2>/dev/null; then
-        printf '%s\n' "$$" > "${LOCK_DIR}/pid"
-        acquired=1
-        break
-      fi
-      lock_pid=""
-      if [ -f "${LOCK_DIR}/pid" ]; then
-        lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
-      fi
-      if [ -n "${lock_pid}" ] && ! kill -0 "${lock_pid}" 2>/dev/null; then
-        if mkdir "${RECOVERY_LOCK_DIR}" 2>/dev/null; then
-          current_lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
-          if [ "${current_lock_pid}" = "${lock_pid}" ] \
-            && ! kill -0 "${current_lock_pid}" 2>/dev/null; then
-            stale_lock="${RUNTIME_ROOT}/install.lock.stale.$$.$_attempt"
-            if mv "${LOCK_DIR}" "${stale_lock}" 2>/dev/null; then
-              rm -rf "${stale_lock}"
-            fi
-          fi
-          rmdir "${RECOVERY_LOCK_DIR}" 2>/dev/null || true
-        fi
-        continue
-      fi
-      sleep 0.1
-    done
-    if [ "${acquired}" != "1" ]; then
-      echo "timed out waiting for the HWPX runtime installation lock" >&2
-      exit 75
-    fi
+# True when the request can move: floor channel and no exact expectation.
+_request_is_floating() {
+  [ "${STACK_CHANNEL}" = "floor" ] && [ -z "${EXPECTED_SERVER_VERSION}${EXPECTED_CORE_VERSION}" ]
+}
 
-    BUILD_DIR="${RUNTIME_ROOT}/.build-${FINGERPRINT}-$$"
-    cleanup_runtime_build() {
-      rm -rf "${BUILD_DIR}"
-      rm -rf "${LOCK_DIR}"
-    }
-    trap cleanup_runtime_build EXIT INT TERM
+# $1 = python; prints "<core> <automation>" ("unknown" when a package is absent).
+_installed_versions() {
+  "$1" - <<'PY'
+from importlib.metadata import PackageNotFoundError, version
 
-    if ! runtime_ready; then
-      rm -rf "${BUILD_DIR}"
-      uv venv --quiet --relocatable "${BUILD_DIR}"
-      uv pip install --quiet \
-        --refresh-package python-hwpx-automation \
-        --refresh-package python-hwpx \
-        --python "${BUILD_DIR}/bin/python" \
-        "${SERVER_PACKAGE}" \
-        "${CORE_PACKAGE}"
-      "${BUILD_DIR}/bin/python" - "${EXPECTED_SERVER_VERSION}" "${EXPECTED_CORE_VERSION}" <<'PY'
+
+def _version_of(*names):
+    for name in names:
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            continue
+    return "unknown"
+
+
+print(_version_of("python-hwpx"), _version_of("python-hwpx-automation"))
+PY
+}
+
+# $1 = venv dir. Console runs, expectations (if any) match, both packages
+# import, and the automation capability handshake is clean. Prints
+# "<core> <automation>" on success; any failure is a non-zero exit.
+_verify_generation() {
+  local dir="$1"
+  "${dir}/bin/hwpx-automation-mcp" --help >/dev/null
+  "${dir}/bin/python" - "${EXPECTED_SERVER_VERSION}" "${EXPECTED_CORE_VERSION}" <<'PY'
+import sys
 from importlib.metadata import PackageNotFoundError, version
 
 
@@ -159,15 +205,15 @@ def _version_of(*names):
         except PackageNotFoundError:
             continue
     raise PackageNotFoundError(names[0])
-import sys
+
 
 expected_server, expected_core = sys.argv[1:]
 observed = {
     "python-hwpx-automation": _version_of("python-hwpx-automation"),
     "python-hwpx": version("python-hwpx"),
 }
-# An empty expectation means the request shape carried no version (for example
-# a bare name or a VCS URL); importability above is then the whole check.
+# An empty expectation means the request carried no version (constraint
+# window, bare name, VCS URL); importability and the handshake are the check.
 expected = {
     name: value
     for name, value in (
@@ -179,49 +225,171 @@ expected = {
 mismatched = {name: observed[name] for name in expected if observed[name] != expected[name]}
 if mismatched:
     raise SystemExit(f"installed HWPX stack version mismatch: {mismatched!r} != {expected!r}")
-PY
-      "${BUILD_DIR}/bin/hwpx-automation-mcp" --help >/dev/null
-      OLD_VENV="${VENV_DIR}.previous.$$"
-      OLD_VENV_PRESENT=0
-      if [ -e "${VENV_DIR}" ]; then
-        mv "${VENV_DIR}" "${OLD_VENV}"
-        OLD_VENV_PRESENT=1
-      fi
-      mv "${BUILD_DIR}" "${VENV_DIR}"
-      if ! "${RUNTIME_CONSOLE}" --help >/dev/null 2>&1; then
-        FAILED_VENV="${VENV_DIR}.failed.$$"
-        mv "${VENV_DIR}" "${FAILED_VENV}"
-        if [ "${OLD_VENV_PRESENT}" = "1" ]; then
-          mv "${OLD_VENV}" "${VENV_DIR}"
-        fi
-        rm -rf "${FAILED_VENV}"
-        echo "relocated hwpx-automation-mcp console self-check failed" >&2
-        exit 70
-      fi
-      printf '%s\n' "${FINGERPRINT}" > "${VERSION_FILE}"
-      if [ "${OLD_VENV_PRESENT}" = "1" ]; then
-        rm -rf "${OLD_VENV}"
-      fi
-    fi
+import hwpx  # noqa: F401
+from hwpx_automation.quality import capability_state
 
-    trap - EXIT INT TERM
-    rm -rf "${LOCK_DIR}"
+state = capability_state()
+if not state.get("ok"):
+    raise SystemExit(
+        "installed HWPX stack failed the capability handshake: "
+        + "; ".join(str(item) for item in state.get("skew", []))
+    )
+print(observed["python-hwpx"], observed["python-hwpx-automation"])
+PY
+}
+
+# $1 = build dir. Creates the venv, installs the request, verifies. The
+# one-time install keeps its index refresh: a just-published version may be
+# missing from a stale local index cache. Prints "<core> <automation>".
+_build_generation() {
+  local build="$1"
+  rm -rf "${build}"
+  uv venv --quiet --relocatable "${build}" \
+    && uv pip install --quiet \
+      --refresh-package python-hwpx-automation \
+      --refresh-package python-hwpx \
+      --python "${build}/bin/python" \
+      "${SERVER_PACKAGE}" \
+      "${CORE_PACKAGE}" \
+    && _verify_generation "${build}"
+}
+
+# $1 = build dir, $2 = "<core> <automation>". Moves the build into its
+# generation slot and repoints `current` atomically. Prints the gen dir.
+_install_generation() {
+  local build="$1" core automation name target
+  read -r core automation <<<"$2"
+  name="gen-${core}-${automation}"
+  target="${ENV_DIR}/${name}"
+  if [ -d "${target}" ]; then
+    rm -rf "${build}"
+  else
+    mv "${build}" "${target}"
+  fi
+  printf '%s\n' "${name}" > "${POINTER_FILE}.tmp.$$"
+  mv -f "${POINTER_FILE}.tmp.$$" "${POINTER_FILE}"
+  printf '%s\n' "${target}"
+}
+
+# Keeps the current generation and the newest other one (rollback target);
+# removes the rest. Never touches the directory `current` points at.
+_collect_generations() {
+  local current previous="" gen name
+  current="$(cat "${POINTER_FILE}" 2>/dev/null || true)"
+  while IFS= read -r gen; do
+    [ -d "${gen}" ] || continue
+    name="$(basename "${gen}")"
+    if [ "${name}" = "${current}" ]; then
+      continue
+    fi
+    if [ -z "${previous}" ]; then
+      previous="${name}"
+      continue
+    fi
+    rm -rf "${gen}"
+  done < <(ls -1dt "${ENV_DIR}"/gen-* 2>/dev/null || true)
+}
+
+# $1 python, $2 installed core, $3 installed automation, $4 latest core,
+# $5 latest automation, $6 last error, $7 plugin bundle latest known.
+_write_state() {
+  "$1" - "${STATE_FILE}" "$2" "$3" "$4" "$5" "$6" "$7" \
+    "${STACK_AUTO_UPDATE}" "${STACK_CHANNEL}" "${HWPX_SKILL_VERSION}" <<'PY'
+import json
+import os
+import sys
+import time
+
+(path, core, automation, latest_core, latest_automation, error, plugin_latest,
+ auto_update, channel, skill) = sys.argv[1:]
+state = {
+    "schemaVersion": "hwpx.stack-update-state.v1",
+    "checkedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    "autoUpdate": auto_update == "1",
+    "channel": channel,
+    "runtime": {
+        "installed": {"python-hwpx": core, "python-hwpx-automation": automation},
+        "latestAvailable": {
+            "python-hwpx": latest_core or core,
+            "python-hwpx-automation": latest_automation or automation,
+        },
+    },
+    "pluginBundle": {"installed": skill, "latestKnown": plugin_latest or None},
+    "lastError": error or None,
+}
+tmp = f"{path}.tmp.{os.getpid()}"
+with open(tmp, "w", encoding="utf-8") as handle:
+    json.dump(state, handle, ensure_ascii=False, indent=1, sort_keys=True)
+    handle.write("\n")
+os.replace(tmp, path)
+PY
+}
+
+# Task 3: refresh functions and job entry go here.
+
+current_dir="$(_current_generation)"
+if [ -z "${current_dir}" ]; then
+  acquired=0
+  for _attempt in $(seq 1 1200); do
+    if [ -d "${RECOVERY_LOCK_DIR}" ]; then
+      sleep 0.1
+      continue
+    fi
+    if mkdir "${LOCK_DIR}" 2>/dev/null; then
+      printf '%s\n' "$$" > "${LOCK_DIR}/pid"
+      acquired=1
+      break
+    fi
+    lock_pid=""
+    if [ -f "${LOCK_DIR}/pid" ]; then
+      lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
+    fi
+    if [ -n "${lock_pid}" ] && ! kill -0 "${lock_pid}" 2>/dev/null; then
+      if mkdir "${RECOVERY_LOCK_DIR}" 2>/dev/null; then
+        current_lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
+        if [ "${current_lock_pid}" = "${lock_pid}" ] \
+          && ! kill -0 "${current_lock_pid}" 2>/dev/null; then
+          stale_lock="${RUNTIME_ROOT}/install.lock.stale.$$.$_attempt"
+          if mv "${LOCK_DIR}" "${stale_lock}" 2>/dev/null; then
+            rm -rf "${stale_lock}"
+          fi
+        fi
+        rmdir "${RECOVERY_LOCK_DIR}" 2>/dev/null || true
+      fi
+      continue
+    fi
+    sleep 0.1
+  done
+  if [ "${acquired}" != "1" ]; then
+    echo "timed out waiting for the HWPX runtime installation lock" >&2
+    exit 75
   fi
 
-  exec "${RUNTIME_CONSOLE}" "$@"
+  BUILD_DIR="${RUNTIME_ROOT}/.build-${FINGERPRINT}-$$"
+  cleanup_runtime_build() {
+    rm -rf "${BUILD_DIR}"
+    rm -rf "${LOCK_DIR}"
+  }
+  trap cleanup_runtime_build EXIT INT TERM
+
+  current_dir="$(_current_generation)"
+  if [ -z "${current_dir}" ]; then
+    generation_versions="$(_build_generation "${BUILD_DIR}")"
+    current_dir="$(_install_generation "${BUILD_DIR}" "${generation_versions}")"
+    if ! "${current_dir}/bin/hwpx-automation-mcp" --help >/dev/null 2>&1; then
+      rm -f "${POINTER_FILE}"
+      rm -rf "${current_dir}"
+      echo "relocated hwpx-automation-mcp console self-check failed" >&2
+      exit 70
+    fi
+    read -r generation_core generation_automation <<<"${generation_versions}"
+    _write_state "${current_dir}/bin/python" "${generation_core}" "${generation_automation}" "" "" "" ""
+    touch "${STAMP_FILE}"
+  fi
+
+  trap - EXIT INT TERM
+  rm -rf "${LOCK_DIR}"
 fi
 
-if command -v uvx >/dev/null 2>&1; then
-  # Exact pins cannot re-resolve differently, so this per-start path carries
-  # no index refresh flags: they would force a PyPI round-trip on every start
-  # and fail outright offline even with a valid cache (hwpx-plugins #23). The
-  # one-time venv build above keeps its refresh because a just-published pin
-  # may be absent from a stale local index cache.
-  exec uvx \
-    --with "${CORE_PACKAGE}" \
-    --from "${SERVER_PACKAGE}" \
-    hwpx-automation-mcp "$@"
-fi
-
-echo "hwpx-plugin requires uv or uvx to install and run ${SERVER_PACKAGE}. Install uv, or set HWPX_AUTOMATION_REPO (HWPX_MCP_SERVER_REPO is the 6.x alias) and PYTHON_HWPX_REPO to local checkouts." >&2
-exit 127
+# Task 3: _maybe_spawn_refresh goes here.
+exec "${current_dir}/bin/hwpx-automation-mcp" "$@"
