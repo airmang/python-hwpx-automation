@@ -6,7 +6,7 @@ server there.
 
 ## Candidate publishing command (do not run before release approval)
 
-The `2.0.3 / 7.0.3 / 6.3.0` coordinates below are the current public stack.
+The `2.1.0 / 7.0.3 / 6.3.0` coordinates below are the current public stack.
 
 
 ```bash

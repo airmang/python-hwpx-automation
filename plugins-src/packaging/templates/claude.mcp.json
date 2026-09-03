@@ -6,7 +6,7 @@
       "env": {
         "HWPX_AUTOMATION_ADVANCED": "0",
         "HWPX_AUTOMATION_AUTOBACKUP": "1",
-        "HWPX_SKILL_VERSION": "2.0.3"
+        "HWPX_SKILL_VERSION": "2.1.0"
       }
     }
   }

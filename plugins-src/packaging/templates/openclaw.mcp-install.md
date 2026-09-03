@@ -5,7 +5,7 @@ server is registered through your OpenClaw MCP configuration.
 
 ## Unpublished candidate wiring
 
-The source checkout carries the exact `6.3.0 / 7.0.3 / 2.0.3` public pins
+The source checkout carries the exact `6.3.0 / 7.0.3 / 2.1.0` public pins
 below for pre-release verification. They are not the current public marketplace
 release.
 

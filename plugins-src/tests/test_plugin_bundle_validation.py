@@ -175,6 +175,7 @@ def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> Non
     config = config["mcpServers"]["hwpx"]
     assert config["command"] == "bash"
     assert "cwd" not in config
+    assert config["env"]["HWPX_AUTOMATION_ADVANCED"] == "0"
 
 
 def test_codex_bundle_refreshes_uvx_daily_without_blocking_start() -> None:
@@ -270,9 +271,10 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "`hwpx-plugin 1.0.0`" not in text
         assert "`python-hwpx 6.0.2`" not in text
         assert "`hwpx-plugin 2.0.2`" not in text
+        assert "`hwpx-plugin 2.0.3`" not in text
         assert "`python-hwpx 6.3.0`" in text
         assert "`python-hwpx-automation 7.0.3`" in text
-        assert "`hwpx-plugin 2.0.3`" in text
+        assert "`hwpx-plugin 2.1.0`" in text
         assert "공개 릴리스" in text
         if status == "released":
             assert "미발행 후보" not in text
@@ -357,14 +359,14 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
             "canonicalAutomation": "7.0.3",
             "compatibilityDistribution": "hwpx-mcp-server",
             "compatibility": "7.0.3",
-            "plugin": "2.0.3",
+            "plugin": "2.1.0",
             "contractHash": "8c278ebd5becba08",
         },
         "currentPublic": {
             "pythonHwpx": "6.3.0",
             "primaryDistribution": "python-hwpx-automation",
             "primaryApplication": "7.0.3",
-            "plugin": "2.0.3",
+            "plugin": "2.1.0",
             "contractHash": "8c278ebd5becba08",
         },
         "promotionGate": (
@@ -385,7 +387,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
             "distribution": "python-hwpx-automation",
             "version": "7.0.3",
         },
-        "plugin": {"installedPluginId": "hwpx-plugin", "version": "2.0.3"},
+        "plugin": {"installedPluginId": "hwpx-plugin", "version": "2.1.0"},
     }
     assert components["core"]["currentVersion"] == "6.3.0"
     assert components["core"]["minimumCompatibleVersion"] == "6.3.0"
@@ -397,7 +399,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert components["automation"]["launcherPath"] == "scripts/hwpx-automation-mcp"
     assert identity["compatibility"]["hostConfigKey"] == "hwpx-mcp-server"
     assert identity["compatibility"]["launcherPath"] == "scripts/hwpx-mcp-server"
-    assert components["plugin"]["currentVersion"] == "2.0.3"
+    assert components["plugin"]["currentVersion"] == "2.1.0"
     assert components["plugin"]["minimumCompatibleVersion"] == "2.0.0"
     assert identity["pluginPinPolicy"] == {"core": "verified-floor", "automation": "verified-floor"}
     assert identity["verifiedStack"] == {
@@ -502,7 +504,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
             "pythonHwpx": "6.3.0",
             "primaryDistribution": "python-hwpx-automation",
             "primaryApplication": "7.0.3",
-            "plugin": "2.0.3",
+            "plugin": "2.1.0",
             "contractHash": "8c278ebd5becba08",
         }
         identity["releaseState"]["currentPublic"] = promoted
@@ -512,7 +514,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
                 "distribution": "python-hwpx-automation",
                 "version": "7.0.3",
             },
-            "plugin": {"installedPluginId": "hwpx-plugin", "version": "2.0.3"},
+            "plugin": {"installedPluginId": "hwpx-plugin", "version": "2.1.0"},
         }
         for stale in (
             "아직 공개되지 않은 1.1.0 미발행 후보",

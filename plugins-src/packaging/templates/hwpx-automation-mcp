@@ -70,7 +70,7 @@ _pinned_version() {
 }
 EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-$(_pinned_version "${SERVER_PACKAGE}")}}"
 EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-$(_pinned_version "${CORE_PACKAGE}")}"
-export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.0.3}"
+export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.1.0}"
 export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
 
 # Editable mode is deliberately opt-in.  Auto-discovering sibling repositories
