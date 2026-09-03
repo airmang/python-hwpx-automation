@@ -14,8 +14,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "packaging" / "templates" / "hwpx-automation-mcp"
 HARNESS_BIN = ROOT / "tests" / "launcher_harness" / "bin"

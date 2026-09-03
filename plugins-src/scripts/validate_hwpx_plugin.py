@@ -834,7 +834,6 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
     plugin_id = plugin["installedPluginId"]
     plugin_version = plugin["currentVersion"]
     automation = components["automation"]
-    core = components["core"]
     compatibility = identity["compatibility"]
     require(f"name: {skill_name}" in fm, f"{host['id']}: SKILL.md missing name")
     require("description:" in fm, f"{host['id']}: SKILL.md missing description")

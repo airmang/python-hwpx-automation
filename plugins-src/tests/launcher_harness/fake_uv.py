@@ -114,7 +114,7 @@ def _write_stub(python: Path, name: str, version: str) -> None:
     console.write_text(
         "#!/usr/bin/env bash\n"
         'if [ "${1:-}" = "--help" ]; then echo "usage: hwpx-automation-mcp [-h] [--transport {stdio,streamable-http,http}]"; exit 0; fi\n'
-        f'PY="$(cd "$(dirname "$0")" && pwd)/python"\n'
+        'PY="$(cd "$(dirname "$0")" && pwd)/python"\n'
         'echo "FAKE-SERVER core=$("$PY" -c "from importlib.metadata import version; print(version(\'python-hwpx\'))") '
         'automation=$("$PY" -c "from importlib.metadata import version; print(version(\'python-hwpx-automation\'))") '
         'state=${HWPX_STACK_UPDATE_STATE:-} args=$*"\n'
