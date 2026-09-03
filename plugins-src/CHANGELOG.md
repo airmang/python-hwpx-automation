@@ -1,7 +1,22 @@
 # Changelog
 
-## Unreleased
+## [2.0.3] - 2026-09-03
 
+Claude Code 번들 런처 수리 패치입니다. 코어·automation 핀(`python-hwpx[preview]==6.3.0` ·
+`python-hwpx-automation[mcp,oracle]==7.0.3`), 스킬 내용, 도구 표면, 계약 해시
+`8c278ebd5becba08`은 그대로입니다.
+
+- **수리**: Claude Code 번들 런처(`scripts/hwpx-automation-mcp`)가 런타임 venv를
+  새로 만들 때마다 `installed HWPX stack version mismatch … 'python-hwpx': '6.3.0' !=
+  … '6.0.2'`로 종료해 MCP 서버가 뜨지 않던 결함을 고쳤습니다 (#26). 2.0.1·2.0.2의
+  모든 신규 설치와 플러그인 업데이트가 이 지점에서 실패했습니다. 기대 버전을
+  손으로 전진시키는 리터럴 대신 설치 핀(`==X` 또는 로컬 휠 파일명)에서 파생하고,
+  릴리스 게이트 `clean_install_smoke.py`가 기대 버전을 env로 주입해 결함을 가리던
+  경로를 제거했습니다. 리터럴이 다시 들어오면 validator와 테스트가 실패합니다.
+- Codex 번들 `.mcp.json`과 OpenClaw·Hermes 배선, 런처의 `uvx` 폴백에서 기동마다
+  붙던 `--refresh-package` 두 개를 제거했습니다 (#23). 핀이 정확 고정이라 동작은
+  같고, 세션 시작마다의 PyPI 왕복과 오프라인 하드 실패만 사라집니다. 최초 venv
+  빌드의 1회성 refresh는 유지합니다.
 - Codex 번들 `.mcp.json`에 `env_vars` 전달 목록을 추가했습니다. Codex는
   화이트리스트에 없는 환경 변수를 MCP 서버 자식 프로세스에 전달하지 않으므로,
   사용자가 셸에 export한 `HWPX_AUTOMATION_CHROME_PATH`(6.x 레거시 별칭

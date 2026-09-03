@@ -6,9 +6,34 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SERVER_PACKAGE="${HWPX_AUTOMATION_PACKAGE:-${HWPX_MCP_SERVER_PACKAGE:-python-hwpx-automation[mcp,oracle]==7.0.3}}"
 CORE_PACKAGE="${HWPX_PYTHON_HWPX_PACKAGE:-python-hwpx[preview]==6.3.0}"
-EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-7.0.3}}"
-EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-6.0.2}"
-export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.0.2}"
+# The expected versions are derived from the package requests above, never
+# kept as separate literals: a literal that has to be advanced by hand on every
+# release drifted once (2.0.1/2.0.2 shipped a 6.0.2 expectation against a 6.3.0
+# pin) and made every fresh Claude Code install fail its own self-check.
+# Supported request shapes: an exact `name[extras]==X` pin, or a local wheel
+# path `.../name-X-py3-none-any.whl[extras]`. Anything else yields an empty
+# expectation and the self-check only requires the package to be importable.
+_pinned_version() {
+  local spec="$1" base
+  case "${spec}" in
+    *==*)
+      spec="${spec##*==}"
+      printf '%s\n' "${spec%%[];, ]*}"
+      ;;
+    *.whl*)
+      base="${spec##*/}"
+      base="${base%%.whl*}"
+      base="${base#*-}"
+      printf '%s\n' "${base%%-*}"
+      ;;
+    *)
+      printf '\n'
+      ;;
+  esac
+}
+EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-$(_pinned_version "${SERVER_PACKAGE}")}}"
+EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-$(_pinned_version "${CORE_PACKAGE}")}"
+export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.0.3}"
 export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
 
 # Editable mode is deliberately opt-in.  Auto-discovering sibling repositories
@@ -141,12 +166,19 @@ observed = {
     "python-hwpx-automation": _version_of("python-hwpx-automation"),
     "python-hwpx": version("python-hwpx"),
 }
+# An empty expectation means the request shape carried no version (for example
+# a bare name or a VCS URL); importability above is then the whole check.
 expected = {
-    "python-hwpx-automation": expected_server,
-    "python-hwpx": expected_core,
+    name: value
+    for name, value in (
+        ("python-hwpx-automation", expected_server),
+        ("python-hwpx", expected_core),
+    )
+    if value
 }
-if observed != expected:
-    raise SystemExit(f"installed HWPX stack version mismatch: {observed!r} != {expected!r}")
+mismatched = {name: observed[name] for name in expected if observed[name] != expected[name]}
+if mismatched:
+    raise SystemExit(f"installed HWPX stack version mismatch: {mismatched!r} != {expected!r}")
 PY
       "${BUILD_DIR}/bin/hwpx-automation-mcp" --help >/dev/null
       OLD_VENV="${VENV_DIR}.previous.$$"
@@ -180,9 +212,12 @@ PY
 fi
 
 if command -v uvx >/dev/null 2>&1; then
+  # Exact pins cannot re-resolve differently, so this per-start path carries
+  # no index refresh flags: they would force a PyPI round-trip on every start
+  # and fail outright offline even with a valid cache (hwpx-plugins #23). The
+  # one-time venv build above keeps its refresh because a just-published pin
+  # may be absent from a stale local index cache.
   exec uvx \
-    --refresh-package python-hwpx-automation \
-    --refresh-package python-hwpx \
     --with "${CORE_PACKAGE}" \
     --from "${SERVER_PACKAGE}" \
     hwpx-automation-mcp "$@"

@@ -18,8 +18,8 @@
 
 > [!NOTE]
 > 현재 공개 트레인은 `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` ·
-> `hwpx-plugin 2.0.2`입니다 (2026-08-22, 왕복 충실도 트레인 — 계약
-> `8c278ebd5becba08`, floor-only 델타로 도구 표면 불변).
+> `hwpx-plugin 2.0.3`입니다 (2026-09-03, 런처 자기검증 수리 패치 — 코어·
+> automation 핀과 계약 `8c278ebd5becba08` 불변).
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
@@ -86,7 +86,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (automation 7.0.3 · plugin 2.0.2 released 2026-08-22, 왕복 충실도 트레인) | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.2` |
+| 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (plugin 2.0.3 released 2026-09-03, 런처 자기검증 수리 패치 — 코어·automation 핀 불변) | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.3` |
 | 최소 호환 버전 | 2.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 6.3.0` · `python-hwpx-automation >= 7.0.1` · skill `>= 2.0.0` |
 | 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==6.3.0` · `python-hwpx-automation[mcp,oracle]==7.0.3` |
 

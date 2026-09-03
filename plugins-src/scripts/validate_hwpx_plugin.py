@@ -534,9 +534,34 @@ def validate_product_identity(config: dict, identity: dict) -> None:
             automation["mcpConsole"],
             f"HWPX_SKILL_VERSION:-{plugin['currentVersion']}",
             "Editable mode is deliberately opt-in",
+            # Expected stack versions derive from the package requests. A
+            # hand-advanced literal lagged the pin once (2.0.1/2.0.2 expected
+            # 6.0.2 against a 6.3.0 pin) and failed every fresh Claude Code
+            # runtime build (hwpx-plugins #26).
+            'EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-$(_pinned_version "${CORE_PACKAGE}")}"',
+            'EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-$(_pinned_version "${SERVER_PACKAGE}")}}"',
         ],
         "launcher template",
     )
+    launcher_text = (PACKAGING / "templates" / "hwpx-automation-mcp").read_text(encoding="utf-8")
+    require(
+        re.search(r'EXPECTED_(CORE|SERVER)_VERSION="\$\{[A-Z_]+:-(\$\{[A-Z_]+:-)?[0-9]', launcher_text) is None,
+        "launcher template: expected stack version is a hand-advanced literal; derive it from the pin (hwpx-plugins #26)",
+    )
+    _launcher_build, _, launcher_start = launcher_text.partition("if command -v uvx")
+    require(
+        "--refresh-package" not in launcher_start,
+        "launcher template: per-start uvx path must not carry --refresh-package (hwpx-plugins #23)",
+    )
+    for path in (
+        PACKAGING / "templates" / "codex.mcp.json",
+        PACKAGING / "templates" / "openclaw.mcp-install.md",
+        PACKAGING / "templates" / "hermes.mcp-install.md",
+    ):
+        require(
+            "--refresh-package" not in path.read_text(encoding="utf-8"),
+            f"{path}: exact-pin uvx wiring must not carry --refresh-package (hwpx-plugins #23)",
+        )
     _require_fragments(
         PACKAGING / "templates" / "hwpx-mcp-server",
         ['exec "${SCRIPT_DIR}/hwpx-automation-mcp" "$@"'],
@@ -553,13 +578,18 @@ def validate_product_identity(config: dict, identity: dict) -> None:
     _require_fragments(
         ROOT / "scripts" / "clean_install_smoke.py",
         [
-            f'"HWPX_AUTOMATION_VERSION": "{automation["currentVersion"]}"',
-            f'"HWPX_PYTHON_HWPX_VERSION": "{core["currentVersion"]}"',
-            f'"HWPX_SKILL_VERSION": "{plugin["currentVersion"]}"',
+            'SKILL_VERSION = _IDENTITY["components"]["plugin"]["currentVersion"]',
+            '"HWPX_SKILL_VERSION": SKILL_VERSION',
             "python-hwpx-automation",
             "site-packages",
         ],
         "clean-install smoke",
+    )
+    smoke_text = (ROOT / "scripts" / "clean_install_smoke.py").read_text(encoding="utf-8")
+    require(
+        "HWPX_PYTHON_HWPX_VERSION" not in smoke_text
+        and "HWPX_AUTOMATION_VERSION" not in smoke_text,
+        "clean-install smoke: must not override the launcher's derived version expectations (hwpx-plugins #26)",
     )
     profile = load_json(
         ROOT
