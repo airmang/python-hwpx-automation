@@ -19,6 +19,30 @@ MARKDOWN_LINK_RE = re.compile(
 )
 EXTERNAL_LINK_SCHEMES = {"http", "https", "mailto"}
 SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+
+
+def next_major(version: str) -> str:
+    return str(int(version.split(".")[0]) + 1)
+
+
+def install_constraints(identity: dict) -> dict[str, str]:
+    """The plugin install window: >= the verified version, < the next major.
+
+    Derived here and nowhere else; every template and doc is checked against
+    this value so a hand-typed window cannot drift (Feature 066 D1/D5).
+    """
+    core = identity["components"]["core"]
+    automation = identity["components"]["automation"]
+    extras = ",".join(automation["pluginInstallExtras"])
+    return {
+        "core": f"{core['distribution']}[preview]>={core['currentVersion']},<{next_major(core['currentVersion'])}",
+        "automation": (
+            f"{automation['distribution']}[{extras}]>={automation['currentVersion']},"
+            f"<{next_major(automation['currentVersion'])}"
+        ),
+    }
+
+
 INTERNAL_CODENAME_RE = re.compile(
     r"(?<![A-Za-z0-9])(?:S-[0-9]{3}|STG-[A-Za-z0-9_-]+)(?![A-Za-z0-9])"
 )
@@ -235,8 +259,28 @@ def validate_product_identity(config: dict, identity: dict) -> None:
     )
     require(
         identity.get("pluginPinPolicy")
-        == {"core": "exact-candidate", "automation": "exact-candidate"},
-        "plugin pin policy must remain explicit exact-candidate",
+        == {"core": "verified-floor", "automation": "verified-floor"},
+        "plugin pin policy must be explicit verified-floor (Feature 066)",
+    )
+    verified = identity.get("verifiedStack")
+    require(isinstance(verified, dict), "verifiedStack missing")
+    require(
+        re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(verified.get("verifiedAt"))) is not None,
+        "verifiedStack.verifiedAt must be an ISO date",
+    )
+    require(
+        {k: v for k, v in verified.items() if k != "verifiedAt"}
+        == {
+            "pythonHwpx": core.get("currentVersion"),
+            "automation": automation.get("currentVersion"),
+            "plugin": plugin.get("currentVersion"),
+            "contractHash": contract.get("contractHash"),
+        },
+        "verifiedStack must name the exact pair/plugin/contract this release was verified with",
+    )
+    require(
+        identity.get("installConstraint") == install_constraints(identity),
+        "installConstraint must be derived from the verified versions (>= verified, < next major)",
     )
     require(automation.get("taskConsole") == "hwpx", "canonical task console mismatch")
     require(
@@ -421,7 +465,11 @@ def validate_product_identity(config: dict, identity: dict) -> None:
             visual_note,
             "공개 릴리스",
             "최소 호환 버전",
-            "플러그인 설치 핀",
+            "검증 좌표",
+            "플러그인 설치 제약",
+            f"`{install_constraints(identity)['core']}`",
+            f"`{install_constraints(identity)['automation']}`",
+            "HWPX_STACK_CHANNEL=verified",
             "Development Status :: 3 - Alpha",
             "MCP 서버·플러그인 성숙도: 미선언",
             f"`{public['core']['distribution']} {public['core']['version']}`",
@@ -440,7 +488,10 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         [
             "공개 릴리스",
             "최소 호환 버전",
-            "플러그인 설치 핀",
+            "검증 좌표",
+            "플러그인 설치 제약",
+            f"`{install_constraints(identity)['core']}`",
+            f"`{install_constraints(identity)['automation']}`",
             f"`{public['core']['distribution']} {public['core']['version']}`",
             f"`{public['application']['distribution']} {public['application']['version']}`",
             f"`{public['plugin']['installedPluginId']} {public['plugin']['version']}`",
@@ -502,6 +553,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         f"{automation['distribution']}[{extras}]=={automation['currentVersion']}"
     )
     core_pin = f"{core['distribution']}[preview]=={core['currentVersion']}"
+    constraints = install_constraints(identity)
     skill_env = f'"HWPX_SKILL_VERSION": "{plugin["currentVersion"]}"'
     for path in (
         PACKAGING / "templates" / "claude.mcp.json",
@@ -516,8 +568,12 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         )
         if path.name != "claude.mcp.json":
             require(
-                automation_pin in text and core_pin in text,
-                f"{path}: package pins differ from product identity",
+                constraints["automation"] in text and constraints["core"] in text,
+                f"{path}: install constraints differ from product identity",
+            )
+            require(
+                automation_pin not in text and core_pin not in text,
+                f"{path}: exact pins belong to the launcher's verified channel only (Feature 066 D1)",
             )
             require(
                 automation["mcpConsole"] in text,
@@ -528,18 +584,26 @@ def validate_product_identity(config: dict, identity: dict) -> None:
     _require_fragments(
         PACKAGING / "templates" / "hwpx-automation-mcp",
         [
-            automation_pin,
-            core_pin,
+            f'VERIFIED_SERVER_PACKAGE="{automation_pin}"',
+            f'VERIFIED_CORE_PACKAGE="{core_pin}"',
+            f'CONSTRAINT_SERVER_PACKAGE="{constraints["automation"]}"',
+            f'CONSTRAINT_CORE_PACKAGE="{constraints["core"]}"',
             f'"${{MCP_REPO}}[{extras}]"',
             automation["mcpConsole"],
             f"HWPX_SKILL_VERSION:-{plugin['currentVersion']}",
             "Editable mode is deliberately opt-in",
-            # Expected stack versions derive from the package requests. A
-            # hand-advanced literal lagged the pin once (2.0.1/2.0.2 expected
-            # 6.0.2 against a 6.3.0 pin) and failed every fresh Claude Code
-            # runtime build (hwpx-plugins #26).
+            # Expected stack versions derive from the package requests (#26).
             'EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-$(_pinned_version "${CORE_PACKAGE}")}"',
             'EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-$(_pinned_version "${SERVER_PACKAGE}")}}"',
+            # Feature 066 runtime contract.
+            '"runtimeLayout": "generations-v2"',
+            "HWPX_STACK_CHANNEL",
+            "HWPX_STACK_AUTO_UPDATE",
+            "HWPX_STACK_UPDATE_INTERVAL_HOURS",
+            "HWPX_STACK_REFRESH_JOB",
+            'export HWPX_STACK_UPDATE_STATE="${STATE_FILE}"',
+            "_verify_generation",
+            "_collect_generations",
         ],
         "launcher template",
     )
@@ -548,9 +612,9 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         re.search(r'EXPECTED_(CORE|SERVER)_VERSION="\$\{[A-Z_]+:-(\$\{[A-Z_]+:-)?[0-9]', launcher_text) is None,
         "launcher template: expected stack version is a hand-advanced literal; derive it from the pin (hwpx-plugins #26)",
     )
-    _launcher_build, _, launcher_start = launcher_text.partition("if command -v uvx")
+    uvx_block = re.search(r'exec uvx \\\n(?:.*\n)*?\s+hwpx-automation-mcp "\$@"', launcher_text)
     require(
-        "--refresh-package" not in launcher_start,
+        uvx_block is not None and "--refresh-package" not in uvx_block.group(0),
         "launcher template: per-start uvx path must not carry --refresh-package (hwpx-plugins #23)",
     )
     for path in (
@@ -714,9 +778,9 @@ def validate_launcher(out: Path, host_id: str, identity: dict) -> None:
         "HWPX_PLUGIN_ROOT",
         ".hwpx-mcp-runtime",
         "HWPX_MCP_RUNTIME_ROOT",
-        ".hwpx-stack-fingerprint",
-        '"runtimeLayout": "relocatable-console-v1"',
-        'RUNTIME_CONSOLE="${VENV_DIR}/bin/hwpx-automation-mcp"',
+        "_verify_generation",
+        '"runtimeLayout": "generations-v2"',
+        'exec "${current_dir}/bin/hwpx-automation-mcp" "$@"',
         "install.lock",
         "uv pip install",
         "uv venv --quiet --relocatable",
@@ -835,16 +899,9 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
             args = server.get("args", [])
             require(command == "uvx", "codex: .mcp.json command must be root-independent uvx")
             require("cwd" not in server, "codex: .mcp.json must preserve the thread workspace cwd")
-            extras = ",".join(automation["pluginInstallExtras"])
-            automation_pin = (
-                f"{automation['distribution']}[{extras}]"
-                f"=={automation['currentVersion']}"
-            )
-            require(automation_pin in args, "codex: automation package pin missing")
-            require(
-                f"{core['distribution']}[preview]=={core['currentVersion']}" in args,
-                "codex: core package pin missing",
-            )
+            constraints = install_constraints(identity)
+            require(constraints["automation"] in args, "codex: automation install constraint missing")
+            require(constraints["core"] in args, "codex: core install constraint missing")
             require(
                 automation["mcpConsole"] in args,
                 "codex: canonical MCP console missing",

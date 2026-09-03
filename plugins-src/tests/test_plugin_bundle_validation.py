@@ -146,9 +146,9 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
         assert "HWPX_AUTOMATION_RUNTIME_ROOT" in text
         assert "find_stack_root" not in text
         assert "Editable mode is deliberately opt-in" in text
-        assert '"runtimeLayout": "relocatable-console-v1"' in text
+        assert '"runtimeLayout": "generations-v2"' in text
         assert "uv venv --quiet --relocatable" in text
-        assert 'RUNTIME_CONSOLE="${VENV_DIR}/bin/hwpx-automation-mcp"' in text
+        assert 'exec "${current_dir}/bin/hwpx-automation-mcp" "$@"' in text
         assert "relocated hwpx-automation-mcp console self-check failed" in text
         assert "-m hwpx_automation.server" not in text
         assert 'rm -rf "${VENV_DIR}"' not in text
@@ -160,7 +160,8 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
 
 
 def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> None:
-    components = _identity()["components"]
+    identity = _identity()
+    components = identity["components"]
     config = json.loads(
         (ROOT / "plugins/codex/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
     )
@@ -168,18 +169,12 @@ def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> Non
     config = config["mcpServers"]["hwpx"]
     assert config["command"] == "uvx"
     assert "cwd" not in config
-    # extra를 포함한 핀이어야 한다. 6.0.0부터 mcp SDK는 필수가 아니라 [mcp]
-    # extra이므로, extra 없는 핀으로 설치하면 MCP 서버가 없는 환경이 된다.
+    # codex's bundled uvx wiring installs the constraint window (>= verified,
+    # < next major) — only the launcher's verified channel carries exact ==
+    # pins (Feature 066 D1); extras (mcp,oracle) ride along inside the window.
     automation = components["automation"]
-    extras = ",".join(automation["pluginInstallExtras"])
-    assert (
-        f"{automation['distribution']}[{extras}]=={automation['currentVersion']}"
-        in config["args"]
-    )
-    assert (
-        f"{components['core']['distribution']}[preview]=={components['core']['currentVersion']}"
-        in config["args"]
-    )
+    assert identity["installConstraint"]["automation"] in config["args"]
+    assert identity["installConstraint"]["core"] in config["args"]
     assert automation["mcpConsole"] in config["args"]
     assert config["env"]["HWPX_AUTOMATION_ADVANCED"] == "0"
 
@@ -280,7 +275,9 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
             assert "`python-hwpx-automation 6.7.1`" in text
             assert "`hwpx-plugin 1.7.0`" in text
         assert "최소 호환 버전" in text
-        assert "플러그인 설치 핀" in text
+        assert "플러그인 설치 제약" in text
+        assert "검증 좌표" in text
+        assert "플러그인 설치 핀" not in text
         assert "validate_editor_open_safety(path).ok == True" in text
         assert "2.11.1" not in text
         assert "2.5.0" not in text
@@ -393,6 +390,21 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert identity["compatibility"]["launcherPath"] == "scripts/hwpx-mcp-server"
     assert components["plugin"]["currentVersion"] == "2.0.3"
     assert components["plugin"]["minimumCompatibleVersion"] == "2.0.0"
+    assert identity["pluginPinPolicy"] == {"core": "verified-floor", "automation": "verified-floor"}
+    assert identity["verifiedStack"] == {
+        "pythonHwpx": components["core"]["currentVersion"],
+        "automation": components["automation"]["currentVersion"],
+        "plugin": components["plugin"]["currentVersion"],
+        "contractHash": identity["releaseState"]["candidate"]["contractHash"],
+        "verifiedAt": identity["verifiedStack"]["verifiedAt"],
+    }
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", identity["verifiedStack"]["verifiedAt"])
+    core_major = int(components["core"]["currentVersion"].split(".")[0])
+    automation_major = int(components["automation"]["currentVersion"].split(".")[0])
+    assert identity["installConstraint"] == {
+        "core": f"python-hwpx[preview]>={components['core']['currentVersion']},<{core_major + 1}",
+        "automation": f"python-hwpx-automation[mcp,oracle]>={components['automation']['currentVersion']},<{automation_major + 1}",
+    }
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts
     assert identity["firstPartyLabelKo"] in readme

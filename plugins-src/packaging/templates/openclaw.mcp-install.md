@@ -13,7 +13,7 @@ release.
 {
   "hwpx": {
     "command": "uvx",
-    "args": ["--with", "python-hwpx[preview]==6.3.0", "--from", "python-hwpx-automation[mcp,oracle]==7.0.3", "hwpx-automation-mcp"],
+    "args": ["--with", "python-hwpx[preview]>=6.3.0,<7", "--from", "python-hwpx-automation[mcp,oracle]>=7.0.3,<8", "hwpx-automation-mcp"],
     "env": {
       "HWPX_AUTOMATION_ADVANCED": "0",
       "HWPX_AUTOMATION_AUTOBACKUP": "1",
@@ -26,6 +26,8 @@ release.
 
 The current public stack remains `python-hwpx 4.2.0` /
 `hwpx-mcp-server 5.1.0` / `hwpx-plugin 0.8.0`.
+
+`uvx`는 처음 해석한 버전 조합을 캐시하고 스스로 갱신하지 않습니다. 같은 메이저 안의 최신으로 옮기려면 `uvx --refresh --with "python-hwpx[preview]>=6.3.0,<7" --from "python-hwpx-automation[mcp,oracle]>=7.0.3,<8" hwpx-automation-mcp --help`를 한 번 실행합니다. 자동 갱신은 번들 런처 `scripts/hwpx-automation-mcp`(Claude Code·Codex 번들) 경로만 제공합니다.
 
 ## Local development checkout
 

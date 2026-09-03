@@ -3,8 +3,8 @@
     "hwpx": {
       "command": "uvx",
       "args": [
-        "--with", "python-hwpx[preview]==6.3.0",
-        "--from", "python-hwpx-automation[mcp,oracle]==7.0.3",
+        "--with", "python-hwpx[preview]>=6.3.0,<7",
+        "--from", "python-hwpx-automation[mcp,oracle]>=7.0.3,<8",
         "hwpx-automation-mcp"
       ],
       "env": {

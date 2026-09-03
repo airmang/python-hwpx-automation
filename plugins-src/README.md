@@ -88,7 +88,8 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (plugin 2.0.3 released 2026-09-03, 런처 자기검증 수리 패치 — 코어·automation 핀 불변) | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.3` |
 | 최소 호환 버전 | 2.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 6.3.0` · `python-hwpx-automation >= 7.0.1` · skill `>= 2.0.0` |
-| 플러그인 설치 핀 | 번들이 고정한 정확 버전 | `python-hwpx[preview]==6.3.0` · `python-hwpx-automation[mcp,oracle]==7.0.3` |
+| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` |
+| 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.3.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.0.3,<8` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.

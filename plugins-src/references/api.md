@@ -10,7 +10,8 @@
 | 완전한 공개 트레인 | 마지막으로 plugin 설치까지 함께 검증한 조합 (hwpx-plugin 2.0.3 released 2026-09-03, 런처 자기검증 수리 패치 — 코어·automation 핀 불변) | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.3` |
 | 릴리스 상태 | 이 checkout의 train 상태 — `released`: 3스택 원격 정본과 실제 설치까지 관찰 완료 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.3` |
 | 최소 호환 버전 | 1.6 스킬 계약이 지원하는 가장 낮은 조합 | core `>=5.7.0` · automation `>=6.5.0` · skill `>=1.7.0` |
-| 플러그인 설치 핀 | 번들이 재현 검증에 사용하는 정확 버전 | `python-hwpx[preview]==6.3.0` · `python-hwpx-automation[mcp,oracle]==7.0.3` |
+| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` |
+| 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=6.3.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.0.3,<8` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는

@@ -90,11 +90,22 @@
  },
  "oldNameTaxonomyFile": "old-name-taxonomy.json",
  "pluginPinPolicy": {
-  "core": "exact-candidate",
-  "automation": "exact-candidate"
+  "core": "verified-floor",
+  "automation": "verified-floor"
  },
  "forbiddenUnqualifiedClaimsKo": [
   "공식 온보딩 스킬",
   "공식 에이전트 스킬"
- ]
+ ],
+ "verifiedStack": {
+  "pythonHwpx": "6.3.0",
+  "automation": "7.0.3",
+  "plugin": "2.0.3",
+  "contractHash": "8c278ebd5becba08",
+  "verifiedAt": "2026-09-03"
+ },
+ "installConstraint": {
+  "core": "python-hwpx[preview]>=6.3.0,<7",
+  "automation": "python-hwpx-automation[mcp,oracle]>=7.0.3,<8"
+ }
 }
