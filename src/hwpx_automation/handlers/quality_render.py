@@ -272,6 +272,41 @@ def describe_capabilities(domain: str | None = None) -> dict:
     return report
 
 
+_STACK_UPDATE_STATE_SCHEMA = "hwpx.stack-update-state.v1"
+
+
+def _stack_update_block() -> dict[str, Any]:
+    """Launcher-managed runtime update state (hwpx-plugins Feature 066).
+
+    The bundled launcher writes update-state.json and passes its path as
+    HWPX_STACK_UPDATE_STATE. Without it the runtime is not launcher-managed
+    (pip install, editable checkout, plain uvx) and the block says so; it
+    never guesses.
+    """
+    path = os.environ.get("HWPX_STACK_UPDATE_STATE")
+    if not path:
+        return {"available": False, "reason": "NOT_MANAGED"}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            state = json.load(handle)
+    except FileNotFoundError:
+        return {"available": False, "reason": "STATE_MISSING", "path": path}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return {"available": False, "reason": "STATE_UNREADABLE", "path": path, "detail": str(exc)}
+    if not isinstance(state, dict) or state.get("schemaVersion") != _STACK_UPDATE_STATE_SCHEMA:
+        return {"available": False, "reason": "STATE_SCHEMA_UNKNOWN", "path": path}
+    return {
+        "available": True,
+        "path": path,
+        "checkedAt": state.get("checkedAt"),
+        "autoUpdate": state.get("autoUpdate"),
+        "channel": state.get("channel"),
+        "runtime": state.get("runtime"),
+        "pluginBundle": state.get("pluginBundle"),
+        "lastError": state.get("lastError"),
+    }
+
+
 def mcp_server_health() -> dict:
     """MCP 서버 transport와 timeout/keepalive 점검 정보를 반환합니다."""
     transport = env_value("TRANSPORT", "stdio")
@@ -386,6 +421,7 @@ def mcp_server_health() -> dict:
             ),
         },
         "capability": _capability_block(skew_detected, surface_details),
+        "stackUpdate": _stack_update_block(),
         "unitPolicy": {
             "status": "audited",
             "fontSize": "points",
