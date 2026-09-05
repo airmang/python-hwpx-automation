@@ -255,7 +255,7 @@ class SerializedHancomWorker:
     @staticmethod
     def _rasterize(pdf: Path, destination: Path, dpi: int) -> list[Path]:
         try:
-            import fitz
+            import pymupdf as fitz
         except ImportError as exc:
             raise RuntimeError("PyMuPDF is required for page PNG output") from exc
         document = fitz.open(pdf)

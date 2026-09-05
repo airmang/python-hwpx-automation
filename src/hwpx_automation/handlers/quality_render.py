@@ -295,13 +295,32 @@ def _stack_update_block() -> dict[str, Any]:
         return {"available": False, "reason": "STATE_UNREADABLE", "path": path, "detail": str(exc)}
     if not isinstance(state, dict) or state.get("schemaVersion") != _STACK_UPDATE_STATE_SCHEMA:
         return {"available": False, "reason": "STATE_SCHEMA_UNKNOWN", "path": path}
+    runtime = state.get("runtime")
+    if not isinstance(runtime, dict):
+        return {"available": False, "reason": "STATE_INVALID", "path": path}
+    installed = runtime.get("installed")
+    if (
+        not isinstance(installed, dict)
+        or set(installed) != {"python-hwpx", "python-hwpx-automation"}
+        or not all(isinstance(value, str) and value for value in installed.values())
+    ):
+        return {"available": False, "reason": "STATE_INVALID", "path": path}
+    running = {
+        "python-hwpx": _package_version("python-hwpx"),
+        "python-hwpx-automation": _package_version("python-hwpx-automation"),
+    }
+    runtime = {
+        **runtime,
+        "running": running,
+        "restartRequired": runtime["installed"] != running,
+    }
     return {
         "available": True,
         "path": path,
         "checkedAt": state.get("checkedAt"),
         "autoUpdate": state.get("autoUpdate"),
         "channel": state.get("channel"),
-        "runtime": state.get("runtime"),
+        "runtime": runtime,
         "pluginBundle": state.get("pluginBundle"),
         "lastError": state.get("lastError"),
     }

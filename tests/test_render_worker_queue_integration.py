@@ -9,9 +9,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 
-import hwpx
 from hwpx_automation.office.rendering.worker import (
     DeterministicFakeSession,
     SerializedHancomWorker,
@@ -26,27 +24,11 @@ def _resolve_worker_script() -> Path:
     if explicit_script:
         return Path(explicit_script).expanduser().resolve()
 
-    explicit_repo = os.environ.get("PYTHON_HWPX_REPO")
-    if explicit_repo:
-        return Path(explicit_repo).expanduser().resolve() / "scripts" / "hancom_render_worker.py"
-
-    package_file = Path(hwpx.__file__).resolve()
-    source_root = package_file.parent.parent
-    if source_root.name == "src":
-        return source_root.parent / "scripts" / "hancom_render_worker.py"
-    pytest.skip(
-        "hancom_render_worker.py is not included in the installed python-hwpx wheel; "
-        "set HWPX_HANCOM_RENDER_WORKER_SCRIPT to an explicit script",
-        allow_module_level=True,
-    )
+    return Path(__file__).resolve().parents[1] / "scripts" / "hancom_render_worker.py"
 
 
 SCRIPT = _resolve_worker_script()
-if not SCRIPT.is_file():
-    pytest.skip(
-        f"pinned Hancom render worker script is unavailable: {SCRIPT}",
-        allow_module_level=True,
-    )
+assert SCRIPT.is_file(), f"canonical automation render worker script is missing: {SCRIPT}"
 spec = importlib.util.spec_from_file_location("s068_hancom_render_worker", SCRIPT)
 assert spec and spec.loader
 module = importlib.util.module_from_spec(spec)

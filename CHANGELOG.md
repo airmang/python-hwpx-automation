@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Report prepared and running managed-runtime versions separately in MCP health.
+- Use the canonical PyMuPDF import so dependency deprecation messages do not corrupt MCP stdout.
+- Exercise the automation-owned render worker in queue integration tests.
+
 ## [7.0.3] - 2026-08-22
 
 core `python-hwpx 6.3.0`(왕복 충실도 트레인)을 따르는 패치 릴리스입니다.

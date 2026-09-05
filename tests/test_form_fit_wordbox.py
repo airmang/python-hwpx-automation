@@ -772,9 +772,9 @@ def test_extract_layout_signature_uses_borders_only_strategy(monkeypatch):
         def __exit__(self, *exc):
             return False
 
-    stub = types.ModuleType("fitz")
+    stub = types.ModuleType("pymupdf")
     stub.open = lambda _path: _Doc()
-    monkeypatch.setitem(sys.modules, "fitz", stub)
+    monkeypatch.setitem(sys.modules, "pymupdf", stub)
     monkeypatch.setattr(wb, "fitz_available", lambda: True)
 
     wb.extract_layout_signature("/whatever.pdf")

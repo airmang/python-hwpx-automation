@@ -55,3 +55,26 @@ def test_health_reports_missing_unreadable_and_unknown_state(tmp_path: Path, mon
 
 def test_additive_health_field_leaves_the_contract_hash_unchanged() -> None:
     assert contract_hash() == "8c278ebd5becba08"
+
+
+@pytest.mark.parametrize("running_automation, restart", [("7.0.2", True), ("7.0.3", False)])
+def test_health_distinguishes_running_and_prepared_generation(tmp_path, monkeypatch, running_automation, restart):
+    from hwpx_automation.handlers import quality_render
+
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps(STATE))
+    monkeypatch.setenv("HWPX_STACK_UPDATE_STATE", str(path))
+    versions = {"python-hwpx": "6.3.0", "python-hwpx-automation": running_automation}
+    monkeypatch.setattr(quality_render, "_package_version", versions.__getitem__)
+    block = quality_render._stack_update_block()
+    assert block["runtime"]["running"] == versions
+    assert block["runtime"]["installed"] == STATE["runtime"]["installed"]
+    assert block["runtime"]["restartRequired"] is restart
+
+
+@pytest.mark.parametrize("runtime", [None, [], {}, {"installed": []}, {"installed": {}}])
+def test_invalid_runtime_state_fails_closed(tmp_path, monkeypatch, runtime):
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps({**STATE, "runtime": runtime}))
+    monkeypatch.setenv("HWPX_STACK_UPDATE_STATE", str(path))
+    assert mcp_server_health()["stackUpdate"]["reason"] == "STATE_INVALID"
