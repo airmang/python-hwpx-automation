@@ -71,7 +71,9 @@ _pinned_version() {
 EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-$(_pinned_version "${SERVER_PACKAGE}")}}"
 EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-$(_pinned_version "${CORE_PACKAGE}")}"
 export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.1.0}"
-export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
+if [ "${HWPX_LAUNCHER_EMBEDDED:-0}" != "1" ]; then
+  export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
+fi
 
 # Editable mode is deliberately opt-in.  Auto-discovering sibling repositories
 # can silently select an owner's unrelated/main checkout and make candidate
@@ -192,7 +194,7 @@ PY
 # "<core> <automation>" on success; any failure is a non-zero exit.
 _verify_generation() {
   local dir="$1"
-  "${dir}/bin/hwpx-automation-mcp" --help >/dev/null
+  "${dir}/bin/hwpx-automation-mcp" --help >/dev/null || return $?
   "${dir}/bin/python" - "${EXPECTED_SERVER_VERSION}" "${EXPECTED_CORE_VERSION}" <<'PY'
 import sys
 from importlib.metadata import PackageNotFoundError, version
@@ -255,54 +257,46 @@ _build_generation() {
 }
 
 # $1 = build dir, $2 = "<core> <automation>". Moves the build into its
-# generation slot and repoints `current` atomically. An existing slot is
-# reused only if its console still answers; a slot whose executables are
-# missing or failing is replaced, otherwise a broken directory would block
-# every later start. A server already running from a replaced directory keeps
-# its open files (POSIX); only new starts are affected. Prints the gen dir.
+# generation slot, verifies the relocated environment, then repoints `current`
+# atomically. Existing generations are never removed or replaced. Prints the
+# admitted generation directory; failure leaves the previous pointer intact.
 _install_generation() {
   local build="$1" core automation name target
   read -r core automation <<<"$2"
   name="gen-${core}-${automation}"
   target="${ENV_DIR}/${name}"
-  if [ -d "${target}" ] && "${target}/bin/hwpx-automation-mcp" --help >/dev/null 2>&1; then
+  if [ -d "${target}" ] && _verify_generation "${target}" >/dev/null 2>&1; then
     rm -rf "${build}"
   else
     if [ -d "${target}" ]; then
-      mv "${target}" "${target}.broken.$$"
-      rm -rf "${target}.broken.$$"
+      # An existing process may still lazily import from this directory.
+      # Repair into a fresh slot, never replace or remove a live generation.
+      name="${name}-repair-$$"
+      target="${ENV_DIR}/${name}"
     fi
-    mv "${build}" "${target}"
+    mv "${build}" "${target}" || return $?
+    if ! _verify_generation "${target}" >/dev/null 2>&1; then
+      rm -rf "${target}"
+      return 70
+    fi
   fi
   printf '%s\n' "${name}" > "${POINTER_FILE}.tmp.$$"
   mv -f "${POINTER_FILE}.tmp.$$" "${POINTER_FILE}"
   printf '%s\n' "${target}"
 }
 
-# Keeps the current generation and the newest other one (rollback target);
-# removes the rest. Never touches the directory `current` points at.
-_collect_generations() {
-  local current previous="" gen name
-  current="$(cat "${POINTER_FILE}" 2>/dev/null || true)"
-  while IFS= read -r gen; do
-    [ -d "${gen}" ] || continue
-    name="$(basename "${gen}")"
-    if [ "${name}" = "${current}" ]; then
-      continue
-    fi
-    if [ -z "${previous}" ]; then
-      previous="${name}"
-      continue
-    fi
-    rm -rf "${gen}"
-  done < <(ls -1dt "${ENV_DIR}"/gen-* 2>/dev/null || true)
-}
+# Old generations may still serve long-lived MCP processes. Retain them;
+# offline maintenance can reclaim them after all servers have stopped.
 
 # $1 python, $2 installed core, $3 installed automation, $4 latest core,
 # $5 latest automation, $6 last error, $7 plugin bundle latest known.
 _write_state() {
+  local effective_auto_update=0
+  if [ "${STACK_AUTO_UPDATE}" = "1" ] && _request_is_floating; then
+    effective_auto_update=1
+  fi
   "$1" - "${STATE_FILE}" "$2" "$3" "$4" "$5" "$6" "$7" \
-    "${STACK_AUTO_UPDATE}" "${STACK_CHANNEL}" "${HWPX_SKILL_VERSION}" <<'PY'
+    "${effective_auto_update}" "${STACK_CHANNEL}" "${HWPX_SKILL_VERSION}" <<'PY'
 import json
 import os
 import sys
@@ -313,7 +307,7 @@ import time
 state = {
     "schemaVersion": "hwpx.stack-update-state.v1",
     "checkedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-    "autoUpdate": auto_update == "1",
+    "autoUpdate": auto_update == "1" and channel == "floor",
     "channel": channel,
     "runtime": {
         "installed": {"python-hwpx": core, "python-hwpx-automation": automation},
@@ -343,7 +337,7 @@ import urllib.request
 
 try:
     with urllib.request.urlopen(sys.argv[1], timeout=3) as response:
-        print(json.load(response)["components"]["plugin"]["currentVersion"])
+        print(json.load(response)["releaseState"]["currentPublic"]["plugin"])
 except Exception:
     pass
 PY
@@ -355,7 +349,7 @@ PY
 # a start failure.
 _run_refresh() {
   local current_dir current_python core automation latest_core latest_automation
-  local plugin_latest dry_run_output build result previous_name new_dir
+  local plugin_latest dry_run_output build result new_dir
   if [ "${STACK_AUTO_UPDATE}" != "1" ] || ! _request_is_floating; then
     exit 0
   fi
@@ -390,19 +384,14 @@ _run_refresh() {
       "${plugin_latest}"
     exit 0
   fi
-  previous_name="$(cat "${POINTER_FILE}" 2>/dev/null || true)"
-  new_dir="$(_install_generation "${build}" "${result}")"
-  if ! "${new_dir}/bin/hwpx-automation-mcp" --help >/dev/null 2>&1; then
-    printf '%s\n' "${previous_name}" > "${POINTER_FILE}.tmp.$$"
-    mv -f "${POINTER_FILE}.tmp.$$" "${POINTER_FILE}"
-    rm -rf "${new_dir}"
+  if ! new_dir="$(_install_generation "${build}" "${result}")"; then
+    rm -rf "${build}"
     _write_state "${current_python}" "${core}" "${automation}" "${latest_core}" "${latest_automation}" \
       "refresh: relocated console self-check failed for ${latest_core:-${core}}/${latest_automation:-${automation}}; keeping ${core}/${automation}" \
       "${plugin_latest}"
     exit 0
   fi
   read -r core automation <<<"${result}"
-  _collect_generations
   _write_state "${new_dir}/bin/python" "${core}" "${automation}" "" "" "" "${plugin_latest}"
   exit 0
 }
@@ -488,12 +477,6 @@ if [ -z "${current_dir}" ]; then
   if [ -z "${current_dir}" ]; then
     generation_versions="$(_build_generation "${BUILD_DIR}")"
     current_dir="$(_install_generation "${BUILD_DIR}" "${generation_versions}")"
-    if ! "${current_dir}/bin/hwpx-automation-mcp" --help >/dev/null 2>&1; then
-      rm -f "${POINTER_FILE}"
-      rm -rf "${current_dir}"
-      echo "relocated hwpx-automation-mcp console self-check failed" >&2
-      exit 70
-    fi
     read -r generation_core generation_automation <<<"${generation_versions}"
     _write_state "${current_dir}/bin/python" "${generation_core}" "${generation_automation}" "" "" "" ""
     touch "${STAMP_FILE}"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -236,13 +237,18 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         },
         "product identity release candidate does not match stack/config truth",
     )
-    previous_public = {
-        "pythonHwpx": "5.7.0",
-        "primaryDistribution": "python-hwpx-automation",
-        "primaryApplication": "6.7.1",
-        "plugin": "1.7.0",
-        "contractHash": "98510af22d13899c",
-    }
+    previous_public = release_state.get("previousPublic")
+    require(isinstance(previous_public, dict), "previousPublic observed baseline missing")
+    require(set(previous_public) == {"pythonHwpx", "primaryDistribution", "primaryApplication", "plugin", "contractHash"}, "previousPublic baseline fields invalid")
+    if status == "released":
+        evidence = release_state.get("publicationEvidence")
+        require(isinstance(evidence, dict), "released requires publicationEvidence from remote/install observation")
+        require(evidence.get("pluginVersion") == plugin["currentVersion"] and evidence.get("installObserved") is True, "publicationEvidence must bind this plugin and an observed installation")
+        require(evidence.get("releaseUrl") == f"https://github.com/airmang/hwpx-plugins/releases/tag/v{plugin['currentVersion']}", "publicationEvidence release URL mismatch")
+        require(bool(evidence.get("observedAt")), "publicationEvidence observation time missing")
+    else:
+        require(release_state.get("publicationEvidence") is None, "unpublished candidate cannot claim publication evidence")
+        require(previous_public["plugin"] != plugin["currentVersion"], "candidate cannot already be currentPublic")
     promoted_public = {
         "pythonHwpx": core.get("currentVersion"),
         "primaryDistribution": automation.get("distribution"),
@@ -336,9 +342,9 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         }
         if status == "released"
         else {
-            "core": ("distribution", "python-hwpx", "5.7.0"),
-            "application": ("distribution", "python-hwpx-automation", "6.7.1"),
-            "plugin": ("installedPluginId", "hwpx-plugin", "1.7.0"),
+            "core": ("distribution", "python-hwpx", previous_public["pythonHwpx"]),
+            "application": ("distribution", "python-hwpx-automation", previous_public["primaryApplication"]),
+            "plugin": ("installedPluginId", "hwpx-plugin", previous_public["plugin"]),
         }
     )
     for key, (name_field, expected_name, expected_version) in public_specs.items():
@@ -566,7 +572,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
             plugin["currentVersion"] in text,
             f"{path}: skill version differs from product identity",
         )
-        if path.name != "claude.mcp.json":
+        if path.name not in {"claude.mcp.json", "codex.mcp.json"}:
             require(
                 constraints["automation"] in text and constraints["core"] in text,
                 f"{path}: install constraints differ from product identity",
@@ -603,7 +609,6 @@ def validate_product_identity(config: dict, identity: dict) -> None:
             "HWPX_STACK_REFRESH_JOB",
             'export HWPX_STACK_UPDATE_STATE="${STATE_FILE}"',
             "_verify_generation",
-            "_collect_generations",
         ],
         "launcher template",
     )
@@ -718,6 +723,8 @@ def validate_sync(host: dict, out: Path, skill_dir: Path, identity: dict) -> set
         require_file(source_path)
         require_file(dest_path)
         require(sha256(source_path) == source_sha, f"{host['id']}: source drifted (rebuild needed): {source}")
+        if not rec.get("transformed", False):
+            require(source_sha == dest_sha, f"{host['id']}: untransformed source/destination mismatch: {dest}")
         require(sha256(dest_path) == dest_sha, f"{host['id']}: bundle file tampered: {dest}")
         try:
             dest_path.resolve().relative_to(skill_dir.resolve())
@@ -785,7 +792,7 @@ def validate_launcher(out: Path, host_id: str, identity: dict) -> None:
         "install.lock",
         "uv pip install",
         "uv venv --quiet --relocatable",
-        "relocated hwpx-automation-mcp console self-check failed",
+        "relocated console self-check failed",
         "--refresh-package python-hwpx-automation",
         "--refresh-package python-hwpx",
         "--from \"${SERVER_PACKAGE}\"",
@@ -897,26 +904,26 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
             require("cwd" not in server, "claude: .mcp.json must preserve project cwd")
         if host["id"] == "codex":
             args = server.get("args", [])
-            script = args[1] if len(args) > 1 else ""
-            require(
-                command == "bash" and args[:1] == ["-c"],
-                "codex: .mcp.json command must be the daily-refresh uvx wrapper (hwpx-plugins Feature 066 Task 7)",
+            require(command == "bash" and args[:1] == ["-c"], "codex must execute the managed launcher bootstrap")
+            require("cwd" not in server, "codex must preserve the thread workspace cwd")
+            module_spec = importlib.util.spec_from_file_location("hwpx_bundle_builder", ROOT / "scripts/build_hwpx_plugins.py")
+            builder = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(builder)
+            expected = builder.render_mcp_config(
+                (PACKAGING / mcp_config["template"]).read_text(encoding="utf-8"),
+                (PACKAGING / config["launcherTemplate"]).read_text(encoding="utf-8"),
             )
-            require("cwd" not in server, "codex: .mcp.json must preserve the thread workspace cwd")
-            constraints = install_constraints(identity)
-            require(constraints["automation"] in script, "codex: automation install constraint missing")
-            require(constraints["core"] in script, "codex: core install constraint missing")
-            require(
-                automation["mcpConsole"] in script,
-                "codex: canonical MCP console missing",
-            )
-            require(
-                "nohup uvx --refresh" in script
-                and script.rstrip().endswith(
-                    'exec uvx --with "$C" --from "$S" hwpx-automation-mcp'
-                ),
-                "codex: .mcp.json wrapper must refresh in the background and exec uvx synchronously",
-            )
+            require(mcp_data == json.loads(expected), "codex managed launcher differs from canonical source; rebuild required")
+            forwarded = set(server.get("env_vars", []))
+            required_env = {
+                "HWPX_STACK_CHANNEL", "HWPX_STACK_AUTO_UPDATE", "HWPX_STACK_UPDATE_INTERVAL_HOURS",
+                "HWPX_AUTOMATION_RUNTIME_ROOT", "HWPX_AUTOMATION_ADVANCED", "HWPX_AUTOMATION_WORKSPACE_ROOTS",
+                "HWPX_RENDER_QUEUE_ROOT", "HWPX_RENDER_QUEUE_URL", "HWPX_RENDER_QUEUE_SECRET",
+                "HWPX_RENDER_CA_FILE", "HWPX_RENDER_CLIENT_CERT_FILE", "HWPX_RENDER_CLIENT_KEY_FILE",
+                "HWPX_RENDER_TRANSPORT_AUTH", "HWPX_AUTOMATION_CHROME_PATH", "HWPX_MCP_CHROME_PATH",
+            }
+            require(required_env <= forwarded, "codex documented environment passthrough is incomplete")
+        require("HWPX_AUTOMATION_ADVANCED" not in server.get("env", {}), "bundled env must not override the user's advanced toggle")
         require(
             server.get("env", {}).get("HWPX_SKILL_VERSION") == plugin_version,
             f"{host['id']}: MCP skill version mismatch",

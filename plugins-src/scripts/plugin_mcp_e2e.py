@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -280,10 +281,6 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
             env["HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE"] = "1"
         if args.core_package:
             env["HWPX_PYTHON_HWPX_PACKAGE"] = args.core_package
-        if args.expected_server_version:
-            env["HWPX_AUTOMATION_VERSION"] = args.expected_server_version
-        if args.expected_core_version:
-            env["HWPX_PYTHON_HWPX_VERSION"] = args.expected_core_version
         if args.server_runtime:
             env["HWPX_AUTOMATION_RUNTIME_ROOT"] = str(args.server_runtime)
 
@@ -669,6 +666,7 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                     "renderErrorCode": render_error_code,
                     "realRenderRequired": args.require_real_render,
                     "versions": observed_versions,
+                    "stackUpdate": health.get("stackUpdate"),
                     "serverInfo": server_info,
                     "identity": {
                         "fastMcpName": health.get("server"),
@@ -690,6 +688,21 @@ async def _run(args: argparse.Namespace) -> dict[str, Any]:
                     "advanced": args.advanced,
                 }
 
+
+
+class ProtocolErrorCapture(logging.Handler):
+    """The SDK can recover from invalid stdout; that must still fail this gate."""
+
+    def __init__(self):
+        super().__init__(logging.ERROR)
+        self.errors: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.errors.append(record.getMessage())
+
+    def require_clean(self) -> None:
+        if self.errors:
+            raise RuntimeError(f"MCP protocol errors observed: {self.errors}")
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -769,7 +782,15 @@ def main() -> int:
     if args.mcp_config is not None and not args.mcp_config.is_file():
         parser.error(f"MCP config not found: {args.mcp_config}")
     _ensure_mcp_dependencies()
-    report = anyio.run(_run, args)
+    protocol_errors = ProtocolErrorCapture()
+    logger = logging.getLogger("mcp.client.stdio")
+    logger.addHandler(protocol_errors)
+    try:
+        report = anyio.run(_run, args)
+    finally:
+        logger.removeHandler(protocol_errors)
+    protocol_errors.require_clean()
+    report["protocolErrors"] = []
     report["installedRuntime"] = _probe_installed_runtime(args)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)

@@ -112,12 +112,18 @@ def test_per_start_paths_do_not_refresh_exact_pins() -> None:
         ROOT / "packaging" / "templates" / "codex.mcp.json",
         ROOT / "packaging" / "templates" / "openclaw.mcp-install.md",
         ROOT / "packaging" / "templates" / "hermes.mcp-install.md",
-        *sorted(ROOT.glob("plugins/*/hwpx-plugin/.mcp.json")),
+        ROOT / "plugins/claude/hwpx-plugin/.mcp.json",
     ):
         assert "--refresh-package" not in path.read_text(encoding="utf-8"), path
 
 
 def test_clean_install_smoke_exercises_the_derivation() -> None:
     text = (ROOT / "scripts" / "clean_install_smoke.py").read_text(encoding="utf-8")
+    assert "HWPX_PYTHON_HWPX_VERSION" not in text
+    assert "HWPX_AUTOMATION_VERSION" not in text
+
+
+def test_protocol_smoke_does_not_override_launcher_version_expectations():
+    text = (ROOT / "scripts/plugin_mcp_e2e.py").read_text()
     assert "HWPX_PYTHON_HWPX_VERSION" not in text
     assert "HWPX_AUTOMATION_VERSION" not in text

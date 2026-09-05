@@ -113,6 +113,12 @@ def _write_stub(python: Path, name: str, version: str) -> None:
     console = python.parent / "hwpx-automation-mcp"
     console.write_text(
         "#!/usr/bin/env bash\n"
+        + ('exit 61\n' if os.environ.get("FAKE_UV_CONSOLE_FAIL") == "help" else '')
+        + ('case "$0" in */gen-*) exit 62;; esac\n' if os.environ.get("FAKE_UV_CONSOLE_FAIL") == "relocation" else '')
+        + 'if [ "${1:-}" = "--probe-context" ]; then\n'
+        '  "$(dirname "$0")/python" -c \'import json, os; print(json.dumps({"cwd": os.getcwd(), "advanced": os.getenv("HWPX_AUTOMATION_ADVANCED"), "queue": os.getenv("HWPX_RENDER_QUEUE_ROOT"), "state": os.getenv("HWPX_STACK_UPDATE_STATE")}))\'\n'
+        '  exit $?\nfi\n'
+
         'if [ "${1:-}" = "--help" ]; then echo "usage: hwpx-automation-mcp [-h] [--transport {stdio,streamable-http,http}]"; exit 0; fi\n'
         'PY="$(cd "$(dirname "$0")" && pwd)/python"\n'
         'echo "FAKE-SERVER core=$("$PY" -c "from importlib.metadata import version; print(version(\'python-hwpx\'))") '

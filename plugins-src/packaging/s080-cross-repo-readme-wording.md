@@ -1,6 +1,6 @@
 # Cross-repository README wording — 현재 공개 릴리스
 
-릴리스 상태: `released` (2026-07-31) — 공개 트레인은
+릴리스 상태: `unreleased-candidate` (2026-09-05) — 공개 트레인은
 core 5.0.2 / `python-hwpx-automation` 6.0.4 / plugin 1.0.1이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
@@ -74,8 +74,8 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 > 현재 공개 릴리스와 미발행 후보를 구분합니다 — 공개 릴리스는
 > python-hwpx-automation 7.0.3이며 공개 플러그인은
-> hwpx-plugin 2.1.0, 공개 코어는 python-hwpx 6.3.0입니다
-> (released 2026-09-03, 3스택 자동 갱신 트레인). 이 체크아웃에
+> hwpx-plugin 2.0.3, 공개 코어는 python-hwpx 6.3.0입니다
+> (공개 릴리스; 2.1.0은 미발행 후보). 이 체크아웃에
 > 미발행 후보는 없으며, 번들은 재현 검증을 위해
 > `python-hwpx-automation[mcp,oracle]==7.0.3`과
 > `python-hwpx[preview]==6.3.0`을 고정합니다.
@@ -84,3 +84,5 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 > 이 소스 트리는 release-approved 단계에서도 원격 진실 관찰 전까지
 > 공개 좌표를 승격하지 않습니다.
+
+현재 공개 릴리스와 미발행 후보: python-hwpx-automation 7.0.3 / python-hwpx 6.3.0 / hwpx-plugin 2.0.3. hwpx-plugin 2.1.0은 로컬 검증 중입니다.

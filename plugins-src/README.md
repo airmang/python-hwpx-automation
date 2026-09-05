@@ -14,7 +14,7 @@
   </p>
 </p>
 
-<!-- release-state: released -->
+<!-- release-state: unreleased-candidate -->
 
 > [!NOTE]
 > 현재 공개 트레인은 `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` ·
@@ -93,7 +93,8 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 현재 공개 릴리스 — plugin 설치까지 함께 검증한 조합 (plugin 2.1.0 released 2026-09-03, 3스택 자동 갱신 트레인 — 검증된 플로어 핀) | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.1.0` |
+| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.3` |
+| 미발행 후보 | 로컬 검증 중, 공개 발행 전 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.1.0` |
 | 최소 호환 버전 | 2.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 6.3.0` · `python-hwpx-automation >= 7.0.1` · skill `>= 2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` |
 | 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.3.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.0.3,<8` |
@@ -132,3 +133,24 @@ canonical `SKILL.md`·`references/`·`examples/`·`scripts/`를 편집한 뒤
 ## License · Maintainer
 
 Apache-2.0 ([LICENSE](https://github.com/airmang/hwpx-plugins/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/hwpx-plugins/blob/main/NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
+
+### 관리 런타임의 갱신 시점
+
+Claude Code와 Codex는 같은 관리 런처를 실행합니다. 시작할 때 마지막 점검에서
+24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
+다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나
+실행하지 않은 호스트에서 24시간 내 활성화를 보장하지 않습니다. 최초 설치에는
+네트워크가 필요하고, 준비된 런타임의 시작은 네트워크를 기다리지 않습니다.
+`HWPX_STACK_CHANNEL=verified`는 정확 검증 조합을 고정하고 자동 갱신을 끕니다.
+OpenClaw·Hermes의 직접 uvx 설치 안내는 관리 런처를 쓰지 않으므로 수동 갱신입니다.
+
+Codex는 번들 `env_vars`에 선언된 환경변수만 전달합니다. `HWPX_STACK_CHANNEL`,
+`HWPX_STACK_AUTO_UPDATE`, `HWPX_STACK_UPDATE_INTERVAL_HOURS`,
+`HWPX_AUTOMATION_RUNTIME_ROOT`, `HWPX_AUTOMATION_ADVANCED`,
+`HWPX_AUTOMATION_WORKSPACE_ROOTS` 및 실한컴 렌더의 큐·인증서 환경변수를
+설정한 환경에서 새 Codex 세션을 시작하세요. `HWPX_AUTOMATION_ADVANCED=1`은
+고급 도구를 켜며, 미지정 기본값은 0입니다. secret 값을 설정 파일에 복사할 필요는 없습니다.
+
+관리 상태의 `runtime.installed`는 다음 시작에 사용할 세대입니다. 상태 보고를 지원하는
+automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인 버전과
+구분합니다. 7.0.3에는 `stackUpdate` 필드가 없으며 후속 automation 발행 후 제공됩니다.

@@ -150,7 +150,7 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
         assert "uv venv --quiet --relocatable" in text
         assert 'POINTER_FILE="${ENV_DIR}/current"' in text
         assert 'name="gen-${core}-${automation}"' in text
-        assert "relocated hwpx-automation-mcp console self-check failed" in text
+        assert "relocated console self-check failed" in text
         assert "-m hwpx_automation.server" not in text
         assert 'rm -rf "${VENV_DIR}"' not in text
         compatibility = launcher.with_name("hwpx-mcp-server")
@@ -175,17 +175,19 @@ def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> Non
     config = config["mcpServers"]["hwpx"]
     assert config["command"] == "bash"
     assert "cwd" not in config
-    assert config["env"]["HWPX_AUTOMATION_ADVANCED"] == "0"
+    assert "HWPX_AUTOMATION_ADVANCED" not in config["env"]
+    assert "HWPX_AUTOMATION_ADVANCED" in config["env_vars"]
 
 
-def test_codex_bundle_refreshes_uvx_daily_without_blocking_start() -> None:
+def test_codex_bundle_embeds_the_common_managed_launcher() -> None:
     config = json.loads((ROOT / "plugins" / "codex" / "hwpx-plugin" / ".mcp.json").read_text(encoding="utf-8"))
     server = config["mcpServers"]["hwpx"]
     identity = _identity()
     script = server["args"][1]
     assert server["command"] == "bash" and server["args"][0] == "-c"
     assert identity["installConstraint"]["automation"] in script and identity["installConstraint"]["core"] in script
-    assert "nohup uvx --refresh" in script and script.rstrip().endswith("exec uvx --with \"$C\" --from \"$S\" hwpx-automation-mcp")
+    assert "_verify_generation" in script and "_run_refresh" in script
+    assert script.rstrip().endswith('exec bash "$runner" "$@"')
     assert "HWPX_STACK_AUTO_UPDATE" in server["env_vars"]
 
 
@@ -271,7 +273,6 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "`hwpx-plugin 1.0.0`" not in text
         assert "`python-hwpx 6.0.2`" not in text
         assert "`hwpx-plugin 2.0.2`" not in text
-        assert "`hwpx-plugin 2.0.3`" not in text
         assert "`python-hwpx 6.3.0`" in text
         assert "`python-hwpx-automation 7.0.3`" in text
         assert "`hwpx-plugin 2.1.0`" in text
@@ -282,9 +283,10 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
             # candidate checkout: the doc must distinguish the unreleased
             # candidate train from the public train, not hide it
             assert "미발행 후보" in text
-            assert "`python-hwpx 5.7.0`" in text
-            assert "`python-hwpx-automation 6.7.1`" in text
-            assert "`hwpx-plugin 1.7.0`" in text
+            public = _identity()["releaseState"]["currentPublic"]
+            assert f"`python-hwpx {public['pythonHwpx']}`" in text
+            assert f"`python-hwpx-automation {public['primaryApplication']}`" in text
+            assert f"`hwpx-plugin {public['plugin']}`" in text
         assert "최소 호환 버전" in text
         assert "플러그인 설치 제약" in text
         assert "검증 좌표" in text
@@ -351,44 +353,13 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
-    assert identity["releaseState"] == {
-        "status": "released",
-        "candidate": {
-            "pythonHwpx": "6.3.0",
-            "canonicalDistribution": "python-hwpx-automation",
-            "canonicalAutomation": "7.0.3",
-            "compatibilityDistribution": "hwpx-mcp-server",
-            "compatibility": "7.0.3",
-            "plugin": "2.1.0",
-            "contractHash": "8c278ebd5becba08",
-        },
-        "currentPublic": {
-            "pythonHwpx": "6.3.0",
-            "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "7.0.3",
-            "plugin": "2.1.0",
-            "contractHash": "8c278ebd5becba08",
-        },
-        "promotionGate": (
-            "Three states are mandatory: unreleased-candidate while auditing; "
-            "release-approved only after separate owner approval and while "
-            "currentPublic still names the previously observed coherent stack; "
-            "released only in a follow-up commit after remote truth is observed "
-            "for core, canonical automation, the compatibility distribution, the "
-            "plugin GitHub release, the marketplace entry, and a real marketplace "
-            "install. The automation tag workflow publishes only release-approved, "
-            "leaves currentPublic unchanged, and hands an attached receipt to "
-            "plugin publication."
-        ),
-    }
-    assert identity["currentPublicStack"] == {
-        "core": {"distribution": "python-hwpx", "version": "6.3.0"},
-        "application": {
-            "distribution": "python-hwpx-automation",
-            "version": "7.0.3",
-        },
-        "plugin": {"installedPluginId": "hwpx-plugin", "version": "2.1.0"},
-    }
+    release = identity["releaseState"]
+    assert release["status"] == "unreleased-candidate"
+    assert release["candidate"]["plugin"] == "2.1.0"
+    assert release["currentPublic"] == release["previousPublic"]
+    assert release["currentPublic"]["plugin"] == "2.0.3"
+    assert release["publicationEvidence"] is None
+    assert identity["currentPublicStack"]["plugin"]["version"] == "2.0.3"
     assert components["core"]["currentVersion"] == "6.3.0"
     assert components["core"]["minimumCompatibleVersion"] == "6.3.0"
     assert components["automation"]["currentVersion"] == "7.0.3"
@@ -445,97 +416,31 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
     identity_path = checkout / "packaging" / "product-identity.json"
     identity = json.loads(identity_path.read_text(encoding="utf-8"))
     identity["releaseState"]["status"] = status
-    if status != "released":
-        # A pre-released synthesis must carry the PREVIOUS public stack: the
-        # validator requires unreleased/approved states to keep naming the
-        # last coherent public train (the 2026-07-28 5.0.1 train).
-        identity["releaseState"]["currentPublic"] = {
-            "pythonHwpx": "5.7.0",
-            "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "6.7.1",
-            "plugin": "1.7.0",
-            "contractHash": "98510af22d13899c",
-        }
-        identity["currentPublicStack"] = {
-            "core": {"distribution": "python-hwpx", "version": "5.7.0"},
-            "application": {
-                "distribution": "python-hwpx-automation",
-                "version": "6.7.1",
-            },
-            "plugin": {"installedPluginId": "hwpx-plugin", "version": "1.7.0"},
-        }
-
     readme_path = checkout / "README.md"
     api_path = checkout / "references" / "api.md"
-    cross_readme_path = (
-        checkout / "packaging" / "s080-cross-repo-readme-wording.md"
-    )
-    readme = re.sub(
-        r"<!-- release-state: [a-z-]+ -->",
-        f"<!-- release-state: {status} -->",
-        readme_path.read_text(encoding="utf-8"),
-        count=1,
-    )
-    api = api_path.read_text(encoding="utf-8")
-    cross_readme = cross_readme_path.read_text(encoding="utf-8")
-    if status == "release-approved":
-        # The pre-released fragment sets also require the previous public
-        # coordinates to be visible; the released checkout no longer carries
-        # them, so the synthesis injects them alongside the state note.
-        prior = (
-            "\n미발행 후보: `python-hwpx 5.7.0` · `python-hwpx-automation 6.7.1` ·"
-            " `hwpx-plugin 1.7.0`\n"
-            "\n직전 공개 트레인: `python-hwpx 5.7.0` ·"
-            " `python-hwpx-automation 6.7.1` · `hwpx-plugin 1.7.0`\n"
-        )
-        readme += prior + "\nrelease-approved: remote truth is still pending.\n"
-        api += prior + "\nrelease-approved: remote truth is still pending.\n"
-        cross_readme += (
-            "\npython-hwpx-automation 6.8.1 / python-hwpx 5.8.0 / hwpx-plugin 1.8.0\n"
-            "\npython-hwpx-automation 6.6.4 / python-hwpx 5.6.0 / hwpx-plugin 1.6.0\n"
-            # The released wording doc no longer mentions the synthetic
-            # previous public train, so the synthesis injects those
-            # fragments too (they used to ride along in the stale doc).
-            "\npython-hwpx-automation 6.7.1 / python-hwpx 5.7.0 / hwpx-plugin 1.7.0\n"
-            "\nrelease-approved: remote truth is still pending.\n"
-        )
-    else:
-        promoted = {
-            "pythonHwpx": "6.3.0",
-            "primaryDistribution": "python-hwpx-automation",
-            "primaryApplication": "7.0.3",
-            "plugin": "2.1.0",
-            "contractHash": "8c278ebd5becba08",
+    cross_readme_path = checkout / "packaging" / "s080-cross-repo-readme-wording.md"
+    readme = readme_path.read_text().replace("unreleased-candidate", status)
+    api = api_path.read_text().replace("unreleased-candidate", status)
+    cross_readme = cross_readme_path.read_text().replace("unreleased-candidate", status)
+    if status == "released":
+        candidate = identity["releaseState"]["candidate"]
+        identity["releaseState"]["currentPublic"] = {
+            "pythonHwpx": candidate["pythonHwpx"],
+            "primaryDistribution": candidate["canonicalDistribution"],
+            "primaryApplication": candidate["canonicalAutomation"],
+            "plugin": candidate["plugin"],
+            "contractHash": candidate["contractHash"],
         }
-        identity["releaseState"]["currentPublic"] = promoted
-        identity["currentPublicStack"] = {
-            "core": {"distribution": "python-hwpx", "version": "6.3.0"},
-            "application": {
-                "distribution": "python-hwpx-automation",
-                "version": "7.0.3",
-            },
-            "plugin": {"installedPluginId": "hwpx-plugin", "version": "2.1.0"},
+        identity["currentPublicStack"]["plugin"]["version"] = candidate["plugin"]
+        # A synthetic receipt tests schema/lifecycle only, never publication.
+        identity["releaseState"]["publicationEvidence"] = {
+            "pluginVersion": candidate["plugin"], "installObserved": True,
+            "observedAt": "2026-09-05T00:00:00Z",
+            "releaseUrl": f"https://github.com/airmang/hwpx-plugins/releases/tag/v{candidate['plugin']}",
         }
-        for stale in (
-            "아직 공개되지 않은 1.1.0 미발행 후보",
-            "미발행 후보",
-            "`python-hwpx 4.2.0`",
-            "`hwpx-mcp-server 5.1.0`",
-            "`hwpx-plugin 0.8.0`",
-            "`python-hwpx 5.0.1`",
-            "`hwpx-plugin 1.0.0`",
-        ):
-            readme = readme.replace(stale, "공개 전환 완료")
-            api = api.replace(stale, "공개 전환 완료")
-            cross_readme = cross_readme.replace(stale.strip("`"), "공개 전환 완료")
-        readme += "\nreleased\n"
-        api += "\nreleased\n"
-        cross_readme += (
-            "\nreleased\n"
-            "python-hwpx 5.8.0\n"
-            "python-hwpx-automation 6.8.1\n"
-            "hwpx-plugin 1.5.0\n"
-        )
+        readme = readme.replace("미발행 후보", "공개 릴리스")
+        api = api.replace("미발행 후보", "공개 릴리스")
+        cross_readme = cross_readme.replace("미발행 후보", "공개 릴리스")
 
     identity_path.write_text(
         json.dumps(identity, ensure_ascii=False, indent=2) + "\n",
@@ -817,3 +722,21 @@ def test_skill_start_check_routes_updates_per_host() -> None:
     assert len(bundles) == 4
     for bundle in bundles:
         assert "stackUpdate" in bundle.read_text(encoding="utf-8"), bundle
+
+
+def test_released_state_requires_observed_publication_evidence():
+    validator = _validator_module()
+    identity = _identity()
+    identity["releaseState"]["status"] = "released"
+    config = json.loads((ROOT / "packaging/hosts.json").read_text())
+    with pytest.raises(SystemExit, match="publicationEvidence"):
+        validator.validate_product_identity(config, identity)
+
+
+def test_protocol_gate_rejects_recovered_sdk_parse_errors():
+    import logging
+    capture = _plugin_e2e_module().ProtocolErrorCapture()
+    capture.require_clean()
+    capture.emit(logging.LogRecord("mcp.client.stdio", logging.ERROR, __file__, 1, "Failed to parse JSONRPC message from server", (), None))
+    with pytest.raises(RuntimeError, match="MCP protocol errors"):
+        capture.require_clean()

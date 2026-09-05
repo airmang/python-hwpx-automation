@@ -48,10 +48,10 @@ def test_venv_and_install_produce_importable_stubs(tmp_path: Path) -> None:
          "from importlib.metadata import version; import hwpx, hwpx_automation; "
          "from hwpx_automation.quality import capability_state; "
          "print(version('python-hwpx'), version('python-hwpx-automation'), capability_state()['ok'])"],
-        capture_output=True, text=True, check=True,
+        env=env, capture_output=True, text=True, check=True,
     )
     assert probe.stdout.split() == ["6.3.1", "7.0.3", "True"]
-    console = subprocess.run([str(venv / "bin" / "hwpx-automation-mcp"), "--help"], capture_output=True, text=True)
+    console = subprocess.run([str(venv / "bin" / "hwpx-automation-mcp"), "--help"], env=env, capture_output=True, text=True)
     assert console.returncode == 0 and console.stdout.startswith("usage: hwpx-automation-mcp")
 
 
@@ -60,7 +60,7 @@ def test_exact_pin_wins_over_newest(tmp_path: Path) -> None:
     venv = tmp_path / "venv"
     _uv(["venv", str(venv)], env)
     _uv(["pip", "install", "--python", str(venv / "bin" / "python"), "python-hwpx[preview]==6.3.0"], env)
-    probe = subprocess.run([str(venv / "bin" / "python"), "-c", "from importlib.metadata import version; print(version('python-hwpx'))"], capture_output=True, text=True, check=True)
+    probe = subprocess.run([str(venv / "bin" / "python"), "-c", "from importlib.metadata import version; print(version('python-hwpx'))"], env=env, capture_output=True, text=True, check=True)
     assert probe.stdout.strip() == "6.3.0"
 
 
@@ -90,7 +90,7 @@ def test_broken_version_is_not_importable(tmp_path: Path) -> None:
     venv = tmp_path / "venv"
     _uv(["venv", str(venv)], env)
     _uv(["pip", "install", "--python", str(venv / "bin" / "python"), "python-hwpx>=6.3.0,<7", "python-hwpx-automation>=7.0.3,<8"], env)
-    probe = subprocess.run([str(venv / "bin" / "python"), "-c", "import hwpx"], capture_output=True, text=True)
+    probe = subprocess.run([str(venv / "bin" / "python"), "-c", "import hwpx"], env=env, capture_output=True, text=True)
     assert probe.returncode != 0 and "ImportError" in probe.stderr
 
 
