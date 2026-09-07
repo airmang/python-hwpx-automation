@@ -72,11 +72,9 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 python-hwpx 6.3.0 / python-hwpx-automation 7.0.3 /
-> hwpx-plugin 2.0.3입니다. 발행 승인된 후보는 python-hwpx 6.3.0 /
-> python-hwpx-automation 7.0.4 / hwpx-plugin 2.1.0입니다.
+> 현재 공개 릴리스는 python-hwpx 6.3.0 / python-hwpx-automation 7.0.4 /
+> hwpx-plugin 2.1.0입니다. 공개 발행과 실제 Codex marketplace 설치를 관찰했습니다.
 > 설치 제약은 검증된 플로어부터 같은 메이저 안의 버전을 허용하며,
 > `HWPX_STACK_CHANNEL=verified`는 검증 좌표를 고정합니다.
 
-상태: release-approved. 전체 원격 발행과 실제 marketplace 설치 관찰 후
-공개 좌표를 승격합니다.
+상태: released. 검증 영수증: docs/releases/2026-09-07-managed-runtime.md.

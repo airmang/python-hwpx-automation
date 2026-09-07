@@ -436,6 +436,19 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
     readme = readme_path.read_text().replace(previous_status, status)
     api = api_path.read_text().replace(previous_status, status)
     cross_readme = cross_readme_path.read_text().replace(previous_status, status)
+    if status != "released":
+        public = identity["releaseState"]["currentPublic"]
+        # A released source checkout no longer describes the previous train.
+        # Supply the observed-public coordinates of this synthetic pre-release
+        # fixture explicitly, independently of the checkout's current state.
+        public_notice = (
+            f"\nFixture public train: `python-hwpx {public['pythonHwpx']}` / "
+            f"`python-hwpx-automation {public['primaryApplication']}` / "
+            f"`hwpx-plugin {public['plugin']}`.\n"
+        )
+        readme += public_notice
+        api += public_notice
+        cross_readme += public_notice
     if status == "released":
         candidate = identity["releaseState"]["candidate"]
         identity["releaseState"]["currentPublic"] = {
@@ -743,6 +756,7 @@ def test_released_state_requires_observed_publication_evidence():
     validator = _validator_module()
     identity = _identity()
     identity["releaseState"]["status"] = "released"
+    identity["releaseState"]["publicationEvidence"] = None
     config = json.loads((ROOT / "packaging/hosts.json").read_text())
     with pytest.raises(SystemExit, match="publicationEvidence"):
         validator.validate_product_identity(config, identity)

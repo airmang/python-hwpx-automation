@@ -71,11 +71,18 @@
     "scripts/text_extract.py",
     "scripts/visual_review.py",
     "scripts/visual_review_batch.py",
-    "scripts/zip_replace_all.py"
+    "scripts/zip_replace_all.py",
+    "docs/releases/2026-09-07-managed-runtime.md"
   ],
   "repoRootArtifacts": [
-    { "template": "templates/claude.marketplace.json", "dest": ".claude-plugin/marketplace.json" },
-    { "template": "templates/codex.marketplace.json", "dest": ".agents/plugins/marketplace.json" }
+    {
+      "template": "templates/claude.marketplace.json",
+      "dest": ".claude-plugin/marketplace.json"
+    },
+    {
+      "template": "templates/codex.marketplace.json",
+      "dest": ".agents/plugins/marketplace.json"
+    }
   ],
   "hosts": [
     {
@@ -83,8 +90,17 @@
       "outputDir": "plugins/claude/hwpx-plugin",
       "skillSubdir": "skills/hwpx",
       "frontmatterExtra": "",
-      "manifests": [{ "template": "templates/claude.plugin.json", "dest": ".claude-plugin/plugin.json" }],
-      "mcp": { "strategy": "bundled", "template": "templates/claude.mcp.json", "dest": ".mcp.json" },
+      "manifests": [
+        {
+          "template": "templates/claude.plugin.json",
+          "dest": ".claude-plugin/plugin.json"
+        }
+      ],
+      "mcp": {
+        "strategy": "bundled",
+        "template": "templates/claude.mcp.json",
+        "dest": ".mcp.json"
+      },
       "bundleLauncher": true
     },
     {
@@ -92,8 +108,17 @@
       "outputDir": "plugins/codex/hwpx-plugin",
       "skillSubdir": "skills/hwpx",
       "frontmatterExtra": "",
-      "manifests": [{ "template": "templates/codex.plugin.json", "dest": ".codex-plugin/plugin.json" }],
-      "mcp": { "strategy": "bundled", "template": "templates/codex.mcp.json", "dest": ".mcp.json" },
+      "manifests": [
+        {
+          "template": "templates/codex.plugin.json",
+          "dest": ".codex-plugin/plugin.json"
+        }
+      ],
+      "mcp": {
+        "strategy": "bundled",
+        "template": "templates/codex.mcp.json",
+        "dest": ".mcp.json"
+      },
       "bundleLauncher": true
     },
     {
@@ -101,8 +126,17 @@
       "outputDir": "plugins/openclaw/hwpx-plugin",
       "skillSubdir": "skills/hwpx",
       "frontmatterExtra": "",
-      "manifests": [{ "template": "templates/openclaw.plugin.json", "dest": "openclaw.plugin.json" }],
-      "mcp": { "strategy": "config-doc", "template": "templates/openclaw.mcp-install.md", "dest": "INSTALL-mcp.md" },
+      "manifests": [
+        {
+          "template": "templates/openclaw.plugin.json",
+          "dest": "openclaw.plugin.json"
+        }
+      ],
+      "mcp": {
+        "strategy": "config-doc",
+        "template": "templates/openclaw.mcp-install.md",
+        "dest": "INSTALL-mcp.md"
+      },
       "bundleLauncher": false
     },
     {
@@ -112,7 +146,11 @@
       "includeVersionFrontmatter": true,
       "frontmatterExtra": "author: airmang\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
       "manifests": [],
-      "mcp": { "strategy": "config-doc", "template": "templates/hermes.mcp-install.md", "dest": "INSTALL-mcp.md" },
+      "mcp": {
+        "strategy": "config-doc",
+        "template": "templates/hermes.mcp-install.md",
+        "dest": "INSTALL-mcp.md"
+      },
       "bundleLauncher": false
     }
   ]
