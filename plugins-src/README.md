@@ -94,10 +94,10 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.3` |
-| 미발행 후보 | 로컬 검증 중, 공개 발행 전 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.1.0` |
+| 미발행 후보 | 로컬 검증 중, 공개 발행 전 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` · `hwpx-plugin 2.1.0` |
 | 최소 호환 버전 | 2.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 6.3.0` · `python-hwpx-automation >= 7.0.1` · skill `>= 2.0.0` |
-| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` |
-| 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.3.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.0.3,<8` |
+| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` |
+| 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.3.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.0.4,<8` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
@@ -153,4 +153,4 @@ Codex는 번들 `env_vars`에 선언된 환경변수만 전달합니다. `HWPX_S
 
 관리 상태의 `runtime.installed`는 다음 시작에 사용할 세대입니다. 상태 보고를 지원하는
 automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인 버전과
-구분합니다. 7.0.3에는 `stackUpdate` 필드가 없으며 후속 automation 발행 후 제공됩니다.
+구분합니다. 7.0.3에는 `stackUpdate` 필드가 없으며 7.0.4 후보에서 제공됩니다. 공개 설치는 발행 후 가능합니다.

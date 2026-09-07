@@ -20,12 +20,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "packaging" / "templates" / "hwpx-automation-mcp"
 HARNESS_BIN = ROOT / "tests" / "launcher_harness" / "bin"
-INDEX_V1 = {"python-hwpx": ["6.3.0"], "python-hwpx-automation": ["7.0.3"]}
-INDEX_V2 = {"python-hwpx": ["6.3.0", "6.3.1"], "python-hwpx-automation": ["7.0.3"]}
-INDEX_V3 = {"python-hwpx": ["6.3.0", "6.3.1", "6.3.2"], "python-hwpx-automation": ["7.0.3"]}
 IDENTITY = json.loads((ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8"))
 CORE = IDENTITY["components"]["core"]["currentVersion"]
 AUTOMATION = IDENTITY["components"]["automation"]["currentVersion"]
+INDEX_V1 = {"python-hwpx": [CORE], "python-hwpx-automation": [AUTOMATION]}
+INDEX_V2 = {"python-hwpx": [CORE, "6.3.1"], "python-hwpx-automation": [AUTOMATION]}
+INDEX_V3 = {"python-hwpx": [CORE, "6.3.1", "6.3.2"], "python-hwpx-automation": [AUTOMATION]}
+
 
 
 LAUNCH_COMMAND = ["bash", str(TEMPLATE)]
@@ -117,12 +118,12 @@ def test_warm_start_execs_server_without_touching_the_index(tmp_path: Path) -> N
 
 
 def test_floor_channel_installs_newest_inside_the_major_window(tmp_path: Path) -> None:
-    index = {"python-hwpx": ["6.3.0", "6.3.1", "7.0.0"], "python-hwpx-automation": ["7.0.3", "8.0.0"]}
+    index = {"python-hwpx": ["6.3.0", "6.3.1", "7.0.0"], "python-hwpx-automation": [AUTOMATION, "8.0.0"]}
     env = _env(tmp_path, index)
     assert _launch(env, "--help").returncode == 0
-    assert _generations(_env_dir(tmp_path)) == ["gen-6.3.1-7.0.3"]
+    assert _generations(_env_dir(tmp_path)) == [f"gen-6.3.1-{AUTOMATION}"]
     specs = [arg for call in _uv_calls(env) if call[:2] == ["pip", "install"] for arg in call if arg.startswith("python-hwpx")]
-    assert "python-hwpx[preview]>=6.3.0,<7" in specs and "python-hwpx-automation[mcp,oracle]>=7.0.3,<8" in specs
+    assert "python-hwpx[preview]>=6.3.0,<7" in specs and IDENTITY["installConstraint"]["automation"] in specs
 
 
 def test_verified_channel_requests_the_exact_verified_pair(tmp_path: Path) -> None:

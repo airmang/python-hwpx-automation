@@ -362,7 +362,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert identity["currentPublicStack"]["plugin"]["version"] == "2.0.3"
     assert components["core"]["currentVersion"] == "6.3.0"
     assert components["core"]["minimumCompatibleVersion"] == "6.3.0"
-    assert components["automation"]["currentVersion"] == "7.0.3"
+    assert components["automation"]["currentVersion"] == identity["releaseState"]["candidate"]["canonicalAutomation"]
     assert components["automation"]["minimumCompatibleVersion"] == "7.0.1"
     assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
     assert components["automation"]["hostConfigKey"] == "hwpx"
@@ -432,6 +432,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
             "contractHash": candidate["contractHash"],
         }
         identity["currentPublicStack"]["plugin"]["version"] = candidate["plugin"]
+        identity["currentPublicStack"]["application"]["version"] = candidate["canonicalAutomation"]
         # A synthetic receipt tests schema/lifecycle only, never publication.
         identity["releaseState"]["publicationEvidence"] = {
             "pluginVersion": candidate["plugin"], "installObserved": True,

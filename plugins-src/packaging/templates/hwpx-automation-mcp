@@ -17,9 +17,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-VERIFIED_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]==7.0.3"
+VERIFIED_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]==7.0.4"
 VERIFIED_CORE_PACKAGE="python-hwpx[preview]==6.3.0"
-CONSTRAINT_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]>=7.0.3,<8"
+CONSTRAINT_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]>=7.0.4,<8"
 CONSTRAINT_CORE_PACKAGE="python-hwpx[preview]>=6.3.0,<7"
 
 STACK_CHANNEL="${HWPX_STACK_CHANNEL:-floor}"

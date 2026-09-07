@@ -86,3 +86,5 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 > 공개 좌표를 승격하지 않습니다.
 
 현재 공개 릴리스와 미발행 후보: python-hwpx-automation 7.0.3 / python-hwpx 6.3.0 / hwpx-plugin 2.0.3. hwpx-plugin 2.1.0은 로컬 검증 중입니다.
+
+미발행 후보 검증 좌표: python-hwpx 6.3.0 / python-hwpx-automation 7.0.4 / hwpx-plugin 2.1.0.
