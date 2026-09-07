@@ -1,20 +1,36 @@
 {
   "mcpServers": {
     "hwpx": {
-      "command": "uvx",
+      "command": "bash",
       "args": [
-        "--with", "python-hwpx[preview]==6.3.0",
-        "--from", "python-hwpx-automation[mcp,oracle]==7.0.3",
-        "hwpx-automation-mcp"
+        "-c",
+        "__HWPX_MANAGED_LAUNCHER__"
       ],
       "env": {
-        "HWPX_AUTOMATION_ADVANCED": "0",
         "HWPX_AUTOMATION_AUTOBACKUP": "1",
-        "HWPX_SKILL_VERSION": "2.0.3"
+        "HWPX_SKILL_VERSION": "2.1.0"
       },
       "env_vars": [
+        "HWPX_AUTOMATION_ADVANCED",
         "HWPX_AUTOMATION_CHROME_PATH",
-        "HWPX_MCP_CHROME_PATH"
+        "HWPX_AUTOMATION_DISABLE_LOCAL_EDITABLE",
+        "HWPX_AUTOMATION_PACKAGE",
+        "HWPX_AUTOMATION_RUNTIME_ROOT",
+        "HWPX_AUTOMATION_WORKSPACE_ROOTS",
+        "HWPX_MCP_CHROME_PATH",
+        "HWPX_ORACLE_BUDGET_SECONDS",
+        "HWPX_ORACLE_STRUCTURAL_ONLY",
+        "HWPX_PYTHON_HWPX_PACKAGE",
+        "HWPX_RENDER_CA_FILE",
+        "HWPX_RENDER_CLIENT_CERT_FILE",
+        "HWPX_RENDER_CLIENT_KEY_FILE",
+        "HWPX_RENDER_QUEUE_ROOT",
+        "HWPX_RENDER_QUEUE_SECRET",
+        "HWPX_RENDER_QUEUE_URL",
+        "HWPX_RENDER_TRANSPORT_AUTH",
+        "HWPX_STACK_AUTO_UPDATE",
+        "HWPX_STACK_CHANNEL",
+        "HWPX_STACK_UPDATE_INTERVAL_HOURS"
       ]
     }
   }

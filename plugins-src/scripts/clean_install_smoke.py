@@ -138,13 +138,19 @@ def _probe_concurrent_cold_start(
     if len(environments) != 1:
         raise RuntimeError(f"expected one fingerprinted runtime, found: {environments}")
     environment = environments[0]
-    marker = environment / ".hwpx-stack-fingerprint"
-    if marker.read_text(encoding="utf-8").strip() != environment.name:
-        raise RuntimeError(
-            "launcher runtime fingerprint marker does not match its directory"
-        )
-    if not (environment / "bin" / "python").is_file():
+    pointer = environment / "current"
+    if not pointer.is_file():
+        raise RuntimeError("launcher runtime has no `current` generation pointer")
+    generation = environment / pointer.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"gen-[0-9][0-9A-Za-z.]*-[0-9][0-9A-Za-z.]*", generation.name) or not generation.is_dir():
+        raise RuntimeError(f"launcher `current` does not name a generation directory: {generation}")
+    generations = sorted(path.name for path in environment.glob("gen-*") if path.is_dir())
+    if generations != [generation.name]:
+        raise RuntimeError(f"expected exactly one generation after a cold start, found: {generations}")
+    if not (generation / "bin" / "python").is_file():
         raise RuntimeError("launcher runtime is missing its Python entry point")
+    if not (environment / "update-state.json").is_file():
+        raise RuntimeError("launcher did not write update-state.json")
     leftovers = sorted(runtime_root.glob(".build-*"))
     leftovers.extend(
         path for path in runtime_root.glob("install.lock*") if path.exists()
@@ -155,8 +161,9 @@ def _probe_concurrent_cold_start(
         "ok": True,
         "concurrentProcesses": len(processes),
         "fingerprint": environment.name,
+        "generation": generation.name,
         "runtimeCount": len(environments),
-        "runtimePython": str(environment / "bin" / "python"),
+        "runtimePython": str(generation / "bin" / "python"),
     }
 
 

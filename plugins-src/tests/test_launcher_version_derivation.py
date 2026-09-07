@@ -74,26 +74,25 @@ def test_expected_versions_are_derived_not_literal() -> None:
         ), path
 
 
-def test_default_pins_derive_to_the_product_identity_versions() -> None:
+def test_verified_and_constraint_literals_derive_from_product_identity() -> None:
     identity = json.loads((ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8"))
     core = identity["components"]["core"]["currentVersion"]
     automation = identity["components"]["automation"]["currentVersion"]
     text = TEMPLATE.read_text(encoding="utf-8")
-
-    core_default = _default("CORE_PACKAGE", text)
-    server_default = _default("SERVER_PACKAGE", text)
-    # Innermost `${VAR:-default}` fallback is the shipped pin.
-    core_spec = core_default.rsplit(":-", 1)[1].rstrip("}")
-    server_spec = server_default.rsplit(":-", 1)[1].rstrip("}")
-    assert core_spec == f"python-hwpx[preview]=={core}"
-    assert server_spec == f"python-hwpx-automation[mcp,oracle]=={automation}"
-    assert _pinned_version(core_spec) == core
-    assert _pinned_version(server_spec) == automation
+    assert _default("VERIFIED_CORE_PACKAGE", text) == f"python-hwpx[preview]=={core}"
+    assert _default("VERIFIED_SERVER_PACKAGE", text) == f"python-hwpx-automation[mcp,oracle]=={automation}"
+    assert _default("CONSTRAINT_CORE_PACKAGE", text) == identity["installConstraint"]["core"]
+    assert _default("CONSTRAINT_SERVER_PACKAGE", text) == identity["installConstraint"]["automation"]
+    assert identity["installConstraint"]["core"] == f"python-hwpx[preview]>={core},<{int(core.split('.')[0]) + 1}"
+    assert _pinned_version(_default("VERIFIED_CORE_PACKAGE", text)) == core
+    assert _pinned_version(_default("VERIFIED_SERVER_PACKAGE", text)) == automation
+    assert _pinned_version(_default("CONSTRAINT_CORE_PACKAGE", text)) == ""
+    assert _pinned_version(_default("CONSTRAINT_SERVER_PACKAGE", text)) == ""
 
 
 def test_self_check_skips_packages_without_an_expectation() -> None:
     text = TEMPLATE.read_text(encoding="utf-8")
-    check = re.search(r'"\$\{BUILD_DIR\}/bin/python" - "\$\{EXPECTED_SERVER_VERSION\}" "\$\{EXPECTED_CORE_VERSION\}" <<\'PY\'\n(.*?)\nPY\n', text, re.S)
+    check = re.search(r'"\$\{dir\}/bin/python" - "\$\{EXPECTED_SERVER_VERSION\}" "\$\{EXPECTED_CORE_VERSION\}" <<\'PY\'\n(.*?)\nPY\n', text, re.S)
     assert check, "post-install self-check missing"
     body = check.group(1)
     assert "if value" in body and "mismatched" in body
@@ -103,20 +102,28 @@ def test_self_check_skips_packages_without_an_expectation() -> None:
 
 def test_per_start_paths_do_not_refresh_exact_pins() -> None:
     text = TEMPLATE.read_text(encoding="utf-8")
-    build, marker, start = text.partition("if command -v uvx")
-    assert marker
-    assert "--refresh-package" in build, "one-time venv build keeps its index refresh"
-    assert "--refresh-package" not in start
+    uvx_block = re.search(r"exec uvx \\\n(?:.*\n)*?\s+hwpx-automation-mcp \"\$@\"", text)
+    assert uvx_block, "uvx fallback exec missing"
+    assert "--refresh-package" not in uvx_block.group(0)
+    build_block = re.search(r"uv pip install --quiet \\\n(?:.*\n)*?\s+\"\$\{CORE_PACKAGE\}\"", text)
+    assert build_block, "one-time venv build missing"
+    assert "--refresh-package python-hwpx-automation" in build_block.group(0)
     for path in (
         ROOT / "packaging" / "templates" / "codex.mcp.json",
         ROOT / "packaging" / "templates" / "openclaw.mcp-install.md",
         ROOT / "packaging" / "templates" / "hermes.mcp-install.md",
-        *sorted(ROOT.glob("plugins/*/hwpx-plugin/.mcp.json")),
+        ROOT / "plugins/claude/hwpx-plugin/.mcp.json",
     ):
         assert "--refresh-package" not in path.read_text(encoding="utf-8"), path
 
 
 def test_clean_install_smoke_exercises_the_derivation() -> None:
     text = (ROOT / "scripts" / "clean_install_smoke.py").read_text(encoding="utf-8")
+    assert "HWPX_PYTHON_HWPX_VERSION" not in text
+    assert "HWPX_AUTOMATION_VERSION" not in text
+
+
+def test_protocol_smoke_does_not_override_launcher_version_expectations():
+    text = (ROOT / "scripts/plugin_mcp_e2e.py").read_text()
     assert "HWPX_PYTHON_HWPX_VERSION" not in text
     assert "HWPX_AUTOMATION_VERSION" not in text

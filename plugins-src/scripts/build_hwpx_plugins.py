@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shlex
 import shutil
 from pathlib import Path
 
@@ -11,6 +12,41 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGING = ROOT / "packaging"
 CONFIG = PACKAGING / "hosts.json"
+
+
+def codex_launcher_command(launcher: str) -> str:
+    """Ship the canonical launcher without relying on host root interpolation.
+
+    A content-addressed copy survives detached refresh children. The runtime
+    lives outside that versioned script directory so bundle updates can reuse
+    a compatible generation. No cd: MCP workspace roots remain the thread cwd.
+    """
+    digest = hashlib.sha256(launcher.encode()).hexdigest()
+    return (
+        'set -eu\numask 077\n'
+        'cache="${XDG_CACHE_HOME:-$HOME/.cache}/hwpx-plugin"\n'
+        f'runner_dir="$cache/launchers/{digest}/scripts"\n'
+        'mkdir -p "$runner_dir"\n'
+        'runner="$runner_dir/hwpx-automation-mcp"\n'
+        'tmp="$(mktemp "$runner_dir/.launcher.XXXXXX")"\n'
+        'trap \'rm -f "$tmp"\' EXIT HUP INT TERM\n'
+        f"printf '%s' {shlex.quote(launcher)} > \"$tmp\"\n"
+        'chmod 700 "$tmp"\n'
+        'mv -f "$tmp" "$runner"\n'
+        'trap - EXIT HUP INT TERM\n'
+        'export HWPX_AUTOMATION_RUNTIME_ROOT="${HWPX_AUTOMATION_RUNTIME_ROOT:-${HWPX_MCP_RUNTIME_ROOT:-${HWPX_MCP_SERVER_VENV:-$cache/runtime}}}"\n'
+        'export HWPX_LAUNCHER_EMBEDDED=1\n'
+        'exec bash "$runner" "$@"\n'
+    )
+
+
+def render_mcp_config(template: str, launcher: str) -> str:
+    data = json.loads(template)
+    server = data["mcpServers"]["hwpx"]
+    if server.get("args") != ["-c", "__HWPX_MANAGED_LAUNCHER__"]:
+        raise ValueError("Codex MCP template must select the canonical managed launcher")
+    server["args"] = ["-c", codex_launcher_command(launcher), "hwpx-managed-launcher"]
+    return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
 
 def sha256(path: Path) -> str:
@@ -167,8 +203,14 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
     if not mcp_src.is_file():
         raise SystemExit(f"missing template: {mcp['template']}")
     mcp_dest = out / mcp["dest"]
-    copy_file(mcp_src, mcp_dest)
-    records.append(record(f"packaging/{mcp['template']}", mcp_src, mcp_dest, transformed=False))
+    if host["id"] == "codex":
+        mcp_dest.write_text(render_mcp_config(
+            mcp_src.read_text(encoding="utf-8"),
+            (PACKAGING / config["launcherTemplate"]).read_text(encoding="utf-8"),
+        ), encoding="utf-8")
+    else:
+        copy_file(mcp_src, mcp_dest)
+    records.append(record(f"packaging/{mcp['template']}", mcp_src, mcp_dest, transformed=host["id"] == "codex"))
 
     if host.get("bundleLauncher"):
         launcher_src = PACKAGING / config["launcherTemplate"]
