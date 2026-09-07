@@ -8,7 +8,7 @@
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` · `hwpx-plugin 2.0.3` |
-| 미발행 후보 | 로컬 검증 중, 공개 발행 전 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` · `hwpx-plugin 2.1.0` |
+| 발행 승인된 후보 | 검증 통과, 원격 발행·설치 관찰 전 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` · `hwpx-plugin 2.1.0` |
 | 릴리스 상태 | `release-approved` — 원격 발행·설치 관찰 전 | `hwpx-plugin 2.1.0` |
 | 최소 호환 버전 | 2.0 스킬 계약의 지원 플로어 | core `>=6.3.0` · automation `>=7.0.1` · skill `>=2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` |

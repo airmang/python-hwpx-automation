@@ -2,9 +2,9 @@
 
 ## [2.1.0] - 2026-09-07
 
-- 2.1.0 후보 보강: Codex도 공통 관리 런처를 실행하고 verified·후보 검증·상태 파일을 공유합니다. advanced/렌더 설정 전달, 미발행 상태 기록, 실행 중 버전과 준비된 세대 구분을 보강했습니다.
+- Codex 런처 보강: Codex도 공통 관리 런처를 실행하고 verified·후보 검증·상태 파일을 공유합니다. advanced/렌더 설정 전달, 릴리스 상태 기록, 실행 중 버전과 준비된 세대 구분을 보강했습니다.
 
-automation 7.0.4 후보를 검증 좌표·설치 하한으로 지정합니다.
+automation 7.0.4를 검증 좌표·설치 하한으로 지정합니다.
 
 3스택 자동 갱신 트레인(검증된 플로어 핀). 스킬 계약·도구 표면·계약 해시 `8c278ebd5becba08`은 그대로입니다.
 
@@ -16,7 +16,7 @@ automation 7.0.4 후보를 검증 좌표·설치 하한으로 지정합니다.
   `HWPX_STACK_AUTO_UPDATE=0`(끄기), `HWPX_STACK_UPDATE_INTERVAL_HOURS`(기본 24),
   `HWPX_STACK_CHANNEL=verified`(검증 좌표 고정).
 - 런타임 상태 `update-state.json`을 `HWPX_STACK_UPDATE_STATE`로 서버에 전달합니다.
-  후속 automation 릴리스는 `mcp_server_health().stackUpdate`로 보고하고, SKILL.md는 새
+  automation 7.0.4는 `mcp_server_health().stackUpdate`로 보고하고, SKILL.md는 새
   플러그인 번들이 있으면 호스트별 갱신 명령을 한 번 안내합니다.
 - 런처 런타임 레이아웃이 `envs/<fingerprint>/gen-<core>-<automation>/` + `current`
   포인터로 바뀝니다. 기존 `envs/<fingerprint>/` 단일 venv는 그대로 두어도 무해하며
