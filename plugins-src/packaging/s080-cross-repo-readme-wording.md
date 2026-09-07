@@ -1,6 +1,6 @@
 # Cross-repository README wording — 현재 공개 릴리스
 
-릴리스 상태: `unreleased-candidate` (2026-09-05) — 공개 트레인은
+릴리스 상태: `release-approved` (2026-09-05) — 공개 트레인은
 core 5.0.2 / `python-hwpx-automation` 6.0.4 / plugin 1.0.1이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를

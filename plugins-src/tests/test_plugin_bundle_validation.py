@@ -354,12 +354,15 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
 
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     release = identity["releaseState"]
-    assert release["status"] == "unreleased-candidate"
+    assert release["status"] in {"unreleased-candidate", "release-approved", "released"}
     assert release["candidate"]["plugin"] == "2.1.0"
-    assert release["currentPublic"] == release["previousPublic"]
-    assert release["currentPublic"]["plugin"] == "2.0.3"
-    assert release["publicationEvidence"] is None
-    assert identity["currentPublicStack"]["plugin"]["version"] == "2.0.3"
+    if release["status"] == "released":
+        assert release["currentPublic"]["plugin"] == release["candidate"]["plugin"]
+        assert release["publicationEvidence"]["installObserved"] is True
+    else:
+        assert release["currentPublic"] == release["previousPublic"]
+        assert release["publicationEvidence"] is None
+    assert identity["currentPublicStack"]["plugin"]["version"] == release["currentPublic"]["plugin"]
     assert components["core"]["currentVersion"] == "6.3.0"
     assert components["core"]["minimumCompatibleVersion"] == "6.3.0"
     assert components["automation"]["currentVersion"] == identity["releaseState"]["candidate"]["canonicalAutomation"]
@@ -415,13 +418,19 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
     )
     identity_path = checkout / "packaging" / "product-identity.json"
     identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    previous_status = identity["releaseState"]["status"]
     identity["releaseState"]["status"] = status
+    if status != "released":
+        identity["releaseState"]["currentPublic"] = identity["releaseState"]["previousPublic"].copy()
+        identity["releaseState"]["publicationEvidence"] = None
+        identity["currentPublicStack"]["plugin"]["version"] = identity["releaseState"]["currentPublic"]["plugin"]
+        identity["currentPublicStack"]["application"]["version"] = identity["releaseState"]["currentPublic"]["primaryApplication"]
     readme_path = checkout / "README.md"
     api_path = checkout / "references" / "api.md"
     cross_readme_path = checkout / "packaging" / "s080-cross-repo-readme-wording.md"
-    readme = readme_path.read_text().replace("unreleased-candidate", status)
-    api = api_path.read_text().replace("unreleased-candidate", status)
-    cross_readme = cross_readme_path.read_text().replace("unreleased-candidate", status)
+    readme = readme_path.read_text().replace(previous_status, status)
+    api = api_path.read_text().replace(previous_status, status)
+    cross_readme = cross_readme_path.read_text().replace(previous_status, status)
     if status == "released":
         candidate = identity["releaseState"]["candidate"]
         identity["releaseState"]["currentPublic"] = {

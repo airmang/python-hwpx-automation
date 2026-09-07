@@ -14,12 +14,13 @@
   </p>
 </p>
 
-<!-- release-state: unreleased-candidate -->
+<!-- release-state: release-approved -->
 
 > [!NOTE]
-> 현재 공개 트레인은 `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.3` ·
-> `hwpx-plugin 2.1.0`입니다 (2026-09-03, 3스택 자동 갱신 트레인 — 검증된 플로어 핀,
-> 계약 `8c278ebd5becba08` 불변).
+> 발행 승인된 후보는 `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` ·
+> `hwpx-plugin 2.1.0`입니다. 현재 공개 트레인은 6.3.0 / 7.0.3 / 2.0.3이며,
+> 전체 원격 발행과 실제 marketplace 설치 관찰 후 공개 좌표를 승격합니다.
+> 계약 `8c278ebd5becba08`은 유지합니다.
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
