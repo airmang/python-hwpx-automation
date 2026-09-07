@@ -11,7 +11,7 @@
   "canonical": {
     "pythonFiles": 15,
     "loc": 5060,
-    "manifestSha256": "d00f97e320041b58e45df34485875d7e40bc7b1c9247cc0661ca151973c4daa7",
+    "manifestSha256": "abaee6e1379a31610700da754df9d484d7ed4385c83cca4cfe9f1da043b5e4f9",
     "nomenclatureRefrozenFrom": {
       "loc": 5060,
       "manifestSha256": "9da1c81298ca242f05b81f17cfac3dbe3fc5235a1a74b14f0d00be726dda70f5",
@@ -20,8 +20,8 @@
     "refrozenNote": "WP-F (core 6.0 namespace adaptation): seal.py's document.add_image(...) call and template_formfit.py's doc.export_text() call moved to document.media.add_image(...)/doc.text.plain() (design §2.6). Same line counts, no behavior change.",
     "refrozenFrom": {
       "loc": 5060,
-      "manifestSha256": "603a0a1bee6cf45a5f6e847166264c8b25e15485cc31ba286c5121fbb10ccb7a",
-      "reason": "quality.py docstring oracle-path rename (5.0 boundary close); see nested refrozenFrom chain for earlier history"
+      "manifestSha256": "d00f97e320041b58e45df34485875d7e40bc7b1c9247cc0661ca151973c4daa7",
+      "reason": "7.0.4 uses import pymupdf as fitz to prevent legacy import warnings corrupting MCP stdout; ownership, file counts and LOC are unchanged."
     }
   },
   "moduleMap": {
