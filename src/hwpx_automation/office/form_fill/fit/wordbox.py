@@ -185,7 +185,7 @@ def fitz_available() -> bool:
     """True when PyMuPDF (``fitz``) can be imported (the extraction backend)."""
 
     try:  # pragma: no cover - trivial import probe
-        import fitz  # noqa: F401
+        import pymupdf as fitz  # noqa: F401
     except Exception:
         return False
     return True
@@ -205,7 +205,7 @@ def extract_word_boxes(pdf_path: str, *, page: int | None = None) -> list[WordBo
 
     if not fitz_available():
         raise OracleUnavailable("PyMuPDF (fitz) is not installed")
-    import fitz
+    import pymupdf as fitz
 
     boxes: list[WordBox] = []
     try:
@@ -255,7 +255,7 @@ def extract_glyph_boxes(pdf_path: str, *, page: int | None = None) -> list[WordB
 
     if not fitz_available():
         raise OracleUnavailable("PyMuPDF (fitz) is not installed")
-    import fitz
+    import pymupdf as fitz
 
     boxes: list[WordBox] = []
     try:
@@ -709,7 +709,7 @@ def render_glyph_boxes(
         if not pdf or not os.path.exists(pdf) or os.path.getsize(pdf) == 0:
             raise OracleUnavailable("Hancom render produced no PDF")
         boxes = extract_glyph_boxes(pdf, page=page)
-        import fitz
+        import pymupdf as fitz
 
         with fitz.open(pdf) as doc:
             if len(doc) == 0:  # a 0-page render is a failed render, not a clean pass
@@ -742,7 +742,7 @@ def extract_cell_clips(pdf_path: str, *, page: int | None = None) -> list[Rect]:
 
     if not fitz_available():
         raise OracleUnavailable("PyMuPDF (fitz) is not installed")
-    import fitz
+    import pymupdf as fitz
 
     clips: list[Rect] = []
     try:
@@ -785,7 +785,7 @@ def extract_image_boxes(pdf_path: str, *, page: int | None = None) -> list[Rect]
 
     if not fitz_available():
         raise OracleUnavailable("PyMuPDF (fitz) is not installed")
-    import fitz
+    import pymupdf as fitz
 
     boxes: list[Rect] = []
     try:
@@ -843,7 +843,7 @@ def render_form_geometry(
                 raise OracleUnavailable("Hancom render produced no PDF")
             glyphs = extract_glyph_boxes(rendered, page=page)
             clips = extract_cell_clips(rendered, page=page)
-            import fitz
+            import pymupdf as fitz
 
             with fitz.open(rendered) as doc:
                 if len(doc) == 0:
@@ -957,7 +957,7 @@ def extract_layout_signature(pdf_path: str) -> LayoutSignature:
 
     if not fitz_available():
         raise OracleUnavailable("PyMuPDF (fitz) is not installed")
-    import fitz
+    import pymupdf as fitz
 
     try:
         doc = fitz.open(pdf_path)

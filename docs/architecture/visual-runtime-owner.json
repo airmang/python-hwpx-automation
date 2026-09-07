@@ -1,109 +1,109 @@
 {
- "schemaVersion": "hwpx-mcp.visual-runtime-owner/v1",
- "canonicalOwner": "hwpx_automation.office.rendering",
- "sourceCompatibilityOwner": "python-hwpx 4.x",
- "source": {
-  "head": "3720196aa3ad4c4885059573c23bd7a8293302fb",
-  "pythonFiles": 11,
-  "loc": 2667,
-  "manifestSha256": "1d10fab2feba5b892bc2d6ea7a5af621b11394a6f3a65de0cd2861ce5445c758",
-  "publicSurfaceSha256": "66f3c71e9a03f714de4ab4c6259f362549d4eb0b0d8ab94282c99446cc500481"
- },
- "canonical": {
-  "status": "canonical",
-  "pythonFiles": 10,
-  "loc": 2718,
-  "manifestSha256": "1ecd84fee985862dc93318b545498b151bfc9118b72acff2944b5c20d9121158",
-  "nomenclatureRefrozenFrom": {
-   "loc": 2704,
-   "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
-   "reason": "Canonical product ownership wording changed from MCP to automation; protocol and behavior are unchanged."
+  "schemaVersion": "hwpx-mcp.visual-runtime-owner/v1",
+  "canonicalOwner": "hwpx_automation.office.rendering",
+  "sourceCompatibilityOwner": "python-hwpx 4.x",
+  "source": {
+    "head": "3720196aa3ad4c4885059573c23bd7a8293302fb",
+    "pythonFiles": 11,
+    "loc": 2667,
+    "manifestSha256": "1d10fab2feba5b892bc2d6ea7a5af621b11394a6f3a65de0cd2861ce5445c758",
+    "publicSurfaceSha256": "66f3c71e9a03f714de4ab4c6259f362549d4eb0b0d8ab94282c99446cc500481"
   },
-  "frozenAtNote": "S-104 동결값 loc=2001 sha=4b63f85703896fe8…에서 재계산. 코드가 바뀐 게 아니라 소유자가 core에 있던 4개 모듈을 받았기 때문이다. 동결은 드리프트를 막으려는 것이지 이동을 막으려는 것이 아니므로, 이유와 함께 다시 얼린다.",
-  "refrozenFrom": {
-   "loc": 2704,
-   "manifestSha256": "0b858d49694b9b11293b52b379a4351a55504e56ee9cc17707399c6821f9f02e",
-   "reason": "Lazy automation rendering exports gained TYPE_CHECKING declarations and a runtime patch-preserving resolver; runtime behavior and tool contract are unchanged."
-  }
- },
- "packageFiles": [
-  "__init__.py",
-  "block_splits.py",
-  "detectors.py",
-  "diff.py",
-  "fixture_corpus.py",
-  "oracle.py",
-  "page_qa.py",
-  "qa_contracts.py",
-  "qa_metrics.py",
-  "worker.py"
- ],
- "resourceFiles": [
-  "_hancom_open_rate.ps1",
-  "_refresh_hwpx_mac.applescript",
-  "_render_hwpx.ps1",
-  "_render_hwpx_mac.applescript"
- ],
- "memberOwners": {
-  "coreContract": [
-   "hwpx.quality.rendering",
-   "hwpx.visual.block_splits",
-   "hwpx.visual.detectors",
-   "hwpx.visual.diff",
-   "hwpx.visual.masks",
-   "hwpx.visual.qa_contracts",
-   "hwpx.visual.report"
+  "canonical": {
+    "status": "canonical",
+    "pythonFiles": 10,
+    "loc": 2718,
+    "manifestSha256": "f5a15541e258e0e2255aad5f864ddbdeb8a43b926c5593b5e95c306390cc5520",
+    "nomenclatureRefrozenFrom": {
+      "loc": 2704,
+      "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
+      "reason": "Canonical product ownership wording changed from MCP to automation; protocol and behavior are unchanged."
+    },
+    "frozenAtNote": "S-104 동결값 loc=2001 sha=4b63f85703896fe8…에서 재계산. 코드가 바뀐 게 아니라 소유자가 core에 있던 4개 모듈을 받았기 때문이다. 동결은 드리프트를 막으려는 것이지 이동을 막으려는 것이 아니므로, 이유와 함께 다시 얼린다.",
+    "refrozenFrom": {
+      "loc": 2718,
+      "manifestSha256": "1ecd84fee985862dc93318b545498b151bfc9118b72acff2944b5c20d9121158",
+      "reason": "7.0.4 uses import pymupdf as fitz to prevent legacy import warnings corrupting MCP stdout; ownership, file counts and LOC are unchanged."
+    }
+  },
+  "packageFiles": [
+    "__init__.py",
+    "block_splits.py",
+    "detectors.py",
+    "diff.py",
+    "fixture_corpus.py",
+    "oracle.py",
+    "page_qa.py",
+    "qa_contracts.py",
+    "qa_metrics.py",
+    "worker.py"
   ],
-  "automationRuntime": [
-   "Hancom discovery and binding",
-   "Windows COM and Mac GUI oracle execution",
-   "serialized worker lifecycle and runtime policy",
-   "fixture corpus loading",
-   "page QA and corpus metrics orchestration"
+  "resourceFiles": [
+    "_hancom_open_rate.ps1",
+    "_refresh_hwpx_mac.applescript",
+    "_render_hwpx.ps1",
+    "_render_hwpx_mac.applescript"
   ],
-  "coreCompatibility": [
-   "hwpx.visual.fixture_corpus",
-   "hwpx.visual.hancom_worker",
-   "hwpx.visual.oracle runtime members",
-   "hwpx.visual.page_qa",
-   "hwpx.visual.qa_metrics"
-  ]
- },
- "approvedCoreImports": [
-  "hwpx.quality",
-  "hwpx.quality.rendering",
-  "hwpx.visual.block_splits",
-  "hwpx.visual.detectors",
-  "hwpx.visual.diff",
-  "hwpx.visual.qa_contracts"
- ],
- "approvedSiblingOwners": [],
- "forbiddenCoreCompatibilityImports": [
-  "hwpx.form_fit.seal",
-  "hwpx.form_fit.wordbox",
-  "hwpx.visual.fixture_corpus",
-  "hwpx.visual.hancom_worker",
-  "hwpx.visual.oracle",
-  "hwpx.visual.page_qa",
-  "hwpx.visual.qa_metrics"
- ],
- "productionConsumers": [
-  "hwpx_automation.handlers.layout_style",
-  "hwpx_automation.handlers.specialized",
-  "hwpx_automation.office.authoring",
-  "hwpx_automation.visual_qa"
- ],
- "compatibilityPolicy": {
-  "coreLine": "4.x",
-  "featureWork": "automation canonical owner only",
-  "mirrors": "correctness-or-security-only with parity test and receipt",
-  "removalGate": "public observation followed by a separately approved core major"
- },
- "toolContract": {
-  "default": 122,
-  "advanced": 130,
-  "skillRequired": 29,
-  "hash": "8c278ebd5becba08"
- },
- "packageFilesNote": "이전 6-file 동결에서 10개로 늘었다. 늘어난 4개(block_splits·detectors·diff·qa_contracts)는 신규 코드가 아니라 core가 계속 들고 있던 것이고, 이 소유자의 oracle이 그중 셋을 core에서 import하고 있었다. 5.0 경계 마감으로 실소유자에게 왔다."
+  "memberOwners": {
+    "coreContract": [
+      "hwpx.quality.rendering",
+      "hwpx.visual.block_splits",
+      "hwpx.visual.detectors",
+      "hwpx.visual.diff",
+      "hwpx.visual.masks",
+      "hwpx.visual.qa_contracts",
+      "hwpx.visual.report"
+    ],
+    "automationRuntime": [
+      "Hancom discovery and binding",
+      "Windows COM and Mac GUI oracle execution",
+      "serialized worker lifecycle and runtime policy",
+      "fixture corpus loading",
+      "page QA and corpus metrics orchestration"
+    ],
+    "coreCompatibility": [
+      "hwpx.visual.fixture_corpus",
+      "hwpx.visual.hancom_worker",
+      "hwpx.visual.oracle runtime members",
+      "hwpx.visual.page_qa",
+      "hwpx.visual.qa_metrics"
+    ]
+  },
+  "approvedCoreImports": [
+    "hwpx.quality",
+    "hwpx.quality.rendering",
+    "hwpx.visual.block_splits",
+    "hwpx.visual.detectors",
+    "hwpx.visual.diff",
+    "hwpx.visual.qa_contracts"
+  ],
+  "approvedSiblingOwners": [],
+  "forbiddenCoreCompatibilityImports": [
+    "hwpx.form_fit.seal",
+    "hwpx.form_fit.wordbox",
+    "hwpx.visual.fixture_corpus",
+    "hwpx.visual.hancom_worker",
+    "hwpx.visual.oracle",
+    "hwpx.visual.page_qa",
+    "hwpx.visual.qa_metrics"
+  ],
+  "productionConsumers": [
+    "hwpx_automation.handlers.layout_style",
+    "hwpx_automation.handlers.specialized",
+    "hwpx_automation.office.authoring",
+    "hwpx_automation.visual_qa"
+  ],
+  "compatibilityPolicy": {
+    "coreLine": "4.x",
+    "featureWork": "automation canonical owner only",
+    "mirrors": "correctness-or-security-only with parity test and receipt",
+    "removalGate": "public observation followed by a separately approved core major"
+  },
+  "toolContract": {
+    "default": 122,
+    "advanced": 130,
+    "skillRequired": 29,
+    "hash": "8c278ebd5becba08"
+  },
+  "packageFilesNote": "이전 6-file 동결에서 10개로 늘었다. 늘어난 4개(block_splits·detectors·diff·qa_contracts)는 신규 코드가 아니라 core가 계속 들고 있던 것이고, 이 소유자의 oracle이 그중 셋을 core에서 import하고 있었다. 5.0 경계 마감으로 실소유자에게 왔다."
 }

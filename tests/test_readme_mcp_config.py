@@ -4,10 +4,6 @@ import json
 import re
 from pathlib import Path
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10
-    import tomli as tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,11 +16,12 @@ def test_readme_host_config_is_parseable_and_resolves_distribution_explicitly() 
     host = next(config for config in configs if "mcpServers" in config)
     server = host["mcpServers"]["hwpx"]
 
-    # The quickstart pin must track the checkout's own version: a frozen
-    # literal here kept the README example fossilized at 6.1.3 for two
-    # major trains.
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    version = project["project"]["version"]
+    # The installable quickstart follows observed public truth while a new
+    # candidate is being prepared; publication promotion advances it.
+    identity = json.loads(
+        (ROOT / "src/hwpx_automation/identity.json").read_text(encoding="utf-8")
+    )
+    version = identity["releaseState"]["currentPublic"]["primaryApplication"]
 
     assert server["command"] == "uvx"
     assert server["args"] == [

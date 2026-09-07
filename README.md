@@ -12,16 +12,15 @@
   </p>
 </p>
 
-<!-- release-state: released -->
+<!-- release-state: release-approved -->
 > [!NOTE]
-> 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.3 →
-> hwpx-plugin 2.0.2` (2026-08-22 왕복 충실도 트레인 — 계약 `8c278ebd5becba08`,
-> floor-only 델타로 도구 표면 불변.
-> Windows 저장 수리 패치 트레인 — 저장 수리 #98·업로드 경로 안내
-> #75, core와 계약 `34a91560759dc47a` 불변).
-> 공개 좌표는 원격 진실(core·automation PyPI와 plugin GitHub
-> Release·marketplace·실제 marketplace 설치) 관찰 후에만
-> 승격됩니다 — [릴리스 runbook](docs/release-runbook.md)
+> 아직 공개되지 않은 7.0.4 후보입니다.
+> 후보 조합: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`.
+> 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.3 → hwpx-plugin 2.0.3`.
+> 계약은 `8c278ebd5becba08`이며 도구 표면과 최소 호환 버전은 유지합니다.
+> 공개 좌표는 core·automation PyPI와 plugin GitHub
+> Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
+> [릴리스 runbook](docs/release-runbook.md)
 
 [python-hwpx](https://github.com/airmang/python-hwpx) 엔진 위에서 문서 저작·
 양식 채움·시험지 조판·안전한 에이전트 워크플로를 제공하는 응용 계층입니다.

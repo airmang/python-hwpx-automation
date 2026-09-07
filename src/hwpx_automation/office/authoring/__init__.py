@@ -1292,7 +1292,7 @@ def inspect_document_authoring_quality(
                     _rendered = _mac.render_pdf(str(_hwpx), str(_pdf))
                     if _rendered and Path(_rendered).exists():
                         try:
-                            import fitz as _fitz
+                            import pymupdf as _fitz
 
                             _doc = _fitz.open(_rendered)
                             _has_text = any(

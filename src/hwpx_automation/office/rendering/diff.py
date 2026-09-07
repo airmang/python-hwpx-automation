@@ -27,7 +27,7 @@ _TALL_BAND_REL = 1.0
 
 def pymupdf_available() -> bool:
     try:  # pragma: no cover - trivial import probe
-        import fitz  # noqa: F401
+        import pymupdf as fitz  # noqa: F401
     except Exception:
         return False
     return True
@@ -36,7 +36,7 @@ def pymupdf_available() -> bool:
 def render_pdf_to_images(pdf_path: str | Path, dpi: int = 150) -> list["Image.Image"]:
     """Rasterize every page of ``pdf_path`` to a list of RGB ``PIL.Image``."""
 
-    import fitz  # pymupdf
+    import pymupdf as fitz  # pymupdf
     from PIL import Image
 
     pages: list[Image.Image] = []

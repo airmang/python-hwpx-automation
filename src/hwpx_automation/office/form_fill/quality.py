@@ -180,7 +180,7 @@ def detect_overflow_crossings(
     PyMuPDF; raises ``RuntimeError`` if unavailable (caller degrades to unverified).
     """
     try:
-        import fitz
+        import pymupdf as fitz
     except Exception as exc:  # pragma: no cover - env probe
         raise RuntimeError(f"PyMuPDF unavailable: {exc}") from exc
 
@@ -266,7 +266,7 @@ def score_render(
             [f"render imaging deps unavailable: {exc}"],
         )
 
-    import fitz  # already importable if we got here
+    import pymupdf as fitz  # already importable if we got here
 
     doc = fitz.open(pdf)
     pages = doc.page_count
