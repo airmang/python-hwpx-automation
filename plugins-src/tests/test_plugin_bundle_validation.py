@@ -263,7 +263,9 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
     references.extend(sorted((ROOT / "plugins").glob("*/hwpx*/references/api.md")))
     assert references
 
-    status = _identity()["releaseState"]["status"]
+    release = _identity()["releaseState"]
+    status = release["status"]
+    candidate = release["candidate"]
     for reference in references:
         text = reference.read_text(encoding="utf-8")
         assert "`python-hwpx 4.2.0`" not in text
@@ -273,17 +275,20 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "`hwpx-plugin 1.0.0`" not in text
         assert "`python-hwpx 6.0.2`" not in text
         assert "`hwpx-plugin 2.0.2`" not in text
-        assert "`python-hwpx 6.3.0`" in text
-        assert "`python-hwpx-automation 7.0.3`" in text
-        assert "`hwpx-plugin 2.1.0`" in text
+        assert f"`python-hwpx {candidate['pythonHwpx']}`" in text
+        assert f"`python-hwpx-automation {candidate['canonicalAutomation']}`" in text
+        assert f"`hwpx-plugin {candidate['plugin']}`" in text
         assert "공개 릴리스" in text
         if status == "released":
             assert "미발행 후보" not in text
         else:
             # candidate checkout: the doc must distinguish the unreleased
             # candidate train from the public train, not hide it
-            assert "미발행 후보" in text
-            public = _identity()["releaseState"]["currentPublic"]
+            assert (
+                "미발행 후보" if status == "unreleased-candidate"
+                else "발행 승인된 후보"
+            ) in text
+            public = release["currentPublic"]
             assert f"`python-hwpx {public['pythonHwpx']}`" in text
             assert f"`python-hwpx-automation {public['primaryApplication']}`" in text
             assert f"`hwpx-plugin {public['plugin']}`" in text
