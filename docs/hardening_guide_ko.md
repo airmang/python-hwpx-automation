@@ -96,4 +96,4 @@
   `scripts/conformance/corpus`입니다.
 
 
-> 릴리스 상태: unreleased-candidate. 7.0.4 후보이며 현재 공개 트레인은 python-hwpx 6.3.0 · python-hwpx-automation 7.0.3 · hwpx-plugin 2.0.3입니다. 후보 공개 발행은 아직 관찰하지 않았습니다.
+> 릴리스 상태: release-approved. 7.0.4 후보이며 현재 공개 트레인은 python-hwpx 6.3.0 · python-hwpx-automation 7.0.3 · hwpx-plugin 2.0.3입니다. 후보 공개 발행은 아직 관찰하지 않았습니다.

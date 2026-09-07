@@ -1,6 +1,6 @@
 # Changelog
 
-## [7.0.4] - Unreleased
+## [7.0.4] - 2026-09-07
 
 - Report prepared and running managed-runtime versions separately in MCP health.
 - Use the canonical PyMuPDF import so dependency deprecation messages do not corrupt MCP stdout.

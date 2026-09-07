@@ -12,7 +12,7 @@
   </p>
 </p>
 
-<!-- release-state: unreleased-candidate -->
+<!-- release-state: release-approved -->
 > [!NOTE]
 > 아직 공개되지 않은 7.0.4 후보입니다.
 > 후보 조합: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`.
