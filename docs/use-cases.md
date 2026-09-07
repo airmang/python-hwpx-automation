@@ -2,8 +2,8 @@
 
 > Python 자동화와 선택 MCP 어댑터로 여는 한글(HWPX) 문서 워크플로
 >
-> 릴리스 상태: `released` (2026-08-03) — 현재 공개 트레인은
-> `python-hwpx 5.6.0 → python-hwpx-automation 6.6.4 → hwpx-plugin 1.6.0`입니다.
+> 릴리스 상태: `unreleased-candidate` — 아직 공개되지 않은 7.0.4 source candidate입니다.
+> 현재 공개 트레인은 `python-hwpx 6.3.0 → python-hwpx-automation 7.0.3 → hwpx-plugin 2.0.3`입니다.
 
 ---
 
@@ -15,11 +15,10 @@
 
 기존에는 한글 파일을 열어서 일일이 수작업으로 처리해야 했던 일을, 이제 자연어 요청으로 자동화할 수 있습니다.
 
-이 문서는 공개 릴리스 `python-hwpx-automation 6.7.1` 기준입니다. 공개
-트레인은 `python-hwpx 5.7.0 → python-hwpx-automation 6.7.1 →
-hwpx-plugin 1.7.0`, 계약 해시는 `98510af22d13899c`입니다.
+이 문서는 `python-hwpx-automation 7.0.4` 후보 기준입니다. 후보와 현재 공개
+트레인의 계약 해시는 `8c278ebd5becba08`로 같습니다.
 
-6.7.1 릴리스의 기본 모드 128개(고급 모드 포함 총 136개)의 도구로 문서 생성,
+후보의 기본 모드 128개(고급 모드 포함 총 136개)의 도구로 문서 생성,
 선언형 document-plan 생성, 선언적 편집 계획 실행(`run_edit_plan` —
 다단 편집을 all-or-nothing 원자 실행), 누름틀 필드 저작(`add_form_field`),
 네이티브 수식 저작(`add_equation`, LaTeX→EqEdit), 네이티브 차트 생성
@@ -28,9 +27,9 @@ hwpx-plugin 1.7.0`, 계약 해시는 `98510af22d13899c`입니다.
 `format_table`로), HWPX repair/recover까지 처리할 수 있습니다.
 
 document-plan, form-fill, visual-review handoff 워크플로의 문서화·테스트
-기준 upstream 버전 바닥은 `python-hwpx >= 5.7.0`입니다. 설치 계약은 기본
-128개/고급 136개/스킬 필수 28개이며, automation 바닥은 `6.5.0`, skill
-바닥은 `1.6.0`입니다.
+기준 upstream 버전 바닥은 `python-hwpx >= 6.3.0`입니다. 설치 계약은 기본
+128개/고급 136개/스킬 필수 29개이며, automation 바닥은 `7.0.1`, skill
+바닥은 `2.0.0`입니다.
 호환·deprecated 도구는
 2026-10-31까지 모두 유지하며, 신규 호출의 canonical 경로와 rollback은
 [compatibility observation](compatibility-observation.md)을 따릅니다.
