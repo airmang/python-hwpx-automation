@@ -20,7 +20,7 @@
 > 현재 공개 트레인은 `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` ·
 > `hwpx-plugin 2.1.0`입니다. 2026-09-07에 공개 발행과 실제 Codex marketplace
 > 설치·도구 호출을 관찰했습니다. 계약 `8c278ebd5becba08`은 유지합니다.
-> [설치 검증 영수증](docs/releases/2026-09-07-managed-runtime.md)
+> [설치 검증 영수증](references/release-2026-09-07-managed-runtime.md)
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는

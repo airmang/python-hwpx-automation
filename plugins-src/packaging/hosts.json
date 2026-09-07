@@ -72,7 +72,7 @@
     "scripts/visual_review.py",
     "scripts/visual_review_batch.py",
     "scripts/zip_replace_all.py",
-    "docs/releases/2026-09-07-managed-runtime.md"
+    "references/release-2026-09-07-managed-runtime.md"
   ],
   "repoRootArtifacts": [
     {
