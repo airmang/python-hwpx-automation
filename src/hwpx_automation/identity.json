@@ -3,7 +3,7 @@
   "product": "python-hwpx-automation",
   "releaseMajor": 6,
   "releaseState": {
-    "status": "release-approved",
+    "status": "released",
     "candidate": {
       "pythonHwpx": "6.3.0",
       "canonicalDistribution": "python-hwpx-automation",
@@ -16,11 +16,24 @@
     "currentPublic": {
       "pythonHwpx": "6.3.0",
       "primaryDistribution": "python-hwpx-automation",
+      "primaryApplication": "7.0.4",
+      "plugin": "2.1.0",
+      "contractHash": "8c278ebd5becba08"
+    },
+    "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication.",
+    "previousPublic": {
+      "pythonHwpx": "6.3.0",
+      "primaryDistribution": "python-hwpx-automation",
       "primaryApplication": "7.0.3",
       "plugin": "2.0.3",
       "contractHash": "8c278ebd5becba08"
     },
-    "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication."
+    "publicationEvidence": {
+      "pluginVersion": "2.1.0",
+      "installObserved": true,
+      "observedAt": "2026-09-07T12:36:33.025850+00:00",
+      "releaseUrl": "https://github.com/airmang/hwpx-plugins/releases/tag/v2.1.0"
+    }
   },
   "releaseFloors": {
     "description": "Frozen historical coordinates. Unlike releaseState these do not advance train by train; they pin the pre-6.0 legacy compatibility cap that every core 5 resolution must be observed against. They live here so the release path has no version literal that is not declared data.",

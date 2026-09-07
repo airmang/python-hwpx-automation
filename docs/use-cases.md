@@ -2,8 +2,8 @@
 
 > Python 자동화와 선택 MCP 어댑터로 여는 한글(HWPX) 문서 워크플로
 >
-> 릴리스 상태: `release-approved` — 아직 공개되지 않은 7.0.4 source candidate입니다.
-> 현재 공개 트레인은 `python-hwpx 6.3.0 → python-hwpx-automation 7.0.3 → hwpx-plugin 2.0.3`입니다.
+> 릴리스 상태: `released` — 7.0.4 공개 릴리스이며 실제 marketplace 설치를 관찰했습니다.
+> 현재 공개 트레인은 `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`입니다.
 
 ---
 
@@ -351,4 +351,4 @@ python3 ../hwpx-skill/scripts/visual_review.py work/output.hwpx --evidence work/
 as final visual clearance.
 
 
-> 릴리스 상태 참고: 현재 공개 트레인은 python-hwpx 6.3.0 · python-hwpx-automation 7.0.3 · hwpx-plugin 2.0.2입니다 (2026-08-22 왕복 충실도 트레인) (python-hwpx 6.2.1 released 2026-08-19, Windows 편집기 표면 core-only 트레인 — v6.2.0은 보존된 실패 태그).
+> 릴리스 상태 참고: 현재 공개 트레인은 python-hwpx 6.3.0 · python-hwpx-automation 7.0.4 · hwpx-plugin 2.0.2입니다 (2026-08-22 왕복 충실도 트레인) (python-hwpx 6.2.1 released 2026-08-19, Windows 편집기 표면 core-only 트레인 — v6.2.0은 보존된 실패 태그).

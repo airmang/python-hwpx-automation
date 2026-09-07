@@ -12,11 +12,11 @@
   </p>
 </p>
 
-<!-- release-state: release-approved -->
+<!-- release-state: released -->
 > [!NOTE]
-> 아직 공개되지 않은 7.0.4 후보입니다.
-> 후보 조합: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`.
-> 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.3 → hwpx-plugin 2.0.3`.
+> 7.0.4 공개 발행과 전체 트레인의 실제 marketplace 설치를 관찰했습니다.
+> 검증 조합: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`.
+> 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`.
 > 계약은 `8c278ebd5becba08`이며 도구 표면과 최소 호환 버전은 유지합니다.
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
@@ -74,7 +74,7 @@ Gemini CLI는 `~/.gemini/settings.json`, Cursor·Windsurf는 각 에디터의 MC
       "command": "uvx",
       "args": [
         "--from",
-        "python-hwpx-automation[mcp]==7.0.3",
+        "python-hwpx-automation[mcp]==7.0.4",
         "hwpx-automation-mcp"
       ],
       "env": {
