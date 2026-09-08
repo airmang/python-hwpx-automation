@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "hwpx.tool-contract-delta/v1",
+  "release": "7.1.0",
+  "baseline": {
+    "release": "7.0.4",
+    "contractHash": "8c278ebd5becba08",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136
+  },
+  "target": {
+    "release": "7.1.0",
+    "contractHash": "ba0211fc854a0a97",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136,
+    "skillRequiredToolCount": 29
+  },
+  "delta": {
+    "addedTools": [],
+    "removedTools": [],
+    "promotedTools": [],
+    "profileMoves": []
+  },
+  "floors": {
+    "minPythonHwpx": "6.4.0",
+    "minAutomationVersion": "7.1.0",
+    "minMcpVersion": "7.1.0",
+    "minSkillVersion": "2.0.0"
+  },
+  "note": "Floor-only contract delta. Core 6.4.0 supplies preservation repairs; automation 7.1.0 supplies bounded navigation and mixed-plan CLI parity. Tool schemas, descriptions, classifications and profiles are unchanged. Runtime behavior corrections are documented separately."
+}

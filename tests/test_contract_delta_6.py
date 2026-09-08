@@ -16,16 +16,16 @@ def _load(name: str) -> dict:
     return json.loads((ROOT / "docs" / name).read_text(encoding="utf-8"))
 
 
-def test_7_0_3_contract_delta_matches_the_live_contract() -> None:
-    """The engine-completeness major adds no tool; the hash moves on floors alone."""
+def test_7_1_0_contract_delta_matches_the_live_contract() -> None:
+    """The edit-preservation minor adds no tool; its contract moves on floors alone."""
 
-    delta = _load("tool-contract-delta-7.0.3.json")
+    delta = _load("tool-contract-delta-7.1.0.json")
     contract = _load("tool-contract.generated.json")
 
     assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "8c278ebd5becba08"
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "ba0211fc854a0a97"
 
-    assert delta["baseline"]["contractHash"] == "34a91560759dc47a"
+    assert delta["baseline"]["contractHash"] == "8c278ebd5becba08"
     assert delta["baseline"]["defaultToolCount"] == 128
     assert delta["baseline"]["advancedToolCount"] == 136
     assert delta["target"]["defaultToolCount"] == 128
@@ -37,9 +37,16 @@ def test_7_0_3_contract_delta_matches_the_live_contract() -> None:
     assert delta["delta"]["promotedTools"] == []
     assert delta["delta"]["profileMoves"] == []
 
-    assert contract["minAutomationVersion"] == contract["minMcpVersion"] == "7.0.1"
-    assert contract["minPythonHwpx"] == "6.3.0"
+    assert contract["minAutomationVersion"] == contract["minMcpVersion"] == "7.1.0"
+    assert contract["minPythonHwpx"] == "6.4.0"
     assert contract["minSkillVersion"] == "2.0.0"
+
+
+def test_7_0_3_receipt_remains_frozen_and_chains_into_candidate() -> None:
+    frozen = _load("tool-contract-delta-7.0.3.json")
+    candidate = _load("tool-contract-delta-7.1.0.json")
+    assert frozen["target"]["contractHash"] == "8c278ebd5becba08"
+    assert frozen["target"]["contractHash"] == candidate["baseline"]["contractHash"]
 
 
 def test_6_8_1_delta_receipt_is_frozen_and_chains_into_the_7_0_1_baseline() -> None:

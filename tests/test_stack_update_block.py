@@ -16,8 +16,8 @@ STATE = {
     "autoUpdate": True,
     "channel": "floor",
     "runtime": {
-        "installed": {"python-hwpx": "6.3.0", "python-hwpx-automation": "7.0.3"},
-        "latestAvailable": {"python-hwpx": "6.3.0", "python-hwpx-automation": "7.1.0"},
+        "installed": {"python-hwpx": "6.4.0", "python-hwpx-automation": "7.0.3"},
+        "latestAvailable": {"python-hwpx": "6.4.0", "python-hwpx-automation": "7.1.0"},
     },
     "pluginBundle": {"installed": "2.1.0", "latestKnown": "2.1.1"},
     "lastError": None,
@@ -54,7 +54,7 @@ def test_health_reports_missing_unreadable_and_unknown_state(tmp_path: Path, mon
 
 
 def test_additive_health_field_leaves_the_contract_hash_unchanged() -> None:
-    assert contract_hash() == "8c278ebd5becba08"
+    assert contract_hash() == "ba0211fc854a0a97"
 
 
 @pytest.mark.parametrize("running_automation, restart", [("7.0.2", True), ("7.0.3", False)])
@@ -64,7 +64,7 @@ def test_health_distinguishes_running_and_prepared_generation(tmp_path, monkeypa
     path = tmp_path / "state.json"
     path.write_text(json.dumps(STATE))
     monkeypatch.setenv("HWPX_STACK_UPDATE_STATE", str(path))
-    versions = {"python-hwpx": "6.3.0", "python-hwpx-automation": running_automation}
+    versions = {"python-hwpx": "6.4.0", "python-hwpx-automation": running_automation}
     monkeypatch.setattr(quality_render, "_package_version", versions.__getitem__)
     block = quality_render._stack_update_block()
     assert block["runtime"]["running"] == versions
