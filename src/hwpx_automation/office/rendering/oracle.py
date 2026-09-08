@@ -500,11 +500,10 @@ class MacHancomOracle(RenderBackend):
         open <input> → 파일 (File) > "PDF로 저장하기..." → NSSavePanel (Return = 저장)
         → 파일 > "문서 닫기"
 
-    The save panel is *document-relative* (it pre-fills 위치 = the input's
-    directory and the name field = the input's stem), so :meth:`render_pdf`
-    stages the input as ``<out_dir>/<out_stem>.hwpx`` and the panel writes exactly
-    ``<out_dir>/<out_stem>.pdf`` with no path typing. The target is pre-deleted so
-    no overwrite sheet appears.
+    The save panel is document-relative. Each render stages a uniquely named
+    copy in a private temporary directory, exports beside it, closes only that
+    owned document, then promotes a complete PDF to the caller's output path.
+    Existing caller files survive a failed render.
 
     Operational notes: the GUI is a single shared session, so renders MUST be
     serialized (the default serial :meth:`render_many` does this). Requires a
@@ -599,57 +598,49 @@ class MacHancomOracle(RenderBackend):
         src = os.path.abspath(hwpx_path)
         out_pdf = os.path.abspath(out_pdf)
         out_dir = os.path.dirname(out_pdf)
-        out_stem = os.path.splitext(os.path.basename(out_pdf))[0]
         os.makedirs(out_dir, exist_ok=True)
-
-        # Stage the input next to the target, named as the target stem, so the
-        # document-relative save panel needs no typing (see class docstring).
-        staged = os.path.join(out_dir, out_stem + ".hwpx")
-        staged_is_source = os.path.abspath(staged) == src
-
-        try:  # pre-delete target -> the overwrite ("대치?") sheet never appears
-            if os.path.exists(out_pdf):
-                os.remove(out_pdf)
-        except OSError:
-            pass
 
         deadline = _deadline_from(self.budget_seconds)
         run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
         if run_timeout is None:
             return None
-        # The AppleScript receives its own internal wait limit; keep it inside
-        # the clamped subprocess timeout so the script never outlives the budget.
         script_timeout = max(1, int(min(self.timeout, run_timeout)))
-
-        cleanup_staged = False
-        try:
-            if not staged_is_source:
-                shutil.copyfile(src, staged)
-                cleanup_staged = True
+        # Unique owned document name: a prior render or user document can never
+        # be mistaken for this job. Never pre-delete or stage over caller files.
+        with tempfile.TemporaryDirectory(prefix="hwpx-render-", dir=out_dir) as folder:
+            name = Path(folder).name
+            staged = Path(folder) / (name + ".hwpx")
+            staged_pdf = staged.with_suffix(".pdf")
+            shutil.copyfile(src, staged)
             with resources.as_file(
-                resources.files("hwpx_automation.office.rendering").joinpath(
-                    _MAC_BACKEND_SCRIPT
-                )
+                resources.files("hwpx_automation.office.rendering").joinpath(_MAC_BACKEND_SCRIPT)
             ) as script:
-                cmd = [
-                    self._osascript, str(script), staged, out_pdf, str(script_timeout),
-                ]
+                cmd = [self._osascript, str(script), str(staged), str(staged_pdf), str(script_timeout)]
                 try:
-                    subprocess.run(
-                        cmd, capture_output=True, text=True,
-                        timeout=run_timeout, check=False,
-                    )
+                    proc = self._run_render_script(cmd, run_timeout)
                 except (subprocess.TimeoutExpired, OSError):
+                    # Best-effort cleanup is restricted to our uniquely named
+                    # document. The worker adapter also handles cancellation.
+                    self._close_owned_document(script, staged.name)
                     return None
-            if os.path.exists(out_pdf) and os.path.getsize(out_pdf) > 0:
+            if proc.returncode != 0 or (proc.stdout or "").strip() != "OK":
+                return None
+            if staged_pdf.is_file() and staged_pdf.read_bytes().rstrip().endswith(b"%%EOF"):
+                os.replace(staged_pdf, out_pdf)
                 return out_pdf
             return None
-        finally:
-            if cleanup_staged:
-                try:
-                    os.remove(staged)
-                except OSError:
-                    pass
+
+    def _run_render_script(self, cmd: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+
+    def _close_owned_document(self, script: Path, name: str) -> None:
+        try:
+            subprocess.run(
+                [self._osascript, str(script), "--close-owned", name],
+                capture_output=True, text=True, timeout=3, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
 
     def refresh_document(self, hwpx_path: str) -> bool:
         """Open ``hwpx_path``, let dirty fields regenerate, save in place, close.

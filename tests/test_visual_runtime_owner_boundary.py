@@ -106,5 +106,5 @@ def test_real_product_tree_passes_rendering_owner_gate() -> None:
     report = BOUNDARY["evaluate"](ROOT)
 
     assert report["ok"], report["violations"]
-    assert report["canonicalRenderingPythonFiles"] == 10
+    assert report["canonicalRenderingPythonFiles"] == 11
     assert report["canonicalRenderingResources"] == OWNER["resourceFiles"]

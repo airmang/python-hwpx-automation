@@ -50,10 +50,9 @@ def test_canonical_rendering_inventory_is_exact() -> None:
     ).encode()
 
     assert [Path(str(row["path"])).name for row in rows] == OWNER["packageFiles"]
-    # Ten since the boundary closed: block_splits, detectors, diff and
-    # qa_contracts came from core, where this owner had been importing three
-    # of them from. The ledger records why.
-    assert len(rows) == canonical["pythonFiles"] == 10
+    # The owned Mac session adapter adds one runtime module; the historical
+    # core ownership receipt remains frozen.
+    assert len(rows) == canonical["pythonFiles"] == 11
     assert sum(int(row["loc"]) for row in rows) == canonical["loc"]
     assert hashlib.sha256(payload).hexdigest() == canonical["manifestSha256"]
     assert canonical["status"] == "canonical"

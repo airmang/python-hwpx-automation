@@ -11,9 +11,9 @@
   },
   "canonical": {
     "status": "canonical",
-    "pythonFiles": 10,
-    "loc": 2718,
-    "manifestSha256": "f5a15541e258e0e2255aad5f864ddbdeb8a43b926c5593b5e95c306390cc5520",
+    "pythonFiles": 11,
+    "loc": 2834,
+    "manifestSha256": "c9b434b02300e5c4ba49d53b25a532314c953283c0cae514b1025d635cf608cf",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -22,8 +22,8 @@
     "frozenAtNote": "S-104 동결값 loc=2001 sha=4b63f85703896fe8…에서 재계산. 코드가 바뀐 게 아니라 소유자가 core에 있던 4개 모듈을 받았기 때문이다. 동결은 드리프트를 막으려는 것이지 이동을 막으려는 것이 아니므로, 이유와 함께 다시 얼린다.",
     "refrozenFrom": {
       "loc": 2718,
-      "manifestSha256": "1ecd84fee985862dc93318b545498b151bfc9118b72acff2944b5c20d9121158",
-      "reason": "7.0.4 uses import pymupdf as fitz to prevent legacy import warnings corrupting MCP stdout; ownership, file counts and LOC are unchanged."
+      "manifestSha256": "f5a15541e258e0e2255aad5f864ddbdeb8a43b926c5593b5e95c306390cc5520",
+      "reason": "Owned Mac session adapter; cancellation and hash-bound immutable artifacts; complete PDF and exact owned-document cleanup. See docs/architecture/owned-render-recovery.md. Historical core source receipts unchanged."
     }
   },
   "packageFiles": [
@@ -32,6 +32,7 @@
     "detectors.py",
     "diff.py",
     "fixture_corpus.py",
+    "mac_session.py",
     "oracle.py",
     "page_qa.py",
     "qa_contracts.py",

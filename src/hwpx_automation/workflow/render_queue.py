@@ -307,6 +307,23 @@ class DurableRenderQueue:
             con.commit()
         return RenderLease(RenderJobV2.model_validate_json(row["job_json"]), worker_id, attempt, expires, Path(row["source_path"]))
 
+    def keepalive(self, lease: RenderLease, *, lease_seconds: int = 300, now: datetime | None = None) -> bool:
+        """Renew an owned lease; return False when cancellation was requested."""
+        if lease_seconds < 1:
+            raise ValueError("a positive lease is required")
+        now = now or utcnow()
+        with self._connect() as con:
+            con.execute("BEGIN IMMEDIATE")
+            row = self._owned_running(con, lease)
+            if datetime.fromisoformat(row["lease_expires_at"]) <= now:
+                raise RenderQueueError("LEASE_NOT_OWNED", "render lease has expired")
+            con.execute(
+                "UPDATE render_jobs SET lease_expires_at=?,updated_at=? WHERE job_id=?",
+                (_iso(now + timedelta(seconds=lease_seconds)), _iso(now), lease.job.job_id),
+            )
+            con.commit()
+            return not bool(row["cancel_requested"])
+
     def complete(self, lease: RenderLease, receipt: RenderReceiptV2, *, now: datetime | None = None) -> RenderReceiptV2:
         now = now or utcnow()
         if receipt.status != RenderStatus.SUCCEEDED or not receipt.binds(lease.job):

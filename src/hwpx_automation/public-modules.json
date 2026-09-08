@@ -1,10 +1,10 @@
 {
  "schemaVersion": "python-hwpx-automation.public-modules/v1",
  "scope": "All Python modules shipped by the canonical 6.x distribution. Base-public modules must import without the optional MCP SDK; the five adapter modules require the mcp extra by design.",
- "moduleCount": 181,
- "moduleSha256": "bb4fbe51a4b44465aa09d00887cff5786ecf0f9f9165dd3e0ad1542788d8fd92",
- "basePublicModuleCount": 176,
- "basePublicModuleSha256": "2d27713047eec895f6f4e6075ab4487cf9e485e7d778e97b0d91867f11419467",
+ "moduleCount": 182,
+ "moduleSha256": "4e58c6a2bc599788045b1a6cdb40e73582dbc2f14c9a45ed3c45cc846891308d",
+ "basePublicModuleCount": 177,
+ "basePublicModuleSha256": "18d1687aebf00e5e961b0fc6471cb0118e24ddaaadb42e4b21394a42a95162e1",
  "basePublicModules": [
   "hwpx_automation",
   "hwpx_automation.__main__",
@@ -134,6 +134,7 @@
   "hwpx_automation.office.rendering.detectors",
   "hwpx_automation.office.rendering.diff",
   "hwpx_automation.office.rendering.fixture_corpus",
+  "hwpx_automation.office.rendering.mac_session",
   "hwpx_automation.office.rendering.oracle",
   "hwpx_automation.office.rendering.page_qa",
   "hwpx_automation.office.rendering.qa_contracts",

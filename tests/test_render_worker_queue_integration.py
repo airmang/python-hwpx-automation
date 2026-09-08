@@ -96,3 +96,54 @@ def test_real_contract_worker_stores_hash_bound_downloadable_artifacts(tmp_path,
     assert receipt.binds(job)
     for artifact in receipt.artifacts:
         assert queue.content.path_for(artifact.content_hash).stat().st_size == artifact.size_bytes
+
+
+def test_cancel_during_render_is_acknowledged_and_next_job_can_run(tmp_path, monkeypatch):
+    queue, job = setup_queue(tmp_path)
+    class CancellingSession(RealFixtureSession):
+        def render_pdf(self, source, target):
+            queue.cancel(job.job_id)
+            return super().render_pdf(source, target)
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=CancellingSession, worker_version="worker/1")
+    monkeypatch.setattr(worker, "_rasterize", fake_raster)
+    assert run_queue_once(queue, worker, "worker-1")
+    receipt = queue.get(job.job_id)
+    assert receipt.status == RenderStatus.CANCELLED and not receipt.render_checked
+    assert not receipt.artifacts
+    assert not run_queue_once(queue, worker, "worker-1")
+
+
+def test_receipt_backend_comes_from_session(tmp_path, monkeypatch):
+    queue, job = setup_queue(tmp_path)
+    class MacContractSession(RealFixtureSession):
+        backend = "mac-gui-worker"
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=MacContractSession, worker_version="worker/1")
+    monkeypatch.setattr(worker, "_rasterize", fake_raster)
+    assert run_queue_once(queue, worker, "worker-1")
+    assert queue.get(job.job_id).backend == "mac-gui-worker"
+
+
+def test_cancel_at_completion_boundary_does_not_crash_worker(tmp_path, monkeypatch):
+    queue, job = setup_queue(tmp_path)
+    original = queue.complete
+    def racing_complete(lease, receipt, **kwargs):
+        queue.cancel(job.job_id)
+        return original(lease, receipt, **kwargs)
+    monkeypatch.setattr(queue, "complete", racing_complete)
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=RealFixtureSession, worker_version="worker/1")
+    monkeypatch.setattr(worker, "_rasterize", fake_raster)
+    assert run_queue_once(queue, worker, "worker-1")
+    assert queue.get(job.job_id).status == RenderStatus.CANCELLED
+
+
+def test_keepalive_extends_only_owned_unexpired_lease(tmp_path):
+    from datetime import timedelta
+    import pytest
+    from hwpx_automation.workflow.render_queue import RenderQueueError
+    queue, job = setup_queue(tmp_path)
+    now = datetime.now(timezone.utc)
+    lease = queue.claim("worker-1", lease_seconds=1, now=now)
+    assert queue.keepalive(lease, now=now + timedelta(milliseconds=500))
+    assert queue.claim("worker-2", now=now + timedelta(seconds=2)) is None
+    with pytest.raises(RenderQueueError, match="expired"):
+        queue.keepalive(lease, now=now + timedelta(seconds=302))

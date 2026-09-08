@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+from functools import partial
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,14 +37,29 @@ def run_queue_once(queue, worker: SerializedHancomWorker, worker_id: str) -> boo
         RenderArtifactKind, RenderArtifactV2, RenderReceiptV2, RenderStatus,
     )
 
+    from hwpx_automation.workflow.render_queue import RenderQueueError
+
     lease = queue.claim(worker_id)
     if lease is None:
         return False
+    lease_lost = False
+    def cancelled():
+        nonlocal lease_lost
+        try:
+            return not queue.keepalive(lease)
+        except RenderQueueError as exc:
+            if exc.code != "LEASE_NOT_OWNED":
+                raise
+            lease_lost = True
+            return True
+
     started = datetime.now(timezone.utc)
     result = worker.render(WorkerJob(
         lease.job.job_id, lease.source_path, lease.job.source_content_hash, lease.job.dpi,
-    ))
+    ), cancelled=cancelled)
     completed = datetime.now(timezone.utc)
+    if lease_lost:
+        return True
     if not result.render_checked:
         queue.fail(lease, reason=result.terminal_reason, retryable=result.retryable, now=completed)
         return True
@@ -57,13 +74,23 @@ def run_queue_once(queue, worker: SerializedHancomWorker, worker_id: str) -> boo
     receipt = RenderReceiptV2(
         job_id=lease.job.job_id, workflow_id=lease.job.workflow_id,
         input_content_hash=lease.job.source_content_hash, status=RenderStatus.SUCCEEDED,
-        backend="windows-com-worker", hancom_build=result.hancom_build,
+        backend=result.backend or "unknown-worker", hancom_build=result.hancom_build,
         worker_version=result.worker_version, queued_at=lease.job.submitted_at,
         started_at=started, completed_at=completed, artifacts=tuple(artifacts),
         page_count=result.page_count, retry_count=lease.attempt - 1,
         terminal_reason="SUCCEEDED", render_checked=True,
     )
-    queue.complete(lease, receipt, now=completed)
+    try:
+        if not queue.keepalive(lease):
+            queue.fail(lease, reason="CLIENT_CANCELLED", retryable=False)
+        else:
+            queue.complete(lease, receipt, now=completed)
+    except RenderQueueError as exc:
+        if exc.code == "LEASE_NOT_OWNED":
+            return True
+        if exc.code != "CANCEL_REQUESTED":
+            raise
+        queue.fail(lease, reason="CLIENT_CANCELLED", retryable=False)
     return True
 
 
@@ -77,14 +104,22 @@ def main() -> int:
     parser.add_argument("--worker-id", default="hancom-worker-1")
     parser.add_argument("--poll-seconds", type=float, default=2.0)
     parser.add_argument("--max-jobs", type=int)
+    parser.add_argument("--backend", choices=("auto", "windows", "mac"), default="auto")
     parser.add_argument("--fake", action="store_true", help="test only; never renderChecked")
     parser.add_argument("--hancom-build", default=os.environ.get("HWPX_HANCOM_BUILD"))
     parser.add_argument("--worker-version", default="hancom-worker/1")
     parser.add_argument("--timeout", type=float, default=300)
     args = parser.parse_args()
-    if not args.fake and not args.hancom_build:
+    backend = ("mac" if sys.platform == "darwin" else "windows") if args.backend == "auto" else args.backend
+    if not args.fake and backend == "windows" and not args.hancom_build:
         parser.error("--hancom-build or HWPX_HANCOM_BUILD is required")
-    factory = DeterministicFakeSession if args.fake else lambda: PowerShellHancomSession(hancom_build=args.hancom_build)
+    if args.fake:
+        factory = DeterministicFakeSession
+    elif backend == "mac":
+        from hwpx_automation.office.rendering.mac_session import MacHancomSession
+        factory = partial(MacHancomSession, timeout_seconds=args.timeout)
+    else:
+        factory = partial(PowerShellHancomSession, hancom_build=args.hancom_build)
     if args.daemon:
         if not args.queue_root:
             parser.error("--queue-root is required with --daemon")
@@ -106,12 +141,13 @@ def main() -> int:
                     available = False
                     degraded_reason = "FAKE_RENDERER"
                 else:
-                    from hwpx_automation.office.rendering.oracle import WindowsComOracle
-                    available = WindowsComOracle().available()
-                    degraded_reason = None if available else "HANCOM_COM_UNAVAILABLE"
+                    from hwpx_automation.office.rendering.oracle import MacHancomOracle, WindowsComOracle
+                    oracle = MacHancomOracle() if backend == "mac" else WindowsComOracle()
+                    available = oracle.available()
+                    degraded_reason = None if available else "HANCOM_UNAVAILABLE"
                 queue.heartbeat(
                     worker_version=args.worker_version,
-                    hancom_build=args.hancom_build or "FAKE-NOT-HANCOM",
+                    hancom_build=(factory().hancom_build if available and backend == "mac" else args.hancom_build) or "UNVERIFIED",
                     available=available,
                     degraded_reason=degraded_reason,
                 )

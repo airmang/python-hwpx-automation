@@ -138,3 +138,81 @@ def test_concurrent_second_job_is_deferred_not_parallel(tmp_path, monkeypatch):
     first.join()
     assert probe["max"] == 1
     assert sorted(item.terminal_reason for item in results) == ["FAKE_RENDER_ONLY", "WORKER_BUSY"]
+
+
+def test_copied_input_is_rechecked_before_starting_renderer(tmp_path, monkeypatch):
+    import hwpx_automation.office.rendering.worker as module
+    created = []
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=lambda: created.append(1), worker_version="test/1")
+    original = module.shutil.copyfile
+    def racing_copy(source, target):
+        result = original(source, target)
+        Path(target).write_bytes(b"changed-after-source-check")
+        return result
+    monkeypatch.setattr(module.shutil, "copyfile", racing_copy)
+    result = worker.render(job(tmp_path))
+    assert result.terminal_reason == "INPUT_HASH_MISMATCH"
+    assert not result.render_checked and not created
+
+
+def test_empty_page_set_cannot_claim_render_checked(tmp_path, monkeypatch):
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=DeterministicFakeSession, worker_version="test/1")
+    monkeypatch.setattr(worker, "_rasterize", lambda *args: [])
+    result = worker.render(job(tmp_path))
+    assert result.terminal_reason == "PAGE_RASTERIZE_FAILED"
+    assert not result.render_checked and not any(worker.artifacts.iterdir())
+
+
+def test_poisoned_thread_keeps_input_until_it_stops(tmp_path):
+    session = NonCooperativeSession()
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=lambda: session, worker_version="test/1", timeout_seconds=.01, abort_grace_seconds=.01)
+    worker.render(job(tmp_path))
+    assert len(list(worker.sandboxes.glob("*/input.hwpx"))) == 1
+    session.stop.set()
+    worker._poisoned_thread.join(1)
+    bad = job(tmp_path, "next")
+    worker.render(WorkerJob(bad.job_id, bad.input_path, "bad-hash"))
+    assert not any(worker.sandboxes.iterdir())
+
+
+def test_cancel_stops_owned_renderer_without_claiming_artifacts(tmp_path):
+    session = BlockingSession()
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=lambda: session, worker_version="test/1")
+    calls = []
+    def cancelled():
+        calls.append(1)
+        return len(calls) > 1
+    result = worker.render(job(tmp_path), cancelled=cancelled)
+    assert result.terminal_reason == "CLIENT_CANCELLED" and not result.retryable
+    assert session.aborted and not result.artifacts
+
+
+def test_invalid_job_path_does_not_remove_existing_artifacts(tmp_path):
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=DeterministicFakeSession, worker_version="test/1")
+    source = job(tmp_path)
+    result = worker.render(WorkerJob("../victim", source.input_path, source.input_content_hash))
+    assert result.terminal_reason == "INVALID_JOB"
+
+
+def test_incomplete_pdf_is_not_repaired_into_success(tmp_path):
+    import pymupdf
+    document = pymupdf.open()
+    document.new_page()
+    path = tmp_path / "incomplete.pdf"
+    path.write_bytes(document.tobytes().rsplit(b"%%EOF", 1)[0])
+    document.close()
+    import pytest
+    with pytest.raises(ValueError, match="Incomplete PDF"):
+        SerializedHancomWorker._rasterize(path, tmp_path, 72)
+
+
+def test_retry_failure_preserves_previous_receipt_files(tmp_path, monkeypatch):
+    worker = SerializedHancomWorker(tmp_path / "worker", session_factory=DeterministicFakeSession, worker_version="test/1")
+    monkeypatch.setattr(worker, "_rasterize", fake_pdf_rasterizer)
+    request = job(tmp_path)
+    first = worker.render(request)
+    saved = {a.relative_path: (worker.artifacts / a.relative_path).read_bytes() for a in first.artifacts}
+    monkeypatch.setattr(worker, "_rasterize", lambda *args: [])
+    second = worker.render(request)
+    assert not second.artifacts and second.terminal_reason == "PAGE_RASTERIZE_FAILED"
+    assert saved == {name: (worker.artifacts / name).read_bytes() for name in saved}
