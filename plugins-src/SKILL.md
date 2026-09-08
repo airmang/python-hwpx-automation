@@ -25,7 +25,7 @@ primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단�
 확정한 뒤 `dump_document_blueprint` → manifest의 unsupported/fidelity 검토 →
 `replay_document_blueprint`(dry-run → commit)를 쓴다.
 
-기존 문서 조회의 생략 표시, 상세 대상 재조회, 원본과 출력 분리, Python·CLI·MCP 안전 가드는
+기존 문서의 읽기/문안/적용 전환, 손편집 후 재조회, 허용 범위와 기준본 보존, Python·CLI·MCP 안전 가드는
 [기존 편집 안내](references/workflows-existing-edit.md)를 따른다. 구조 검사 통과와 실제 한컴 화면 확인은 별도로 보고한다.
 
 ## 시작 체크
