@@ -23,6 +23,8 @@ from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlTable
 from hwpx.quality import SavePipeline
 
+from ._batch_publication import BatchPublication
+from ._text_scope import TextScope
 from .catalog import catalog_hash
 from .document import HwpxAgentDocument, NodeRecord
 from .model import (
@@ -1282,6 +1284,7 @@ def apply_document_commands(
     """
 
     normalized: Mapping[str, Any] | None = None
+    publication: BatchPublication | None = None
     input_revision = _EMPTY_REVISION
     command_results: list[Mapping[str, Any]] = []
     verification: dict[str, Any] = {}
@@ -1305,7 +1308,8 @@ def apply_document_commands(
 
         input_path = Path(normalized["input"]["filename"])
         output_path = Path(normalized["output"]["filename"])
-        input_data = input_path.read_bytes()
+        publication = BatchPublication(input_path, output_path)
+        input_data = publication.input_data
         input_revision = _revision(input_data)
         _validate_apply_commands_input(normalized, verification, input_data, input_revision, output_path)
 
@@ -1316,6 +1320,7 @@ def apply_document_commands(
         _call_fault(fault_injector, "before_open")
         with HwpxDocument.open(input_data) as document:
             view = HwpxAgentDocument.from_document(document, revision=input_revision)
+            text_scope = TextScope.bind(view, normalized["commands"])
             for index, command in enumerate(normalized["commands"]):
                 _call_fault(fault_injector, "before_command", index)
                 command_id = command["commandId"]
@@ -1378,6 +1383,7 @@ def apply_document_commands(
                 story_expectations,
                 verification,
             )
+            text_scope.verify(input_data, candidate_data, verification)
             requirements = set(normalized["verificationRequirements"])
             _apply_commands_domain_verification(candidate_data, normalized, requirements, domain_verifier, verification)
             _require_candidate_structural_safety(safety, byte_report)
@@ -1392,6 +1398,7 @@ def apply_document_commands(
                 requirements,
                 save_pipeline,
                 verification,
+                publication,
             )
 
         batch_result = AgentBatchResult(
@@ -1409,6 +1416,8 @@ def apply_document_commands(
             idempotency_store[key] = {"requestHash": request_hash, "result": batch_result}
         return batch_result
     except BaseException as exc:  # fail closed; caller receives a stable error contract
+        if publication is not None:
+            publication.rollback(verification)
         return _failure_result(
             exc=exc,
             batch=normalized or batch,

@@ -60,13 +60,16 @@ FROZEN_CORE_VISUAL_RUNTIME_IMPORTS = (
     "hwpx.visual.qa_metrics",
 )
 CANONICAL_AGENT_ROOT = "src/hwpx_automation/office/agent"
-CANONICAL_AGENT_FILE_COUNT = 19
+# Two bounded owners added for revision-bound publication and text-scope policy.
+CANONICAL_AGENT_FILE_COUNT = 21
 CANONICAL_AUTHORING_ROOT = "src/hwpx_automation/office/authoring"
 # 17 since the 5.0 train: report_parser joined the owner it always belonged to.
 CANONICAL_AUTHORING_FILE_COUNT = 17
 ALLOWED_AGENT_CORE_IMPORTS = (
     "hwpx.document",
     "hwpx.mutation_report",
+    # Read-side guarded parsing; no second serializer or XML mutation engine.
+    "hwpx.opc.security",
     "hwpx.oxml",
     "hwpx.quality",
     "hwpx.table_patch",
