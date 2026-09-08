@@ -38,6 +38,7 @@ from ..upstream import (
     open_document,
 )
 from ..utils.helpers import default_max_chars, resolve_path, truncate_response
+from ..utils.read_budget import bound_document_summary
 from ._shared import _with_document_state
 
 _OUTPUT_MODES = {"full", "chunks"}
@@ -920,7 +921,8 @@ def get_document_map(
             "hwpx_extract_json",
         ],
     }
-    return _with_document_state(result, path)
+    result = _with_document_state(result, path)
+    return bound_document_summary(result) if summary_mode else result
 
 
 def hwpx_to_markdown(

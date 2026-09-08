@@ -41,9 +41,9 @@ def test_public_module_manifest_freezes_the_complete_shipped_source_surface() ->
     assert base_modules == sorted(set(base_modules))
     assert adapter_modules == sorted(set(adapter_modules))
     assert set(base_modules).isdisjoint(adapter_modules)
-    assert manifest["basePublicModuleCount"] == len(base_modules) == 177
+    assert manifest["basePublicModuleCount"] == len(base_modules) == 178
     assert manifest["mcpAdapterModuleCount"] == len(adapter_modules) == 5
-    assert manifest["moduleCount"] == len(all_modules) == 182
+    assert manifest["moduleCount"] == len(all_modules) == 183
     assert manifest["basePublicModuleSha256"] == _digest(base_modules)
     assert manifest["mcpAdapterModuleSha256"] == _digest(adapter_modules)
     assert manifest["moduleSha256"] == _digest(all_modules)
@@ -82,7 +82,7 @@ modules = manifest["basePublicModules"]
 digest = hashlib.sha256(
     ("\n".join(sorted(modules)) + "\n").encode()
 ).hexdigest()
-assert len(modules) == manifest["basePublicModuleCount"] == 177
+assert len(modules) == manifest["basePublicModuleCount"] == 178
 assert digest == manifest["basePublicModuleSha256"]
 for module in modules:
     importlib.import_module(module)

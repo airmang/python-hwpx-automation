@@ -23,6 +23,10 @@ from .blueprint import (
 )
 from .commands import apply_document_commands
 from .document import HwpxAgentDocument
+from .form_plan import (
+    MIXED_FORM_PLAN_SCHEMA, MIXED_FORM_COMPILED_PLAN_SCHEMA,
+    apply_mixed_form_fill, apply_mixed_form_plan,
+)
 from .model import (
     AGENT_BATCH_SCHEMA,
     AgentBatchResult,
@@ -536,6 +540,15 @@ def _run_replay(args: argparse.Namespace, *, stdin: TextIO, stdout: TextIO) -> i
     return _exit_code(result.error)
 
 
+def _apply_batch_request(request: Mapping[str, Any], store: dict[str, Any]) -> AgentBatchResult:
+    schema = request.get("schemaVersion")
+    if schema == MIXED_FORM_PLAN_SCHEMA:
+        return apply_mixed_form_fill(request, idempotency_store=store)
+    if schema == MIXED_FORM_COMPILED_PLAN_SCHEMA:
+        return apply_mixed_form_plan(request, idempotency_store=store)
+    return apply_document_commands(request, idempotency_store=store)
+
+
 def _run_mutation(
     args: argparse.Namespace,
     *,
@@ -550,7 +563,7 @@ def _run_mutation(
     exit_code = EXIT_OK
     results: list[AgentBatchResult] = []
     for request in requests:
-        result = apply_document_commands(request, idempotency_store=store)
+        result = _apply_batch_request(request, store)
         results.append(result)
         exit_code = max(exit_code, _exit_code(result.error))
     if args.output_format == "human":
