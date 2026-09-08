@@ -23,9 +23,13 @@ HARNESS_BIN = ROOT / "tests" / "launcher_harness" / "bin"
 IDENTITY = json.loads((ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8"))
 CORE = IDENTITY["components"]["core"]["currentVersion"]
 AUTOMATION = IDENTITY["components"]["automation"]["currentVersion"]
+CORE_PATCH_1 = ".".join([*CORE.split(".")[:2], str(int(CORE.split(".")[2]) + 1)])
+CORE_PATCH_2 = ".".join([*CORE.split(".")[:2], str(int(CORE.split(".")[2]) + 2)])
+CORE_NEXT_MAJOR = f"{int(CORE.split('.')[0]) + 1}.0.0"
+AUTOMATION_NEXT_MAJOR = f"{int(AUTOMATION.split('.')[0]) + 1}.0.0"
 INDEX_V1 = {"python-hwpx": [CORE], "python-hwpx-automation": [AUTOMATION]}
-INDEX_V2 = {"python-hwpx": [CORE, "6.3.1"], "python-hwpx-automation": [AUTOMATION]}
-INDEX_V3 = {"python-hwpx": [CORE, "6.3.1", "6.3.2"], "python-hwpx-automation": [AUTOMATION]}
+INDEX_V2 = {"python-hwpx": [CORE, CORE_PATCH_1], "python-hwpx-automation": [AUTOMATION]}
+INDEX_V3 = {"python-hwpx": [CORE, CORE_PATCH_1, CORE_PATCH_2], "python-hwpx-automation": [AUTOMATION]}
 
 
 
@@ -118,12 +122,12 @@ def test_warm_start_execs_server_without_touching_the_index(tmp_path: Path) -> N
 
 
 def test_floor_channel_installs_newest_inside_the_major_window(tmp_path: Path) -> None:
-    index = {"python-hwpx": ["6.3.0", "6.3.1", "7.0.0"], "python-hwpx-automation": [AUTOMATION, "8.0.0"]}
+    index = {"python-hwpx": [CORE, CORE_PATCH_1, CORE_NEXT_MAJOR], "python-hwpx-automation": [AUTOMATION, AUTOMATION_NEXT_MAJOR]}
     env = _env(tmp_path, index)
     assert _launch(env, "--help").returncode == 0
-    assert _generations(_env_dir(tmp_path)) == [f"gen-6.3.1-{AUTOMATION}"]
+    assert _generations(_env_dir(tmp_path)) == [f"gen-{CORE_PATCH_1}-{AUTOMATION}"]
     specs = [arg for call in _uv_calls(env) if call[:2] == ["pip", "install"] for arg in call if arg.startswith("python-hwpx")]
-    assert "python-hwpx[preview]>=6.3.0,<7" in specs and IDENTITY["installConstraint"]["automation"] in specs
+    assert IDENTITY["installConstraint"]["core"] in specs and IDENTITY["installConstraint"]["automation"] in specs
 
 
 def test_verified_channel_requests_the_exact_verified_pair(tmp_path: Path) -> None:
@@ -182,24 +186,24 @@ def test_refresh_installs_a_newer_generation_and_repoints_current(tmp_path: Path
     env["FAKE_UV_INDEX"] = json.dumps(INDEX_V2)
     assert _refresh(env).returncode == 0
     env_dir = _env_dir(tmp_path)
-    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}", f"gen-6.3.1-{AUTOMATION}"]
-    assert (env_dir / "current").read_text().strip() == f"gen-6.3.1-{AUTOMATION}"
-    assert _state(env_dir)["runtime"]["installed"]["python-hwpx"] == "6.3.1"
+    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}", f"gen-{CORE_PATCH_1}-{AUTOMATION}"]
+    assert (env_dir / "current").read_text().strip() == f"gen-{CORE_PATCH_1}-{AUTOMATION}"
+    assert _state(env_dir)["runtime"]["installed"]["python-hwpx"] == CORE_PATCH_1
     served = _launch(env, "x")
-    assert served.stdout.startswith(f"FAKE-SERVER core=6.3.1 automation={AUTOMATION} ")
+    assert served.stdout.startswith(f"FAKE-SERVER core={CORE_PATCH_1} automation={AUTOMATION} ")
     _no_leftovers(tmp_path)
 
 
 def test_refresh_keeps_current_when_the_candidate_fails_the_self_check(tmp_path: Path) -> None:
     env = _env(tmp_path)
     assert _launch(env, "--help").returncode == 0
-    env.update({"FAKE_UV_INDEX": json.dumps(INDEX_V2), "FAKE_UV_BROKEN_VERSION": "6.3.1"})
+    env.update({"FAKE_UV_INDEX": json.dumps(INDEX_V2), "FAKE_UV_BROKEN_VERSION": CORE_PATCH_1})
     assert _refresh(env).returncode == 0
     env_dir = _env_dir(tmp_path)
     assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
     assert (env_dir / "current").read_text().strip() == f"gen-{CORE}-{AUTOMATION}"
     state = _state(env_dir)
-    assert state["runtime"]["latestAvailable"]["python-hwpx"] == "6.3.1"
+    assert state["runtime"]["latestAvailable"]["python-hwpx"] == CORE_PATCH_1
     assert "self-check" in state["lastError"]
     _no_leftovers(tmp_path)
 
@@ -223,8 +227,8 @@ def test_refresh_preserves_all_generations_for_running_servers(tmp_path: Path) -
         env["FAKE_UV_INDEX"] = json.dumps(index)
         assert _refresh(env).returncode == 0
     env_dir = _env_dir(tmp_path)
-    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}", f"gen-6.3.1-{AUTOMATION}", f"gen-6.3.2-{AUTOMATION}"]
-    assert (env_dir / "current").read_text().strip() == f"gen-6.3.2-{AUTOMATION}"
+    assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}", f"gen-{CORE_PATCH_1}-{AUTOMATION}", f"gen-{CORE_PATCH_2}-{AUTOMATION}"]
+    assert (env_dir / "current").read_text().strip() == f"gen-{CORE_PATCH_2}-{AUTOMATION}"
 
 
 def test_refresh_is_not_spawned_when_auto_update_is_off_or_request_is_exact(tmp_path: Path) -> None:
@@ -251,9 +255,9 @@ def test_detached_refresh_never_delays_server_start(tmp_path: Path) -> None:
     assert elapsed < 3.0, f"start blocked on the refresh job: {elapsed:.1f}s"
     env_dir = _env_dir(tmp_path)
     deadline = time.monotonic() + 30
-    while time.monotonic() < deadline and (env_dir / "current").read_text().strip() != f"gen-6.3.1-{AUTOMATION}":
+    while time.monotonic() < deadline and (env_dir / "current").read_text().strip() != f"gen-{CORE_PATCH_1}-{AUTOMATION}":
         time.sleep(0.5)
-    assert (env_dir / "current").read_text().strip() == f"gen-6.3.1-{AUTOMATION}"
+    assert (env_dir / "current").read_text().strip() == f"gen-{CORE_PATCH_1}-{AUTOMATION}"
     assert (env_dir / "refresh.log").exists()
 
 
@@ -313,13 +317,13 @@ def test_same_version_slot_requires_full_validation_before_reuse(tmp_path: Path)
     assert _launch(env, "--help").returncode == 0
     env_dir = _env_dir(tmp_path)
     old = env_dir / (env_dir / "current").read_text().strip()
-    bad = env_dir / f"gen-6.3.1-{AUTOMATION}"
+    bad = env_dir / f"gen-{CORE_PATCH_1}-{AUTOMATION}"
     shutil.copytree(old, bad, symlinks=True)
     package = next(bad.glob("lib/python*/site-packages/hwpx/__init__.py"))
     package.write_text('raise ImportError("old broken slot")\n')
     env["FAKE_UV_INDEX"] = json.dumps(INDEX_V2)
     assert _refresh(env).returncode == 0
     current = env_dir / (env_dir / "current").read_text().strip()
-    assert current.name.startswith(f"gen-6.3.1-{AUTOMATION}-repair-")
+    assert current.name.startswith(f"gen-{CORE_PATCH_1}-{AUTOMATION}-repair-")
     assert bad.exists() and old.exists()
     assert _state(env_dir)["lastError"] is None

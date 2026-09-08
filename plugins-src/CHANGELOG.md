@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased] — 2.2.0 candidate
+
+- Integrate core 6.4.0 and automation 7.1.0 with an explicit unpublished candidate state and unchanged public coordinates.
+- Document bounded existing-document navigation and preservation/visual verification separately; regenerate all four host bundles.
+
+
 ## [2.1.0] - 2026-09-07
 
 - Codex 런처 보강: Codex도 공통 관리 런처를 실행하고 verified·후보 검증·상태 파일을 공유합니다. advanced/렌더 설정 전달, 릴리스 상태 기록, 실행 중 버전과 준비된 세대 구분을 보강했습니다.

@@ -1,124 +1,118 @@
 {
- "schemaVersion": "hwpx.product-identity.v3",
- "stackName": "HWPX stack",
- "releaseState": {
-  "status": "released",
-  "candidate": {
-   "pythonHwpx": "6.3.0",
-   "canonicalDistribution": "python-hwpx-automation",
-   "canonicalAutomation": "7.0.4",
-   "compatibilityDistribution": "hwpx-mcp-server",
-   "compatibility": "7.0.4",
-   "plugin": "2.1.0",
-   "contractHash": "8c278ebd5becba08"
+  "schemaVersion": "hwpx.product-identity.v3",
+  "stackName": "HWPX stack",
+  "releaseState": {
+    "status": "unreleased-candidate",
+    "candidate": {
+      "pythonHwpx": "6.4.0",
+      "canonicalDistribution": "python-hwpx-automation",
+      "canonicalAutomation": "7.1.0",
+      "compatibilityDistribution": "hwpx-mcp-server",
+      "compatibility": "7.1.0",
+      "plugin": "2.2.0",
+      "contractHash": "ba0211fc854a0a97"
+    },
+    "currentPublic": {
+      "pythonHwpx": "6.3.0",
+      "primaryDistribution": "python-hwpx-automation",
+      "primaryApplication": "7.0.4",
+      "plugin": "2.1.0",
+      "contractHash": "8c278ebd5becba08"
+    },
+    "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication.",
+    "previousPublic": {
+      "pythonHwpx": "6.3.0",
+      "primaryDistribution": "python-hwpx-automation",
+      "primaryApplication": "7.0.4",
+      "plugin": "2.1.0",
+      "contractHash": "8c278ebd5becba08"
+    }
   },
-  "currentPublic": {
-   "pythonHwpx": "6.3.0",
-   "primaryDistribution": "python-hwpx-automation",
-   "primaryApplication": "7.0.4",
-   "plugin": "2.1.0",
-   "contractHash": "8c278ebd5becba08"
+  "currentPublicStack": {
+    "core": {
+      "distribution": "python-hwpx",
+      "version": "6.3.0"
+    },
+    "application": {
+      "distribution": "python-hwpx-automation",
+      "version": "7.0.4"
+    },
+    "plugin": {
+      "installedPluginId": "hwpx-plugin",
+      "version": "2.1.0"
+    }
   },
-  "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication.",
-  "previousPublic": {
-   "pythonHwpx": "6.3.0",
-   "primaryDistribution": "python-hwpx-automation",
-   "primaryApplication": "7.0.3",
-   "plugin": "2.0.3",
-   "contractHash": "8c278ebd5becba08"
+  "firstPartyLabelKo": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬",
+  "visualVerificationNoteKo": "문서 편집은 순수 Python으로 수행하며, 최종 시각 검증은 필요할 때 한컴 오라클을 사용합니다.",
+  "components": {
+    "core": {
+      "repository": "python-hwpx",
+      "distribution": "python-hwpx",
+      "importName": "hwpx",
+      "currentVersion": "6.4.0",
+      "minimumCompatibleVersion": "6.4.0",
+      "maturity": "alpha",
+      "maturityEvidence": "Development Status :: 3 - Alpha"
+    },
+    "automation": {
+      "repository": "python-hwpx-automation",
+      "sourceRepositoryBeforeRename": "hwpx-mcp-server",
+      "distribution": "python-hwpx-automation",
+      "importName": "hwpx_automation",
+      "taskConsole": "hwpx",
+      "mcpConsole": "hwpx-automation-mcp",
+      "fastMcpName": "python-hwpx-automation",
+      "hostConfigKey": "hwpx",
+      "hostConfigKeyKind": "local-alias",
+      "launcherPath": "scripts/hwpx-automation-mcp",
+      "currentVersion": "7.1.0",
+      "minimumCompatibleVersion": "7.1.0",
+      "maturity": "not-declared",
+      "mcpExtra": "mcp",
+      "pluginInstallExtras": [
+        "mcp",
+        "oracle"
+      ],
+      "distributionNote": "배포명은 python-hwpx-automation이다. MCP는 [mcp] extra이며 플러그인은 렌더·PDF word-box 검증을 위해 [oracle]도 함께 설치한다."
+    },
+    "plugin": {
+      "repository": "hwpx-plugins",
+      "installedPluginId": "hwpx-plugin",
+      "installedSkillName": "hwpx",
+      "currentVersion": "2.2.0",
+      "minimumCompatibleVersion": "2.0.0",
+      "maturity": "not-declared"
+    }
   },
-  "publicationEvidence": {
-   "pluginVersion": "2.1.0",
-   "installObserved": true,
-   "observedAt": "2026-09-07T12:36:33.025850+00:00",
-   "releaseUrl": "https://github.com/airmang/hwpx-plugins/releases/tag/v2.1.0"
+  "compatibility": {
+    "distribution": "hwpx-mcp-server",
+    "importName": "hwpx_mcp_server",
+    "console": "hwpx-mcp-server",
+    "hostConfigKey": "hwpx-mcp-server",
+    "launcherPath": "scripts/hwpx-mcp-server",
+    "stateDirectory": "hwpx-mcp-server",
+    "environmentPrefix": "HWPX_MCP_",
+    "supportedSeries": "7.x",
+    "removalPolicy": "7.x 전체에서 유지한다. 제거 전 공개 관찰, 사전 공지, legacy install/deep-import/console/config/state 회귀 테스트의 별도 major 승인이 모두 필요하다."
+  },
+  "oldNameTaxonomyFile": "old-name-taxonomy.json",
+  "pluginPinPolicy": {
+    "core": "verified-floor",
+    "automation": "verified-floor"
+  },
+  "forbiddenUnqualifiedClaimsKo": [
+    "공식 온보딩 스킬",
+    "공식 에이전트 스킬"
+  ],
+  "verifiedStack": {
+    "pythonHwpx": "6.4.0",
+    "automation": "7.1.0",
+    "plugin": "2.2.0",
+    "contractHash": "ba0211fc854a0a97",
+    "verifiedAt": "2026-09-08"
+  },
+  "installConstraint": {
+    "core": "python-hwpx[preview]>=6.4.0,<7",
+    "automation": "python-hwpx-automation[mcp,oracle]>=7.1.0,<8"
   }
- },
- "currentPublicStack": {
-  "core": {
-   "distribution": "python-hwpx",
-   "version": "6.3.0"
-  },
-  "application": {
-   "distribution": "python-hwpx-automation",
-   "version": "7.0.4"
-  },
-  "plugin": {
-   "installedPluginId": "hwpx-plugin",
-   "version": "2.1.0"
-  }
- },
- "firstPartyLabelKo": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬",
- "visualVerificationNoteKo": "문서 편집은 순수 Python으로 수행하며, 최종 시각 검증은 필요할 때 한컴 오라클을 사용합니다.",
- "components": {
-  "core": {
-   "repository": "python-hwpx",
-   "distribution": "python-hwpx",
-   "importName": "hwpx",
-   "currentVersion": "6.3.0",
-   "minimumCompatibleVersion": "6.3.0",
-   "maturity": "alpha",
-   "maturityEvidence": "Development Status :: 3 - Alpha"
-  },
-  "automation": {
-   "repository": "python-hwpx-automation",
-   "sourceRepositoryBeforeRename": "hwpx-mcp-server",
-   "distribution": "python-hwpx-automation",
-   "importName": "hwpx_automation",
-   "taskConsole": "hwpx",
-   "mcpConsole": "hwpx-automation-mcp",
-   "fastMcpName": "python-hwpx-automation",
-   "hostConfigKey": "hwpx",
-   "hostConfigKeyKind": "local-alias",
-   "launcherPath": "scripts/hwpx-automation-mcp",
-   "currentVersion": "7.0.4",
-   "minimumCompatibleVersion": "7.0.1",
-   "maturity": "not-declared",
-   "mcpExtra": "mcp",
-   "pluginInstallExtras": [
-    "mcp",
-    "oracle"
-   ],
-   "distributionNote": "배포명은 python-hwpx-automation이다. MCP는 [mcp] extra이며 플러그인은 렌더·PDF word-box 검증을 위해 [oracle]도 함께 설치한다."
-  },
-  "plugin": {
-   "repository": "hwpx-plugins",
-   "installedPluginId": "hwpx-plugin",
-   "installedSkillName": "hwpx",
-   "currentVersion": "2.1.0",
-   "minimumCompatibleVersion": "2.0.0",
-   "maturity": "not-declared"
-  }
- },
- "compatibility": {
-  "distribution": "hwpx-mcp-server",
-  "importName": "hwpx_mcp_server",
-  "console": "hwpx-mcp-server",
-  "hostConfigKey": "hwpx-mcp-server",
-  "launcherPath": "scripts/hwpx-mcp-server",
-  "stateDirectory": "hwpx-mcp-server",
-  "environmentPrefix": "HWPX_MCP_",
-  "supportedSeries": "7.x",
-  "removalPolicy": "7.x 전체에서 유지한다. 제거 전 공개 관찰, 사전 공지, legacy install/deep-import/console/config/state 회귀 테스트의 별도 major 승인이 모두 필요하다."
- },
- "oldNameTaxonomyFile": "old-name-taxonomy.json",
- "pluginPinPolicy": {
-  "core": "verified-floor",
-  "automation": "verified-floor"
- },
- "forbiddenUnqualifiedClaimsKo": [
-  "공식 온보딩 스킬",
-  "공식 에이전트 스킬"
- ],
- "verifiedStack": {
-  "pythonHwpx": "6.3.0",
-  "automation": "7.0.4",
-  "plugin": "2.1.0",
-  "contractHash": "8c278ebd5becba08",
-  "verifiedAt": "2026-09-07"
- },
- "installConstraint": {
-  "core": "python-hwpx[preview]>=6.3.0,<7",
-  "automation": "python-hwpx-automation[mcp,oracle]>=7.0.4,<8"
- }
 }

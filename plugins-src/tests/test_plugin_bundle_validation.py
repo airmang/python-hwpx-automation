@@ -360,25 +360,25 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert identity["schemaVersion"] == "hwpx.product-identity.v3"
     release = identity["releaseState"]
     assert release["status"] in {"unreleased-candidate", "release-approved", "released"}
-    assert release["candidate"]["plugin"] == "2.1.0"
+    assert release["candidate"]["plugin"] == components["plugin"]["currentVersion"]
     if release["status"] == "released":
         assert release["currentPublic"]["plugin"] == release["candidate"]["plugin"]
         assert release["publicationEvidence"]["installObserved"] is True
     else:
         assert release["currentPublic"] == release["previousPublic"]
-        assert release["publicationEvidence"] is None
+        assert release.get("publicationEvidence") is None
     assert identity["currentPublicStack"]["plugin"]["version"] == release["currentPublic"]["plugin"]
-    assert components["core"]["currentVersion"] == "6.3.0"
-    assert components["core"]["minimumCompatibleVersion"] == "6.3.0"
+    assert components["core"]["currentVersion"] == release["candidate"]["pythonHwpx"]
+    assert components["core"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text())["minPythonHwpx"]
     assert components["automation"]["currentVersion"] == identity["releaseState"]["candidate"]["canonicalAutomation"]
-    assert components["automation"]["minimumCompatibleVersion"] == "7.0.1"
+    assert components["automation"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text())["minAutomationVersion"]
     assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
     assert components["automation"]["hostConfigKey"] == "hwpx"
     assert components["automation"]["hostConfigKeyKind"] == "local-alias"
     assert components["automation"]["launcherPath"] == "scripts/hwpx-automation-mcp"
     assert identity["compatibility"]["hostConfigKey"] == "hwpx-mcp-server"
     assert identity["compatibility"]["launcherPath"] == "scripts/hwpx-mcp-server"
-    assert components["plugin"]["currentVersion"] == "2.1.0"
+    assert components["plugin"]["currentVersion"] == release["candidate"]["plugin"]
     assert components["plugin"]["minimumCompatibleVersion"] == "2.0.0"
     assert identity["pluginPinPolicy"] == {"core": "verified-floor", "automation": "verified-floor"}
     assert identity["verifiedStack"] == {
@@ -458,6 +458,7 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
             "plugin": candidate["plugin"],
             "contractHash": candidate["contractHash"],
         }
+        identity["currentPublicStack"]["core"]["version"] = candidate["pythonHwpx"]
         identity["currentPublicStack"]["plugin"]["version"] = candidate["plugin"]
         identity["currentPublicStack"]["application"]["version"] = candidate["canonicalAutomation"]
         # A synthetic receipt tests schema/lifecycle only, never publication.

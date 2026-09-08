@@ -78,3 +78,5 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 > `HWPX_STACK_CHANNEL=verified`는 검증 좌표를 고정합니다.
 
 상태: released. 검증 영수증: references/release-2026-09-07-managed-runtime.md.
+
+현재 공개 릴리스와 미발행 후보를 구분한다. 공개: python-hwpx 6.3.0 · python-hwpx-automation 7.0.4 · hwpx-plugin 2.1.0. 후보: python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0.
