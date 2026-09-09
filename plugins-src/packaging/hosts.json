@@ -73,6 +73,7 @@
     "scripts/visual_review_batch.py",
     "scripts/zip_replace_all.py",
     "references/release-2026-09-07-managed-runtime.md",
+    "references/release-2026-09-09-existing-edit-stack.md",
     "references/workflows-existing-edit.md"
   ],
   "repoRootArtifacts": [

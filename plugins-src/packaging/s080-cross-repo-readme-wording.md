@@ -1,6 +1,6 @@
 # Cross-repository README wording — 현재 공개 릴리스
 
-릴리스 상태: `release-approved` (2026-09-09) — 공개 트레인은
+릴리스 상태: `released` (2026-09-09) — 공개 트레인은
 core 5.0.2 / `python-hwpx-automation` 6.0.4 / plugin 1.0.1이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
@@ -72,11 +72,11 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 
 버전 문구:
 
-> 현재 공개 릴리스는 python-hwpx 6.3.0 / python-hwpx-automation 7.0.4 /
-> hwpx-plugin 2.1.0입니다. 공개 발행과 실제 Codex marketplace 설치를 관찰했습니다.
+> 현재 공개 릴리스는 python-hwpx 6.4.0 / python-hwpx-automation 7.1.0 /
+> hwpx-plugin 2.2.0입니다. 공개 발행과 실제 Codex marketplace 설치를 관찰했습니다.
 > 설치 제약은 검증된 플로어부터 같은 메이저 안의 버전을 허용하며,
 > `HWPX_STACK_CHANNEL=verified`는 검증 좌표를 고정합니다.
 
 상태: released. 검증 영수증: references/release-2026-09-07-managed-runtime.md.
 
-현재 공개 릴리스와 아직 원격 관찰 전인 발행 승인 후보를 구분한다. 공개: python-hwpx 6.3.0 · python-hwpx-automation 7.0.4 · hwpx-plugin 2.1.0. 후보: python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0.
+현재 공개 릴리스: python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0 (2026-09-09 발행·설치 관찰). 이전 공개: 6.3.0 · 7.0.4 · 2.1.0.
