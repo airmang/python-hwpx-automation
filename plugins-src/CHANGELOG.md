@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — 2.2.0 candidate
+## [2.2.0] - 2026-09-09
 
 - Integrate core 6.4.0 and automation 7.1.0 with an explicit unpublished candidate state and unchanged public coordinates.
 - Document bounded existing-document navigation and preservation/visual verification separately; regenerate all four host bundles.

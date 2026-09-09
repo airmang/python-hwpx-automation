@@ -14,13 +14,13 @@
   </p>
 </p>
 
-<!-- release-state: unreleased-candidate -->
+<!-- release-state: release-approved -->
 
 > [!NOTE]
-> 미발행 후보: `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0`.
+> 발행 승인된(release-approved) 후보: `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0`.
 > 현재 공개 릴리스는 `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` · `hwpx-plugin 2.1.0`입니다.
 > 후보 계약은 `ba0211fc854a0a97`, 공개 계약은 `8c278ebd5becba08`입니다.
-> 후보는 로컬 검증용이며 아래 marketplace 명령은 공개판을 설치합니다.
+> 후보의 공개 좌표 승격은 core·automation 발행과 실제 marketplace 설치 관찰 후에 합니다. 그때까지 아래 marketplace 명령은 공개판을 설치합니다.
 > [공개판 설치 영수증](references/release-2026-09-07-managed-runtime.md)
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
@@ -96,7 +96,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.3.0` · `python-hwpx-automation 7.0.4` · `hwpx-plugin 2.1.0` |
-| 검증 좌표 | 미발행 후보, 로컬 통합 검증 대상 | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0` |
+| 검증 좌표 | 발행 승인된 후보, 원격 발행·설치 관찰 전 | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0` |
 | 최소 호환 버전 | 2.0 스킬 계약이 지원하는 가장 낮은 조합 | `python-hwpx >= 6.4.0` · `python-hwpx-automation >= 7.1.0` · skill `>= 2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` |
 | 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.4.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.1.0,<8` |
