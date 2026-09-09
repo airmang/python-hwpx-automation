@@ -10,7 +10,7 @@ description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한�
 host-local key `hwpx`, launcher `scripts/hwpx-automation-mcp`, 콘솔
 `hwpx-automation-mcp`를 사용한다. `hwpx-mcp-server` 이름과 launcher wrapper는
 6.x 호환 표면이며 host key는 MCP 프로토콜 식별자가 아니다.
-MCP가 없을 때의 local Python(`python-hwpx >= 6.3.0`) 대안과 번들 스크립트는 references 문서에만 있다.
+MCP가 없을 때의 local Python(`python-hwpx >= 6.4.0`) 대안과 번들 스크립트는 references 문서에만 있다.
 
 일반적인 읽기·편집·양식 채움·문서 생성처럼 여러 단계를 거치는 작업은 서버가 상태와 안전 정책을
 강제하는 `start_workflow`를 1차 경로로 쓴다. `get_workflow`·`continue_workflow`로 진행하고,
@@ -24,6 +24,9 @@ primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단�
 지원되는 문서·하위 트리를 다른 HWPX로 이식할 때는 같은 경로로 source/target canonical path를
 확정한 뒤 `dump_document_blueprint` → manifest의 unsupported/fidelity 검토 →
 `replay_document_blueprint`(dry-run → commit)를 쓴다.
+
+기존 문서 조회의 생략 표시, 상세 대상 재조회, 원본과 출력 분리, Python·CLI·MCP 안전 가드는
+[기존 편집 안내](references/workflows-existing-edit.md)를 따른다. 구조 검사 통과와 실제 한컴 화면 확인은 별도로 보고한다.
 
 ## 시작 체크
 

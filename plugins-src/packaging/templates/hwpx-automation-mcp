@@ -17,10 +17,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-VERIFIED_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]==7.0.4"
-VERIFIED_CORE_PACKAGE="python-hwpx[preview]==6.3.0"
-CONSTRAINT_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]>=7.0.4,<8"
-CONSTRAINT_CORE_PACKAGE="python-hwpx[preview]>=6.3.0,<7"
+VERIFIED_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]==7.1.0"
+VERIFIED_CORE_PACKAGE="python-hwpx[preview]==6.4.0"
+CONSTRAINT_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle]>=7.1.0,<8"
+CONSTRAINT_CORE_PACKAGE="python-hwpx[preview]>=6.4.0,<7"
 
 STACK_CHANNEL="${HWPX_STACK_CHANNEL:-floor}"
 case "${STACK_CHANNEL}" in
@@ -70,7 +70,7 @@ _pinned_version() {
 }
 EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-$(_pinned_version "${SERVER_PACKAGE}")}}"
 EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-$(_pinned_version "${CORE_PACKAGE}")}"
-export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.1.0}"
+export HWPX_SKILL_VERSION="${HWPX_SKILL_VERSION:-2.2.0}"
 if [ "${HWPX_LAUNCHER_EMBEDDED:-0}" != "1" ]; then
   export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"
 fi
