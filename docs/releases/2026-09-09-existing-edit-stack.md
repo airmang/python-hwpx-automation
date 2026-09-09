@@ -1,0 +1,14 @@
+# Existing-edit stack release verification — 2026-09-09
+
+Public train: python-hwpx 6.4.0, python-hwpx-automation 7.1.0, hwpx-mcp-server compatibility 7.1.0, hwpx-plugin 2.2.0. Contract `ba0211fc854a0a97` (floor-only change from `8c278ebd5becba08`; 128 default / 136 advanced / 29 skill-required tools unchanged).
+
+- [Core release](https://github.com/airmang/python-hwpx/releases/tag/v6.4.0): wheel `1cc08533…4a48` and sdist observed on PyPI; [release workflow](https://github.com/airmang/python-hwpx/actions/runs/34366258536) succeeded (legacy cap, prepublish, release, hash verification).
+- [Automation release](https://github.com/airmang/python-hwpx-automation/releases/tag/v7.1.0): canonical wheel `f957042e…b6e2` and compatibility wheel `6a739b46…0a2f` observed on PyPI; [release workflow](https://github.com/airmang/python-hwpx-automation/actions/runs/34369172628) succeeded and attached the release-approved plugin handoff receipt.
+- [Plugin release](https://github.com/airmang/hwpx-plugins/releases/tag/v2.2.0): public marketplace installed by Codex 0.153.4 (`codex plugin marketplace add airmang/hwpx-plugins`, `codex plugin add hwpx-plugin@hwpx` → 2.2.0). A fresh ephemeral app-server session, with no model turn, called `mcp_server_health` and `describe_capabilities` through the installed plugin.
+- Native Codex observed core 6.4.0 / automation 7.1.0 / plugin 2.2.0, 128 default tools bound to contract `ba0211fc854a0a97` (binding `a5551276d1465838`, no mismatches). The managed launcher built a new generation `gen-6.4.0-7.1.0`; installed and running versions matched, `restartRequired=false`, `lastError=null`.
+- A fresh venv `pip install python-hwpx-automation[mcp]==7.1.0 hwpx-mcp-server==7.1.0` resolved core 6.4.0 and served 128 tools over stdio. The first resolver attempt right after upload hit PyPI simple-index propagation lag; the retry succeeded.
+- Source CI: [automation PR #108](https://github.com/airmang/python-hwpx-automation/pull/108) 14/14 checks (Python 3.10–3.14, clean package installs, macOS/Windows oracle boundary, release-gate dry run, windows-publish-gate); [plugin PR #31](https://github.com/airmang/hwpx-plugins/pull/31) plugin-contract passed; [core PR #97](https://github.com/airmang/python-hwpx/pull/97) 13/13. Local compat matrix against the core 6.4.0 wheel passed all five shapes including legacy 5.1.1 / core 4.2.0 upgrade and full rollback.
+
+The release tags and PyPI artifacts retain `release-approved` as the publication-time snapshot. Only this follow-up source commit promotes `currentPublic` to the observed full train; immutable artifacts are not rewritten.
+
+A successful installation is not a multi-day update observation or a real Hancom rendering verdict; the advanced 136-tool runtime was not re-observed for this train. Receiving a future upstream release without a plugin change and observations over three releases remain longitudinal follow-ups.
