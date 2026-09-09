@@ -2,8 +2,8 @@
 
 > Python 자동화와 선택 MCP 어댑터로 여는 한글(HWPX) 문서 워크플로
 >
-> 릴리스 상태: `release-approved` — 발행 승인됐지만 아직 원격 관찰 전인 7.1.0 source candidate입니다.
-> 현재 공개 트레인은 `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`입니다.
+> 릴리스 상태: `released` — 7.1.0 공개 릴리스이며 실제 marketplace 설치를 관찰했습니다.
+> 현재 공개 트레인은 `python-hwpx 6.4.0 → python-hwpx-automation 7.1.0 → hwpx-plugin 2.2.0`입니다.
 
 ---
 
@@ -15,9 +15,9 @@
 
 기존에는 한글 파일을 열어서 일일이 수작업으로 처리해야 했던 일을, 이제 자연어 요청으로 자동화할 수 있습니다.
 
-후보 계약은 `ba0211fc854a0a97`, 현재 공개 트레인의 계약은 `8c278ebd5becba08`입니다.
+현재 공개 트레인의 계약은 `ba0211fc854a0a97`입니다(이전 공개 계약 `8c278ebd5becba08`에서 floor만 변경).
 
-후보의 기본 모드 128개(고급 모드 포함 총 136개)의 도구로 문서 생성,
+기본 모드 128개(고급 모드 포함 총 136개)의 도구로 문서 생성,
 선언형 document-plan 생성, 선언적 편집 계획 실행(`run_edit_plan` —
 다단 편집을 all-or-nothing 원자 실행), 누름틀 필드 저작(`add_form_field`),
 네이티브 수식 저작(`add_equation`, LaTeX→EqEdit), 네이티브 차트 생성
