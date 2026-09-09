@@ -12,9 +12,9 @@
   </p>
 </p>
 
-<!-- release-state: unreleased-candidate -->
+<!-- release-state: release-approved -->
 > [!NOTE]
-> 이 소스는 아직 공개되지 않은 7.1.0 후보입니다.
+> 이 소스는 발행 승인된(release-approved) 7.1.0 후보입니다. 원격 발행과 실제 설치 관찰 전까지 공개 좌표는 유지합니다.
 > 후보: `python-hwpx 6.4.0 → python-hwpx-automation 7.1.0 → hwpx-plugin 2.2.0` (`ba0211fc854a0a97`).
 > 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0` (`8c278ebd5becba08`).
 > 공개 좌표는 core·automation PyPI와 plugin GitHub

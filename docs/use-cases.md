@@ -2,7 +2,7 @@
 
 > Python 자동화와 선택 MCP 어댑터로 여는 한글(HWPX) 문서 워크플로
 >
-> 릴리스 상태: `unreleased-candidate` — 아직 공개되지 않은 7.1.0 source candidate입니다.
+> 릴리스 상태: `release-approved` — 발행 승인됐지만 아직 원격 관찰 전인 7.1.0 source candidate입니다.
 > 현재 공개 트레인은 `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`입니다.
 
 ---

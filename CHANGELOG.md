@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — 7.1.0 candidate
+## [7.1.0] - 2026-09-09
 
 - Bound summary-map output and report omitted targets explicitly; support revision-bound detail navigation.
 - Route mixed form plans and compiled plans through the same Python/CLI/MCP domain, including invocation-scoped JSONL idempotency.
