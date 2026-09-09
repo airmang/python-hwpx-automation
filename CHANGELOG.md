@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.1.0] - 2026-09-09
+
+- Bound summary-map output and report omitted targets explicitly; support revision-bound detail navigation.
+- Route mixed form plans and compiled plans through the same Python/CLI/MCP domain, including invocation-scoped JSONL idempotency.
+- Bound the owned macOS Hancom observer, preserve exact input/output receipts, and recover its queue after malformed input and timeout. Security dialogs remain an explicit unverified outcome for unattended runs.
+- Require core >=6.4.0,<7; preserve 128 default / 136 advanced / 29 skill-required tools. Contract floors change to ba0211fc854a0a97; minimum skill remains 2.0.0.
+
+
 ## [7.0.4] - 2026-09-07
 
 - Report prepared and running managed-runtime versions separately in MCP health.

@@ -25,7 +25,7 @@ CANONICAL_RENDER_ROOT = "src/hwpx_automation/office/rendering"
 # from there — so they came here with the rest of the rendering runtime. The
 # count is a ratchet against drift, not a target; it moves when ownership
 # moves, with a reason.
-CANONICAL_RENDER_FILE_COUNT = 10
+CANONICAL_RENDER_FILE_COUNT = 11
 CANONICAL_RENDER_RESOURCES = frozenset(
     {
         "_hancom_open_rate.ps1",

@@ -3,15 +3,15 @@
   "product": "python-hwpx-automation",
   "releaseMajor": 6,
   "releaseState": {
-    "status": "released",
+    "status": "release-approved",
     "candidate": {
-      "pythonHwpx": "6.3.0",
+      "pythonHwpx": "6.4.0",
       "canonicalDistribution": "python-hwpx-automation",
-      "canonicalAutomation": "7.0.4",
+      "canonicalAutomation": "7.1.0",
       "compatibilityDistribution": "hwpx-mcp-server",
-      "compatibility": "7.0.4",
-      "plugin": "2.1.0",
-      "contractHash": "8c278ebd5becba08"
+      "compatibility": "7.1.0",
+      "plugin": "2.2.0",
+      "contractHash": "ba0211fc854a0a97"
     },
     "currentPublic": {
       "pythonHwpx": "6.3.0",
@@ -24,15 +24,9 @@
     "previousPublic": {
       "pythonHwpx": "6.3.0",
       "primaryDistribution": "python-hwpx-automation",
-      "primaryApplication": "7.0.3",
-      "plugin": "2.0.3",
+      "primaryApplication": "7.0.4",
+      "plugin": "2.1.0",
       "contractHash": "8c278ebd5becba08"
-    },
-    "publicationEvidence": {
-      "pluginVersion": "2.1.0",
-      "installObserved": true,
-      "observedAt": "2026-09-07T12:36:33.025850+00:00",
-      "releaseUrl": "https://github.com/airmang/hwpx-plugins/releases/tag/v2.1.0"
     }
   },
   "releaseFloors": {

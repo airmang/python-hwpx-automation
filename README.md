@@ -12,12 +12,11 @@
   </p>
 </p>
 
-<!-- release-state: released -->
+<!-- release-state: release-approved -->
 > [!NOTE]
-> 7.0.4 공개 발행과 전체 트레인의 실제 marketplace 설치를 관찰했습니다.
-> 검증 조합: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`.
-> 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0`.
-> 계약은 `8c278ebd5becba08`이며 도구 표면과 최소 호환 버전은 유지합니다.
+> 이 소스는 발행 승인된(release-approved) 7.1.0 후보입니다. 원격 발행과 실제 설치 관찰 전까지 공개 좌표는 유지합니다.
+> 후보: `python-hwpx 6.4.0 → python-hwpx-automation 7.1.0 → hwpx-plugin 2.2.0` (`ba0211fc854a0a97`).
+> 공개 트레인: `python-hwpx 6.3.0 → python-hwpx-automation 7.0.4 → hwpx-plugin 2.1.0` (`8c278ebd5becba08`).
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
 > [릴리스 runbook](docs/release-runbook.md)
@@ -181,3 +180,5 @@ python scripts/run_conformance.py run \
 ## License · Maintainer
 
 Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
+
+기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](docs/existing-edit-navigation.md)를 먼저 확인하세요. 새 문서는 document-plan, 에이전트 연결은 선택 MCP와 호스트 플러그인을 사용합니다.

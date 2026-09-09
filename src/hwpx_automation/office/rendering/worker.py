@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import time
 import shutil
 import subprocess
 import tempfile
@@ -57,6 +59,8 @@ class WorkerResult:
     terminal_reason: str
     artifacts: tuple[WorkerArtifact, ...] = field(default_factory=tuple)
     page_count: int = 0
+    backend: str | None = None
+    input_content_hash: str | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False, sort_keys=True)
@@ -75,6 +79,7 @@ class PowerShellHancomSession:
     """One-at-a-time Windows COM adapter with a killable PowerShell boundary."""
 
     real_hancom = True
+    backend = "windows-com-worker"
 
     def __init__(self, *, hancom_build: str, powershell: str = "powershell") -> None:
         if not hancom_build:
@@ -127,6 +132,7 @@ class DeterministicFakeSession:
     """Contract-faithful CI renderer that can never claim real Hancom."""
 
     real_hancom = False
+    backend = "fake-worker"
     hancom_build = None
 
     def __init__(self) -> None:
@@ -168,6 +174,7 @@ class SerializedHancomWorker:
         self._session: RenderSession | None = None
         self._generation = 0
         self._poisoned_thread: threading.Thread | None = None
+        self._poisoned_sandbox: Path | None = None
 
     def _new_session(self) -> RenderSession:
         self._generation += 1
@@ -179,20 +186,27 @@ class SerializedHancomWorker:
             self._session.close()
         self._session = None
 
-    def render(self, job: WorkerJob) -> WorkerResult:
+    def render(self, job: WorkerJob, *, cancelled: Callable[[], bool] | None = None) -> WorkerResult:
         if not self._lock.acquire(blocking=False):
             return self._failure(job, "WORKER_BUSY", retryable=True)
         try:
-            return self._render_locked(job)
+            return self._render_locked(job, cancelled=cancelled)
         finally:
             self._lock.release()
 
-    def _render_locked(self, job: WorkerJob) -> WorkerResult:
+    def _render_locked(self, job: WorkerJob, *, cancelled: Callable[[], bool] | None = None) -> WorkerResult:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", job.job_id) or not 36 <= job.dpi <= 600:
+            return self._failure(job, "INVALID_JOB", retryable=False)
         if self._poisoned_thread is not None:
             if self._poisoned_thread.is_alive():
                 return self._failure(job, "POISONED_SESSION_STILL_RUNNING", retryable=True)
             self._poisoned_thread = None
             self._restart_session()
+            if self._poisoned_sandbox is not None:
+                shutil.rmtree(self._poisoned_sandbox, ignore_errors=True)
+                self._poisoned_sandbox = None
+        if cancelled and cancelled():
+            return self._failure(job, "CLIENT_CANCELLED", retryable=False)
         actual = sha256_file(job.input_path)
         if actual != job.input_content_hash:
             return self._failure(job, "INPUT_HASH_MISMATCH", retryable=False)
@@ -200,6 +214,8 @@ class SerializedHancomWorker:
         try:
             source = sandbox / "input.hwpx"
             shutil.copyfile(job.input_path, source)
+            if sha256_file(source) != job.input_content_hash:
+                return self._failure(job, "INPUT_HASH_MISMATCH", retryable=False)
             pdf = sandbox / "output.pdf"
             session = self._session or self._new_session()
             outcome: dict[str, object] = {}
@@ -212,45 +228,63 @@ class SerializedHancomWorker:
 
             thread = threading.Thread(target=invoke, name=f"hancom-{job.job_id}", daemon=True)
             thread.start()
-            thread.join(self.timeout_seconds)
+            deadline = time.monotonic() + self.timeout_seconds
+            was_cancelled = False
+            while thread.is_alive() and time.monotonic() < deadline:
+                if cancelled and cancelled():
+                    was_cancelled = True
+                    break
+                thread.join(min(0.1, max(0, deadline - time.monotonic())))
             if thread.is_alive():
                 session.abort()
                 thread.join(self.abort_grace_seconds)
                 if thread.is_alive():
                     self._poisoned_thread = thread
+                    self._poisoned_sandbox = sandbox
                 else:
                     self._restart_session()
-                return self._failure(job, "COM_WATCHDOG_TIMEOUT", retryable=True)
+                return self._failure(job, "CLIENT_CANCELLED" if was_cancelled else "COM_WATCHDOG_TIMEOUT", retryable=not was_cancelled)
             if "error" in outcome or not outcome.get("pdf") or not pdf.is_file():
                 self._restart_session()
                 return self._failure(job, "HANCOM_RENDER_FAILED", retryable=True)
 
-            destination = self.artifacts / job.job_id
-            if destination.exists():
-                shutil.rmtree(destination)
-            destination.mkdir(parents=True)
-            final_pdf = destination / "document.pdf"
+            if cancelled and cancelled():
+                return self._failure(job, "CLIENT_CANCELLED", retryable=False)
+            staged_artifacts = sandbox / "result"
+            staged_artifacts.mkdir()
+            final_pdf = staged_artifacts / "document.pdf"
             shutil.copyfile(pdf, final_pdf)
             try:
-                pages = self._rasterize(final_pdf, destination, job.dpi)
+                pages = self._rasterize(final_pdf, staged_artifacts, job.dpi)
+                if not pages or any(not page.is_file() or page.stat().st_size == 0 for page in pages):
+                    raise ValueError("No complete page artifacts")
             except Exception:
-                shutil.rmtree(destination, ignore_errors=True)
                 return self._failure(job, "PAGE_RASTERIZE_FAILED", retryable=True)
+            # Immutable attempts: retry failure cannot erase a prior receipt's
+            # artifacts. The bundle address includes every page, not just PDF.
+            hashes = [sha256_file(path) for path in [final_pdf, *pages]]
+            bundle_hash = hashlib.sha256("\n".join(hashes).encode()).hexdigest()
+            artifact_key = f"{job.job_id}/{bundle_hash}"
+            destination = self.artifacts / artifact_key
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if not destination.exists():
+                shutil.copytree(staged_artifacts, destination)
             artifacts = [
-                WorkerArtifact("pdf", sha256_file(final_pdf), final_pdf.stat().st_size, f"{job.job_id}/document.pdf")
+                WorkerArtifact("pdf", sha256_file(final_pdf), final_pdf.stat().st_size, f"{artifact_key}/document.pdf")
             ]
             artifacts.extend(
-                WorkerArtifact("page_png", sha256_file(page), page.stat().st_size, f"{job.job_id}/{page.name}", index)
+                WorkerArtifact("page_png", sha256_file(page), page.stat().st_size, f"{artifact_key}/{page.name}", index)
                 for index, page in enumerate(pages, 1)
             )
             real = bool(session.real_hancom and session.hancom_build)
             return WorkerResult(
                 WORKER_SCHEMA_VERSION, job.job_id, "succeeded", real, real,
                 self.worker_version, session.hancom_build, self._generation, False,
-                "SUCCEEDED" if real else "FAKE_RENDER_ONLY", tuple(artifacts), len(pages),
+                "SUCCEEDED" if real else "FAKE_RENDER_ONLY", tuple(artifacts), len(pages), getattr(session, "backend", None), job.input_content_hash,
             )
         finally:
-            shutil.rmtree(sandbox, ignore_errors=True)
+            if sandbox != self._poisoned_sandbox:
+                shutil.rmtree(sandbox, ignore_errors=True)
 
     @staticmethod
     def _rasterize(pdf: Path, destination: Path, dpi: int) -> list[Path]:
@@ -258,9 +292,13 @@ class SerializedHancomWorker:
             import pymupdf as fitz
         except ImportError as exc:
             raise RuntimeError("PyMuPDF is required for page PNG output") from exc
+        if not pdf.read_bytes().rstrip().endswith(b"%%EOF"):
+            raise ValueError("Incomplete PDF trailer")
         document = fitz.open(pdf)
         pages: list[Path] = []
         try:
+            if document.is_repaired or document.page_count < 1:
+                raise ValueError("Repaired or empty PDF")
             scale = dpi / 72
             for page_index in range(document.page_count):
                 page = document.load_page(page_index)
@@ -276,7 +314,7 @@ class SerializedHancomWorker:
         return WorkerResult(
             WORKER_SCHEMA_VERSION, job.job_id, "unverified", False, False,
             self.worker_version, session.hancom_build if session else None,
-            self._generation, retryable, reason,
+            self._generation, retryable, reason, input_content_hash=job.input_content_hash,
         )
 
     def close(self) -> None:

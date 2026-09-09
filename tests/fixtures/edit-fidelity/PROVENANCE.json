@@ -1,0 +1,19 @@
+{
+  "source_repo": "https://github.com/neolord0/hwpxlib",
+  "pinned_ref": "3bbaaa90bdb1f14c58fd2f87c80105bc8fd37473",
+  "license": "Apache-2.0",
+  "sample": {
+    "file": "reader_writer__sample1.hwpx",
+    "source_path": "testFile/reader_writer/sample1.hwpx",
+    "feature": "other",
+    "sha256": "516db143466d3bc43e6808d4d5dc9da63abf014ec637ef01594f27998a0bd6c2"
+  },
+  "additional_samples": [
+    {
+      "file": "tool__textextractor__Table.hwpx",
+      "source_path": "testFile/tool/textextractor/Table.hwpx",
+      "feature": "other",
+      "sha256": "af13702617b11bc080d4c069578fcb3b6a7aa6142590cacc72507cbd6324ea41"
+    }
+  ]
+}

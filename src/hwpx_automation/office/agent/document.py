@@ -21,7 +21,7 @@ from .model import (
     AgentNode,
     NODE_PROPERTY_CATALOG_V1,
 )
-from .path import SemanticPath, canonicalize_path, identified_segment, indexed_segment
+from .path import SemanticPath, canonicalize_path, identified_segment, indexed_segment, parse_path
 from .query import QueryRecord as _QueryRecord
 from .query import QueryResult, evaluate_selector, parse_selector
 from .story import (
@@ -804,8 +804,36 @@ class HwpxAgentDocument:
                 f"childLimit must be 1..{MAX_CHILDREN_PER_NODE}",
                 target="childLimit",
             )
-        record = self.resolve_record(path, expected_revision=expected_revision)
+        try:
+            record = self.resolve_record(path, expected_revision=expected_revision)
+        except AgentContractError as exc:
+            if exc.code != "not_found":
+                raise
+            record = self._resolve_indexed_read_path(path, expected_revision)
         return self._public_node(record, depth=depth, child_limit=child_limit)
+
+    def _resolve_indexed_read_path(self, path: str, revision: str | None) -> NodeRecord:
+        """Navigate omitted children; return a canonical path for subsequent edits.
+
+        Only get() calls this helper. Commands continue to require the exact
+        canonical path, so a navigation alias never silently retargets a write.
+        """
+        record = self._records["/"]
+        for segment in parse_path(path).segments:
+            direct = record.path.rstrip("/") + "/" + segment.canonical()
+            if direct in record.child_paths:
+                record = self.resolve_record(direct, expected_revision=revision)
+                continue
+            children = [self._records[p] for p in record.child_paths
+                        if self._records[p].kind == segment.kind]
+            if segment.index is None or segment.index > len(children):
+                raise AgentContractError("not_found", "indexed read target not found", target=path)
+            if revision is None:
+                raise AgentContractError(
+                    "volatile_target", "indexed navigation requires the current revision", target=path
+                )
+            record = self.resolve_record(children[segment.index - 1].path, expected_revision=revision)
+        return record
 
     def query(
         self,

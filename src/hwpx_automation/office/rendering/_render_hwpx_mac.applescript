@@ -30,6 +30,10 @@ property closeDocPrefix : "문서 닫기"
 
 on run argv
 	if (count of argv) < 2 then return "ERR: usage: <input.hwpx> <out.pdf> [timeoutSecs]"
+	if item 1 of argv is "--close-owned" then
+		closeOwnedDocument(item 2 of argv)
+		return "CLEANUP"
+	end if
 	set inputPath to item 1 of argv
 	set outPdf to item 2 of argv
 	set timeoutSecs to 90
@@ -41,6 +45,18 @@ on run argv
 
 	set inputBase to do shell script "basename " & quoted form of inputPath
 
+	if listContains(windowNames(), inputBase) then return "ERR: staged document already open"
+	if listContains(windowNames(), pdfDialogTitle) then return "ERR: existing PDF dialog"
+	-- Do not drive menus while another document owns a modal sheet.
+	tell application "System Events"
+		if exists process procName then
+			tell process procName
+				repeat with w in windows
+					if (count of sheets of w) > 0 then return "ERR: existing modal sheet"
+				end repeat
+			end tell
+		end if
+	end tell
 	try
 		-- 1) Open the staged input. LaunchServices focuses Hancom (launching it
 		--    if needed) and opens the document.
@@ -61,7 +77,7 @@ on run argv
 
 		-- 4) Wait for the export dialog.
 		if not (waitForWindowNamed(pdfDialogTitle, 30)) then
-			return "ERR: PDF save dialog did not appear"
+			error "PDF save dialog did not appear"
 		end if
 		delay 1.0
 
@@ -94,19 +110,14 @@ on run argv
 		-- 8) Always close the document so the next render starts from a clean
 		--    session, even if the wait above was noisy. Discard any save-changes
 		--    prompt (we only exported; the doc content is unmodified).
-		try
-			clickFileMenuItemByPrefix(closeDocPrefix)
-			dismissCloseSheetIfPresent()
-		end try
+		set closed to closeOwnedDocument(inputBase)
+		if not closed then return "ERR: owned document cleanup incomplete"
 
 		if not wrote then return "ERR: PDF not written to " & outPdf
 		return "OK"
 	on error errMsg number errNum
 		-- Best-effort cleanup so a mid-flow error doesn't leak an open document.
-		try
-			clickFileMenuItemByPrefix(closeDocPrefix)
-			dismissCloseSheetIfPresent()
-		end try
+		closeOwnedDocument(inputBase)
 		return "ERR: " & errMsg & " (" & errNum & ")"
 	end try
 end run
@@ -221,29 +232,30 @@ on dismissOverwriteSheetIfPresent()
 	return false
 end dismissOverwriteSheetIfPresent
 
--- If closing surfaces a save-changes sheet, discard (저장 안 함 / 안 함). We only
--- exported a PDF, so the document content is unchanged.
-on dismissCloseSheetIfPresent()
-	repeat 6 times
-		set handled to false
-		try
-			tell application "System Events" to tell process procName
-				repeat with wn in windowNames()
-					set w to (first window whose name is (wn as string))
-					if (count of sheets of w) > 0 then
-						repeat with b in buttons of (sheet 1 of w)
-							set bn to (name of b as string)
-							if bn contains "안 함" or bn contains "안함" then
-								click b
-								set handled to true
-							end if
-						end repeat
-					end if
-				end repeat
-			end tell
-		end try
-		if handled then return true
-		delay 0.3
-	end repeat
-	return false
-end dismissCloseSheetIfPresent
+-- Never discard a sheet belonging to any other document. If ownership cannot
+-- be proved, leave the GUI for the user and report failure rather than kill it.
+on closeOwnedDocument(winName)
+    if not listContains(windowNames(), winName) then return false
+    if listContains(windowNames(), pdfDialogTitle) then return false
+    try
+        raiseWindowNamed(winName)
+        tell application "System Events" to tell process procName
+            if name of front window is not winName then return false
+        end tell
+        clickFileMenuItemByPrefix(closeDocPrefix)
+        tell application "System Events" to tell process procName
+            if exists (first window whose name is winName) then
+                set owned to (first window whose name is winName)
+                if (count of sheets of owned) > 0 then
+                    repeat with b in buttons of sheet 1 of owned
+                        set bn to name of b as string
+                        if bn contains "안 함" or bn contains "안함" then click b
+                    end repeat
+                end if
+            end if
+        end tell
+        return waitForWindowGone(winName, 2)
+    on error
+        return false
+    end try
+end closeOwnedDocument

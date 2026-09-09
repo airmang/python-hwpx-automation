@@ -32,14 +32,17 @@ and MCP agree" half of the claim; MCP's own selection behaviour and the
 render-doesn't-mutate-the-source guarantee are still fully exercised. See
 the task report for this gap.
 
-Every other assertion the pre-freeze version of this file made is still
-made here.
+The owned-render recovery change explicitly adds a cancellation callback and
+backend/input binding fields, and gives artifacts immutable content addresses.
+Those exact additive differences are asserted below against a copy of the old
+receipt; the historical frozen JSON files are never regenerated.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import copy
 from pathlib import Path
 
 from parity_fingerprint import fingerprint
@@ -145,7 +148,13 @@ def test_frozen_visual_modules_shape_matches_frozen_core() -> None:
     assert fingerprint(mcp_page_qa) == FROZEN["hwpx.visual.page_qa"]
     assert fingerprint(mcp_metrics) == FROZEN["hwpx.visual.qa_metrics"]
     assert fingerprint(mcp_fixture) == FROZEN["hwpx.visual.fixture_corpus"]
-    assert fingerprint(mcp_worker) == FROZEN["hwpx.visual.hancom_worker"]
+    expected_worker = copy.deepcopy(FROZEN["hwpx.visual.hancom_worker"])
+    expected_worker["SerializedHancomWorker"]["methods"]["render"] = (
+        "(self, job: 'WorkerJob', *, cancelled: 'Callable[[], bool] | None' = None) -> 'WorkerResult'"
+    )
+    for field in ("backend", "input_content_hash"):
+        expected_worker["WorkerResult"]["fields"][field] = {"type": "str | None", "hasDefault": True}
+    assert fingerprint(mcp_worker) == expected_worker
 
 
 def test_structural_only_report_matches_frozen_core(
@@ -233,7 +242,14 @@ def test_serialized_worker_success_and_hash_failure_match_frozen_core(
     )
     try:
         mcp_success = mcp.render(mcp_worker.WorkerJob("success", source, digest))
-        assert json.loads(mcp_success.to_json()) == GOLDEN["worker"]["successToJson"]
+        expected_success = copy.deepcopy(GOLDEN["worker"]["successToJson"])
+        expected_success.update(backend="fake-worker", input_content_hash=digest)
+        bundle_hash = hashlib.sha256("\n".join(
+            item["content_hash"] for item in expected_success["artifacts"]
+        ).encode()).hexdigest()
+        for item in expected_success["artifacts"]:
+            item["relative_path"] = "success/" + bundle_hash + "/" + Path(item["relative_path"]).name
+        assert json.loads(mcp_success.to_json()) == expected_success
         assert mcp_success.terminal_reason == _scenario(
             "deterministic-worker"
         )["terminalReason"]
@@ -241,7 +257,9 @@ def test_serialized_worker_success_and_hash_failure_match_frozen_core(
         mcp_failure = mcp.render(
             mcp_worker.WorkerJob("failure", source, "sha256:wrong")
         )
-        assert json.loads(mcp_failure.to_json()) == GOLDEN["worker"]["failureToJson"]
+        expected_failure = copy.deepcopy(GOLDEN["worker"]["failureToJson"])
+        expected_failure.update(backend=None, input_content_hash="sha256:wrong")
+        assert json.loads(mcp_failure.to_json()) == expected_failure
         assert mcp_failure.terminal_reason == "INPUT_HASH_MISMATCH"
     finally:
         mcp.close()
