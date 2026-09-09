@@ -428,6 +428,10 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
     if status != "released":
         identity["releaseState"]["currentPublic"] = identity["releaseState"]["previousPublic"].copy()
         identity["releaseState"]["publicationEvidence"] = None
+        # Mirror the released branch below: a train that moves core must roll
+        # the public core version back too, or the validator reports a
+        # public core version mismatch (first hit on 6.3.0 -> 6.4.0).
+        identity["currentPublicStack"]["core"]["version"] = identity["releaseState"]["currentPublic"]["pythonHwpx"]
         identity["currentPublicStack"]["plugin"]["version"] = identity["releaseState"]["currentPublic"]["plugin"]
         identity["currentPublicStack"]["application"]["version"] = identity["releaseState"]["currentPublic"]["primaryApplication"]
     readme_path = checkout / "README.md"
