@@ -391,12 +391,21 @@ def ensure_char_style(
         color=target_color,
         height=target_height,
         font_refs=target_font_refs,
+    ) and (
+        not target_flags[2]
+        or base_style is not None
+        and base_style.child_attributes.get("underline", {}).get("type", "").upper()
+        in {"BOTTOM", "CENTER", "TOP"}
     ):
         return str(base_char_pr_id)
 
     def predicate(element: ET.Element) -> bool:
         if element_style_flags(element) != target_flags:
             return False
+        if target_flags[2]:
+            underline_element = element.find(f"{HH_NS}underline")
+            if underline_element is None or underline_element.get("type", "").upper() not in {"BOTTOM", "CENTER", "TOP"}:
+                return False
         if (element.get("textColor", _DEFAULT_TEXT_COLOR) or _DEFAULT_TEXT_COLOR).upper() != target_color:
             return False
         if element.get("height", _DEFAULT_CHAR_HEIGHT) != target_height:
