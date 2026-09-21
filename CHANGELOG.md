@@ -1,6 +1,10 @@
 # Changelog
 
-## [7.2.0] - Unreleased candidate
+## [7.2.0] - 2026-09-21
+
+기존 문서 편집의 저장 안전성·실제 출력·검증 결과를 보강했습니다. 오래된
+셀 채움 페이지 흐름 사례 두 건의 글자 가림은 남아 있으며, 한컴 렌더 성공은
+검토 완료를 뜻하지 않습니다.
 
 - Require `python-hwpx>=6.5.0,<7` for the new table flow and preservation primitives.
 - Report render and visual-review outcomes separately, preserve typed agent errors, and bind render evidence to exact document and artifact hashes.
