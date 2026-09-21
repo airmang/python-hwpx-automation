@@ -8,8 +8,8 @@
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0` |
-| 검증 좌표 | 미발행 후보의 로컬 검증 조합 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0` |
-| 릴리스 상태 | 미발행 후보 (`unreleased-candidate`) | `hwpx-plugin 2.3.0` |
+| 검증 좌표 | 발행 승인된 후보의 로컬 검증 조합 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0` |
+| 릴리스 상태 | 발행 승인된 후보 (`release-approved`) | `hwpx-plugin 2.3.0` |
 | 최소 호환 버전 | 이 후보의 지원 플로어 | core `>=6.5.0` · automation `>=7.2.0` · skill `>=2.0.0` |
 | 검증 좌표 | 이 플러그인 후보가 함께 검증할 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` |
 | 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=6.5.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.2.0,<8` |

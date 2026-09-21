@@ -1,6 +1,9 @@
 # Changelog
 
-## [2.3.0] - Unreleased candidate
+## [2.3.0] - 2026-09-21
+
+검증한 기존 문서 편집 범위와 시각 검토의 한계를 명시합니다. 과거 셀 채움
+페이지 흐름 사례 두 건의 글자 가림은 아직 남아 있습니다.
 
 - Require the local `python-hwpx 6.5.0` / `python-hwpx-automation 7.2.0` candidate pair for the new preservation and table-flow behavior.
 - Document revision-bound editing, local picture replacement, and truthful render-review handoff.
