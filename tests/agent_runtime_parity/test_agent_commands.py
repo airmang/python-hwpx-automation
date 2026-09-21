@@ -148,6 +148,34 @@ def test_mixed_run_text_edit_preserves_other_run_and_refuses_cross_style(tmp_pat
     with HwpxDocument.open(output) as document:
         edited = next(p for p in document.paragraphs if p.text == "ALPHAbeta")
         assert [r.text for r in edited.runs if r.text] == ["ALPHA", "beta"]
+    with HwpxAgentDocument.open(source) as agent:
+        scope = TextScope.bind(agent, [command])
+        parent_element = agent.resolve_record(target.path).native.element
+        run_record = next(r for r in agent.records if r.kind == "run"
+                          and r.native.element in list(parent_element))
+        with pytest.raises(AgentContractError) as overlap:
+            TextScope.bind(agent, [command, {"commandId": "overlap", "op": "set",
+                                           "path": run_record.path,
+                                           "properties": {"text": "other"}}])
+        assert overlap.value.code == "unsupported_content"
+    with zipfile.ZipFile(output) as archive:
+        members = {name: archive.read(name) for name in archive.namelist()}
+    member, root, edited_p = next(
+        (name, tree, p)
+        for name, data in members.items() if name.startswith("Contents/section") and name.endswith(".xml")
+        for tree in [ET.fromstring(data)]
+        for p in tree.iter(f"{HP}p")
+        if any(t.text == "ALPHA" for t in p.iter(f"{HP}t"))
+    )
+    first_t = edited_p.find(f"./{HP}run/{HP}t")
+    first_t.append(ET.Element(f"{HP}tab"))
+    members[member] = ET.tostring(root, encoding="utf-8")
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    with pytest.raises(AgentContractError):
+        scope.verify(source.read_bytes(), stream.getvalue(), {"semanticDiff": {}})
     command["properties"] = {"text": "combined"}
     refused = apply_document_commands(_batch(source, tmp_path / "refused.hwpx", [command]))
     assert not refused.ok

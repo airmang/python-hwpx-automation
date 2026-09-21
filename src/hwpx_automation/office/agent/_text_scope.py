@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import zipfile
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any
@@ -72,11 +73,19 @@ def _controls(node: Any) -> list[tuple[Any, ...]]:
     ]
 
 
+def _text_skeleton(node: Any) -> tuple[Any, ...]:
+    clone = deepcopy(node)
+    for text in clone.iter(HP + "t"):
+        text.text = "authorized-text"
+    return _tree(clone)
+
+
 def _paragraph_format(before: Any, after: Any) -> bool:
     if (
         before.attrib != after.attrib
         or before.tail != after.tail
         or _controls(before) != _controls(after)
+        or _text_skeleton(before) != _text_skeleton(after)
     ):
         return False
     left, right = _chars(before), _chars(after)
@@ -210,7 +219,19 @@ class TextScope:
                 binding[0], binding[1], command["properties"]["text"], path
             )
             aliases["$" + command["commandId"] + ".path"] = path
-        return cls(tuple(targets.values()))
+        bound = tuple(targets.values())
+        for index, first in enumerate(bound):
+            for second in bound[index + 1:]:
+                if first.member != second.member:
+                    continue
+                locations = (first.location, *first.extra_locations)
+                others = (second.location, *second.extra_locations)
+                if any(a[:len(b)] == b or b[:len(a)] == a for a in locations for b in others):
+                    raise AgentContractError(
+                        "unsupported_content", "overlapping text targets need separate batches",
+                        target=second.path,
+                    )
+        return cls(bound)
 
     def verify(self, before: bytes, after: bytes, verification: dict[str, Any]) -> None:
         report: dict[str, Any] = {
