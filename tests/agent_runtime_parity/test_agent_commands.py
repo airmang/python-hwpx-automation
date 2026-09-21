@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 from hwpx import HwpxDocument, validate_editor_open_safety
-from hwpx_automation.office.agent import AGENT_BATCH_SCHEMA, HwpxAgentDocument, apply_document_commands
 from hwpx.oxml.namespaces import HP
 from hwpx.quality import SavePipeline
 from hwpx.quality.rendering import UnavailableRenderBackend as NullOracle
+from hwpx_automation.office.agent import (
+    AGENT_BATCH_SCHEMA,
+    HwpxAgentDocument,
+    apply_document_commands,
+)
+from hwpx_automation.office.agent._text_scope import TextScope
+from hwpx_automation.office.agent.model import AgentContractError
 
 
 def _revision(path: Path) -> str:
@@ -112,6 +120,99 @@ def _record(agent: HwpxAgentDocument, kind: str, identity: str):
         for record in agent.records
         if record.kind == kind and record.attributes.get("id") == identity
     )
+
+
+def test_mixed_run_text_edit_preserves_other_run_and_refuses_cross_style(tmp_path: Path) -> None:
+    source = tmp_path / "mixed.hwpx"
+    output = tmp_path / "edited.hwpx"
+    # Start with the checked-in corpus member, then add two distinct native
+    # runs so that a replacement can prove its run ownership survives.
+    corpus = Path(__file__).parent / "fixtures/m2_corpus/form_002.hwpx"
+    with HwpxDocument.open(corpus) as document:
+        paragraph = document.paragraphs[0]
+        paragraph.text = "alpha"
+        run = paragraph.element.makeelement(f"{HP}run", {"charPrIDRef": "1"})
+        text = run.makeelement(f"{HP}t", {})
+        text.text = "beta"
+        run.append(text)
+        paragraph.element.append(run)
+        paragraph.section.mark_dirty()
+        document.save_to_path(source)
+    with HwpxAgentDocument.open(source) as agent:
+        target = next(record for record in agent.records if record.kind == "paragraph" and record.native.text == "alphabeta")
+    command = {"commandId": "edit", "op": "set", "path": target.path,
+               "properties": {"text": "ALPHAbeta"}}
+    result = apply_document_commands(_batch(source, output, [command]))
+    assert result.ok, result.to_dict()
+    assert result.verification_report["scopePreservation"]["ok"] is True
+    with HwpxDocument.open(output) as document:
+        edited = next(p for p in document.paragraphs if p.text == "ALPHAbeta")
+        assert [r.text for r in edited.runs if r.text] == ["ALPHA", "beta"]
+    with HwpxAgentDocument.open(source) as agent:
+        scope = TextScope.bind(agent, [command])
+        parent_element = agent.resolve_record(target.path).native.element
+        run_record = next(r for r in agent.records if r.kind == "run"
+                          and r.native.element in list(parent_element))
+        with pytest.raises(AgentContractError) as overlap:
+            TextScope.bind(agent, [command, {"commandId": "overlap", "op": "set",
+                                           "path": run_record.path,
+                                           "properties": {"text": "other"}}])
+        assert overlap.value.code == "unsupported_content"
+    with zipfile.ZipFile(output) as archive:
+        members = {name: archive.read(name) for name in archive.namelist()}
+    member, root, edited_p = next(
+        (name, tree, p)
+        for name, data in members.items() if name.startswith("Contents/section") and name.endswith(".xml")
+        for tree in [ET.fromstring(data)]
+        for p in tree.iter(f"{HP}p")
+        if any(t.text == "ALPHA" for t in p.iter(f"{HP}t"))
+    )
+    first_t = edited_p.find(f"./{HP}run/{HP}t")
+    first_t.append(ET.Element(f"{HP}tab"))
+    members[member] = ET.tostring(root, encoding="utf-8")
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    with pytest.raises(AgentContractError):
+        scope.verify(source.read_bytes(), stream.getvalue(), {"semanticDiff": {}})
+    command["properties"] = {"text": "combined"}
+    refused = apply_document_commands(_batch(source, tmp_path / "refused.hwpx", [command]))
+    assert not refused.ok
+    assert refused.error.code == "unsupported_content"
+
+
+def test_existing_field_value_has_package_wide_preservation_proof(tmp_path: Path) -> None:
+    source = tmp_path / "field.hwpx"
+    output = tmp_path / "edited.hwpx"
+    _write_fixture(source)
+    with HwpxDocument.open(source) as document:
+        document.fields.fill("old value", field_index=0)
+        document.save_to_path(source)
+    with HwpxAgentDocument.open(source) as agent:
+        field = _record(agent, "form-field", "601")
+    command = {"commandId": "field", "op": "set", "path": field.path,
+               "properties": {"value": "new value"}}
+    result = apply_document_commands(_batch(source, output, [command]))
+    assert result.ok, result.to_dict()
+    assert result.verification_report["scopePreservation"]["ok"] is True
+    with HwpxAgentDocument.open(output) as agent:
+        assert _record(agent, "form-field", "601").summary["value"] == "new value"
+    with HwpxAgentDocument.open(source) as agent:
+        scope = TextScope.bind(agent, [command])
+    candidate = output.read_bytes()
+    with zipfile.ZipFile(io.BytesIO(candidate)) as archive:
+        members = {name: archive.read(name) for name in archive.namelist()}
+    root = ET.fromstring(members["Contents/section0.xml"])
+    field_begin = next(node for node in root.iter() if node.tag == f"{HP}fieldBegin")
+    field_begin.set("editable", "false")  # control collateral
+    members["Contents/section0.xml"] = ET.tostring(root, encoding="utf-8")
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    with pytest.raises(AgentContractError, match="non-target"):
+        scope.verify(source.read_bytes(), stream.getvalue(), {"semanticDiff": {}})
 
 
 def test_set_compiles_allowlisted_properties_and_verifies_once(tmp_path: Path) -> None:

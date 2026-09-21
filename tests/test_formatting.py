@@ -80,6 +80,27 @@ def test_format_text_persists_run_level_style_changes(tmp_path: Path):
     assert accent_style.attributes.get("height") == "1400"
 
 
+def test_format_text_colored_underline_uses_position_type(tmp_path: Path):
+    target = tmp_path / "underline.hwpx"
+    create_document(str(target))
+    add_paragraph(str(target), "Hello World")
+    format_text(str(target), 1, 6, 11, underline=True, color="0000FF")
+
+    with zipfile.ZipFile(target) as package:
+        header = ET.fromstring(package.read("Contents/header.xml"))
+        section = ET.fromstring(package.read("Contents/section0.xml"))
+    runs = section.findall(f".//{{{_HP_NS}}}p")[1].findall(f"{{{_HP_NS}}}run")
+    assert ["".join(run.itertext()) for run in runs] == ["Hello ", "World"]
+    char_id = runs[1].get("charPrIDRef")
+    hh_ns = "http://www.hancom.co.kr/hwpml/2011/head"
+    char_pr = next(
+        node for node in header.iter(f"{{{hh_ns}}}charPr") if node.get("id") == char_id
+    )
+    underline = char_pr.find(f"{{{hh_ns}}}underline")
+    assert underline is not None
+    assert underline.attrib == {"type": "BOTTOM", "shape": "SOLID", "color": "#0000FF"}
+
+
 def test_create_custom_style_creates_distinct_style_and_name_resolves_on_insert(tmp_path: Path):
     target = tmp_path / "custom_style.hwpx"
     create_document(str(target))

@@ -22,6 +22,7 @@ from hwpx.mutation_report import member_diff_bytes
 from hwpx.quality import QualityPolicy, SavePipeline
 from hwpx.tools.package_validator import validate_editor_open_safety
 
+from ._batch_publication import BatchPublication
 from .document import HwpxAgentDocument
 from .model import AgentBatchResult, AgentContractError, AgentError
 
@@ -82,7 +83,7 @@ def _failure_result(
         output_filename = str(output.get("filename") or "")
     return AgentBatchResult(
         ok=False,
-        rolled_back=True,
+        rolled_back=bool((verification or {}).get("publication", {}).get("rolledBack", True)),
         dry_run=bool(raw.get("dryRun", False)),
         input_revision=input_revision,
         document_revision=input_revision,
@@ -291,7 +292,7 @@ def _apply_commands_build_candidate_report(
             "package": safety_dict["validatePackage"],
             "reopen": safety_dict["reopen"],
             "openSafety": safety_dict,
-            "semanticDiff": {"ok": True, "changeCount": len(semantic_changes)},
+            "semanticDiff": {"ok": None, "changeCount": len(semantic_changes), "basis": "declared-command-log"},
             "bytePreservation": byte_report,
         }
     )
@@ -343,6 +344,7 @@ def _apply_commands_run_save_pipeline(
     requirements: set[str],
     save_pipeline: SavePipeline | None,
     verification: dict[str, Any],
+    publication: BatchPublication,
 ) -> Any:
     pipeline = save_pipeline or SavePipeline()
     quality_policy = _quality_policy(normalized["quality"])
@@ -356,11 +358,11 @@ def _apply_commands_run_save_pipeline(
         )
     quality_report = pipeline.run(
         candidate_data,
-        output_path=None if normalized["dryRun"] else output_path,
+        output_path=None,
         quality=quality_policy,
         before=input_path,
         reference_document=document,
-        publish="never" if normalized["dryRun"] else "on_pass",
+        publish="never",
         source_label="agent.apply_document_commands",
     )
     verification["savePipeline"] = quality_report.to_dict()
@@ -380,4 +382,8 @@ def _apply_commands_run_save_pipeline(
         raise AgentContractError(
             "verification_failed", "SavePipeline rejected the candidate", target="savePipeline"
         )
+    publication.assert_current_source()
+    if not normalized["dryRun"]:
+        quality_report.output_path = publication.publish(candidate_data, pipeline, verification)
+        verification["savePipeline"] = quality_report.to_dict()
     return quality_report

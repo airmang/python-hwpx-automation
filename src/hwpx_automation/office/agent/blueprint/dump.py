@@ -175,12 +175,10 @@ def _manifest_image_item(agent: HwpxAgentDocument, item_id: str) -> tuple[str, s
     return matches[0] if matches else None
 
 
-def _picture_resource(
-    agent: HwpxAgentDocument, record: NodeRecord
+def _picture_resource_from_element(
+    agent: HwpxAgentDocument, element: Any, *, name: str = "image"
 ) -> tuple[dict[str, Any], bytes] | None:
-    if record.kind != "picture":
-        return None
-    image = next((child for child in record.native.iter() if _local_name(child) == "img"), None)
+    image = next((child for child in element.iter() if _local_name(child) == "img"), None)
     item_id = str(image.get("binaryItemIDRef") or "") if image is not None else ""
     if not item_id:
         return None
@@ -202,9 +200,62 @@ def _picture_resource(
         "mediaType": media_type,
         "size": len(payload),
         "assetPath": f"assets/{digest}.{suffix}",
-        "name": str(record.summary.get("name") or "image")[:512],
+        "name": name[:512],
     }
     return resource, payload
+
+
+def _picture_resource(
+    agent: HwpxAgentDocument, record: NodeRecord
+) -> tuple[dict[str, Any], bytes] | None:
+    if record.kind != "picture":
+        return None
+    return _picture_resource_from_element(
+        agent, record.native, name=str(record.summary.get("name") or "image")
+    )
+
+
+def _unprojected_pictures(agent: HwpxAgentDocument, root: NodeRecord, selected: set[int]) -> list[Any]:
+    """Find pictures hidden in containers without claiming replay support."""
+    roots = (
+        [section.element for section in agent.document.sections]
+        if root.kind == "document"
+        else [getattr(root.native, "element", root.native)]
+    )
+    return [
+        element
+        for native_root in roots
+        for element in native_root.iter()
+        if _local_name(element) == "pic" and id(element) not in selected
+    ]
+
+
+def _collect_unprojected_picture_assets(
+    agent: HwpxAgentDocument,
+    root: NodeRecord,
+    ordered: list[tuple[NodeRecord, int]],
+    resources: dict[str, dict[str, Any]],
+    assets: dict[str, bytes],
+    unsupported: list[dict[str, str]],
+    *,
+    include_assets: bool,
+) -> None:
+    """Bundle group-contained image bytes without implying portable replay."""
+    if not include_assets:
+        return
+    projected = {id(record.native) for record, _ in ordered if record.kind == "picture"}
+    for picture in _unprojected_pictures(agent, root, projected):
+        extracted = _picture_resource_from_element(agent, picture)
+        if extracted is None:
+            unsupported.append({
+                "path": root.path,
+                "kind": "resource",
+                "reason": "unprojected picture resource is missing or not allow-listed",
+            })
+            continue
+        resource, payload = extracted
+        resources.setdefault(str(resource["key"]), resource)
+        assets.setdefault(str(resource["assetPath"]), payload)
 
 
 def _first_descendant(element: Any, kind: str) -> Any | None:
@@ -431,6 +482,11 @@ def _make_manifest(
             },
         }
         nodes.append(node)
+
+    _collect_unprojected_picture_assets(
+        agent, root_record, ordered, resources, assets, unsupported,
+        include_assets=include_assets,
+    )
 
     if root_record.kind in {"cell", "form-field"}:
         reason = f"standalone {root_record.kind} insertion is unavailable in blueprint v1"

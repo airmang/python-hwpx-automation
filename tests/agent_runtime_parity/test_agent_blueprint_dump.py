@@ -130,6 +130,30 @@ def test_supported_dump_is_byte_identical_and_dependency_complete(tmp_path: Path
     assert read_blueprint_bundle(first.bundle_bytes).manifest == first.manifest
 
 
+def test_dump_includes_unprojected_group_picture_asset_without_replay_claim(tmp_path: Path) -> None:
+    source = tmp_path / "grouped.hwpx"
+    with HwpxDocument.new() as document:
+        paragraph = document.sections[0].paragraphs[0]
+        direct_ref = document.media.add_image(PNG, "png")
+        grouped_ref = document.media.add_image(PNG + b"grouped", "png")
+        paragraph.add_picture(direct_ref, width=7200, height=3600)
+        grouped = paragraph.add_picture(grouped_ref, width=7200, height=3600)
+        run = grouped.element.getparent()
+        container = run.makeelement(f"{HP}container", {})
+        run.remove(grouped.element)
+        container.append(grouped.element)
+        run.append(container)
+        paragraph.section.mark_dirty()
+        document.save_to_path(source)
+
+    result = dump_document_blueprint(source, path="/", require_replayable=False)
+    assert len(result.assets) == 2
+    assert len(result.manifest["resources"]) == 2
+    assert result.manifest["fidelity"]["replayable"] is False
+    assert any(item["kind"] == "container" for item in result.manifest["unsupported"])
+    assert read_blueprint_bundle(result.bundle_bytes).assets == result.assets
+
+
 def test_dump_logical_ids_ignore_native_id_perturbation(tmp_path: Path) -> None:
     first_source = tmp_path / "first.hwpx"
     second_source = tmp_path / "second.hwpx"

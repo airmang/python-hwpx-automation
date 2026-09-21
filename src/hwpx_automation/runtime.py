@@ -9,14 +9,20 @@ from typing import Any, cast
 
 import mcp.types as mcp_types
 from mcp.server.fastmcp import FastMCP
+
 from hwpx_automation.office.agent import AgentContractError
+from hwpx_automation.office.agent.model import ERROR_CODES as AGENT_ERROR_CODES
+from hwpx_automation.office.agent.model import RECOVERABILITY
 
 from . import __version__
-from .configuration import env_value
 from . import quality as quality_contract
+from .configuration import env_value
 from .errors import build_error_payload, mcp_code_for_error
+from .fastmcp_adapter import configure_runtime
 from .hwpx_ops import HwpxOperationError
 from .network_policy import NetworkPolicyError
+from .runtime_services import RUNTIME_SERVICES
+from .tool_bindings import TOOL_BINDINGS
 from .tool_contract import (
     register_fastmcp_tools,
 )
@@ -24,9 +30,6 @@ from .workspace import (
     WorkspaceConfigurationError,
     WorkspacePathError,
 )
-from .fastmcp_adapter import configure_runtime
-from .runtime_services import RUNTIME_SERVICES
-from .tool_bindings import TOOL_BINDINGS
 
 
 def _error_data(
@@ -188,6 +191,8 @@ def _failure_code_from_payload(payload: object) -> str | None:
             [nested_errors[0].get("errorCode"), nested_errors[0].get("code")]
         )
     for candidate in candidates:
+        if isinstance(candidate, str) and candidate in AGENT_ERROR_CODES:
+            return candidate
         if isinstance(candidate, str) and re.fullmatch(
             r"[A-Z][A-Z0-9_]{2,63}", candidate
         ):
@@ -204,10 +209,29 @@ def _result_failure_error(
     gate_error = _gate_or_plain_error(tool_name)
     if cast(dict[str, Any], gate_error.data).get("errorCode") != "TOOL_EXECUTION_FAILED":
         return gate_error
+    agent_error = payload.get("error") if isinstance(payload, dict) else None
+    details: dict[str, Any] | None = None
+    retryable = False
+    suggestion = None
+    if error_code in AGENT_ERROR_CODES and isinstance(agent_error, dict):
+        details = {}
+        target = agent_error.get("target")
+        if isinstance(target, str) and re.fullmatch(r"(?:batch\.[A-Za-z][A-Za-z0-9]*|/[A-Za-z0-9_\[\]/.-]{1,200})", target):
+            details["target"] = target
+        recoverability = agent_error.get("recoverability")
+        if recoverability in RECOVERABILITY:
+            details["recoverability"] = recoverability
+        retryable = details.get("recoverability") == "retryable"
+        value = agent_error.get("suggestion")
+        if isinstance(value, str) and len(value) <= 512 and "/Users/" not in value and "\\" not in value:
+            suggestion = value
     return _error_data(
         build_error_payload(
             code=error_code,
             message="도구가 요청을 안전하게 완료하지 못했습니다.",
+            details=details,
+            retryable=retryable,
+            suggestion=suggestion,
         ),
         tool_name=tool_name,
     )

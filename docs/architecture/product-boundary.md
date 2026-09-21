@@ -77,3 +77,20 @@ agent runtime. Automation production modules must not import the frozen core
 `hwpx.agent` compatibility copy. The canonical runtime may use only the
 approved public core seams for documents, OXML, mutation reports, quality,
 table targeting, and package open-safety validation.
+
+### Existing edit continuity
+
+The agent owner has 21 modules, including two internal policy owners:
+`_batch_publication` binds input revisions and output identities to the existing
+workspace CAS writer; `_text_scope` checks a text-only command's permitted change
+against the actual candidate. Guarded ZIP/XML parsing is imported from
+`hwpx.opc.security`; serialization and format mutation remain core-owned. The
+complete shipped-module ledger contains 180 base modules and 5 MCP adapter
+modules. No new public MCP tool or parameter is introduced.
+
+Quality-only `SavePipeline` injection still runs once; application publishers
+carry `GuardedSavePipeline.publication` so the existing mixed-form owner retains
+its publication and failure-preimage receipts. Scope preservation is reported
+only for supported text-only paragraph/run/cell batches. Other command families
+retain their current behavior and report a declared command log, without claiming
+that log independently proves non-target preservation.

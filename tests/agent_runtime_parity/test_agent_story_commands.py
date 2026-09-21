@@ -9,15 +9,21 @@ from typing import Any
 from zipfile import ZipFile
 
 import pytest
-
 from hwpx import HwpxDocument, validate_editor_open_safety
-from hwpx_automation.office.agent import AGENT_BATCH_SCHEMA, HwpxAgentDocument, apply_document_commands
+from hwpx.oxml import HwpxOxmlDocument
+from hwpx_automation.office.agent import (
+    AGENT_BATCH_SCHEMA,
+    HwpxAgentDocument,
+    apply_document_commands,
+)
+from hwpx_automation.office.agent._text_scope import TextScope
 from hwpx_automation.office.agent.catalog import catalog_hash
-from hwpx_automation.office.agent.model import AgentContractError, agent_contract_manifest
+from hwpx_automation.office.agent.model import (
+    AgentContractError,
+    agent_contract_manifest,
+)
 from hwpx_automation.office.agent.path import parse_path
 from hwpx_automation.office.agent.story import parse_header_story_path
-from hwpx.oxml import HwpxOxmlDocument
-
 
 _SEED = (
     Path(__file__).parent
@@ -217,6 +223,7 @@ def test_body_table_header_batch_preserves_structure_and_even_mirror(
     )
 
     assert result.ok, result.to_dict()
+    assert result.verification_report["scopePreservation"]["ok"] is True
     assert serialize_calls == 1
     assert result.rolled_back is False
     assert result.command_results[2]["path"] == _BOTH_PATH
@@ -269,6 +276,33 @@ def test_body_table_header_batch_preserves_structure_and_even_mirror(
         ]
         assert section.paragraphs[1].text == "S-080 본문"
         assert section.paragraphs[3].tables[0].cell(0, 0).text == "S-080 표 셀"
+
+
+def test_header_scope_detects_non_target_story_style_change(tmp_path: Path) -> None:
+    source = tmp_path / "source.hwpx"
+    output = tmp_path / "output.hwpx"
+    _copy_seed(source)
+    commands = _three_story_commands(source)
+    result = apply_document_commands(_batch(source, output, commands))
+    assert result.ok, result.to_dict()
+    with HwpxAgentDocument.open(source) as view:
+        scope = TextScope.bind(view, commands)
+    members = _members(output.read_bytes())
+    import xml.etree.ElementTree as ET
+
+    from hwpx.oxml.namespaces import HP
+
+    root = ET.fromstring(members["Contents/section0.xml"])
+    even = next(node for node in root.iter() if node.tag == f"{HP}header"
+                and node.get("applyPageType") == "EVEN")
+    even.find(f"./{HP}subList/{HP}p/{HP}run").set("charPrIDRef", "999")
+    members["Contents/section0.xml"] = ET.tostring(root, encoding="utf-8")
+    stream = BytesIO()
+    with ZipFile(stream, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    with pytest.raises(AgentContractError, match="non-target"):
+        scope.verify(source.read_bytes(), stream.getvalue(), {"semanticDiff": {}})
 
 
 def test_header_story_dry_run_matches_apply_and_writes_nothing(tmp_path: Path) -> None:

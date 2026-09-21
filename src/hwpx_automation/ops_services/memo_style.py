@@ -264,7 +264,7 @@ class MemoStyleService:
                 filter_args["text_color"] = self._normalize_color(filters["colorHex"])
             if "underline" in filters:
                 filter_args["underline_type"] = (
-                    "SOLID" if filters["underline"] else "NONE"
+                    "BOTTOM" if filters["underline"] else "NONE"
                 )
             if "charPrIDRef" in filters and filters["charPrIDRef"]:
                 filter_args["char_pr_id_ref"] = filters["charPrIDRef"]

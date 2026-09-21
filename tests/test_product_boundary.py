@@ -23,7 +23,7 @@ def _minimal_tree(root: Path) -> Path:
 def test_real_tree_satisfies_mcp_boundary() -> None:
     report = boundary.evaluate(ROOT)
     assert report["ok"], report["violations"]
-    assert report["canonicalAgentPythonFiles"] == 19
+    assert report["canonicalAgentPythonFiles"] == 21
     # 17 since the 5.0 train: report_parser joined the owner it always belonged to.
     assert report["canonicalAuthoringPythonFiles"] == 17
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from ast import literal_eval as _literal
 from dataclasses import dataclass, field
@@ -1235,6 +1236,40 @@ def create_document_from_plan(
     return document
 
 
+def _source_changed_during_inspection(path: Path | None, payload: bytes) -> bool:
+    if path is None:
+        return False
+    try:
+        return path.read_bytes() != payload
+    except OSError:
+        return True
+
+
+def _check_authoring_render(payload: bytes, *, verify_render: bool) -> bool:
+    if not verify_render:
+        return False
+    from ..rendering import MacHancomOracle
+
+    oracle = MacHancomOracle()
+    if not oracle.available():
+        return False
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temporary:
+        source = Path(temporary) / "render_check.hwpx"
+        source.write_bytes(payload)
+        rendered = oracle.render_pdf(str(source), str(Path(temporary) / "render_check.pdf"))
+        if not rendered or not Path(rendered).exists():
+            return False
+        try:
+            import pymupdf
+
+            with pymupdf.open(rendered) as pdf:
+                return len(pdf) > 0
+        except Exception:
+            return False
+
+
 def inspect_document_authoring_quality(
     source: str | Path | HwpxDocument,
     *,
@@ -1245,9 +1280,8 @@ def inspect_document_authoring_quality(
     """Return deterministic structural quality evidence for generated HWPX.
 
     When *verify_render* is true AND a Mac Hancom oracle is reachable, the
-    document is rendered and ``render_checked``/``visual_complete`` become real
-    receipts. Otherwise ``render_checked`` is ``False`` and ``visual_complete``
-    is ``"unverified"`` — never a silent true (Constitution V).
+    document may be rendered, but rendering alone does not establish visual
+    completeness. That verdict remains unverified without a scoped review.
     """
 
     normalized_plan: DocumentPlan | None = None
@@ -1266,46 +1300,20 @@ def inspect_document_authoring_quality(
     close_doc = False
     if isinstance(source, HwpxDocument):
         document = source
+        source_payload = document.to_bytes()
     else:
         path = Path(source)
-        document = HwpxDocument.open(path)
+        source_payload = path.read_bytes()
+        document = HwpxDocument.open(source_payload)
         close_doc = True
 
     try:
-        package_payload = document.to_bytes()
-        package_report = validate_package(path if path is not None else package_payload)
+        package_report = validate_package(source_payload)
         document_report = document.validate()
-        reopened = _can_reopen(path, package_payload)
-        render_checked = False
+        reopened = _can_reopen(None, source_payload)
+        source_hash = "sha256:" + hashlib.sha256(source_payload).hexdigest()
+        render_checked = _check_authoring_render(source_payload, verify_render=verify_render)
         visual_complete: Any = "unverified"
-        if verify_render:
-            from ..rendering import MacHancomOracle
-
-            _mac = MacHancomOracle()
-            if _mac.available():
-                import tempfile as _tf
-
-                with _tf.TemporaryDirectory() as _tmp:
-                    _hwpx = Path(_tmp) / "render_check.hwpx"
-                    _hwpx.write_bytes(package_payload)
-                    _pdf = Path(_tmp) / "render_check.pdf"
-                    _rendered = _mac.render_pdf(str(_hwpx), str(_pdf))
-                    if _rendered and Path(_rendered).exists():
-                        try:
-                            import pymupdf as _fitz
-
-                            _doc = _fitz.open(_rendered)
-                            _has_text = any(
-                                isinstance(text, str) and bool(text.strip())
-                                for pg in _doc
-                                for text in (pg.get_text(),)
-                            )
-                            _doc.close()
-                            render_checked = bool(_has_text)
-                            visual_complete = render_checked
-                        except Exception:
-                            render_checked = False
-                            visual_complete = "unverified"
         non_empty_texts = [
             (paragraph.text or "").strip()
             for paragraph in document.paragraphs
@@ -1339,7 +1347,6 @@ def inspect_document_authoring_quality(
         ]
         if plan_validation is not None and not plan_validation["ok"]:
             gaps.append("document plan validation failed")
-
         style_usage = _style_usage(document)
         package_issues = _report_issue_dicts(package_report, kind="package")
         document_issues = _report_issue_dicts(document_report, kind="schema")
@@ -1375,6 +1382,9 @@ def inspect_document_authoring_quality(
             if not gongmun_structure.get("structure_pass", True):
                 gaps.append("공문 structure gate failed")
         korean_proofing_status = _korean_proofing_status(plan, normalized_plan)
+        if _source_changed_during_inspection(path, source_payload):
+            gaps.append("source changed during inspection")
+            render_checked = False
         return {
             "report_version": AUTHORING_REPORT_VERSION,
             "schemaVersion": DOCUMENT_PLAN_SCHEMA_VERSION,
@@ -1391,6 +1401,7 @@ def inspect_document_authoring_quality(
             },
             "render_checked": render_checked,
             "visual_complete": visual_complete,
+            "source_content_hash": source_hash,
             "validation": {
                 "reopened": reopened,
                 "validate_package": {
@@ -1409,7 +1420,7 @@ def inspect_document_authoring_quality(
             "style_token_usage": style_usage,
             "recovery": recovery,
             "profiles": profiles,
-            "visual_review_required": bool(gates.get("visualReviewRequired", True)) and not render_checked,
+            "visual_review_required": bool(gates.get("visualReviewRequired", True)) and visual_complete is not True,
             "gaps": gaps,
         }
     finally:
@@ -2613,6 +2624,7 @@ def _add_plan_table(
                 char_pr_id_ref=tokens["table_cell"],
             )
     _style_plan_table(document, table, header_fill=_TABLE_HEADER_FILL)
+    _flow_oversized_authored_table(table)
 
 
 def _add_builder_table(
@@ -2661,6 +2673,17 @@ def _add_builder_table(
         header_fill=table_node.header_shading or _TABLE_HEADER_FILL,
         header_rows=1 if table_node.header else 0,
     )
+    _flow_oversized_authored_table(table)
+
+
+def _flow_oversized_authored_table(table: Any) -> None:
+    """Let a newly authored table taller than the page body continue on later pages."""
+    section = table.paragraph.section
+    page = section.properties.page_size
+    margins = section.properties.page_margins
+    body_height = page.height - margins.top - margins.bottom
+    if body_height > 0 and table.height > body_height:
+        table.set_treat_as_char(False)
 
 
 def _set_table_cell_text(

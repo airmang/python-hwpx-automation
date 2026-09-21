@@ -29,7 +29,6 @@ from hwpx_automation.office.agent import (
     plan_mixed_form_fill,
     validate_mixed_form_plan,
 )
-from hwpx.quality import SavePipeline
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -40,6 +39,7 @@ from pydantic import (
 )
 
 from .execution_lock import PUBLIC_MUTATION_LOCK
+from .office.agent._batch_publication import GuardedSavePipeline
 from .office.rendering import resolve_hancom_backend
 from .storage import build_hwpx_open_safety_report
 from .utils.helpers import resolve_path
@@ -584,7 +584,7 @@ class _FailurePreimagePreserver:
         return True
 
 
-class _WorkspaceSavePipeline(SavePipeline):
+class _WorkspaceSavePipeline(GuardedSavePipeline):
     """Run the core quality gate but publish through an identity-bound path."""
 
     def __init__(
@@ -1652,7 +1652,7 @@ def _finalize_canonical_apply(
     verification = copy.deepcopy(core_verification)
     response_ok = bool(response.get("ok")) and bool(source_report["ok"])
     missing_fresh_publication = bool(
-        response_ok
+        (response_ok or core_verification.get("publication", {}).get("ownershipMissing"))
         and not dry_run
         and not replayed
         and publication is None

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "hwpx.tool-contract-delta/v1",
+  "release": "7.2.0",
+  "baseline": {
+    "release": "7.1.0",
+    "contractHash": "ba0211fc854a0a97",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136
+  },
+  "target": {
+    "release": "7.2.0",
+    "contractHash": "5e5c23651f92785a",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136,
+    "skillRequiredToolCount": 29
+  },
+  "delta": {
+    "addedTools": [],
+    "removedTools": [],
+    "promotedTools": [],
+    "profileMoves": [],
+    "changedInputSchemas": [
+      "replace_picture"
+    ],
+    "changedDescriptions": [
+      "replace_picture"
+    ]
+  },
+  "floors": {
+    "minPythonHwpx": "6.5.0",
+    "minAutomationVersion": "7.2.0",
+    "minMcpVersion": "7.2.0",
+    "minSkillVersion": "2.0.0"
+  },
+  "note": "Additive optional image_filename to replace_picture, with image_base64 made optional while exactly one image source remains required at runtime. Core and automation floors advance for preservation and table-flow primitives. All other tool changes are per-tool availability floors."
+}

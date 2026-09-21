@@ -49,7 +49,7 @@ class ContentLayoutService:
                 )
             if "underline" in style_filter:
                 filter_args["underline_type"] = (
-                    "SOLID" if style_filter["underline"] else "NONE"
+                    "BOTTOM" if style_filter["underline"] else "NONE"
                 )
             if "charPrIDRef" in style_filter and style_filter["charPrIDRef"]:
                 filter_args["char_pr_id_ref"] = style_filter["charPrIDRef"]

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
-import hwpx_automation.server as server
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.validator import validate_document
+
+import hwpx_automation.server as server
 from hwpx_automation.fastmcp_adapter import snapshot_runtime_tools
 
 
@@ -67,6 +69,10 @@ def _broken_plan() -> dict:
 def _comparable_create_payload(payload: dict) -> dict:
     comparable = dict(payload)
     comparable.pop("filename", None)
+    if "quality" in comparable:
+        quality = dict(comparable["quality"])
+        quality.pop("source_content_hash", None)
+        comparable["quality"] = quality
     if "verification" in comparable:
         verification = comparable["verification"]
         open_safety = verification["openSafety"]
@@ -113,6 +119,12 @@ def test_create_government_report_document_matches_direct_document_plan_call(
     assert wrapper_result["created"] is True
     assert wrapper_result["style_preset"] == "government_report"
     assert wrapper_result["quality_profile"] == "government_report"
+    assert wrapper_result["quality"]["source_content_hash"] == (
+        "sha256:" + hashlib.sha256(wrapper_destination.read_bytes()).hexdigest()
+    )
+    assert direct_result["quality"]["source_content_hash"] == (
+        "sha256:" + hashlib.sha256(direct_destination.read_bytes()).hexdigest()
+    )
     assert _comparable_create_payload(wrapper_result) == _comparable_create_payload(direct_result)
     assert validate_package(wrapper_destination).ok
     assert validate_document(wrapper_destination).ok

@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO, cast
 
-from .catalog import agent_catalog, human_help
+from ._batch_verification import _error_from_exception
 from .blueprint import (
     blueprint_catalog,
     blueprint_human_help,
@@ -21,18 +21,21 @@ from .blueprint import (
     repack_blueprint_bundle,
     replay_document_blueprint,
 )
+from .catalog import agent_catalog, human_help
 from .commands import apply_document_commands
 from .document import HwpxAgentDocument
 from .form_plan import (
-    MIXED_FORM_PLAN_SCHEMA, MIXED_FORM_COMPILED_PLAN_SCHEMA,
-    apply_mixed_form_fill, apply_mixed_form_plan,
+    MIXED_FORM_COMPILED_PLAN_SCHEMA,
+    MIXED_FORM_PLAN_SCHEMA,
+    apply_mixed_form_fill,
+    apply_mixed_form_plan,
 )
 from .model import (
     AGENT_BATCH_SCHEMA,
+    VERIFICATION_REQUIREMENTS,
     AgentBatchResult,
     AgentContractError,
     AgentError,
-    VERIFICATION_REQUIREMENTS,
 )
 
 EXIT_OK = 0
@@ -624,12 +627,7 @@ def main(
         _json_dump(_error_payload(error), stderr)
         return EXIT_USAGE
     except AgentContractError as exc:
-        error = AgentError(
-            code=exc.code,
-            message=str(exc),
-            target=exc.target,
-            recoverability="needs-review" if exc.code in _TARGET_CODES else "terminal",
-        )
+        error = _error_from_exception(exc)
         _json_dump(_error_payload(error), stderr)
         return _exit_code(error)
     except (KeyError, OSError, ValueError) as exc:
