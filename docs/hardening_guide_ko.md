@@ -1,6 +1,6 @@
 # python-hwpx-automation 하드닝 가이드
 
-> 릴리스 상태: `release-approved` — 7.2.0 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
+> 릴리스 상태: `released` — 7.2.0 공개 발행과 6.5.0/7.2.0/2.3.0 marketplace 설치를 관찰했습니다.
 
 > 아래 내용은 2026-08-02에 공개된 `python-hwpx 5.5.0 → python-hwpx-automation 6.5.1 → hwpx-plugin 1.5.0` 트레인의 기록입니다.
 
@@ -98,4 +98,4 @@
   `scripts/conformance/corpus`입니다.
 
 
-> 릴리스 상태: released. 7.1.0 공개 릴리스이며 현재 공개 트레인은 python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0입니다. 공개 발행과 실제 marketplace 설치 관찰을 완료했습니다.
+> 이전 공개 트레인 기록: python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0.
