@@ -171,7 +171,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/authoring/__init__.py", "_normalize_v2_block", 15),
     ("src/hwpx_automation/office/authoring/__init__.py", "_recovery_summary", 12),
     ("src/hwpx_automation/office/authoring/__init__.py", "_validate_block", 19),
-    ("src/hwpx_automation/office/authoring/__init__.py", "inspect_document_authoring_quality", 15),
+    ("src/hwpx_automation/office/authoring/__init__.py", "inspect_document_authoring_quality", 12),
     ("src/hwpx_automation/office/authoring/__init__.py", "validate_document_plan", 11),
     ("src/hwpx_automation/office/authoring/builder/core.py", "_section_feature_flags", 14),
     ("src/hwpx_automation/office/authoring/builder/core.py", "lower", 18),

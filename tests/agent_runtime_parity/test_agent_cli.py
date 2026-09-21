@@ -473,6 +473,15 @@ def test_target_conflict_and_verification_exit_codes(tmp_path: Path) -> None:
     assert code == EXIT_CONFLICT and error == ""
     assert json.loads(payload)["error"]["code"] == "stale_revision"
 
+    code, output, error = _run(
+        ["query", str(source), "paragraph", "--expected-revision", "sha256:" + "0" * 64]
+    )
+    assert code == EXIT_CONFLICT and output == ""
+    stale_read = json.loads(error)["error"]
+    assert stale_read["code"] == "stale_revision"
+    assert stale_read["recoverability"] == "retryable"
+    assert stale_read["suggestion"] == "Read the document again and retry with its current revision."
+
     existing = tmp_path / "exists.hwpx"
     existing.write_bytes(b"occupied")
     code, payload, error = _run(

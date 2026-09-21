@@ -1236,6 +1236,40 @@ def create_document_from_plan(
     return document
 
 
+def _source_changed_during_inspection(path: Path | None, payload: bytes) -> bool:
+    if path is None:
+        return False
+    try:
+        return path.read_bytes() != payload
+    except OSError:
+        return True
+
+
+def _check_authoring_render(payload: bytes, *, verify_render: bool) -> bool:
+    if not verify_render:
+        return False
+    from ..rendering import MacHancomOracle
+
+    oracle = MacHancomOracle()
+    if not oracle.available():
+        return False
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temporary:
+        source = Path(temporary) / "render_check.hwpx"
+        source.write_bytes(payload)
+        rendered = oracle.render_pdf(str(source), str(Path(temporary) / "render_check.pdf"))
+        if not rendered or not Path(rendered).exists():
+            return False
+        try:
+            import pymupdf
+
+            with pymupdf.open(rendered) as pdf:
+                return len(pdf) > 0
+        except Exception:
+            return False
+
+
 def inspect_document_authoring_quality(
     source: str | Path | HwpxDocument,
     *,
@@ -1273,42 +1307,13 @@ def inspect_document_authoring_quality(
         document = HwpxDocument.open(source_payload)
         close_doc = True
 
-    def source_changed() -> bool:
-        if path is None:
-            return False
-        try:
-            return path.read_bytes() != source_payload
-        except OSError:
-            return True
-
     try:
         package_report = validate_package(source_payload)
         document_report = document.validate()
         reopened = _can_reopen(None, source_payload)
         source_hash = "sha256:" + hashlib.sha256(source_payload).hexdigest()
-        render_checked = False
+        render_checked = _check_authoring_render(source_payload, verify_render=verify_render)
         visual_complete: Any = "unverified"
-        if verify_render:
-            from ..rendering import MacHancomOracle
-
-            _mac = MacHancomOracle()
-            if _mac.available():
-                import tempfile as _tf
-
-                with _tf.TemporaryDirectory() as _tmp:
-                    _hwpx = Path(_tmp) / "render_check.hwpx"
-                    _hwpx.write_bytes(source_payload)
-                    _pdf = Path(_tmp) / "render_check.pdf"
-                    _rendered = _mac.render_pdf(str(_hwpx), str(_pdf))
-                    if _rendered and Path(_rendered).exists():
-                        try:
-                            import pymupdf as _fitz
-
-                            _doc = _fitz.open(_rendered)
-                            render_checked = len(_doc) > 0
-                            _doc.close()
-                        except Exception:
-                            render_checked = False
         non_empty_texts = [
             (paragraph.text or "").strip()
             for paragraph in document.paragraphs
@@ -1342,10 +1347,6 @@ def inspect_document_authoring_quality(
         ]
         if plan_validation is not None and not plan_validation["ok"]:
             gaps.append("document plan validation failed")
-        if source_changed():
-            gaps.append("source changed during inspection")
-            render_checked = False
-
         style_usage = _style_usage(document)
         package_issues = _report_issue_dicts(package_report, kind="package")
         document_issues = _report_issue_dicts(document_report, kind="schema")
@@ -1381,9 +1382,8 @@ def inspect_document_authoring_quality(
             if not gongmun_structure.get("structure_pass", True):
                 gaps.append("공문 structure gate failed")
         korean_proofing_status = _korean_proofing_status(plan, normalized_plan)
-        if source_changed():
-            if "source changed during inspection" not in gaps:
-                gaps.append("source changed during inspection")
+        if _source_changed_during_inspection(path, source_payload):
+            gaps.append("source changed during inspection")
             render_checked = False
         return {
             "report_version": AUTHORING_REPORT_VERSION,
