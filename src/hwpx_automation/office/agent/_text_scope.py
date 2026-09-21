@@ -148,6 +148,67 @@ class TextTarget:
     extra_locations: tuple[tuple[int, ...], ...] = ()
 
 
+def _bind_header(
+    view: HwpxAgentDocument, path: str, value: str,
+    sections: list[tuple[str, dict[Any, tuple[int, ...]]]],
+) -> TextTarget | None:
+    header_path = try_parse_header_story_path(path)
+    if header_path is None:
+        return None
+    header_binding = view._resolve_header_story(path)
+    section = view.document.sections[header_path.section_index - 1]
+    positions = dict(sections)[section.part_name]
+    nodes = [node for node in section.element.iter()
+             if node.tag == HP + "header" and node.get("id") == header_binding.native_id]
+    if not nodes or any(node not in positions for node in nodes):
+        return None
+    return TextTarget(section.part_name, positions[nodes[0]], value, path,
+                      "header", tuple(positions[node] for node in nodes[1:]))
+
+
+def _bind_field(
+    native: Any, path: str, value: str,
+    sections: list[tuple[str, dict[Any, tuple[int, ...]]]],
+) -> TextTarget | None:
+    element = native["_paragraph"].element
+    binding = next(((member, positions[element], positions)
+                    for member, positions in sections if element in positions), None)
+    if binding is None or not native.get("_text_nodes") or native.get("is_placeholder"):
+        return None
+    nodes = native["_text_nodes"]
+    begin = native.get("_field_begin")
+    if begin is None or any(node not in binding[2] for node in [begin, *nodes]):
+        return None
+    return TextTarget(binding[0], binding[1], value, path, "field",
+                      (binding[2][begin], *(binding[2][node] for node in nodes)))
+
+
+def _bind_plain(
+    native: Any, path: str, value: str, kind: str,
+    sections: list[tuple[str, dict[Any, tuple[int, ...]]]],
+) -> TextTarget | None:
+    element = native.element
+    binding = next(((member, positions[element])
+                    for member, positions in sections if element in positions), None)
+    return None if binding is None else TextTarget(binding[0], binding[1], value, path, kind)
+
+
+def _reject_overlapping_targets(bound: tuple[TextTarget, ...]) -> None:
+    for index, first in enumerate(bound):
+        for second in bound[index + 1:]:
+            if first.member != second.member:
+                continue
+            if {first.kind, second.kind} == {"header", "paragraph"}:
+                continue  # Story leaves are verified and masked before enclosing body text.
+            locations = (first.location, *first.extra_locations)
+            others = (second.location, *second.extra_locations)
+            if any(a[:len(b)] == b or b[:len(a)] == a for a in locations for b in others):
+                raise AgentContractError(
+                    "unsupported_content", "overlapping text targets need separate batches",
+                    target=second.path,
+                )
+
+
 class TextScope:
     def __init__(self, targets: Sequence[TextTarget] | None) -> None:
         self.targets = targets
@@ -170,67 +231,22 @@ class TextScope:
         for command in commands:
             path = str(command["path"])
             path = aliases.get(path, path)
-            header_path = try_parse_header_story_path(path)
-            if header_path is not None:
-                header_binding = view._resolve_header_story(path)
-                section = view.document.sections[header_path.section_index - 1]
-                positions = dict(sections)[section.part_name]
-                nodes = [node for node in section.element.iter()
-                         if node.tag == HP + "header" and node.get("id") == header_binding.native_id]
-                if not nodes or any(node not in positions for node in nodes):
+            if try_parse_header_story_path(path) is not None:
+                target = _bind_header(view, path, command["properties"]["text"], sections)
+            else:
+                record = view.resolve_record(path)
+                if record.kind == "form-field":
+                    target = _bind_field(record.native, path, command["properties"]["value"], sections)
+                elif record.kind in {"paragraph", "run", "cell"}:
+                    target = _bind_plain(record.native, path, command["properties"]["text"], record.kind, sections)
+                else:
                     return cls(None)
-                targets[path] = TextTarget(section.part_name, positions[nodes[0]],
-                                           command["properties"]["text"], path,
-                                           "header", tuple(positions[node] for node in nodes[1:]))
-                aliases["$" + command["commandId"] + ".path"] = path
-                continue
-            record = view.resolve_record(path)
-            if record.kind == "form-field":
-                native = record.native
-                paragraph = native["_paragraph"]
-                element = paragraph.element
-                field_binding = next(((member, positions[element], positions)
-                                for member, positions in sections if element in positions), None)
-                if field_binding is None or not native.get("_text_nodes") or native.get("is_placeholder"):
-                    return cls(None)
-                nodes = native["_text_nodes"]
-                begin = native.get("_field_begin")
-                if begin is None or any(node not in field_binding[2] for node in [begin, *nodes]):
-                    return cls(None)
-                targets[path] = TextTarget(field_binding[0], field_binding[1],
-                                           command["properties"]["value"], path,
-                                           "field", (field_binding[2][begin], *(field_binding[2][node] for node in nodes)))
-                aliases["$" + command["commandId"] + ".path"] = path
-                continue
-            if record.kind not in {"paragraph", "run", "cell"}:
+            if target is None:
                 return cls(None)
-            element = record.native.element
-            element_binding = next(
-                (
-                    (member, positions[element])
-                    for member, positions in sections
-                    if element in positions
-                ),
-                None,
-            )
-            if element_binding is None:
-                return cls(None)
-            targets[path] = TextTarget(
-                element_binding[0], element_binding[1], command["properties"]["text"], path
-            )
+            targets[path] = target
             aliases["$" + command["commandId"] + ".path"] = path
         bound = tuple(targets.values())
-        for index, first in enumerate(bound):
-            for second in bound[index + 1:]:
-                if first.member != second.member:
-                    continue
-                locations = (first.location, *first.extra_locations)
-                others = (second.location, *second.extra_locations)
-                if any(a[:len(b)] == b or b[:len(a)] == a for a in locations for b in others):
-                    raise AgentContractError(
-                        "unsupported_content", "overlapping text targets need separate batches",
-                        target=second.path,
-                    )
+        _reject_overlapping_targets(bound)
         return cls(bound)
 
     def verify(self, before: bytes, after: bytes, verification: dict[str, Any]) -> None:
@@ -247,38 +263,52 @@ class TextScope:
             zipfile.ZipFile(io.BytesIO(before)) as a,
             zipfile.ZipFile(io.BytesIO(after)) as b,
         ):
-            guard_zip_file(a)
-            guard_zip_file(b)
-            if sorted(a.namelist()) != sorted(b.namelist()) or len(b.namelist()) != len(
-                set(b.namelist())
-            ):
-                self._fail("package member set changed")
-            members = {target.member for target in self.targets}
-            for name in a.namelist():
-                if name not in members and read_member(a, name) != read_member(b, name):
-                    self._fail("non-target package payload changed", name)
-            for member in members:
-                old = parse_xml_stdlib(read_member(a, member), part_name=member)
-                new = parse_xml_stdlib(read_member(b, member), part_name=member)
-                for target in (t for t in self.targets if t.member == member):
-                    left, right = _at(old, target.location), _at(new, target.location)
-                    if target.kind == "header":
-                        self._verify_header(old, new, target)
-                        continue
-                    if target.kind == "field":
-                        self._verify_field(old, new, target)
-                        continue
-                    if left.tag != right.tag or _text(right) != target.value or not _target_format(left, right):
-                        self._fail("target value, control, or formatting does not match the text edit", target.path)
-                    # Keep the enclosing node/position while masking its already
-                    # verified authorized content. No other node is masked.
-                    for node in (left, right):
-                        node.clear()
-                        node.tag = "authorized-text-target"
-                if _tree(old) != _tree(new):
-                    self._fail("non-target content or formatting changed", member)
+            self._verify_members(a, b)
         report.update(ok=True)
         verification["semanticDiff"].update(ok=True, basis="verified-text-scope")
+
+    def _verify_members(self, before: zipfile.ZipFile, after: zipfile.ZipFile) -> None:
+        guard_zip_file(before)
+        guard_zip_file(after)
+        if sorted(before.namelist()) != sorted(after.namelist()) or len(after.namelist()) != len(
+            set(after.namelist())
+        ):
+            self._fail("package member set changed")
+        assert self.targets is not None
+        members = {target.member for target in self.targets}
+        for name in before.namelist():
+            if name not in members and read_member(before, name) != read_member(after, name):
+                self._fail("non-target package payload changed", name)
+        for member in members:
+            old = parse_xml_stdlib(read_member(before, member), part_name=member)
+            new = parse_xml_stdlib(read_member(after, member), part_name=member)
+            self._verify_member(old, new, member)
+
+    def _verify_member(self, old: Any, new: Any, member: str) -> None:
+        assert self.targets is not None
+        targets = sorted(
+            (t for t in self.targets if t.member == member),
+            key=lambda t: 0 if t.kind == "header" else 1,
+        )
+        for target in targets:
+            if target.kind == "header":
+                self._verify_header(old, new, target)
+            elif target.kind == "field":
+                self._verify_field(old, new, target)
+            else:
+                self._verify_plain(old, new, target)
+        if _tree(old) != _tree(new):
+            self._fail("non-target content or formatting changed", member)
+
+    def _verify_plain(self, old: Any, new: Any, target: TextTarget) -> None:
+        left, right = _at(old, target.location), _at(new, target.location)
+        if left.tag != right.tag or _text(right) != target.value or not _target_format(left, right):
+            self._fail("target value, control, or formatting does not match the text edit", target.path)
+        # No other content is masked; headers inside this paragraph have
+        # already been checked leaf by leaf before masking the enclosing node.
+        for node in (left, right):
+            node.clear()
+            node.tag = "authorized-text-target"
 
     def _verify_header(self, old: Any, new: Any, target: TextTarget) -> None:
         for location in (target.location, *target.extra_locations):
@@ -290,6 +320,9 @@ class TextScope:
             if len(old_texts) != 1 or len(new_texts) != 1 or new_texts[0].text != target.value:
                 self._fail("header story text or structure changed unexpectedly", target.path)
             old_texts[0].text = new_texts[0].text = "authorized-text"
+        self._verify_header_mirror(old, new, target)
+
+    def _verify_header_mirror(self, old: Any, new: Any, target: TextTarget) -> None:
         # Core adds a control mirror when the existing logical story lacked
         # one. Verify that the sole addition is a byte-equivalent mirror of
         # the edited story, then remove it from the comparison tree.
