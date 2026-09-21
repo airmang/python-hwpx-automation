@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import zlib
 
 from .. import quality as quality_contract
 from ..core.content import (
@@ -806,6 +807,37 @@ def insert_picture(
     return _with_save_verification(result, verification)
 
 
+def _validate_workspace_image(data: bytes, image_format: str) -> None:
+    """Check bounded file input before inserting its bytes into a package."""
+    fmt = image_format.casefold().lstrip(".")
+    if fmt == "png":
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError("image_filename content does not match image_format")
+        offset = 8
+        chunks: list[bytes] = []
+        while offset + 12 <= len(data):
+            length = int.from_bytes(data[offset:offset + 4], "big")
+            end = offset + 12 + length
+            if end > len(data):
+                break
+            kind = data[offset + 4:offset + 8]
+            payload = data[offset + 8:offset + 8 + length]
+            crc = int.from_bytes(data[end - 4:end], "big")
+            if zlib.crc32(kind + payload) != crc:
+                break
+            chunks.append(kind)
+            offset = end
+            if kind == b"IEND":
+                if length == 0 and offset == len(data) and chunks[0] == b"IHDR" and b"IDAT" in chunks:
+                    return
+                break
+    elif fmt in {"jpg", "jpeg"} and data.startswith(b"\xff\xd8\xff") and data.endswith(b"\xff\xd9"):
+        return
+    elif fmt == "gif" and data.startswith((b"GIF87a", b"GIF89a")) and data.endswith(b";"):
+        return
+    raise ValueError("image_filename content does not match image_format or is incomplete")
+
+
 def replace_picture(
     filename: str,
     image_base64: str | None = None,
@@ -826,24 +858,17 @@ def replace_picture(
     if guard is not None:
         return guard
     target_path = resolve_path(output) if output else path
-    doc = open_doc(path)
     if image_filename is not None:
         image_path = Path(resolve_path(image_filename))
-        if not image_path.is_file() or image_path.stat().st_size > 20 * 1024 * 1024:
-            raise ValueError("image_filename must be an existing image file at most 20 MiB")
-        image_data = image_path.read_bytes()
-        signature = {
-            "png": b"\x89PNG\r\n\x1a\n",
-            "jpg": b"\xff\xd8\xff",
-            "jpeg": b"\xff\xd8\xff",
-            "gif": b"GIF8",
-        }
-        fmt = image_format.casefold().lstrip(".")
-        if fmt not in signature or not image_data.startswith(signature[fmt]):
-            raise ValueError("image_filename content does not match image_format")
+        with image_path.open("rb") as image_file:
+            image_data = image_file.read(20 * 1024 * 1024 + 1)
+        if len(image_data) > 20 * 1024 * 1024:
+            raise ValueError("image_filename must be at most 20 MiB")
+        _validate_workspace_image(image_data, image_format)
     else:
         assert image_base64 is not None
         image_data = _decode_image_base64(image_base64)
+    doc = open_doc(path)
     # media.replace_picture now returns a frozen PictureReplacement (design
     # §2.4) whose own .to_dict() uses different field names than this op's
     # established response contract (old_binaryItemIDRef/new_binaryItemIDRef/

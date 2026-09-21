@@ -134,11 +134,22 @@ def test_insert_and_replace_picture_tools_preserve_safe_asset_graph(tmp_path: Pa
 
 
 def test_replace_picture_accepts_workspace_image_file(tmp_path: Path):
-    import base64
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload))
+
+    valid_png = (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\xff"))
+        + chunk(b"IEND", b"")
+    )
 
     target = tmp_path / "picture-file.hwpx"
     image = tmp_path / "replacement.png"
-    image.write_bytes(base64.b64decode(PNG_1X1_ALT_B64))
+    image.write_bytes(valid_png)
     create_document(str(target))
     insert_picture(str(target), PNG_1X1_B64, image_format="png", width=11111, height=22222)
 
@@ -151,10 +162,43 @@ def test_replace_picture_accepts_workspace_image_file(tmp_path: Path):
 
     with pytest.raises(ValueError, match="exactly one"):
         replace_picture(str(target), PNG_1X1_B64, image_filename=str(image))
+    with pytest.raises(ValueError, match="exactly one"):
+        replace_picture(str(target))
     bad = tmp_path / "bad.png"
     bad.write_bytes(b"not a png")
     with pytest.raises(ValueError, match="does not match"):
         replace_picture(str(target), image_filename=str(bad))
+    truncated = tmp_path / "truncated.png"
+    truncated.write_bytes(b"\x89PNG\r\n\x1a\n")
+    with pytest.raises(ValueError, match="incomplete"):
+        replace_picture(str(target), image_filename=str(truncated))
+    oversized = tmp_path / "oversized.png"
+    with oversized.open("wb") as stream:
+        stream.write(b"\x89PNG\r\n\x1a\n")
+        stream.truncate(20 * 1024 * 1024 + 1)
+    with pytest.raises(ValueError, match="20 MiB"):
+        replace_picture(str(target), image_filename=str(oversized))
+
+
+def test_replace_picture_file_obeys_workspace_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    import base64
+    import json
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(base64.b64decode(PNG_1X1_ALT_B64))
+    target = workspace / "picture.hwpx"
+    create_document(str(target))
+    insert_picture(str(target), PNG_1X1_B64)
+    link = workspace / "linked.png"
+    link.symlink_to(outside)
+    monkeypatch.setenv("HWPX_AUTOMATION_WORKSPACE_ROOTS", json.dumps([str(workspace)]))
+
+    with pytest.raises(WorkspacePathError):
+        replace_picture("picture.hwpx", image_filename=str(outside))
+    with pytest.raises(WorkspacePathError):
+        replace_picture("picture.hwpx", image_filename="linked.png")
 
 
 def test_byte_preserving_patch_updates_paragraph_with_open_safety(tmp_path: Path):
