@@ -135,6 +135,8 @@ class TextTarget:
     location: tuple[int, ...]
     value: str
     path: str
+    kind: str = "text"
+    extra_locations: tuple[tuple[int, ...], ...] = ()
 
 
 class TextScope:
@@ -146,7 +148,8 @@ class TextScope:
         cls, view: HwpxAgentDocument, commands: Sequence[Mapping[str, Any]]
     ) -> TextScope:
         if not commands or any(
-            c["op"] != "set" or set(c["properties"]) != {"text"} for c in commands
+            c["op"] != "set" or set(c["properties"]) not in ({"text"}, {"value"})
+            for c in commands
         ):
             return cls(None)
         sections = [
@@ -158,9 +161,38 @@ class TextScope:
         for command in commands:
             path = str(command["path"])
             path = aliases.get(path, path)
-            if try_parse_header_story_path(path) is not None:
-                return cls(None)  # Existing story preservation owns this domain.
+            header_path = try_parse_header_story_path(path)
+            if header_path is not None:
+                binding = view._resolve_header_story(path)
+                section = view.document.sections[header_path.section_index - 1]
+                positions = dict(sections)[section.part_name]
+                nodes = [node for node in section.element.iter()
+                         if node.tag == HP + "header" and node.get("id") == binding.native_id]
+                if not nodes or any(node not in positions for node in nodes):
+                    return cls(None)
+                targets[path] = TextTarget(section.part_name, positions[nodes[0]],
+                                           command["properties"]["text"], path,
+                                           "header", tuple(positions[node] for node in nodes[1:]))
+                aliases["$" + command["commandId"] + ".path"] = path
+                continue
             record = view.resolve_record(path)
+            if record.kind == "form-field":
+                native = record.native
+                paragraph = native["_paragraph"]
+                element = paragraph.element
+                binding = next(((member, positions[element], positions)
+                                for member, positions in sections if element in positions), None)
+                if binding is None or not native.get("_text_nodes") or native.get("is_placeholder"):
+                    return cls(None)
+                nodes = native["_text_nodes"]
+                begin = native.get("_field_begin")
+                if begin is None or any(node not in binding[2] for node in [begin, *nodes]):
+                    return cls(None)
+                targets[path] = TextTarget(binding[0], binding[1],
+                                           command["properties"]["value"], path,
+                                           "field", (binding[2][begin], *(binding[2][node] for node in nodes)))
+                aliases["$" + command["commandId"] + ".path"] = path
+                continue
             if record.kind not in {"paragraph", "run", "cell"}:
                 return cls(None)
             element = record.native.element
@@ -182,7 +214,7 @@ class TextScope:
 
     def verify(self, before: bytes, after: bytes, verification: dict[str, Any]) -> None:
         report: dict[str, Any] = {
-            "scope": "paragraph/run/cell text-only batches",
+            "scope": "paragraph/run/cell/field/existing-header text-only batches",
             "ok": None,
             "status": "not-applicable",
         }
@@ -209,15 +241,14 @@ class TextScope:
                 new = parse_xml_stdlib(read_member(b, member), part_name=member)
                 for target in (t for t in self.targets if t.member == member):
                     left, right = _at(old, target.location), _at(new, target.location)
-                    if (
-                        left.tag != right.tag
-                        or _text(right) != target.value
-                        or not _target_format(left, right)
-                    ):
-                        self._fail(
-                            "target value, control, or formatting does not match the text edit",
-                            target.path,
-                        )
+                    if target.kind == "header":
+                        self._verify_header(old, new, target)
+                        continue
+                    if target.kind == "field":
+                        self._verify_field(old, new, target)
+                        continue
+                    if left.tag != right.tag or _text(right) != target.value or not _target_format(left, right):
+                        self._fail("target value, control, or formatting does not match the text edit", target.path)
                     # Keep the enclosing node/position while masking its already
                     # verified authorized content. No other node is masked.
                     for node in (left, right):
@@ -227,6 +258,67 @@ class TextScope:
                     self._fail("non-target content or formatting changed", member)
         report.update(ok=True)
         verification["semanticDiff"].update(ok=True, basis="verified-text-scope")
+
+    def _verify_header(self, old: Any, new: Any, target: TextTarget) -> None:
+        for location in (target.location, *target.extra_locations):
+            before, after = _at(old, location), _at(new, location)
+            if before.tag != HP + "header" or after.tag != before.tag:
+                self._fail("header story changed structure", target.path)
+            old_texts = before.findall("./" + HP + "subList/" + HP + "p/" + HP + "run/" + HP + "t")
+            new_texts = after.findall("./" + HP + "subList/" + HP + "p/" + HP + "run/" + HP + "t")
+            if len(old_texts) != 1 or len(new_texts) != 1 or new_texts[0].text != target.value:
+                self._fail("header story text or structure changed unexpectedly", target.path)
+            old_texts[0].text = new_texts[0].text = "authorized-text"
+        # Core adds a control mirror when the existing logical story lacked
+        # one. Verify that the sole addition is a byte-equivalent mirror of
+        # the edited story, then remove it from the comparison tree.
+        existing = len((target.location, *target.extra_locations))
+        matching = [node for node in new.iter(HP + "header")
+                    if node.get("id") == _at(new, target.location).get("id")]
+        if len(matching) == existing + 1:
+            mirror = next((node for node in matching if node not in
+                           [_at(new, location) for location in (target.location, *target.extra_locations)]), None)
+            if mirror is None:
+                self._fail("header mirror is ambiguous", target.path)
+            texts = mirror.findall("./" + HP + "subList/" + HP + "p/" + HP + "run/" + HP + "t")
+            if len(texts) != 1 or texts[0].text != target.value:
+                self._fail("header mirror text changed", target.path)
+            texts[0].text = "authorized-text"
+            if _tree(mirror) != _tree(_at(new, target.location)):
+                self._fail("header mirror differs from logical story", target.path)
+            locations = _locations(new)
+            mirror_path = locations[mirror]
+            if len(mirror_path) < 2:
+                self._fail("header mirror location is invalid", target.path)
+            control = _at(new, mirror_path[:-1])
+            run = _at(new, mirror_path[:-2])
+            if (control.tag != HP + "ctrl" or len(control) != 1
+                    or run.tag != HP + "run" or mirror_path[:-2] not in _locations(old).values()):
+                self._fail("header mirror changed unrelated structure", target.path)
+            run.remove(control)
+        elif len(matching) != existing:
+            self._fail("header story count changed unexpectedly", target.path)
+        # The caller compares the entire section tree, including all controls,
+        # sibling stories, attributes and styles after these exact leaves mask.
+
+    def _verify_field(self, old: Any, new: Any, target: TextTarget) -> None:
+        begin_location, *text_locations = target.extra_locations
+        before_begin, after_begin = _at(old, begin_location), _at(new, begin_location)
+        if before_begin.tag != HP + "fieldBegin" or after_begin.tag != before_begin.tag:
+            self._fail("field control changed structure", target.path)
+        if after_begin.get("dirty") != "1":
+            self._fail("field dirty marker missing", target.path)
+        before_begin.set("dirty", "1")
+        before_texts = [_at(old, location) for location in text_locations]
+        after_texts = [_at(new, location) for location in text_locations]
+        if any(a.tag != HP + "t" or b.tag != a.tag for a, b in zip(before_texts, after_texts)):
+            self._fail("field text node changed structure", target.path)
+        if "".join(node.text or "" for node in after_texts) != target.value:
+            self._fail("field value does not match", target.path)
+        for before_text, after_text in zip(before_texts, after_texts):
+            before_text.text = after_text.text = "authorized-text"
+        # Field controls and every sibling in the paragraph remain visible to
+        # the final full-section comparison; only value text and dirty differ.
 
     @staticmethod
     def _fail(message: str, target: str | None = None) -> None:

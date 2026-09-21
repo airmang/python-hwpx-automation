@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 from hwpx import HwpxDocument, validate_editor_open_safety
-from hwpx_automation.office.agent import AGENT_BATCH_SCHEMA, HwpxAgentDocument, apply_document_commands
 from hwpx.oxml.namespaces import HP
 from hwpx.quality import SavePipeline
 from hwpx.quality.rendering import UnavailableRenderBackend as NullOracle
+from hwpx_automation.office.agent import (
+    AGENT_BATCH_SCHEMA,
+    HwpxAgentDocument,
+    apply_document_commands,
+)
+from hwpx_automation.office.agent._text_scope import TextScope
+from hwpx_automation.office.agent.model import AgentContractError
 
 
 def _revision(path: Path) -> str:
@@ -144,6 +152,39 @@ def test_mixed_run_text_edit_preserves_other_run_and_refuses_cross_style(tmp_pat
     refused = apply_document_commands(_batch(source, tmp_path / "refused.hwpx", [command]))
     assert not refused.ok
     assert refused.error.code == "unsupported_content"
+
+
+def test_existing_field_value_has_package_wide_preservation_proof(tmp_path: Path) -> None:
+    source = tmp_path / "field.hwpx"
+    output = tmp_path / "edited.hwpx"
+    _write_fixture(source)
+    with HwpxDocument.open(source) as document:
+        document.fields.fill("old value", field_index=0)
+        document.save_to_path(source)
+    with HwpxAgentDocument.open(source) as agent:
+        field = _record(agent, "form-field", "601")
+    command = {"commandId": "field", "op": "set", "path": field.path,
+               "properties": {"value": "new value"}}
+    result = apply_document_commands(_batch(source, output, [command]))
+    assert result.ok, result.to_dict()
+    assert result.verification_report["scopePreservation"]["ok"] is True
+    with HwpxAgentDocument.open(output) as agent:
+        assert _record(agent, "form-field", "601").summary["value"] == "new value"
+    with HwpxAgentDocument.open(source) as agent:
+        scope = TextScope.bind(agent, [command])
+    candidate = output.read_bytes()
+    with zipfile.ZipFile(io.BytesIO(candidate)) as archive:
+        members = {name: archive.read(name) for name in archive.namelist()}
+    root = ET.fromstring(members["Contents/section0.xml"])
+    field_begin = next(node for node in root.iter() if node.tag == f"{HP}fieldBegin")
+    field_begin.set("editable", "false")  # control collateral
+    members["Contents/section0.xml"] = ET.tostring(root, encoding="utf-8")
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    with pytest.raises(AgentContractError, match="non-target"):
+        scope.verify(source.read_bytes(), stream.getvalue(), {"semanticDiff": {}})
 
 
 def test_set_compiles_allowlisted_properties_and_verifies_once(tmp_path: Path) -> None:
