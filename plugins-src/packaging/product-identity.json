@@ -2,7 +2,7 @@
   "schemaVersion": "hwpx.product-identity.v3",
   "stackName": "HWPX stack",
   "releaseState": {
-    "status": "release-approved",
+    "status": "released",
     "candidate": {
       "pythonHwpx": "6.5.0",
       "canonicalDistribution": "python-hwpx-automation",
@@ -13,11 +13,11 @@
       "contractHash": "5e5c23651f92785a"
     },
     "currentPublic": {
-      "pythonHwpx": "6.4.0",
+      "pythonHwpx": "6.5.0",
       "primaryDistribution": "python-hwpx-automation",
-      "primaryApplication": "7.1.0",
-      "plugin": "2.2.0",
-      "contractHash": "ba0211fc854a0a97"
+      "primaryApplication": "7.2.0",
+      "plugin": "2.3.0",
+      "contractHash": "5e5c23651f92785a"
     },
     "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication.",
     "previousPublic": {
@@ -27,20 +27,25 @@
       "plugin": "2.2.0",
       "contractHash": "ba0211fc854a0a97"
     },
-    "publicationEvidence": null
+    "publicationEvidence": {
+      "pluginVersion": "2.3.0",
+      "installObserved": true,
+      "observedAt": "2026-09-21T15:23:31+00:00",
+      "releaseUrl": "https://github.com/airmang/hwpx-plugins/releases/tag/v2.3.0"
+    }
   },
   "currentPublicStack": {
     "core": {
       "distribution": "python-hwpx",
-      "version": "6.4.0"
+      "version": "6.5.0"
     },
     "application": {
       "distribution": "python-hwpx-automation",
-      "version": "7.1.0"
+      "version": "7.2.0"
     },
     "plugin": {
       "installedPluginId": "hwpx-plugin",
-      "version": "2.2.0"
+      "version": "2.3.0"
     }
   },
   "firstPartyLabelKo": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬",
