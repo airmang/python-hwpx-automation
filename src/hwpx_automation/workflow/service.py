@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import os
 import hashlib
+import os
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Mapping
@@ -14,19 +14,20 @@ from hwpx_automation.tool_contract import RELEASED_CONTRACT_HASH
 
 from .adapters import ADAPTERS, AdapterAbstention
 from .dispatcher import AllowlistedDispatcher
+from .evidence_lineage import render_evidence_manifest
 from .models import (
     TERMINAL_STATES,
     WORKFLOW_SCHEMA_VERSION,
     WorkFamily,
-    WorkOrder,
     WorkflowEvent,
     WorkflowRecord,
     WorkflowState,
+    WorkOrder,
     canonical_json,
 )
 from .policy import ActionRequest, PolicyViolation, WorkflowPolicyEngine
-from .store import WorkflowStore
 from .rendering import NullRenderClientV2, RenderClientV2, RenderJobV2, RenderStatus
+from .store import WorkflowStore
 
 
 def default_workflow_store_path() -> Path:
@@ -448,7 +449,7 @@ class WorkflowService:
         if record.state == WorkflowState.COMPLETED:
             verification_status = (
                 "verified_read_only" if read_only else
-                ("real_hancom_verified" if render_checked else "structurally_verified_render_unverified")
+                ("real_hancom_rendered_review_unverified" if render_checked else "structurally_verified_render_unverified")
             )
         elif record.state == WorkflowState.NEEDS_REVIEW:
             verification_status = "needs_review"
@@ -478,6 +479,15 @@ class WorkflowService:
                 "renderChecked": render_checked,
             },
             "render": render_receipt.model_dump(mode="json") if render_receipt else None,
+            "renderEvidence": (
+                render_evidence_manifest(
+                    revision=render_job.source_content_hash,
+                    source_hash=render_job.source_content_hash,
+                    receipt=render_receipt,
+                )
+                if render_checked and render_job is not None and render_receipt is not None
+                else None
+            ),
             "verificationStatus": verification_status,
             "unresolvedFindings": [] if record.state == WorkflowState.COMPLETED else self._findings(stop_reason),
             "versions": {

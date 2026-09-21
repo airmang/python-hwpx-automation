@@ -9,7 +9,11 @@ from pathlib import Path
 from hwpx_automation import server
 from hwpx_automation.workflow.models import WorkFamily
 from hwpx_automation.workflow.rendering import (
-    RenderArtifactKind, RenderArtifactV2, RenderJobV2, RenderReceiptV2, RenderStatus,
+    RenderArtifactKind,
+    RenderArtifactV2,
+    RenderJobV2,
+    RenderReceiptV2,
+    RenderStatus,
 )
 from hwpx_automation.workflow.service import WorkflowService
 from hwpx_automation.workflow.store import WorkflowStore
@@ -119,7 +123,13 @@ def test_workflow_defers_then_resumes_only_on_hash_bound_real_receipt(tmp_path):
     client.succeed()
     completed = service.continue_workflow(verify["workflowId"])
     assert completed["state"] == "completed"
-    assert completed["verificationStatus"] == "real_hancom_verified"
+    assert completed["verificationStatus"] == "real_hancom_rendered_review_unverified"
+    assert completed["renderEvidence"]["sourceHash"] == client.job.source_content_hash
+    assert completed["renderEvidence"]["pdfHash"] == "sha256:" + "a" * 64
+    assert completed["renderEvidence"]["pages"] == [
+        {"pageNumber": 1, "pagePngHash": "sha256:" + "b" * 64}
+    ]
+    assert completed["renderEvidence"]["observationStatus"] == "rendered_unreviewed"
     assert completed["openSafety"]["renderChecked"] is True
 
 
