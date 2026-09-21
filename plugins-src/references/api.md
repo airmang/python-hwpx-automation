@@ -8,11 +8,11 @@
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0` |
-| 검증 좌표 | 공개 발행·설치 관찰 완료 | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0` |
-| 릴리스 상태 | `released` — 2026-09-09 공개 발행·실제 marketplace 설치 관찰 | `hwpx-plugin 2.2.0` |
-| 최소 호환 버전 | 2.0 스킬 계약의 지원 플로어 | core `>=6.4.0` · automation `>=7.1.0` · skill `>=2.0.0` |
-| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` |
-| 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=6.4.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.1.0,<8` |
+| 검증 좌표 | 미발행 후보의 로컬 검증 조합 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0` |
+| 릴리스 상태 | 미발행 후보 (`unreleased-candidate`) | `hwpx-plugin 2.3.0` |
+| 최소 호환 버전 | 이 후보의 지원 플로어 | core `>=6.5.0` · automation `>=7.2.0` · skill `>=2.0.0` |
+| 검증 좌표 | 이 플러그인 후보가 함께 검증할 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` |
+| 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=6.5.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.2.0,<8` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
@@ -39,7 +39,7 @@
 pip install -U python-hwpx lxml
 ```
 
-이 스킬의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 6.4.0`이 필요하다.
+이 스킬 후보의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 6.5.0`이 필요하다.
 더 낮은 버전은 현재 계약 밖이므로 handoff용 파일 생성에 사용하지 않는다.
 
 ```python
@@ -607,7 +607,7 @@ MCP 응답에서 확인할 필드:
 | `set_page_number` | `(filename, target="footer", format="page"|"page/total", align, position, prefix, suffix, format_type, section_index)` | `headerFooter.pageNumberCount` |
 | `set_list_format` | `(filename, paragraph_index|paragraph_indexes, kind="bullet"|"number", level, bullet_char, number_format, start)` | 적용 결과 + `openSafety` |
 | `insert_picture` | `(filename, image_base64, image_format, width_mm, height_mm, section_index, align, output)` | `picture.binaryItemIDRef`, `pictureReferences[]`, `idIntegrity.ok` |
-| `replace_picture` | `(filename, image_base64, image_format, picture_index, binary_item_id_ref, remove_orphaned, output)` | `replacement.{geometryPreserved, old_binaryItemIDRef, new_binaryItemIDRef, removedOldImage}` |
+| `replace_picture` | `(filename, image_base64|image_filename, image_format, picture_index, binary_item_id_ref, remove_orphaned, output)` | `replacement.{geometryPreserved, old_binaryItemIDRef, new_binaryItemIDRef, removedOldImage}` |
 | `doc_diff` | `(old_filename, new_filename | old_paragraphs, new_paragraphs)` | `summary.counts.{changed, added, ...}` (읽기 전용) |
 | `create_comparison_table_document` | `(filename, old_*|new_*, title="신구대조표", include_equal, verbosity)` | `created`, `document_plan`, `plan_validation`, `verification.openSafety.ok` |
 | `build_image_grid` | `(images=[{path, caption}], columns, image_width_mm, title="사진대지")` | `block`, `document_plan`, `next_tool="create_document_from_plan"` |

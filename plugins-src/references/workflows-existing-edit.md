@@ -48,8 +48,22 @@ Python의 `apply_mixed_form_fill`, CLI의 `hwpx batch`, MCP의 `apply_form_fill`
 
 ## 결과 판정
 
-`apply_document_commands`의 `verificationReport.scopePreservation`은 문단/run/셀의
-text-only batch에 한정된 실제 후보 검사입니다. `status="not-applicable"` 또는
+`apply_document_commands`의 `verificationReport.scopePreservation`은 지원되는 문단/run/셀
+텍스트 편집, 기존 값이 있는 필드 편집, 기존 단순 머리글을 포함한 batch의 실제 후보
+검사입니다. 혼합 서식 문단은 한 텍스트 노드 안에서 확정할 수 있는 부분 변경만
+서식 보존 대상으로 다룹니다. 첫 채움·placeholder·복잡한 필드나 모호한 run 경계까지
+보존이 증명되었다고 확대하지 않습니다. `status="not-applicable"` 또는
 `ok=null`은 다른 명령 조합의 비대상 보존 증명이 아닙니다. `semanticDiff`의
 `basis="declared-command-log"`는 실행 명령 목록입니다. 요청값 재조회, 비대상 보존,
 구조 검사, 실제 한컴 표시를 구분해서 보고하며 빈 결과나 미실행을 성공으로 세지 않습니다.
+
+`render_checked=true`는 렌더 수행 증거입니다. PDF에 텍스트가 있거나 렌더가 성공했다는
+이유로 `visual_complete` 또는 제출 가능을 선언하지 않습니다. `visual_complete="unverified"`면
+실제 페이지의 잘림·겹침·요청 서식·그림을 검토해야 합니다. 워크플로의 `renderEvidence`는
+HWPX와 PDF/페이지 이미지 해시를 연결하는 별도 증거이며, `rendered_unreviewed`는
+시각 검토 완료가 아닙니다. 손편집 후에는 예전 revision의 증거를 재사용하지 않습니다.
+
+MCP의 `stale_revision`·`identity_collision`·`idempotency_conflict`는 일반 실패로
+뭉뚱그리지 않습니다. 오류의 재조회/복구 안내를 따르고, 오래된 요청을 그대로
+반복하지 않습니다. HWPX·PDF·참조 이미지 묶음은 같은 revision과 실제 파일 목록을
+대조합니다. 그룹 그림의 자산 추출과 그룹 구조의 portable replay 지원은 별개입니다.

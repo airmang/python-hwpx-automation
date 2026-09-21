@@ -199,15 +199,20 @@ insert_picture(filename, image_base64, image_format="png", width=None, height=No
 `idIntegrity.ok`, `openSafety`.
 
 ```
-replace_picture(filename, image_base64, image_format="png", picture_index=0,
+replace_picture(filename, image_base64=None, image_format="png", picture_index=0,
     binary_item_id_ref=None, remove_orphaned=True, output=None,
-    dry_run=False, expected_revision=None)
+    dry_run=False, expected_revision=None, image_filename=None)
 ```
 
 그림 객체의 **geometry(위치/크기)는 유지**하고 연결된 이미지 asset만 바꾼다.
 응답 `replacement.{geometryPreserved, old_binaryItemIDRef, new_binaryItemIDRef,
 removedOldImage}`와 `idIntegrity.ok`를 확인한다. 둘 다 `output`을 주면 원본 대신
 별도 파일로 저장할 수 있다(원본 보존).
+
+workspace 안의 이미지 파일은 `image_filename`으로 전달할 수 있다. `image_base64`와
+둘 중 하나만 지정한다. 이미지 바이트를 대화에 복사할 필요가 없다. 실제 파일 형식과
+`image_format`을 맞추며, 파일은 20 MiB 이하여야 한다. 교체 뒤 위치·크기·캡션과
+비대상 그림을 확인한다.
 
 ## 5. 충실도 민감 패치 — `byte_preserving_patch`
 
