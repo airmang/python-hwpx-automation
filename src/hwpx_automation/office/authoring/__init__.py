@@ -2624,6 +2624,7 @@ def _add_plan_table(
                 char_pr_id_ref=tokens["table_cell"],
             )
     _style_plan_table(document, table, header_fill=_TABLE_HEADER_FILL)
+    _flow_oversized_authored_table(table)
 
 
 def _add_builder_table(
@@ -2672,6 +2673,17 @@ def _add_builder_table(
         header_fill=table_node.header_shading or _TABLE_HEADER_FILL,
         header_rows=1 if table_node.header else 0,
     )
+    _flow_oversized_authored_table(table)
+
+
+def _flow_oversized_authored_table(table: Any) -> None:
+    """Let a newly authored table taller than the page body continue on later pages."""
+    section = table.paragraph.section
+    page = section.properties.page_size
+    margins = section.properties.page_margins
+    body_height = page.height - margins.top - margins.bottom
+    if body_height > 0 and table.height > body_height:
+        table.set_treat_as_char(False)
 
 
 def _set_table_cell_text(
