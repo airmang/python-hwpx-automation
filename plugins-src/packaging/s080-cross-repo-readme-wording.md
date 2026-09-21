@@ -80,3 +80,5 @@ https://github.com/airmang/hwpx-mcp-server/actions/workflows/tests.yml/badge.svg
 상태: released. 검증 영수증: references/release-2026-09-07-managed-runtime.md.
 
 현재 공개 릴리스: python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0 (2026-09-09 발행·설치 관찰). 이전 공개: 6.3.0 · 7.0.4 · 2.1.0.
+
+현재 공개 릴리스와 미발행 후보를 구분한다. 미발행 후보: python-hwpx 6.5.0 · python-hwpx-automation 7.2.0 · hwpx-plugin 2.3.0.

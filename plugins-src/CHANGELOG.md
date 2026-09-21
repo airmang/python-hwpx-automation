@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.0] - Unreleased candidate
+
+- Require the local `python-hwpx 6.5.0` / `python-hwpx-automation 7.2.0` candidate pair for the new preservation and table-flow behavior.
+- Document revision-bound editing, local picture replacement, and truthful render-review handoff.
+- Regenerate the four host bundles at contract `5e5c23651f92785a`; the published 6.4.0 / 7.1.0 / 2.2.0 stack remains currentPublic.
+
 ## [2.2.0] - 2026-09-09
 
 - Integrate core 6.4.0 and automation 7.1.0 with an explicit unpublished candidate state and unchanged public coordinates.
