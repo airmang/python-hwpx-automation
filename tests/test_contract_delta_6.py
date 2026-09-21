@@ -16,14 +16,12 @@ def _load(name: str) -> dict:
     return json.loads((ROOT / "docs" / name).read_text(encoding="utf-8"))
 
 
-def test_7_1_0_contract_delta_matches_the_live_contract() -> None:
-    """The edit-preservation minor adds no tool; its contract moves on floors alone."""
+def test_7_1_0_contract_delta_remains_frozen() -> None:
+    """The published edit-preservation receipt is immutable after 7.2 moves."""
 
     delta = _load("tool-contract-delta-7.1.0.json")
-    contract = _load("tool-contract.generated.json")
 
-    assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "ba0211fc854a0a97"
+    assert delta["target"]["contractHash"] == "ba0211fc854a0a97"
 
     assert delta["baseline"]["contractHash"] == "8c278ebd5becba08"
     assert delta["baseline"]["defaultToolCount"] == 128
@@ -37,8 +35,20 @@ def test_7_1_0_contract_delta_matches_the_live_contract() -> None:
     assert delta["delta"]["promotedTools"] == []
     assert delta["delta"]["profileMoves"] == []
 
-    assert contract["minAutomationVersion"] == contract["minMcpVersion"] == "7.1.0"
-    assert contract["minPythonHwpx"] == "6.4.0"
+    assert delta["floors"]["minAutomationVersion"] == delta["floors"]["minMcpVersion"] == "7.1.0"
+    assert delta["floors"]["minPythonHwpx"] == "6.4.0"
+    assert delta["floors"]["minSkillVersion"] == "2.0.0"
+
+
+def test_7_2_0_candidate_delta_matches_live_contract() -> None:
+    delta = _load("tool-contract-delta-7.2.0.json")
+    contract = _load("tool-contract.generated.json")
+    assert delta["baseline"]["contractHash"] == "ba0211fc854a0a97"
+    assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "5e5c23651f92785a"
+    assert delta["delta"]["changedInputSchemas"] == ["replace_picture"]
+    assert contract["minAutomationVersion"] == contract["minMcpVersion"] == "7.2.0"
+    assert contract["minPythonHwpx"] == "6.5.0"
     assert contract["minSkillVersion"] == "2.0.0"
 
 

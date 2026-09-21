@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.0] - Unreleased candidate
+
+- Require `python-hwpx>=6.5.0,<7` for the new table flow and preservation primitives.
+- Report render and visual-review outcomes separately, preserve typed agent errors, and bind render evidence to exact document and artifact hashes.
+- Add bounded local image-file replacement and restore grouped image asset export; keep partial output explicit.
+- Add optional `image_filename` to `replace_picture`; tool contract `5e5c23651f92785a` (128 default / 136 advanced / 29 skill-required).
+
 ## [7.1.0] - 2026-09-09
 
 - Bound summary-map output and report omitted targets explicitly; support revision-bound detail navigation.

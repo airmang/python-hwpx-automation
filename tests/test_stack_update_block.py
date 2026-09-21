@@ -54,7 +54,7 @@ def test_health_reports_missing_unreadable_and_unknown_state(tmp_path: Path, mon
 
 
 def test_additive_health_field_leaves_the_contract_hash_unchanged() -> None:
-    assert contract_hash() == "ba0211fc854a0a97"
+    assert contract_hash() == "5e5c23651f92785a"
 
 
 @pytest.mark.parametrize("running_automation, restart", [("7.0.2", True), ("7.0.3", False)])

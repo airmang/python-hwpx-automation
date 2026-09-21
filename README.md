@@ -12,10 +12,9 @@
   </p>
 </p>
 
-<!-- release-state: released -->
+<!-- release-state: unreleased-candidate -->
 > [!NOTE]
-> 7.1.0 공개 발행과 전체 트레인의 실제 marketplace 설치를 관찰했습니다.
-> 검증 조합: `python-hwpx 6.4.0 → python-hwpx-automation 7.1.0 → hwpx-plugin 2.2.0` (`ba0211fc854a0a97`).
+> 아직 공개되지 않은 7.2.0 후보: `python-hwpx 6.5.0 → python-hwpx-automation 7.2.0 → hwpx-plugin 2.3.0` (`5e5c23651f92785a`).
 > 공개 트레인: `python-hwpx 6.4.0 → python-hwpx-automation 7.1.0 → hwpx-plugin 2.2.0` (`ba0211fc854a0a97`).
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
