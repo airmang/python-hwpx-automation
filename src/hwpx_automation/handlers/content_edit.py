@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from .. import quality as quality_contract
@@ -807,7 +808,7 @@ def insert_picture(
 
 def replace_picture(
     filename: str,
-    image_base64: str,
+    image_base64: str | None = None,
     image_format: str = "png",
     picture_index: int = 0,
     binary_item_id_ref: str | None = None,
@@ -815,15 +816,34 @@ def replace_picture(
     output: str | None = None,
     dry_run: bool = False,
     expected_revision: str = None,
+    image_filename: str | None = None,
 ) -> dict:
-    """그림 객체의 geometry를 유지하고 연결된 이미지 asset만 교체합니다."""
+    """그림 geometry를 유지하고 base64 또는 workspace 이미지 파일로 교체합니다."""
+    if (image_base64 is None) == (image_filename is None):
+        raise ValueError("provide exactly one of image_base64 or image_filename")
     path = resolve_path(filename)
     guard = _revision_guard(path, expected_revision)
     if guard is not None:
         return guard
     target_path = resolve_path(output) if output else path
     doc = open_doc(path)
-    image_data = _decode_image_base64(image_base64)
+    if image_filename is not None:
+        image_path = Path(resolve_path(image_filename))
+        if not image_path.is_file() or image_path.stat().st_size > 20 * 1024 * 1024:
+            raise ValueError("image_filename must be an existing image file at most 20 MiB")
+        image_data = image_path.read_bytes()
+        signature = {
+            "png": b"\x89PNG\r\n\x1a\n",
+            "jpg": b"\xff\xd8\xff",
+            "jpeg": b"\xff\xd8\xff",
+            "gif": b"GIF8",
+        }
+        fmt = image_format.casefold().lstrip(".")
+        if fmt not in signature or not image_data.startswith(signature[fmt]):
+            raise ValueError("image_filename content does not match image_format")
+    else:
+        assert image_base64 is not None
+        image_data = _decode_image_base64(image_base64)
     # media.replace_picture now returns a frozen PictureReplacement (design
     # §2.4) whose own .to_dict() uses different field names than this op's
     # established response contract (old_binaryItemIDRef/new_binaryItemIDRef/

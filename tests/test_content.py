@@ -133,6 +133,30 @@ def test_insert_and_replace_picture_tools_preserve_safe_asset_graph(tmp_path: Pa
     assert refreshed.media.picture_references()[0].binary_item_id_ref == "BIN0002"
 
 
+def test_replace_picture_accepts_workspace_image_file(tmp_path: Path):
+    import base64
+
+    target = tmp_path / "picture-file.hwpx"
+    image = tmp_path / "replacement.png"
+    image.write_bytes(base64.b64decode(PNG_1X1_ALT_B64))
+    create_document(str(target))
+    insert_picture(str(target), PNG_1X1_B64, image_format="png", width=11111, height=22222)
+
+    result = replace_picture(str(target), image_filename=str(image), image_format="png")
+    assert result["openSafety"]["ok"] is True
+    assert result["replacement"]["geometryPreserved"] is True
+    with open_doc(str(target)) as document:
+        ref = document.media.picture_references()[0]
+        assert (ref.width, ref.height) == (11111, 22222)
+
+    with pytest.raises(ValueError, match="exactly one"):
+        replace_picture(str(target), PNG_1X1_B64, image_filename=str(image))
+    bad = tmp_path / "bad.png"
+    bad.write_bytes(b"not a png")
+    with pytest.raises(ValueError, match="does not match"):
+        replace_picture(str(target), image_filename=str(bad))
+
+
 def test_byte_preserving_patch_updates_paragraph_with_open_safety(tmp_path: Path):
     target = tmp_path / "patch.hwpx"
     create_document(str(target))

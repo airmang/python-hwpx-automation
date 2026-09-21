@@ -427,9 +427,11 @@ def ensure_char_style(
         underline_attrs.setdefault("shape", existing_underline.get("shape", "SOLID"))
         underline_attrs["color"] = underline_attrs.get("color", target_color) or target_color
         if target_flags[2]:
-            underline_attrs["type"] = underline_attrs.get("type", "SOLID") or "SOLID"
-            if underline_attrs["type"].upper() == "NONE":
-                underline_attrs["type"] = "SOLID"
+            # OWPML uses type for underline position and shape for line style.
+            # SOLID in type can round-trip through our reader but is invisible
+            # in Hancom. Preserve a valid existing position when present.
+            if underline_attrs.get("type", "").upper() not in {"BOTTOM", "CENTER", "TOP"}:
+                underline_attrs["type"] = "BOTTOM"
             underline_attrs["color"] = target_color
         else:
             underline_attrs["type"] = "NONE"
