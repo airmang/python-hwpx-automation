@@ -230,6 +230,34 @@ def _unprojected_pictures(agent: HwpxAgentDocument, root: NodeRecord, selected: 
     ]
 
 
+def _collect_unprojected_picture_assets(
+    agent: HwpxAgentDocument,
+    root: NodeRecord,
+    ordered: list[tuple[NodeRecord, int]],
+    resources: dict[str, dict[str, Any]],
+    assets: dict[str, bytes],
+    unsupported: list[dict[str, str]],
+    *,
+    include_assets: bool,
+) -> None:
+    """Bundle group-contained image bytes without implying portable replay."""
+    if not include_assets:
+        return
+    projected = {id(record.native) for record, _ in ordered if record.kind == "picture"}
+    for picture in _unprojected_pictures(agent, root, projected):
+        extracted = _picture_resource_from_element(agent, picture)
+        if extracted is None:
+            unsupported.append({
+                "path": root.path,
+                "kind": "resource",
+                "reason": "unprojected picture resource is missing or not allow-listed",
+            })
+            continue
+        resource, payload = extracted
+        resources.setdefault(str(resource["key"]), resource)
+        assets.setdefault(str(resource["assetPath"]), payload)
+
+
 def _first_descendant(element: Any, kind: str) -> Any | None:
     return next((child for child in element.iter() if _local_name(child) == kind), None)
 
@@ -455,23 +483,10 @@ def _make_manifest(
         }
         nodes.append(node)
 
-    # A group/container is intentionally unsupported by portable replay, but
-    # its referenced image bytes still belong in an export inventory. Keep
-    # these resources unbound to a replay node so fidelity remains honest.
-    if include_assets:
-        projected_pictures = {id(record.native) for record, _ in ordered if record.kind == "picture"}
-        for picture in _unprojected_pictures(agent, root_record, projected_pictures):
-            extracted = _picture_resource_from_element(agent, picture)
-            if extracted is None:
-                unsupported.append({
-                    "path": root_record.path,
-                    "kind": "resource",
-                    "reason": "unprojected picture resource is missing or not allow-listed",
-                })
-                continue
-            resource, payload = extracted
-            resources.setdefault(str(resource["key"]), resource)
-            assets.setdefault(str(resource["assetPath"]), payload)
+    _collect_unprojected_picture_assets(
+        agent, root_record, ordered, resources, assets, unsupported,
+        include_assets=include_assets,
+    )
 
     if root_record.kind in {"cell", "form-field"}:
         reason = f"standalone {root_record.kind} insertion is unavailable in blueprint v1"
