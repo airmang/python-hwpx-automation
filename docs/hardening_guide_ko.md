@@ -2,7 +2,7 @@
 
 > 릴리스 상태: `release-approved` — 7.2.0 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
 
-> 릴리스 상태: `released` (2026-08-02) — 공개 트레인 `python-hwpx 5.5.0 → python-hwpx-automation 6.5.1 → hwpx-plugin 1.5.0` 기준 문서입니다.
+> 아래 내용은 2026-08-02에 공개된 `python-hwpx 5.5.0 → python-hwpx-automation 6.5.1 → hwpx-plugin 1.5.0` 트레인의 기록입니다.
 
 > 아래 5.0/6.0/1.0 좌표는 `released` 공개 트레인입니다(2026-07-28):
 > core 5.0.1 / `python-hwpx-automation` 6.0.4 / plugin 1.0.0. 직전 공개

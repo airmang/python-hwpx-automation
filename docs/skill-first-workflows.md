@@ -2,7 +2,7 @@
 
 > Release status: `release-approved` — 7.2.0 publication is approved; remote publication and installation have not yet been observed.
 
-> 릴리스 상태: `released` (2026-08-02) — 공개 트레인 `python-hwpx 5.5.0 → python-hwpx-automation 6.5.1 → hwpx-plugin 1.5.0` 기준 문서입니다.
+> Historical snapshot: this guide describes the 2026-08-02 `python-hwpx 5.5.0 → python-hwpx-automation 6.5.1 → hwpx-plugin 1.5.0` train.
 
 This guide describes the released 6.0 automation train's optional FastMCP
 adapter (`released`, 2026-07-28: core 5.0.1 / automation 6.0.4 / plugin
