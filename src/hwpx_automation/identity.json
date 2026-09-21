@@ -3,7 +3,7 @@
   "product": "python-hwpx-automation",
   "releaseMajor": 6,
   "releaseState": {
-    "status": "release-approved",
+    "status": "released",
     "candidate": {
       "pythonHwpx": "6.5.0",
       "canonicalDistribution": "python-hwpx-automation",
@@ -14,11 +14,11 @@
       "contractHash": "5e5c23651f92785a"
     },
     "currentPublic": {
-      "pythonHwpx": "6.4.0",
+      "pythonHwpx": "6.5.0",
       "primaryDistribution": "python-hwpx-automation",
-      "primaryApplication": "7.1.0",
-      "plugin": "2.2.0",
-      "contractHash": "ba0211fc854a0a97"
+      "primaryApplication": "7.2.0",
+      "plugin": "2.3.0",
+      "contractHash": "5e5c23651f92785a"
     },
     "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication.",
     "previousPublic": {
@@ -28,7 +28,12 @@
       "plugin": "2.2.0",
       "contractHash": "ba0211fc854a0a97"
     },
-    "publicationEvidence": null
+    "publicationEvidence": {
+      "pluginVersion": "2.3.0",
+      "installObserved": true,
+      "observedAt": "2026-09-21T15:23:31+00:00",
+      "releaseUrl": "https://github.com/airmang/hwpx-plugins/releases/tag/v2.3.0"
+    }
   },
   "releaseFloors": {
     "description": "Frozen historical coordinates. Unlike releaseState these do not advance train by train; they pin the pre-6.0 legacy compatibility cap that every core 5 resolution must be observed against. They live here so the release path has no version literal that is not declared data.",

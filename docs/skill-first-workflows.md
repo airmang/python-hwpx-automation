@@ -1,6 +1,6 @@
 # Skill-First Workflows on the Automation MCP Adapter
 
-> Release status: `release-approved` — 7.2.0 publication is approved; remote publication and installation have not yet been observed.
+> Release status: `released` — 7.2.0 publication and the 6.5.0/7.2.0/2.3.0 marketplace installation were observed.
 
 > Historical snapshot: this guide describes the 2026-08-02 `python-hwpx 5.5.0 → python-hwpx-automation 6.5.1 → hwpx-plugin 1.5.0` train.
 
@@ -172,4 +172,4 @@ Reason:
 If future workflow prompting becomes important, keep the contract narrow and register it against the active FastMCP surface instead of reviving legacy behavior by default.
 
 
-> 릴리스 상태: released. 7.1.0 공개 릴리스이며 현재 공개 트레인은 python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0입니다. 공개 발행과 실제 marketplace 설치 관찰을 완료했습니다.
+> Previous public train: python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0.
