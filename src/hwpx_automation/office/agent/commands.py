@@ -613,7 +613,12 @@ def _apply_header_story_set(
 
 def _apply_set_paragraph(document: HwpxDocument, native: Any, properties: Mapping[str, Any]) -> None:
     if "text" in properties:
-        native.text = properties["text"]
+        try:
+            native.set_text_preserving_runs(properties["text"])
+        except ValueError as exc:
+            raise AgentContractError(
+                "unsupported_content", str(exc), target="paragraph.text"
+            ) from exc
     if "style" in properties:
         native.style_id_ref = _style_id(document, properties["style"])
     format_kwargs: dict[str, Any] = {}

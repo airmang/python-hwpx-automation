@@ -114,6 +114,38 @@ def _record(agent: HwpxAgentDocument, kind: str, identity: str):
     )
 
 
+def test_mixed_run_text_edit_preserves_other_run_and_refuses_cross_style(tmp_path: Path) -> None:
+    source = tmp_path / "mixed.hwpx"
+    output = tmp_path / "edited.hwpx"
+    # Start with the checked-in corpus member, then add two distinct native
+    # runs so that a replacement can prove its run ownership survives.
+    corpus = Path(__file__).parent / "fixtures/m2_corpus/form_002.hwpx"
+    with HwpxDocument.open(corpus) as document:
+        paragraph = document.paragraphs[0]
+        paragraph.text = "alpha"
+        run = paragraph.element.makeelement(f"{HP}run", {"charPrIDRef": "1"})
+        text = run.makeelement(f"{HP}t", {})
+        text.text = "beta"
+        run.append(text)
+        paragraph.element.append(run)
+        paragraph.section.mark_dirty()
+        document.save_to_path(source)
+    with HwpxAgentDocument.open(source) as agent:
+        target = next(record for record in agent.records if record.kind == "paragraph" and record.native.text == "alphabeta")
+    command = {"commandId": "edit", "op": "set", "path": target.path,
+               "properties": {"text": "ALPHAbeta"}}
+    result = apply_document_commands(_batch(source, output, [command]))
+    assert result.ok, result.to_dict()
+    assert result.verification_report["scopePreservation"]["ok"] is True
+    with HwpxDocument.open(output) as document:
+        edited = next(p for p in document.paragraphs if p.text == "ALPHAbeta")
+        assert [r.text for r in edited.runs if r.text] == ["ALPHA", "beta"]
+    command["properties"] = {"text": "combined"}
+    refused = apply_document_commands(_batch(source, tmp_path / "refused.hwpx", [command]))
+    assert not refused.ok
+    assert refused.error.code == "unsupported_content"
+
+
 def test_set_compiles_allowlisted_properties_and_verifies_once(tmp_path: Path) -> None:
     source = tmp_path / "input.hwpx"
     output = tmp_path / "output.hwpx"
