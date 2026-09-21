@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from difflib import SequenceMatcher
-from typing import Any
+from typing import Any, NoReturn
 
 from hwpx.opc.security import guard_zip_file, parse_xml_stdlib, read_member
 
@@ -172,11 +172,11 @@ class TextScope:
             path = aliases.get(path, path)
             header_path = try_parse_header_story_path(path)
             if header_path is not None:
-                binding = view._resolve_header_story(path)
+                header_binding = view._resolve_header_story(path)
                 section = view.document.sections[header_path.section_index - 1]
                 positions = dict(sections)[section.part_name]
                 nodes = [node for node in section.element.iter()
-                         if node.tag == HP + "header" and node.get("id") == binding.native_id]
+                         if node.tag == HP + "header" and node.get("id") == header_binding.native_id]
                 if not nodes or any(node not in positions for node in nodes):
                     return cls(None)
                 targets[path] = TextTarget(section.part_name, positions[nodes[0]],
@@ -189,23 +189,23 @@ class TextScope:
                 native = record.native
                 paragraph = native["_paragraph"]
                 element = paragraph.element
-                binding = next(((member, positions[element], positions)
+                field_binding = next(((member, positions[element], positions)
                                 for member, positions in sections if element in positions), None)
-                if binding is None or not native.get("_text_nodes") or native.get("is_placeholder"):
+                if field_binding is None or not native.get("_text_nodes") or native.get("is_placeholder"):
                     return cls(None)
                 nodes = native["_text_nodes"]
                 begin = native.get("_field_begin")
-                if begin is None or any(node not in binding[2] for node in [begin, *nodes]):
+                if begin is None or any(node not in field_binding[2] for node in [begin, *nodes]):
                     return cls(None)
-                targets[path] = TextTarget(binding[0], binding[1],
+                targets[path] = TextTarget(field_binding[0], field_binding[1],
                                            command["properties"]["value"], path,
-                                           "field", (binding[2][begin], *(binding[2][node] for node in nodes)))
+                                           "field", (field_binding[2][begin], *(field_binding[2][node] for node in nodes)))
                 aliases["$" + command["commandId"] + ".path"] = path
                 continue
             if record.kind not in {"paragraph", "run", "cell"}:
                 return cls(None)
             element = record.native.element
-            binding = next(
+            element_binding = next(
                 (
                     (member, positions[element])
                     for member, positions in sections
@@ -213,10 +213,10 @@ class TextScope:
                 ),
                 None,
             )
-            if binding is None:
+            if element_binding is None:
                 return cls(None)
             targets[path] = TextTarget(
-                binding[0], binding[1], command["properties"]["text"], path
+                element_binding[0], element_binding[1], command["properties"]["text"], path
             )
             aliases["$" + command["commandId"] + ".path"] = path
         bound = tuple(targets.values())
@@ -342,5 +342,5 @@ class TextScope:
         # the final full-section comparison; only value text and dirty differ.
 
     @staticmethod
-    def _fail(message: str, target: str | None = None) -> None:
+    def _fail(message: str, target: str | None = None) -> NoReturn:
         raise AgentContractError("verification_failed", message, target=target)
