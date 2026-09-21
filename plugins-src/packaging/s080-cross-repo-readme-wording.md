@@ -1,14 +1,12 @@
-# Cross-repository README wording — 현재 공개 릴리스와 발행 승인 후보
+# Cross-repository README wording — 현재 공개 릴리스
 
-릴리스 상태: `release-approved` (2026-09-21). 현재 공개 트레인은
-python-hwpx 6.4.0 / python-hwpx-automation 7.1.0 / hwpx-plugin 2.2.0이고,
-발행 승인 후보는 python-hwpx 6.5.0 / python-hwpx-automation 7.2.0 / hwpx-plugin 2.3.0이다.
+릴리스 상태: `released` (2026-09-22). 현재 공개 트레인은
+python-hwpx 6.5.0 / python-hwpx-automation 7.2.0 / hwpx-plugin 2.3.0이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
 `python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의
 번들 자산은 아니며, 각 저장소 변경 시 해당 저장소의 테스트와 함께 검증한다.
-현재 공개 스택과 아직 발행하지 않은 6.5/7.2/2.3 후보를 절대로 같은 상태로
-표현하지 않는다.
+공개 스택은 실제 발행과 marketplace 설치를 관찰한 좌표로 표기한다.
 
 ## 공통 first-party 범위
 
@@ -43,8 +41,7 @@ python-hwpx 6.4.0 / python-hwpx-automation 7.1.0 / hwpx-plugin 2.2.0이고,
 
 버전 문구:
 
-> 현재 공개 릴리스는 `python-hwpx 6.4.0`입니다. `python-hwpx 6.5.0`은
-> 아직 발행하지 않은 다음 스택 후보입니다.
+> 현재 공개 릴리스는 `python-hwpx 6.5.0`입니다.
 
 ## `python-hwpx-automation` README 교체 문구
 
@@ -73,13 +70,13 @@ https://github.com/airmang/python-hwpx-automation/actions/workflows/tests.yml/ba
 
 버전 문구:
 
-> 현재 공개 릴리스는 python-hwpx 6.4.0 / python-hwpx-automation 7.1.0 /
-> hwpx-plugin 2.2.0입니다. 공개 발행과 실제 Codex marketplace 설치를 관찰했습니다.
+> 현재 공개 릴리스는 python-hwpx 6.5.0 / python-hwpx-automation 7.2.0 /
+> hwpx-plugin 2.3.0입니다. 공개 발행과 실제 Codex marketplace 설치를 관찰했습니다.
 > 설치 제약은 검증된 플로어부터 같은 메이저 안의 버전을 허용하며,
 > `HWPX_STACK_CHANNEL=verified`는 검증 좌표를 고정합니다.
 
-공개 트레인의 과거 영수증: references/release-2026-09-07-managed-runtime.md. 후보 발행의 증거로 사용하지 않는다.
+현재 공개 트레인의 영수증: references/release-2026-09-22-trustworthy-edit-engine.md.
 
-현재 공개 릴리스: python-hwpx 6.4.0 · python-hwpx-automation 7.1.0 · hwpx-plugin 2.2.0 (2026-09-09 발행·설치 관찰). 이전 공개: 6.3.0 · 7.0.4 · 2.1.0.
+현재 공개 릴리스: python-hwpx 6.5.0 · python-hwpx-automation 7.2.0 · hwpx-plugin 2.3.0 (2026-09-22 발행·설치 관찰). 이전 공개: 6.4.0 · 7.1.0 · 2.2.0.
 
-현재 공개 릴리스와 발행 승인 후보를 구분한다. 발행 승인 후보: python-hwpx 6.5.0 · python-hwpx-automation 7.2.0 · hwpx-plugin 2.3.0.
+렌더 성공은 시각 검토 완료를 뜻하지 않는다. 과거 셀 채움 글자 가림 두 건은 남아 있다.

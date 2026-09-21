@@ -14,14 +14,13 @@
   </p>
 </p>
 
-<!-- release-state: release-approved -->
+<!-- release-state: released -->
 
 > [!NOTE]
-> 발행 승인 후보 (release-approved; 원격 발행 대기): `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0` (`5e5c23651f92785a`).
-> 현재 공개 트레인은 `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0`입니다.
-> 2026-09-09에 공개 발행과 실제 Codex marketplace 설치·도구 호출을 관찰했습니다.
-> 계약은 `ba0211fc854a0a97`(이전 `8c278ebd5becba08`에서 floor만 변경)입니다.
-> [설치 검증 영수증](references/release-2026-09-09-existing-edit-stack.md)
+> 현재 공개 트레인은 `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0`입니다.
+> 2026-09-22에 공개 발행과 실제 Codex marketplace 설치·도구 호출을 관찰했습니다.
+> 계약은 `5e5c23651f92785a`입니다. 과거 셀 채움 페이지 흐름의 글자 가림 두 건은 남아 있습니다.
+> [설치 검증 영수증](references/release-2026-09-22-trustworthy-edit-engine.md)
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
@@ -95,10 +94,10 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.4.0` · `python-hwpx-automation 7.1.0` · `hwpx-plugin 2.2.0` |
-| 검증 좌표 | 발행 승인 후보의 로컬 검증 조합 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0` |
-| 최소 호환 버전 | 이 후보의 지원 플로어 | `python-hwpx >= 6.5.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
-| 검증 좌표 | 이 플러그인 후보가 함께 검증할 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` |
+| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0` |
+| 검증 좌표 | 공개 발행·설치 관찰 완료 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` · `hwpx-plugin 2.3.0` |
+| 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 6.5.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
+| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.5.0` · `python-hwpx-automation 7.2.0` |
 | 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.5.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.2.0,<8` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
