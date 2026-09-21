@@ -123,13 +123,13 @@ def test_workflow_defers_then_resumes_only_on_hash_bound_real_receipt(tmp_path):
     client.succeed()
     completed = service.continue_workflow(verify["workflowId"])
     assert completed["state"] == "completed"
-    assert completed["verificationStatus"] == "real_hancom_rendered_review_unverified"
+    assert completed["verificationStatus"] == "render_reported_review_unverified"
     assert completed["renderEvidence"]["sourceHash"] == client.job.source_content_hash
     assert completed["renderEvidence"]["pdfHash"] == "sha256:" + "a" * 64
     assert completed["renderEvidence"]["pages"] == [
         {"pageNumber": 1, "pagePngHash": "sha256:" + "b" * 64}
     ]
-    assert completed["renderEvidence"]["observationStatus"] == "rendered_unreviewed"
+    assert completed["renderEvidence"]["observationStatus"] == "render_reported_review_unverified"
     assert completed["openSafety"]["renderChecked"] is True
 
 

@@ -449,7 +449,7 @@ class WorkflowService:
         if record.state == WorkflowState.COMPLETED:
             verification_status = (
                 "verified_read_only" if read_only else
-                ("real_hancom_rendered_review_unverified" if render_checked else "structurally_verified_render_unverified")
+                ("render_reported_review_unverified" if render_checked else "structurally_verified_render_unverified")
             )
         elif record.state == WorkflowState.NEEDS_REVIEW:
             verification_status = "needs_review"

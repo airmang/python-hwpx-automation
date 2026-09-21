@@ -23,11 +23,14 @@ while the inspection runs invalidates the result.
 
 Workflow `renderEvidence` is a separate `hwpx.evidence-lineage/v1` companion
 to the unchanged, frozen `RenderReceiptV2`. It binds the input HWPX hash to
-the exact PDF and page PNG hashes and is `rendered_unreviewed`. A finding link
+the exact PDF and page PNG hashes and is `render_reported_review_unverified`.
+The backend, Hancom build, and worker version are retained as reported values;
+an arbitrary backend string never proves a real Hancom session. A finding link
 uses zero-based visual-QA `page_index` and emits the one-based render page
 number. Bounding boxes are normalized to [0,1] with a top-left origin.
-Missing targets stay `unmapped`; ambiguous ones stay `ambiguous`. A named
-observer and content-addressed review evidence are both required to claim a
-real Hancom review. The companion rejects a receipt for different source
-bytes or a missing page. Render-only workflow status is
-`real_hancom_rendered_review_unverified`.
+Missing or revision-mismatched targets stay `unmapped`; ambiguous ones stay
+`ambiguous`. A named observer, review evidence hash, and matching PDF/page
+hashes produce only `observation_link_recorded_unverified`. An authenticated
+visual verdict requires a separate reviewer/oracle contract. The companion
+rejects a receipt for different source bytes or a missing page. Render-only
+workflow status is `render_reported_review_unverified`.

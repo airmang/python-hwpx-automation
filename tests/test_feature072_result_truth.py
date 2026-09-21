@@ -13,7 +13,10 @@ from test_workflow_render_contract_v2 import HASH_A, v2_success
 from hwpx_automation import runtime, server
 from hwpx_automation.office import rendering
 from hwpx_automation.office.authoring import inspect_document_authoring_quality
-from hwpx_automation.workflow.evidence_lineage import link_finding
+from hwpx_automation.workflow.evidence_lineage import (
+    link_finding,
+    render_evidence_manifest,
+)
 
 
 @pytest.mark.parametrize("pdf_kind", ["one_line", "image_only"])
@@ -94,24 +97,70 @@ def test_source_replacement_during_render_invalidates_result(tmp_path: Path, mon
 def test_lineage_binds_exact_source_page_and_review() -> None:
     receipt = v2_success()
     link = link_finding(
-        revision="sha256:revision", source_hash=HASH_A, receipt=receipt,
+        revision=HASH_A, source_hash=HASH_A, receipt=receipt,
         page_index=1, bbox=(0.1, 0.2, 0.4, 0.5), finding_id="crop-2",
-        target={"path": "/section[1]/table[1]/cell[2]"},
+        target={"path": "/section[1]/table[1]/cell[2]", "revision": HASH_A},
     )
     assert link["pageNumber"] == 2
     assert link["pagePngHash"] == receipt.artifacts[2].content_hash
     assert link["targetStatus"] == "mapped"
-    assert link["observationStatus"] == "rendered_unreviewed"
+    assert link["observationStatus"] == "render_reported_review_unverified"
+    assert link["backendReported"] == receipt.backend
     assert "target" not in receipt.model_dump()
     with pytest.raises(ValueError, match="supplied together"):
         link_finding(
-            revision="rev", source_hash=HASH_A, receipt=receipt,
+            revision=HASH_A, source_hash=HASH_A, receipt=receipt,
             page_index=0, bbox=(0.1, 0.2, 0.4, 0.5), finding_id="review",
             observer_id="operator-1",
         )
     with pytest.raises(ValueError, match="different HWPX"):
         link_finding(
-            revision="rev", source_hash="sha256:" + "0" * 64,
+            revision="sha256:" + "0" * 64, source_hash="sha256:" + "0" * 64,
             receipt=receipt, page_index=0, bbox=(0.1, 0.2, 0.4, 0.5),
             finding_id="stale",
         )
+
+
+def test_lineage_rejects_false_review_and_target_claims() -> None:
+    receipt = v2_success()
+    args = {
+        "revision": HASH_A,
+        "source_hash": HASH_A,
+        "receipt": receipt,
+        "page_index": 0,
+        "bbox": (0.1, 0.2, 0.4, 0.5),
+        "finding_id": "finding",
+    }
+    with pytest.raises(ValueError, match="revision"):
+        link_finding(**{**args, "revision": "sha256:revision"})
+    stale_target = link_finding(**args, target={"path": "/section[1]/table[1]", "revision": "sha256:" + "0" * 64})
+    assert stale_target["targetStatus"] == "unmapped"
+    ambiguous_target = link_finding(**args, target={"path": "/section[1]/table[1]", "revision": HASH_A, "ambiguous": True})
+    assert ambiguous_target["targetStatus"] == "ambiguous"
+    for pdf_hash, page_hash in (
+        ("sha256:" + "0" * 64, receipt.artifacts[1].content_hash),
+        (receipt.artifacts[0].content_hash, "sha256:" + "0" * 64),
+    ):
+        with pytest.raises(ValueError, match="different render artifacts"):
+            link_finding(
+                **args, observer_id="operator-1", review_evidence_hash="sha256:" + "1" * 64,
+                review_pdf_hash=pdf_hash, review_page_png_hash=page_hash,
+            )
+    linked = link_finding(
+        **args, observer_id="operator-1", review_evidence_hash="sha256:" + "1" * 64,
+        review_pdf_hash=receipt.artifacts[0].content_hash,
+        review_page_png_hash=receipt.artifacts[1].content_hash,
+    )
+    assert linked["observationStatus"] == "observation_link_recorded_unverified"
+    fixture_receipt = receipt.model_copy(update={"backend": "fixture-backend"})
+    manifest = render_evidence_manifest(revision=HASH_A, source_hash=HASH_A, receipt=fixture_receipt)
+    assert manifest["backendReported"] == "fixture-backend"
+    assert manifest["observationStatus"] == "render_reported_review_unverified"
+    fixture_link = link_finding(
+        **{**args, "receipt": fixture_receipt},
+        observer_id="fixture-adapter", review_evidence_hash="sha256:" + "1" * 64,
+        review_pdf_hash=receipt.artifacts[0].content_hash,
+        review_page_png_hash=receipt.artifacts[1].content_hash,
+    )
+    assert fixture_link["backendReported"] == "fixture-backend"
+    assert fixture_link["observationStatus"] == "observation_link_recorded_unverified"
