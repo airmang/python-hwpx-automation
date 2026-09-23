@@ -23,6 +23,29 @@ BuilderChild = (
 )
 _HWP_UNITS_PER_MM = 7200 / 25.4
 _A4_HWP_SIZE = (59528, 84188)
+#: ``hp:pagePr@landscape`` as Hancom writes it: WIDELY draws the page as stored
+#: (portrait), NARROWLY turns it (landscape).
+_HANCOM_PAGE_ORIENTATION = {
+    "PORTRAIT": "WIDELY",
+    "WIDELY": "WIDELY",
+    "LANDSCAPE": "NARROWLY",
+    "NARROWLY": "NARROWLY",
+}
+
+
+def _hancom_page_form(orientation: str, width: int, height: int) -> tuple[str, int, int]:
+    """Return *orientation* and the page size in Hancom's own form.
+
+    Hancom stores both orientations with the paper's portrait size and turns
+    the page for NARROWLY. python-hwpx 6.5 writes the value as given and later
+    versions write the same form, so every core draws the same page. Unknown
+    values pass through unchanged.
+    """
+
+    value = _HANCOM_PAGE_ORIENTATION.get(orientation.strip().upper())
+    if value is None:
+        return orientation, width, height
+    return value, min(width, height), max(width, height)
 
 # Builder presets hook at Document.lower(), where a single
 # preset context can be passed into Heading/Run/Bullet lowering without
@@ -840,10 +863,11 @@ class Section:
             else:
                 width = _mm_to_hwp_units(self.page.width_mm)
                 height = _mm_to_hwp_units(self.page.height_mm)
+            orientation, width, height = _hancom_page_form(self.page.orientation, width, height)
             document.page.set_size(
                 width=width,
                 height=height,
-                orientation=self.page.orientation,
+                orientation=orientation,
                 section_index=section_index,
             )
         if self.margins is not None:

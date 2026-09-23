@@ -333,6 +333,11 @@ def _extract_section_layout(section_path: str, section_xml: ET.Element) -> Secti
     margin = page_pr.find(f"{_HP_TAG}margin") if page_pr is not None else None
     margins = _margin_summary(margin)
     page_width = _int_attr(page_pr, "width")
+    page_height = _int_attr(page_pr, "height")
+    # Hancom draws a page as stored only for landscape="WIDELY" (portrait);
+    # NARROWLY, the schema default, turns it. Report the page as drawn.
+    if page_pr is not None and page_pr.get("landscape") != "WIDELY":
+        page_width, page_height = page_height, page_width
     body_width = None
     if page_width is not None:
         body_width = max(
@@ -345,7 +350,7 @@ def _extract_section_layout(section_path: str, section_xml: ET.Element) -> Secti
     return SectionLayoutSummary(
         section_path=section_path,
         page_width=page_width,
-        page_height=_int_attr(page_pr, "height"),
+        page_height=page_height,
         margins=margins,
         computed_body_width=body_width,
     )

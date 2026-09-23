@@ -2030,6 +2030,10 @@ def _normalize_v2_page(value: Any) -> BuilderPageSize | None:
     width = _float_value(value.get("widthMm", value.get("width_mm")), default=210)
     height = _float_value(value.get("heightMm", value.get("height_mm")), default=297)
     orientation = str(value.get("orientation") or "PORTRAIT").strip() or "PORTRAIT"
+    # Hancom's own landscape values, as read from a document: WIDELY is
+    # portrait, NARROWLY landscape. Hand the builder the plain names so every
+    # python-hwpx version draws the same page.
+    orientation = {"WIDELY": "PORTRAIT", "NARROWLY": "LANDSCAPE"}.get(orientation.upper(), orientation)
     return BuilderPageSize(width_mm=width, height_mm=height, orientation=orientation)
 
 
@@ -2681,7 +2685,10 @@ def _flow_oversized_authored_table(table: Any) -> None:
     section = table.paragraph.section
     page = section.properties.page_size
     margins = section.properties.page_margins
-    body_height = page.height - margins.top - margins.bottom
+    # Hancom turns every page but landscape="WIDELY", so a landscape page's
+    # drawn height is its stored width.
+    drawn_height = page.height if page.orientation == "WIDELY" else page.width
+    body_height = drawn_height - margins.top - margins.bottom
     if body_height > 0 and table.height > body_height:
         table.set_treat_as_char(False)
 

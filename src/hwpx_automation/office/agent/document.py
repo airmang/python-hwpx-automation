@@ -55,6 +55,15 @@ def _mm(value: object) -> float | None:
     return round(units / _HWP_UNITS_PER_MM, 3)
 
 
+def _drawn_page_size(page_size: Any) -> tuple[int, int]:
+    """Width and height as Hancom draws the page: as stored for
+    ``landscape="WIDELY"`` (portrait), turned otherwise (``NARROWLY``)."""
+
+    if page_size.orientation == "WIDELY":
+        return page_size.width, page_size.height
+    return page_size.height, page_size.width
+
+
 def _first_child(element: Any, local_name: str) -> Any | None:
     for child in element:
         if _local_name(child) == local_name:
@@ -249,7 +258,7 @@ class HwpxAgentDocument:
         self._add_record(root)
         for section_index, section in enumerate(self.document.sections, start=1):
             section_path = SemanticPath().child(indexed_segment("section", section_index))
-            page_size = section.properties.page_size
+            page_width, page_height = _drawn_page_size(section.properties.page_size)
             section_record = NodeRecord(
                 kind="section",
                 path=section_path.canonical,
@@ -259,8 +268,8 @@ class HwpxAgentDocument:
                     "index": section_index,
                     "partId": Path(section.part_name).name,
                     "paragraphCount": len(section.paragraphs),
-                    "pageWidthMm": _mm(page_size.width),
-                    "pageHeightMm": _mm(page_size.height),
+                    "pageWidthMm": _mm(page_width),
+                    "pageHeightMm": _mm(page_height),
                 },
                 native=section,
                 parent_path="/",
