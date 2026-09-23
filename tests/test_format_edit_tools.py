@@ -105,7 +105,11 @@ def test_fastmcp_format_edit_tools_roundtrip(tmp_path: Path) -> None:
         for node in _descendants(reopened.parts.headers[0].element, "lineSpacing")
     }
     assert "160" in line_spacing_values
-    assert reopened.sections[0].properties.page_size.width == _mm(297)
+    # A landscape A4 page is 297 mm wide as drawn. Hancom draws landscape="WIDELY"
+    # as stored and turns NARROWLY, which stores the portrait size.
+    page_size = reopened.sections[0].properties.page_size
+    drawn_width = page_size.width if page_size.orientation == "WIDELY" else page_size.height
+    assert drawn_width == _mm(297)
     assert reopened.sections[0].properties.page_margins.left == _mm(20)
     assert reopened.sections[0].properties.get_header().text == "Confidential"
     assert reopened.sections[0].properties.get_footer().element.find(f".//{HP}pageNum") is not None

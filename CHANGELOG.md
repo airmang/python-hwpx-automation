@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+- Write page orientation the way Hancom does when a document plan sets the page: portrait as `landscape="WIDELY"` and landscape as `NARROWLY`, both with the paper's portrait size. With python-hwpx 6.5 the builder stored `PORTRAIT`/`LANDSCAPE`, which Hancom reads as `NARROWLY` and turns, so a planned page opened in the other orientation.
+- Read page size and orientation as Hancom draws the page (a page is turned unless `landscape="WIDELY"`): style profiles, template analysis, agent section summaries, and the table-flow page body height. Landscape documents saved by Hancom were reported as portrait.
+- Accept Hancom's `WIDELY`/`NARROWLY` in a plan's page `orientation` as portrait/landscape.
+
 ## [7.2.0] - 2026-09-21
 
 기존 문서 편집의 저장 안전성·실제 출력·검증 결과를 보강했습니다. 오래된
