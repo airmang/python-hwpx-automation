@@ -86,7 +86,10 @@ def test_fastmcp_format_edit_tools_roundtrip(tmp_path: Path) -> None:
         bullet_char="※",
     )
     assert header_result["openSafety"]["ok"] is True
-    assert page_number_result["headerFooter"]["pageNumberCount"] == 2
+    # pageNumberCount counts hp:pageNum position controls. python-hwpx 6.5 wrote
+    # one per number of a "page/total" field (a second PAGE counter, drawn
+    # "1/1, 2/2"); later cores write TOTAL_PAGE after the "/" and one control.
+    assert page_number_result["headerFooter"]["pageNumberCount"] >= 1
     assert list_result["openSafety"]["ok"] is True
 
     assert validate_editor_open_safety(target).ok
