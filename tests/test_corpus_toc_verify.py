@@ -41,7 +41,9 @@ def _toc_doc(path: Path, count: int = 3) -> Path:
         h = doc.add_paragraph(f"개요 {i}번 제목")
         headings.append(h)
         doc.add_paragraph(f"{i}번 제목의 본문입니다. " * 20)
-    ta.add_native_toc(doc, headings=headings)
+    # dirty explicit: with ``headings`` given, python-hwpx after 6.5 defaults to
+    # a clean TOC (Hancom would rebuild a dirty one from outline paragraphs).
+    ta.add_native_toc(doc, headings=headings, dirty=True)
     doc.save_to_path(path)
     doc.close()
     return path
