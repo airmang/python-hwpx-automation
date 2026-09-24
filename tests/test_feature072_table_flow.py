@@ -24,7 +24,9 @@ def _plan(row_count: int) -> dict:
 
 
 def test_plan_authored_long_table_flows_and_short_table_keeps_layout(tmp_path: Path) -> None:
-    for row_count, expected_inline in ((2, True), (30, False)):
+    # 80 rows run past an A4 page body under both the old 12.7 mm default row
+    # and python-hwpx's later text-height rows (about 4.6 mm for 10 pt).
+    for row_count, expected_inline in ((2, True), (80, False)):
         path = tmp_path / f"inventory-{row_count}.hwpx"
         with create_document_from_plan(_plan(row_count)) as document:
             document.save_to_path(path)
