@@ -1122,10 +1122,15 @@ def _runtime_validation(path: str) -> dict[str, Any]:
         {
             "part": getattr(issue, "part_name", None),
             "message": getattr(issue, "message", str(issue)),
+            "severity": getattr(issue, "severity", "error"),
         }
         for issue in getattr(document_report, "issues", ())
     ]
-    structure = {"ok": not structure_issues, "issues": structure_issues}
+    # a schema warning from python-hwpx does not block the hand-off; only its errors do
+    structure = {
+        "ok": not any(issue["severity"] == "error" for issue in structure_issues),
+        "issues": structure_issues,
+    }
     if validate_package is None:
         package = _dependency_unavailable_report(
             "python-hwpx>=2.10.3 is required for HWPX package validation",
@@ -1208,7 +1213,7 @@ def _issue_payload(issue: Any) -> dict[str, Any]:
     return {
         "part": getattr(issue, "part_name", None),
         "message": getattr(issue, "message", str(issue)),
-        "level": getattr(issue, "level", "error"),
+        "level": getattr(issue, "severity", "error"),
     }
 
 

@@ -119,13 +119,11 @@ class PackageValidationService:
         resolved = self._context._resolve_path(path)
         report: ValidationReport = validate_document_path(resolved)
         issues = [
-            {
-                "part": issue.part_name,
-                "message": issue.message,
-            }
+            {"part": issue.part_name, "message": issue.message, "severity": issue.severity}
             for issue in report.issues
         ]
-        return {"ok": not issues, "issues": issues}
+        # python-hwpx's schema warnings do not fail a document; only its errors do.
+        return {"ok": report.ok, "issues": issues}
 
     def lint_text_conventions(
         self,
