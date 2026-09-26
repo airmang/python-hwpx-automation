@@ -11,24 +11,31 @@
   },
   "canonical": {
     "status": "canonical",
-    "pythonFiles": 11,
-    "loc": 2834,
-    "manifestSha256": "c9b434b02300e5c4ba49d53b25a532314c953283c0cae514b1025d635cf608cf",
+    "pythonFiles": 13,
+    "loc": 3190,
+    "manifestSha256": "78cfc7743131c6f45490709d5e7a9b0289bcd319e79a4e41966886ec92f4eccd",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
       "reason": "Canonical product ownership wording changed from MCP to automation; protocol and behavior are unchanged."
     },
     "frozenAtNote": "S-104 동결값 loc=2001 sha=4b63f85703896fe8…에서 재계산. 코드가 바뀐 게 아니라 소유자가 core에 있던 4개 모듈을 받았기 때문이다. 동결은 드리프트를 막으려는 것이지 이동을 막으려는 것이 아니므로, 이유와 함께 다시 얼린다.",
-    "refrozenFrom": {
+    "sessionAdapterRefrozenFrom": {
       "loc": 2718,
       "manifestSha256": "f5a15541e258e0e2255aad5f864ddbdeb8a43b926c5593b5e95c306390cc5520",
       "reason": "Owned Mac session adapter; cancellation and hash-bound immutable artifacts; complete PDF and exact owned-document cleanup. See docs/architecture/owned-render-recovery.md. Historical core source receipts unchanged."
+    },
+    "refrozenFrom": {
+      "loc": 2834,
+      "manifestSha256": "c9b434b02300e5c4ba49d53b25a532314c953283c0cae514b1025d635cf608cf",
+      "reason": "render-pdf command: isolated Hancom render entry point (rendering/cli.py, rendering/__main__.py) for callers that cannot install [oracle] beside their own core pin; mac_session exposes the shared desktop lock path it already used. Historical core source receipts unchanged."
     }
   },
   "packageFiles": [
     "__init__.py",
+    "__main__.py",
     "block_splits.py",
+    "cli.py",
     "detectors.py",
     "diff.py",
     "fixture_corpus.py",

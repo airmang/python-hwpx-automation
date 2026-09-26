@@ -153,7 +153,9 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/agent/blueprint/model.py", "_validate_public_json", 11),
     ("src/hwpx_automation/office/agent/blueprint/model.py", "validate_replay_request", 14),
     ("src/hwpx_automation/office/agent/blueprint/native.py", "create_root", 14),
-    ("src/hwpx_automation/office/agent/cli.py", "main", 14),
+    # render-pdf is dispatched ahead of the frozen parser (one branch) so the
+    # parser's help and choice errors stay byte-identical to core's golden.
+    ("src/hwpx_automation/office/agent/cli.py", "main", 15),
     ("src/hwpx_automation/office/agent/commands.py", "_add", 16),
     ("src/hwpx_automation/office/agent/commands.py", "_move", 15),
     ("src/hwpx_automation/office/agent/commands.py", "_refresh_copy_identities", 13),
