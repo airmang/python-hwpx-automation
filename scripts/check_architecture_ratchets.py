@@ -54,7 +54,7 @@ EXPECTED_SERVICE_LINES = {
     # calling notes.add_memo(anchor=...), which has no auto-create fallback
     # (unlike 5.x's add_memo_with_anchor(paragraph=None)).
     "memo_style.py": 489,
-    "package_validation.py": 166,
+    "package_validation.py": 164,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
     "preview_export.py": 585,

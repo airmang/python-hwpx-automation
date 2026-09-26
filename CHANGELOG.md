@@ -5,6 +5,7 @@
 - Write page orientation the way Hancom does when a document plan sets the page: portrait as `landscape="WIDELY"` and landscape as `NARROWLY`, both with the paper's portrait size. With python-hwpx 6.5 the builder stored `PORTRAIT`/`LANDSCAPE`, which Hancom reads as `NARROWLY` and turns, so a planned page opened in the other orientation.
 - Read page size and orientation as Hancom draws the page (a page is turned unless `landscape="WIDELY"`): style profiles, template analysis, agent section summaries, and the table-flow page body height. Landscape documents saved by Hancom were reported as portrait.
 - Accept Hancom's `WIDELY`/`NARROWLY` in a plan's page `orientation` as portrait/landscape.
+- Let python-hwpx's validation warnings pass: `validate_structure` and the form-fill hand-off now fail only on python-hwpx's errors, report each issue's `severity`, and the form-fill `validate_document` issues carry the real level instead of `error` for all.
 
 ## [7.2.0] - 2026-09-21
 
