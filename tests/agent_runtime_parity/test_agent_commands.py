@@ -67,7 +67,7 @@ def _write_fixture(path: Path, *, merged: bool = False) -> None:
         control = field_run.makeelement(f"{HP}ctrl", {"type": "FORM"})
         begin = control.makeelement(
             f"{HP}fieldBegin",
-            {"id": "601", "fieldName": "담당자", "type": "FORM", "editable": "true"},
+            {"id": "601", "fieldName": "담당자", "type": "CLICK_HERE", "editable": "true"},
         )
         control.append(begin)
         field_run.append(control)
