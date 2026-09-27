@@ -1,6 +1,12 @@
 # Changelog
 
-## [7.3.0] - Unreleased candidate
+## [7.3.0] - 2026-09-28
+
+다른 환경에서 한컴 렌더를 부르는 `hwpx render-pdf` 명령과, 한/글이 여는 대로 쓰도록 고친
+빌더·누름틀·쪽 방향을 담은 릴리스입니다. core 하한(`python-hwpx>=6.5.0,<7`)과 MCP 도구 계약
+(`5e5c23651f92785a`)은 그대로라 hwpx-plugin 2.3.0과 함께 쓸 수 있습니다. 빌더 `Metadata`가
+본문 대신 문서 정보에 들어가는 동작 변경이 있습니다. 한컴 렌더 성공은 검토 완료를 뜻하지
+않습니다.
 
 - Builder `Metadata` now goes to the document properties (`content.hpf`: title, creator, and created/modified stamped at build time), which Hancom shows under File > Document Info. **Behavior change:** the builder no longer writes visible `제목:`/`작성자:`/`기관:` paragraphs at the top of the body; put a title block in the body explicitly if one should be seen. OPF has no organization field, so `organization` is kept in the save report's `metadata` only.
 - The builder save report's `hard_gates["schema_lint"]` now comes from python-hwpx's full OWPML schema check: `pass` only when that check ran clean, `warning` for schema violations (for example an out-of-schema enum value), `fail` on validation errors, and `not_checked` with a python-hwpx that has no full-schema check (before 6.6, sections were only checked against a lax stub, yet the gate said `pass`).
