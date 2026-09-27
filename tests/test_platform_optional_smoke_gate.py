@@ -142,3 +142,16 @@ def test_windows_workflow_uses_platform_neutral_commands() -> None:
         ),
     ]
     assert all(not command.endswith("\\") for command in commands)
+
+
+def test_probe_expects_the_core_version_it_is_given() -> None:
+    # --core-repo builds python-hwpx main, which moves past the candidate as soon
+    # as python-hwpx releases; the probe then checks the version it just built.
+    probe = smoke._resolve_probe(smoke._probe_script(), "99.0.0")
+    assert 'version("python-hwpx") == "99.0.0"' in probe
+    assert "@@" not in probe
+
+
+def test_release_wheel_probe_still_expects_the_candidate() -> None:
+    probe = smoke._resolve_probe(smoke._probe_script())
+    assert f'version("python-hwpx") == "{smoke._CORE_VERSION}"' in probe
