@@ -158,11 +158,17 @@ def _venv_python(path: Path, *, cwd: Path) -> Path:
     return path / suffix
 
 
-def _resolve_probe(script: str) -> str:
-    """Substitute every declared token, failing closed on an unknown one."""
+def _resolve_probe(script: str, core_version: str = _CORE_VERSION) -> str:
+    """Substitute every declared token, failing closed on an unknown one.
+
+    *core_version* is the python-hwpx version the probe expects installed: the
+    candidate for a release wheel, or the version of the wheel just built from
+    a python-hwpx checkout (``--core-repo``), which moves past the candidate as
+    soon as python-hwpx releases.
+    """
 
     resolved = script
-    for token, value in _PROBE_SUBSTITUTIONS.items():
+    for token, value in {**_PROBE_SUBSTITUTIONS, "@@CANDIDATE_CORE@@": core_version}.items():
         resolved = resolved.replace(token, value)
     if "@@" in resolved:
         raise SystemExit(
@@ -368,11 +374,9 @@ def main(argv: list[str] | None = None) -> int:
             if not (core_repo / "pyproject.toml").is_file():
                 raise SystemExit(f"invalid python-hwpx checkout: {core_repo}")
             clean_core = _clean_copy(core_repo, work / "core-source")
-            core_wheel = _build_wheel(
-                clean_core,
-                wheelhouse / "core",
-                f"python_hwpx-{_CORE_VERSION}-*.whl",
-            )
+            # the checkout's own version: python-hwpx main moves past the candidate on release
+            core_wheel = _build_wheel(clean_core, wheelhouse / "core", "python_hwpx-*.whl")
+            core_version = core_wheel.name.split("-")[1]
         else:
             assert args.core_wheel is not None
             core_wheel = args.core_wheel.expanduser().resolve()
@@ -382,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
                 or core_wheel.suffix != ".whl"
             ):
                 raise SystemExit(f"invalid python-hwpx {_CORE_VERSION} wheel: {core_wheel}")
+            core_version = _CORE_VERSION
 
         venv_python = _venv_python(work / "venv", cwd=work)
         _run(
@@ -405,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         probe_cwd.mkdir()
         probe_env = {"HWPX_ORACLE_STRUCTURAL_ONLY": "1"}
         probe = _run(
-            [str(venv_python), "-c", _resolve_probe(_probe_script())],
+            [str(venv_python), "-c", _resolve_probe(_probe_script(), core_version)],
             cwd=probe_cwd,
             env=probe_env,
         )
