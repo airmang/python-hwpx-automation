@@ -141,9 +141,34 @@ def test_live_tools_public_exports_and_signatures_are_exact() -> None:
         )
 
 
+# Fields added by the automation owner after the freeze. Each must be optional
+# (have a default), so every call the frozen shape accepted is still accepted;
+# they are removed from the live fingerprint before comparing, and everything
+# else must still match the record exactly.
+POST_FREEZE_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
+    # Keyed nodes and the save report's anchors: node -> saved paragraph.
+    "hwpx.builder": {
+        "Paragraph": ("key",),
+        "Table": ("key",),
+        "BuilderSaveReport": ("anchors",),
+    },
+}
+
+
+def _without_post_freeze_fields(core_name: str, shape: dict[str, Any]) -> dict[str, Any]:
+    for class_name, field_names in POST_FREEZE_FIELDS.get(core_name, {}).items():
+        fields = shape[class_name]["fields"]
+        for field_name in field_names:
+            assert fields[field_name]["hasDefault"] is True, (class_name, field_name)
+            assert field_name not in FROZEN[core_name][class_name]["fields"]
+            del fields[field_name]
+    return shape
+
+
 def test_frozen_authoring_modules_shape_matches_frozen_core() -> None:
     for core_name, mcp_module in FROZEN_MODULES:
-        assert fingerprint(mcp_module) == FROZEN[core_name]
+        live = _without_post_freeze_fields(core_name, fingerprint(mcp_module))
+        assert live == FROZEN[core_name]
 
 
 def test_document_plan_schema_normalization_validation_and_errors_match_frozen_core() -> (
