@@ -50,7 +50,7 @@ def _append_native_field(
             {
                 "id": field_id,
                 "fieldName": name,
-                "type": "FORM",
+                "type": "CLICK_HERE",
                 "editable": "true",
             },
         )

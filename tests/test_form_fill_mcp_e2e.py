@@ -61,7 +61,7 @@ def _add_click_here_field(
         {
             "id": f"field-{name}",
             "fieldid": f"field-{name}",
-            "type": "ClickHere",
+            "type": "CLICK_HERE",
             "name": name,
             "prompt": prompt,
         },

@@ -43,7 +43,7 @@ def _add_native_project_field(document: HwpxDocument) -> None:
         {
             "id": "240021",
             "fieldid": "240021",
-            "type": "ClickHere",
+            "type": "CLICK_HERE",
             "name": "사업명",
             "prompt": "사업명",
             "editable": "true",

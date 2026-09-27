@@ -59,7 +59,7 @@ def _add_native_field(document: HwpxDocument, *, field_id: str = "240021") -> No
         {
             "id": field_id,
             "fieldid": field_id,
-            "type": "ClickHere",
+            "type": "CLICK_HERE",
             "name": "사업명",
             "prompt": "사업명",
             "editable": "true",

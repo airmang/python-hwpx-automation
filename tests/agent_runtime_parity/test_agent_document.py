@@ -36,7 +36,7 @@ def _build_semantic_document() -> HwpxDocument:
     second.element.append(field_run)
     field_begin = control.makeelement(
         f"{HP}fieldBegin",
-        {"id": "field-1", "fieldName": "담당자", "type": "FORM", "editable": "true"},
+        {"id": "field-1", "fieldName": "담당자", "type": "CLICK_HERE", "editable": "true"},
     )
     control.append(field_begin)
     second.section.mark_dirty()
