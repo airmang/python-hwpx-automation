@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3190,
-    "manifestSha256": "78cfc7743131c6f45490709d5e7a9b0289bcd319e79a4e41966886ec92f4eccd",
+    "loc": 3252,
+    "manifestSha256": "626f05aff8bfb07d11ced3a89cf443ca3db3cc14b300b1c9795b1626cefec3eb",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -29,6 +29,11 @@
       "loc": 2834,
       "manifestSha256": "c9b434b02300e5c4ba49d53b25a532314c953283c0cae514b1025d635cf608cf",
       "reason": "render-pdf command: isolated Hancom render entry point (rendering/cli.py, rendering/__main__.py) for callers that cannot install [oracle] beside their own core pin; mac_session exposes the shared desktop lock path it already used. Historical core source receipts unchanged."
+    },
+    "renderPdfRefrozenFrom": {
+      "loc": 3190,
+      "manifestSha256": "78cfc7743131c6f45490709d5e7a9b0289bcd319e79a4e41966886ec92f4eccd",
+      "reason": "render-pdf on a shared desktop: the input is checked as an HWPX package before Hancom sees it, SIGTERM unwinds the render (osascript killed, owned document closed, staging removed, desktop lock released), and non-finite numbers are usage errors. Historical core source receipts unchanged."
     }
   },
   "packageFiles": [
