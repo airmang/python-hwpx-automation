@@ -737,6 +737,30 @@ def test_complete_set_property_matrix_on_supported_node_kinds(tmp_path: Path) ->
         assert _record(agent, "endnote", "502").summary["text"] == "미주 수정"
 
 
+@pytest.mark.parametrize(("op", "notes"), [("remove", 1), ("copy", 3)])
+def test_notes_stay_inside_their_control(tmp_path: Path, op: str, notes: int) -> None:
+    """Hancom drops a footnote outside an hp:ctrl and crashes on an hp:ctrl left empty."""
+    source = tmp_path / "input.hwpx"
+    output = tmp_path / "output.hwpx"
+    _write_fixture(source)
+    with HwpxAgentDocument.open(source) as agent:
+        footnote = _record(agent, "footnote", "501")
+        destination = _record(agent, "paragraph", "101")
+    command = {"commandId": op, "op": op, "path": footnote.path}
+    if op != "remove":
+        command["parent"] = destination.path
+    result = apply_document_commands(_batch(source, output, [command]))
+
+    assert result.ok, result.to_dict()
+    with zipfile.ZipFile(output) as archive:
+        root = ET.fromstring(archive.read("Contents/section0.xml"))
+    note_tags = {f"{HP}footNote", f"{HP}endNote"}
+    controls = list(root.iter(f"{HP}ctrl"))
+    assert all(len(control) for control in controls)
+    assert sum(1 for control in controls for child in control if child.tag in note_tags) == notes
+    assert sum(1 for node in root.iter() if node.tag in note_tags) == notes
+
+
 @pytest.mark.parametrize("kind", ["run", "table", "picture", "memo", "footnote", "endnote", "shape"])
 def test_remove_positive_matrix_for_every_supported_kind(tmp_path: Path, kind: str) -> None:
     source = tmp_path / f"{kind}-input.hwpx"
