@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from importlib import import_module
+from inspect import signature
 from os import PathLike
 from pathlib import Path
 from typing import Any, ClassVar, Mapping, Sequence, cast
@@ -280,6 +283,8 @@ class Paragraph:
     children: Sequence[Run | PageNumber] = field(default_factory=tuple)
     align: str | None = None
     style: str | None = None
+    #: Optional caller name; ``save_to_path`` reports where it was written.
+    key: str | None = None
 
     def _alignment_para_pr(self, document: HwpxDocument) -> str | None:
         """Resolve ``align`` into the paragraph-property reference that emits it.
@@ -526,6 +531,8 @@ class Table:
     merges: Sequence[str] = field(default_factory=tuple)
     header_shading: str | None = None
     column_widths: Sequence[int | float] = field(default_factory=tuple)
+    #: Optional caller name; ``save_to_path`` reports the paragraph holding it.
+    key: str | None = None
 
     def lower(
         self,
@@ -817,13 +824,117 @@ def _merge_flags(*flag_sets: dict[str, bool]) -> dict[str, bool]:
     return merged
 
 
+# Keyed Paragraph/Table nodes -> the paragraph they were written to. While a
+# Document collects anchors, each keyed child records the paragraph counts
+# before it is lowered; after its section is lowered, the first paragraph added
+# since then is its element. Positions are read at the very end, by identity,
+# so a native TOC inserted afterwards cannot shift them.
+_AnchorEntry = tuple[str, tuple[int, ...], Any]
+_ANCHOR_SINK: ContextVar[list[_AnchorEntry] | None] = ContextVar(
+    "hwpx_builder_anchor_sink", default=None
+)
+
+
+def _paragraph_counts(document: HwpxDocument) -> tuple[int, ...]:
+    return tuple(len(section.paragraphs) for section in document.oxml.sections)
+
+
+def _anchor_mark(document: HwpxDocument, child: object) -> None:
+    sink = _ANCHOR_SINK.get()
+    key = getattr(child, "key", None)
+    if sink is not None and key is not None:
+        sink.append((key, _paragraph_counts(document), None))
+
+
+def _anchor_resolve(document: HwpxDocument) -> None:
+    sink = _ANCHOR_SINK.get()
+    if not sink:
+        return
+    sections = document.oxml.sections
+    for position, (key, before, element) in enumerate(sink):
+        if element is not None:
+            continue
+        for index, section in enumerate(sections):
+            start = before[index] if index < len(before) else 0
+            paragraphs = section.paragraphs
+            if len(paragraphs) > start:
+                sink[position] = (key, before, paragraphs[start].element)
+                break
+
+
+def _anchor_positions(
+    document: HwpxDocument, sink: Sequence[_AnchorEntry]
+) -> dict[str, dict[str, int]]:
+    positions: dict[int, dict[str, int]] = {}
+    for section_index, section in enumerate(document.oxml.sections):
+        for paragraph_index, paragraph in enumerate(section.paragraphs):
+            positions[id(paragraph.element)] = {
+                "section": section_index,
+                "paragraph": paragraph_index,
+            }
+    return {
+        key: dict(positions[id(element)])
+        for key, _before, element in sink
+        if element is not None and id(element) in positions
+    }
+
+
+def _check_unique_keys(sections: Sequence["Section"]) -> None:
+    seen: set[str] = set()
+    for section in sections:
+        for child in section.children:
+            key = getattr(child, "key", None)
+            if key is None:
+                continue
+            if key in seen:
+                raise ValueError(f"duplicate builder node key: {key!r}")
+            seen.add(key)
+
+
+def _write_package_metadata(document: HwpxDocument, metadata: Metadata) -> None:
+    """Write *metadata* to ``content.hpf`` (Hancom: File > Document Info).
+
+    OPF has no organization field, so ``organization`` stays in the save
+    report's ``metadata`` only. Created/modified are stamped at build time
+    instead of keeping the blank template's dates.
+    """
+
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    document.parts.set_document_metadata(
+        title=metadata.title or None,
+        creator=metadata.author or None,
+        created_date=stamp,
+        modified_date=stamp,
+    )
+
+
+_SCHEMA_CHECK_NOT_RUN = "OWPML schema check could not run"
+
+
+def _schema_lint(document_report: object) -> str:
+    """``schema_lint`` from python-hwpx's own validation, never assumed.
+
+    python-hwpx 6.6+ checks headers and sections against the full OWPML schema
+    and reports violations as warnings. Older cores only check a lax section
+    stub, so nothing was schema-checked: report ``not_checked``, not ``pass``.
+    """
+
+    if "full_schema" not in signature(validate_document).parameters:
+        return "not_checked"
+    issues = getattr(document_report, "issues", ())
+    if any(_SCHEMA_CHECK_NOT_RUN in str(getattr(issue, "message", "")) for issue in issues):
+        return "not_checked"
+    if getattr(document_report, "errors", ()):
+        return "fail"
+    return "warning" if getattr(document_report, "warnings", ()) else "pass"
+
+
 def _hard_gates(
     package_report: object,
     document_report: object,
     reopen_report: ReopenReport,
     editor_open_safety_report: object | None = None,
 ) -> dict[str, str]:
-    document_warnings = getattr(document_report, "warnings", ())
     editor_open_safety_ok = (
         True
         if editor_open_safety_report is None
@@ -832,7 +943,7 @@ def _hard_gates(
     return {
         "package_validation": "pass" if getattr(package_report, "ok", False) else "fail",
         "document_errors": "pass" if getattr(document_report, "ok", False) else "fail",
-        "schema_lint": "warning" if document_warnings else "pass",
+        "schema_lint": _schema_lint(document_report),
         "reopen": "pass" if reopen_report.ok else "fail",
         "editor_open_safety": "pass" if editor_open_safety_ok else "fail",
         "id_integrity": "unavailable",
@@ -887,6 +998,7 @@ class Section:
             self.footer.lower(document, section_index=section_index, preset=preset)
         pending_native_tocs = native_toc_sink if native_toc_sink is not None else []
         for child in self.children:
+            _anchor_mark(document, child)
             if isinstance(child, (Paragraph, PageBreak)):
                 if isinstance(child, Paragraph):
                     child.lower(document, preset=preset)
@@ -925,6 +1037,7 @@ class Section:
                 )
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")
+        _anchor_resolve(document)
         if native_toc_sink is None:
             # standalone Section.lower call: resolve deferred TOCs now
             _apply_native_tocs(document, pending_native_tocs)
@@ -948,16 +1061,11 @@ class Document:
         return flags
 
     def lower(self) -> HwpxDocument:
+        _check_unique_keys(self.sections)
         document = HwpxDocument.new()
         preset = _builder_preset(self.preset)
         if self.metadata is not None:
-            for label, value in (
-                ("제목", self.metadata.title),
-                ("작성자", self.metadata.author),
-                ("기관", self.metadata.organization),
-            ):
-                if value:
-                    document.add_paragraph(f"{label}: {value}", inherit_style=False)
+            _write_package_metadata(document, self.metadata)
         pending_native_tocs: list[tuple[int, NativeToc]] = []
         for index, section in enumerate(self.sections):
             section.lower(
@@ -969,8 +1077,17 @@ class Document:
         _apply_native_tocs(document, pending_native_tocs)
         return document
 
+    def _lower_with_anchors(self) -> tuple[HwpxDocument, dict[str, dict[str, int]]]:
+        sink: list[_AnchorEntry] = []
+        token = _ANCHOR_SINK.set(sink)
+        try:
+            document = self.lower()
+        finally:
+            _ANCHOR_SINK.reset(token)
+        return document, _anchor_positions(document, sink)
+
     def save_to_path(self, path: str | PathLike[str]) -> BuilderSaveReport:
-        document = self.lower()
+        document, anchors = self._lower_with_anchors()
         # Funnel the write through the single SavePipeline and keep its uniform
         # report (plan §2 Phase B). Transparent policy -> behaviour-identical to
         # the prior ``document.save_to_path`` for a from-scratch (new) document.
@@ -1006,6 +1123,7 @@ class Document:
             feature_flags=feature_flags,
             editor_open_safety=editor_open_safety_report,
             visual_complete=visual_complete,
+            anchors=anchors,
         )
         return report
 

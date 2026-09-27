@@ -138,11 +138,20 @@ def test_dump_includes_unprojected_group_picture_asset_without_replay_claim(tmp_
         grouped_ref = document.media.add_image(PNG + b"grouped", "png")
         paragraph.add_picture(direct_ref, width=7200, height=3600)
         grouped = paragraph.add_picture(grouped_ref, width=7200, height=3600)
-        run = grouped.element.getparent()
-        container = run.makeelement(f"{HP}container", {})
-        run.remove(grouped.element)
-        container.append(grouped.element)
-        run.append(container)
+        picture = grouped.element
+        # A group as Hancom writes one: its own drawing parts, the member, then its placement.
+        container = picture.makeelement(
+            f"{HP}container",
+            {"id": "1", "zOrder": "1", "numberingType": "PICTURE", "textWrap": "SQUARE", "textFlow": "BOTH_SIDES",
+             "lock": "0", "dropcapstyle": "None", "href": "", "groupLevel": "0", "instid": "1"},
+        )
+        for name in ("offset", "orgSz", "curSz", "flip", "rotationInfo", "renderingInfo"):
+            container.append(deepcopy(picture.find(f"{HP}{name}")))
+        picture.getparent().replace(picture, container)
+        container.append(picture)
+        for name in ("sz", "pos", "outMargin"):
+            container.append(picture.find(f"{HP}{name}"))
+        picture.set("groupLevel", "1")
         paragraph.section.mark_dirty()
         document.save_to_path(source)
 

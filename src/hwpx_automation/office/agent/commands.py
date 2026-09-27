@@ -73,6 +73,8 @@ _PARAGRAPH_ALIGNMENTS = frozenset(
 _TABLE_ALIGNMENTS = frozenset({"LEFT", "CENTER", "RIGHT", "INSIDE", "OUTSIDE"})
 _VERTICAL_ALIGNMENTS = frozenset({"TOP", "CENTER", "BOTTOM"})
 _INLINE_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
+#: Notes sit in an hp:ctrl: Hancom drops a note outside one and crashes on an empty one.
+_NOTE_TAGS = frozenset({"footNote", "endNote"})
 _SHAPE_KINDS = frozenset({"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine"})
 
 # Creation needs a few geometry fields that are readable, rather than editable,
@@ -450,7 +452,12 @@ def _insert_inline(
         _tag_like(paragraph.element, "run"),
         {"charPrIDRef": paragraph.char_pr_id_ref or "0"},
     )
-    run.append(element)
+    if _local_name(element) in _NOTE_TAGS:
+        control = run.makeelement(_tag_like(paragraph.element, "ctrl"), {})
+        control.append(element)
+        run.append(control)
+    else:
+        run.append(element)
     if index >= len(siblings):
         paragraph.element.append(run)
     else:
@@ -458,6 +465,8 @@ def _insert_inline(
         anchor_run = anchor.getparent() if hasattr(anchor, "getparent") else next(
             child for child in paragraph.element if anchor in list(child)
         )
+        if _local_name(anchor_run) == "ctrl":
+            anchor_run = anchor_run.getparent()
         paragraph.element.insert(list(paragraph.element).index(anchor_run), run)
     paragraph.section.mark_dirty()
     return run
@@ -468,6 +477,9 @@ def _remove_inline_element(element: Any, paragraph: Any) -> None:
         child for child in paragraph.element if element in list(child)
     )
     run.remove(element)
+    if _local_name(run) == "ctrl" and not list(run):
+        control, run = run, run.getparent()
+        run.remove(control)
     if not list(run) and run in list(paragraph.element):
         paragraph.element.remove(run)
     paragraph.section.mark_dirty()

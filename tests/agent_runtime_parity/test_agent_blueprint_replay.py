@@ -10,7 +10,12 @@ import pytest
 from hwpx import HwpxDocument, validate_editor_open_safety
 from hwpx_automation.office.agent import HwpxAgentDocument
 from hwpx_automation.office.agent.model import AgentContractError
-from hwpx_automation.office.agent.blueprint import dump_document_blueprint, replay_document_blueprint
+from hwpx_automation.office.agent.blueprint import (
+    dump_document_blueprint,
+    read_blueprint_bundle,
+    repack_blueprint_bundle,
+    replay_document_blueprint,
+)
 from hwpx.quality import SavePipeline
 from hwpx.quality.rendering import UnavailableRenderBackend as NullOracle
 from hwpx.oxml.namespaces import HP
@@ -189,6 +194,24 @@ def test_portable_replay_preserves_merged_table_form_note_shape_and_media(tmp_pa
             )
             for run in control_runs
         )
+
+
+@pytest.mark.parametrize("field_type", ["FORM", "ClickHere", "NURUMTUL", "누름틀"])
+def test_replayed_form_field_is_written_under_hancom_type_name(tmp_path: Path, field_type: str) -> None:
+    bundle, target, _blueprint_hash, _source = _portable_fixture(tmp_path)
+    edited = deepcopy(read_blueprint_bundle(bundle.read_bytes()).manifest)
+    field = next(node for node in edited["nodes"] if node["kind"] == "form-field")
+    field["properties"]["fieldType"] = field_type
+    renamed = tmp_path / "renamed.hwpxbp"
+    repacked = repack_blueprint_bundle(bundle.read_bytes(), renamed, edited)
+    output = tmp_path / "output.hwpx"
+
+    result = replay_document_blueprint(_request(renamed, str(repacked.manifest["blueprintHash"]), target, output))
+
+    assert result.ok is True
+    with HwpxDocument.open(output) as document:
+        types = [begin.get("type") for section in document.sections for begin in section.element.iter(f"{HP}fieldBegin")]
+    assert types == ["CLICK_HERE"]
 
 
 def test_source_bound_replay_reuses_exact_fingerprints(tmp_path: Path) -> None:
