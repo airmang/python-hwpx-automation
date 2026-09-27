@@ -9,19 +9,19 @@
 ## 실행
 
 ```bash
-uvx --from "python-hwpx-automation[oracle]==<version>" \
+uvx --from "python-hwpx-automation[oracle]==7.3.0" \
   hwpx render-pdf in.hwpx out.pdf --png out/page --json
 ```
 
 같은 명령을 모듈로도 실행할 수 있습니다.
 
 ```bash
-uv run --isolated --with "python-hwpx-automation[oracle]==<version>" \
+uv run --isolated --with "python-hwpx-automation[oracle]==7.3.0" \
   python -m hwpx_automation.office.rendering render-pdf in.hwpx out.pdf --json
 ```
 
 두 형태 모두 uv가 관리하는 격리 환경에서 실행되고, 호출하는 쪽 환경에는 아무것도
-설치하지 않습니다. `<version>`에는 이 명령이 들어 있는 버전을 고정하세요. 렌더
+설치하지 않습니다. 버전은 이 명령이 처음 들어간 7.3.0 이상으로 고정하세요. 렌더
 환경의 python-hwpx 버전은 그 automation 버전의 의존성에 따라 정해지며, 호출하는
 쪽의 고정 버전과는 상관없습니다. 이미 `[oracle]`이 설치된 환경이라면
 `hwpx render-pdf ...`를 바로 실행해도 됩니다. `hwpx --help` 목록에는 나오지
