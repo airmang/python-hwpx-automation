@@ -23,7 +23,7 @@ from .bundle import BlueprintBundle, read_blueprint_bundle
 from .dump import dump_document_blueprint
 from .mapping import ReplayPlan, materialize_dependencies, plan_replay
 from .model import BlueprintReplayResult, validate_replay_request
-from .native import CreatedBinding, TypedNativeBridge
+from .native import CreatedBinding, TypedNativeBridge, hancom_field_type
 
 IdempotencyStore = MutableMapping[str, Any]
 FaultInjector = Callable[[str, int | None], None]
@@ -80,6 +80,9 @@ def _semantic_nodes(
             identity = mapped.get("identity") if mapped else None
             if isinstance(identity, Mapping) and identity.get("name"):
                 properties["style"] = identity["name"]
+        if node["kind"] == "form-field" and "fieldType" in properties:
+            # A click-here field is written, and so read back, as CLICK_HERE whatever the blueprint called it.
+            properties["fieldType"] = hancom_field_type(properties["fieldType"]) or properties["fieldType"]
         normalized.append(
             {
                 "blueprintId": str(node["blueprintId"]),

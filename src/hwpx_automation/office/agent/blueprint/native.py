@@ -19,6 +19,15 @@ from ..model import AgentContractError
 
 _HWP_UNITS_PER_MM = 7200 / 25.4
 _INLINE_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
+#: Names a blueprint may give a click-here field. Hancom opens the field only
+#: under its own type name, CLICK_HERE.
+_CLICK_HERE_NAMES = frozenset({"FORM", "CLICKHERE", "NURUMTUL", "누름틀"})
+
+
+def hancom_field_type(field_type: object) -> str | None:
+    """CLICK_HERE for any name of a click-here field, None for another field type."""
+    normalized = str(field_type or "ClickHere").replace("_", "").replace("-", "").upper()
+    return "CLICK_HERE" if normalized in _CLICK_HERE_NAMES else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -463,9 +472,8 @@ class TypedNativeBridge:
     def _create_form_field(self, node_id: str, paragraph: Any) -> None:
         node = self.nodes[node_id]
         properties = node["properties"]
-        field_type = str(properties.get("fieldType") or "ClickHere")
-        normalized_type = field_type.replace("_", "").replace("-", "").upper()
-        if normalized_type not in {"FORM", "CLICKHERE", "NURUMTUL", "누름틀"}:
+        field_type = hancom_field_type(properties.get("fieldType"))
+        if field_type is None:
             raise AgentContractError("unsupported_content", "only FORM fields are replayable", target=node_id)
         host_id = self.references.get((node_id, "hostRun"))
         end_id = self.references.get((node_id, "endRun"))
@@ -486,7 +494,7 @@ class TypedNativeBridge:
                 "id": begin_id,
                 "fieldid": field_id,
                 "name": str(properties.get("name") or "")[:512],
-                "type": "CLICK_HERE" if normalized_type in {"FORM", "CLICKHERE"} else field_type,
+                "type": field_type,
                 "editable": "0" if properties.get("readOnly") else "1",
                 "dirty": "0",
                 "zorder": "-1",
