@@ -591,10 +591,18 @@ def main(
     stdin = cast(TextIO, stdin or sys.stdin)
     stdout = cast(TextIO, stdout or sys.stdout)
     stderr = cast(TextIO, stderr or sys.stderr)
+    arguments = list(argv) if argv is not None else sys.argv[1:]
+    # Dispatched ahead of the parser, whose help and choice errors stay
+    # byte-identical to the frozen core CLI. The rendering owner is imported
+    # only here, so every other command stays free of the Hancom side.
+    if arguments[:1] == ["render-pdf"]:
+        from ..rendering.cli import main as render_main
+
+        return render_main(arguments, prog="hwpx", stdout=stdout, stderr=stderr)
     parser = build_parser()
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            args = parser.parse_args(list(argv) if argv is not None else None)
+            args = parser.parse_args(arguments)
         if args.command == "help":
             if args.kind == "blueprint":
                 if args.json_help:

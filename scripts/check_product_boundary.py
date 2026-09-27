@@ -24,8 +24,10 @@ CANONICAL_RENDER_ROOT = "src/hwpx_automation/office/rendering"
 # detectors, diff and qa_contracts — and this owner imported three of them
 # from there — so they came here with the rest of the rendering runtime. The
 # count is a ratchet against drift, not a target; it moves when ownership
-# moves, with a reason.
-CANONICAL_RENDER_FILE_COUNT = 11
+# moves, with a reason. Thirteen with the render-pdf command (cli, __main__):
+# the isolated entry point for callers that cannot install [oracle] beside
+# their own core pin.
+CANONICAL_RENDER_FILE_COUNT = 13
 CANONICAL_RENDER_RESOURCES = frozenset(
     {
         "_hancom_open_rate.ps1",

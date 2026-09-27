@@ -97,6 +97,19 @@ Gemini CLI는 `~/.gemini/settings.json`, Cursor·Windsurf는 각 에디터의 MC
 기존 `hwpx-mcp-server` 배포·import·콘솔·설정 키도 6.x 동안 그대로 동작합니다 —
 전체 목록과 유지 규칙: [6.x 호환 표면](docs/compatibility-6x.md)
 
+## 한컴으로 PDF 렌더하기
+
+한컴(macOS 한컴오피스 한글 또는 Windows 한글 COM)이 있는 컴퓨터에서 문서 하나를
+PDF와 쪽 PNG로 렌더합니다. 별도 환경에서 실행하므로 호출하는 쪽의 python-hwpx
+고정 버전을 건드리지 않습니다.
+
+```bash
+uvx --from "python-hwpx-automation[oracle]==<version>" \
+  hwpx render-pdf in.hwpx out.pdf --png out/page --json
+```
+
+JSON 결과·종료 코드·플랫폼 요구 사항: [render-pdf](docs/render-pdf.md)
+
 ## 무엇을 하나
 
 기본 모드에서 다수의 HWPX 도구를 제공하며, 고급 모드(`HWPX_AUTOMATION_ADVANCED=1`)에서 점검·검증용 도구가 추가됩니다.

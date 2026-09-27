@@ -12,6 +12,12 @@ from pathlib import Path
 from .oracle import MacHancomOracle
 
 
+def _gui_lock_path() -> Path:
+    """The per-user lock serializing the shared Mac desktop across processes."""
+
+    return Path(tempfile.gettempdir()) / f"hwpx-hancom-gui-{os.getuid()}.lock"
+
+
 class _OwnedMacOracle(MacHancomOracle):
     def __init__(self, *, timeout: float) -> None:
         super().__init__(timeout=timeout, budget_seconds=timeout)
@@ -68,7 +74,7 @@ class MacHancomSession:
         # The Mac desktop is shared even across worker roots/processes. flock
         # lives until the rendering/owned cleanup exits, including watchdogs.
         import fcntl
-        lock = Path(tempfile.gettempdir()) / f"hwpx-hancom-gui-{os.getuid()}.lock"
+        lock = _gui_lock_path()
         with lock.open("a") as handle:
             try:
                 fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)

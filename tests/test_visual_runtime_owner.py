@@ -50,9 +50,10 @@ def test_canonical_rendering_inventory_is_exact() -> None:
     ).encode()
 
     assert [Path(str(row["path"])).name for row in rows] == OWNER["packageFiles"]
-    # The owned Mac session adapter adds one runtime module; the historical
-    # core ownership receipt remains frozen.
-    assert len(rows) == canonical["pythonFiles"] == 11
+    # The owned Mac session adapter adds one runtime module and the render-pdf
+    # command two more (cli, __main__); the historical core ownership receipt
+    # remains frozen.
+    assert len(rows) == canonical["pythonFiles"] == 13
     assert sum(int(row["loc"]) for row in rows) == canonical["loc"]
     assert hashlib.sha256(payload).hexdigest() == canonical["manifestSha256"]
     assert canonical["status"] == "canonical"
