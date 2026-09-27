@@ -7,6 +7,7 @@
 - Accept Hancom's `WIDELY`/`NARROWLY` in a plan's page `orientation` as portrait/landscape.
 - Let python-hwpx's validation warnings pass: `validate_structure` and the form-fill hand-off now fail only on python-hwpx's errors, report each issue's `severity`, and the form-fill `validate_document` issues carry the real level instead of `error` for all.
 - Add `hwpx render-pdf IN OUT [--png PREFIX] [--json]` (also `python -m hwpx_automation.office.rendering render-pdf`) to render one document through Hancom and optionally rasterize its pages. A project that pins its own python-hwpx can run it in an isolated environment with `uvx --from "python-hwpx-automation[oracle]==<version>"`; with `--json` the last stdout line is one result object, and exit codes separate render failure (1), usage or input errors (2) and no reachable Hancom (3). Mac renders take the same desktop lock as the render worker. See [render-pdf](docs/render-pdf.md). The MCP tool contract is unchanged.
+- `render-pdf` on a shared Mac desktop: a file that is not an HWPX package now exits 2 (`input-invalid`) before Hancom opens it (a damaged-file dialog blocked later renders); SIGTERM unwinds the render, ending osascript, closing the document it opened, removing the staging folder and releasing the desktop lock (`terminated`, exit 1); and a non-finite `--timeout` is a usage error instead of waiting forever.
 
 ## [7.2.0] - 2026-09-21
 

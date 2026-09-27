@@ -623,6 +623,11 @@ class MacHancomOracle(RenderBackend):
                     # document. The worker adapter also handles cancellation.
                     self._close_owned_document(script, staged.name)
                     return None
+                except BaseException:
+                    # Interrupted (a signal turned into an exception): run() has
+                    # killed osascript; close the document it may have opened.
+                    self._close_owned_document(script, staged.name)
+                    raise
             if proc.returncode != 0 or (proc.stdout or "").strip() != "OK":
                 return None
             if staged_pdf.is_file() and staged_pdf.read_bytes().rstrip().endswith(b"%%EOF"):

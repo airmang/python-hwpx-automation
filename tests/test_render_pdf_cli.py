@@ -106,8 +106,10 @@ def _oracle_reachable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
 @pytest.fixture
 def source(tmp_path: Path) -> Path:
+    from hwpx.document import HwpxDocument
+
     path = tmp_path / "in.hwpx"
-    path.write_bytes(b"PK\x03\x04 not inspected by render-pdf")
+    path.write_bytes(HwpxDocument.new().to_bytes())
     return path
 
 
@@ -571,3 +573,73 @@ def test_importing_the_package_and_hwpx_console_stays_lazy() -> None:
 
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout.splitlines()[-1]) == []
+
+
+@pytest.mark.parametrize("content", [b"plain notes", b"PK\x03\x04 not a package"])
+def test_input_that_is_not_hwpx_exits_2_before_hancom(tmp_path: Path, content: bytes) -> None:
+    # Hancom answers a damaged file with a modal that blocks the shared desktop.
+    source = tmp_path / "notes.hwpx"
+    source.write_bytes(content)
+    code, stdout, _ = _run([str(source), str(tmp_path / "out.pdf"), "--json"])
+    payload = json.loads(stdout.splitlines()[-1])
+    assert code == 2
+    assert payload["error"] == "input-invalid"
+    assert _FakeMac.calls == []
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_non_finite_timeout_is_a_usage_error(tmp_path: Path, source: Path, value: str) -> None:
+    code, stdout, _ = _run([str(source), str(tmp_path / "out.pdf"), "--timeout", value, "--json"])
+    assert code == 2
+    assert json.loads(stdout.splitlines()[-1])["error"] == "usage"
+    assert _FakeMac.calls == []
+
+
+def test_sigterm_during_a_render_unwinds_and_frees_the_desktop(
+    tmp_path: Path, source: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import fcntl
+    import signal
+
+    before = signal.getsignal(signal.SIGTERM)
+
+    def terminated_mid_render(self: _FakeMac, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        # What the kernel would do: call the installed SIGTERM handler.
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        handler(signal.SIGTERM, None)
+        return None
+
+    monkeypatch.setattr(_FakeMac, "render_pdf", terminated_mid_render)
+    code, stdout, _ = _run([str(source), str(tmp_path / "out.pdf"), "--json"])
+    assert code == 1
+    assert json.loads(stdout.splitlines()[-1])["error"] == "terminated"
+    assert signal.getsignal(signal.SIGTERM) is before
+    with (tmp_path / "gui.lock").open("a") as handle:  # the desktop lock is free again
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def test_an_interrupted_mac_render_closes_its_document_and_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class Interrupted(Exception):
+        pass
+
+    closed: list[str] = []
+
+    def interrupted(self: oracle.MacHancomOracle, cmd: list[str], timeout: float) -> Any:
+        raise Interrupted
+
+    monkeypatch.setattr(oracle.MacHancomOracle, "available", lambda self: True)
+    monkeypatch.setattr(oracle.MacHancomOracle, "_run_render_script", interrupted)
+    monkeypatch.setattr(
+        oracle.MacHancomOracle, "_close_owned_document", lambda self, script, name: closed.append(name)
+    )
+    source = tmp_path / "in.hwpx"
+    source.write_bytes(b"x")
+    out_dir = tmp_path / "out"
+    with pytest.raises(Interrupted):
+        oracle.MacHancomOracle(timeout=5).render_pdf(str(source), str(out_dir / "out.pdf"))
+    assert len(closed) == 1 and closed[0].startswith("hwpx-render-")
+    assert list(out_dir.iterdir()) == []  # the staging folder is gone

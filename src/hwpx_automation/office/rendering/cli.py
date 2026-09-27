@@ -20,8 +20,11 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import math
 import os
+import signal
 import sys
+import threading
 import time
 from collections.abc import Iterator, Sequence
 from typing import Any, TextIO
@@ -67,7 +70,7 @@ def _positive(kind: type[float | int], limit: float | None = None) -> Any:
             value = kind(text)
         except ValueError:
             raise argparse.ArgumentTypeError(f"not a number: {text!r}") from None
-        if value <= 0 or (limit is not None and value > limit):
+        if not math.isfinite(value) or value <= 0 or (limit is not None and value > limit):
             bound = f" and at most {limit:g}" if limit is not None else ""
             raise argparse.ArgumentTypeError(f"must be positive{bound}: {text!r}")
         return value
@@ -244,6 +247,8 @@ def _render_on_desktop(
             backend.budget_seconds = max(0.0, timeout - (time.monotonic() - started))
         try:
             rendered: str | None = backend.render_pdf(source, target)
+        except _Terminated:
+            raise
         except Exception as exc:  # noqa: BLE001 - a backend failure is a result, not a traceback
             raise _Failure(
                 "render-failed",
@@ -254,11 +259,60 @@ def _render_on_desktop(
     return rendered
 
 
+def _inspect_input(source: str) -> None:
+    """Refuse a file that is not an HWPX package before Hancom sees it.
+
+    Hancom answers a damaged file with a modal this command cannot dismiss, and
+    that modal blocks every later render on the shared desktop. The render
+    worker checks its input the same way.
+    """
+
+    from hwpx_automation.workflow.render_queue import inspect_hwpx
+    from hwpx_automation.workflow.render_security import RenderSecurityViolation
+
+    try:
+        with open(source, "rb") as handle:
+            inspect_hwpx(handle.read(), filename=os.path.basename(source), principal_id="render-pdf")
+    except RenderSecurityViolation as exc:
+        raise _Failure("input-invalid", f"not an HWPX package: {source} ({exc})", EXIT_USAGE) from None
+    except OSError as exc:
+        raise _Failure("input-invalid", f"cannot read {source}: {exc}", EXIT_USAGE) from None
+
+
+class _Terminated(Exception):
+    """SIGTERM, turned into an exception so the render unwinds instead of dying mid-way."""
+
+
+@contextlib.contextmanager
+def _terminate_as_exception() -> Iterator[None]:
+    """While rendering, make SIGTERM raise so every cleanup runs.
+
+    ``subprocess.run`` kills its child when an exception passes through it, the
+    backend closes the document it opened, the staging folder is removed and the
+    desktop lock is released. A plain SIGTERM would skip all of that and leave
+    osascript driving Hancom's menus for the next render.
+    """
+
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def _raise(signum: int, frame: Any) -> None:
+        raise _Terminated("render-pdf was terminated (SIGTERM)")
+
+    previous = signal.signal(signal.SIGTERM, _raise)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 def _render(args: argparse.Namespace) -> dict[str, Any]:
     source = os.path.abspath(args.input)
     target = os.path.abspath(args.output)
     if not os.path.isfile(source):
         raise _Failure("input-missing", f"input file not found: {source}", EXIT_USAGE)
+    _inspect_input(source)
     fitz = _pymupdf()
     backend, name = _resolve_backend(args)
     try:
@@ -318,9 +372,12 @@ def main(
             args = build_parser(prog).parse_args(arguments)
         with contextlib.redirect_stdout(err):
             try:
-                payload = _render(args)
+                with _terminate_as_exception():
+                    payload = _render(args)
             except _Failure:
                 raise
+            except _Terminated as exc:
+                raise _Failure("terminated", str(exc), EXIT_RENDER_FAILED) from None
             except Exception as exc:  # noqa: BLE001 - the result line is owed even here
                 raise _Failure(
                     "internal-error", f"{type(exc).__name__}: {exc}", EXIT_RENDER_FAILED
