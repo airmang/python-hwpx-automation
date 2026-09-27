@@ -928,7 +928,7 @@ Claude Code와 Codex는 같은 관리 런처를 실행합니다. 시작할 때 �
 실행하지 않은 호스트에서 24시간 내 활성화를 보장하지 않습니다. 최초 설치에는
 네트워크가 필요하고, 준비된 런타임의 시작은 네트워크를 기다리지 않습니다.
 `HWPX_STACK_CHANNEL=verified`는 정확 검증 조합을 고정하고 자동 갱신을 끕니다.
-OpenClaw·Hermes의 직접 uvx 설치 안내는 관리 런처를 쓰지 않으므로 수동 갱신입니다.
+OpenClaw·Hermes의 직접 설치 안내(`uv tool install`)는 관리 런처를 쓰지 않으므로 `uv tool upgrade`로 수동 갱신합니다.
 
 Codex는 번들 `env_vars`에 선언된 환경변수만 전달합니다. `HWPX_STACK_CHANNEL`,
 `HWPX_STACK_AUTO_UPDATE`, `HWPX_STACK_UPDATE_INTERVAL_HOURS`,

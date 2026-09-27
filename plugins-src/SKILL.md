@@ -42,7 +42,7 @@ Codex: `codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`. 
 기록이지 작업 차단 사유가 아니다 — 보고만 한다. 런타임(`python-hwpx`·`python-hwpx-automation`)은
 Claude·Codex 관리 런처가 시작 시 점검 간격(기본 24시간)이 지났으면 갱신을 시도한다.
 `runtime.restartRequired`가 참이면 새 환경은 준비됐지만 현재 서버에는 아직 적용되지 않았으므로
-새 호스트 세션에서 사용된다고 안내한다. `verified` 채널은 고정이며 OpenClaw·Hermes 직접 uvx는 수동 갱신이다.
+새 호스트 세션에서 사용된다고 안내한다. `verified` 채널은 고정이며 OpenClaw·Hermes 직접 설치(`uv tool`)는 `uv tool upgrade`로 수동 갱신한다.
 단위는 인간 단위다: 글자 크기 pt, 줄간격 %, 들여쓰기 mm, 문단 간격 pt, 용지/여백 mm.
 
 ## 케이스 → 경로 라우팅 표

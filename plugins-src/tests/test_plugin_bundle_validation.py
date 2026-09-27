@@ -774,3 +774,104 @@ def test_protocol_gate_rejects_recovered_sdk_parse_errors():
     capture.emit(logging.LogRecord("mcp.client.stdio", logging.ERROR, __file__, 1, "Failed to parse JSONRPC message from server", (), None))
     with pytest.raises(RuntimeError, match="MCP protocol errors"):
         capture.require_clean()
+
+
+def _write_sync_fixture(
+    root: Path, *, template_text: str, bundle_text: str, transformed: object
+) -> tuple[dict, Path, Path]:
+    validator = _validator_module()
+    host = {
+        "id": "openclaw",
+        "mcp": {"template": "templates/openclaw.mcp-install.md"},
+    }
+    template = root / "packaging" / "templates" / "openclaw.mcp-install.md"
+    template.parent.mkdir(parents=True)
+    template.write_text(template_text, encoding="utf-8")
+    out = root / "plugins" / "openclaw" / "hwpx-plugin"
+    bundle = out / "INSTALL-mcp.md"
+    bundle.parent.mkdir(parents=True)
+    bundle.write_text(bundle_text, encoding="utf-8")
+    (out / "plugin-sync.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": "hwpx.plugin-sync.v2",
+                "plugin": _identity()["components"]["plugin"]["installedPluginId"],
+                "host": "openclaw",
+                "files": [
+                    {
+                        "source": "packaging/templates/openclaw.mcp-install.md",
+                        "sourceSha256": validator.sha256(template),
+                        "dest": bundle.relative_to(root).as_posix(),
+                        "destSha256": validator.sha256(bundle),
+                        "transformed": transformed,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return host, out, out / "skills" / "hwpx"
+
+
+@pytest.mark.parametrize(
+    ("bundle_text", "transformed", "message"),
+    [
+        # Bundle hand-edited and destSha256 refreshed, template forgotten.
+        ("hand edit\n", False, "untransformed source/destination mismatch"),
+        # The same edit hidden behind a self-declared transformation.
+        ("hand edit\n", True, "transformed flag disagrees with the build"),
+        ("template\n", "false", "transformed flag must be a boolean"),
+    ],
+)
+def test_sync_validator_enforces_template_bundle_byte_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bundle_text: str,
+    transformed: object,
+    message: str,
+) -> None:
+    validator = _validator_module()
+    monkeypatch.setattr(validator, "ROOT", tmp_path)
+    host, out, skill_dir = _write_sync_fixture(
+        tmp_path,
+        template_text="template\n",
+        bundle_text=bundle_text,
+        transformed=transformed,
+    )
+    config = {"canonicalSkill": "SKILL.md"}
+
+    with pytest.raises(SystemExit, match=message):
+        validator.validate_sync(host, out, skill_dir, _identity(), config)
+
+
+def test_sync_validator_accepts_exact_untransformed_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    validator = _validator_module()
+    monkeypatch.setattr(validator, "ROOT", tmp_path)
+    host, out, skill_dir = _write_sync_fixture(
+        tmp_path, template_text="template\n", bundle_text="template\n", transformed=False
+    )
+
+    validator.validate_sync(host, out, skill_dir, _identity(), {"canonicalSkill": "SKILL.md"})
+
+
+def test_codex_env_passthrough_guard_requires_chrome_path() -> None:
+    validator = _validator_module()
+    template = json.loads(
+        (ROOT / "packaging" / "templates" / "codex.mcp.json").read_text(encoding="utf-8")
+    )
+    server = template["mcpServers"]["hwpx"]
+    validator.validate_codex_env_passthrough(server)
+    assert "HWPX_AUTOMATION_CHROME_PATH" in validator.CODEX_REQUIRED_ENV_VARS
+
+    stale = dict(server)
+    stale["env_vars"] = [
+        name for name in server["env_vars"] if name != "HWPX_AUTOMATION_CHROME_PATH"
+    ]
+    with pytest.raises(SystemExit, match="missing env_vars: HWPX_AUTOMATION_CHROME_PATH"):
+        validator.validate_codex_env_passthrough(stale)
+
+    without = {key: value for key, value in server.items() if key != "env_vars"}
+    with pytest.raises(SystemExit, match="env_vars must be a list"):
+        validator.validate_codex_env_passthrough(without)

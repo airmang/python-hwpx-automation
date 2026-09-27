@@ -127,3 +127,14 @@ def test_protocol_smoke_does_not_override_launcher_version_expectations():
     text = (ROOT / "scripts/plugin_mcp_e2e.py").read_text()
     assert "HWPX_PYTHON_HWPX_VERSION" not in text
     assert "HWPX_AUTOMATION_VERSION" not in text
+
+
+def test_direct_host_wiring_uses_one_persistent_uv_tool_environment() -> None:
+    """Ephemeral uvx wiring leaves an orphan cache venv per version (hwpx-plugins #29)."""
+    for name in ("openclaw.mcp-install.md", "hermes.mcp-install.md"):
+        text = (ROOT / "packaging" / "templates" / name).read_text(encoding="utf-8")
+        assert "uv tool install --with" in text, name
+        assert "uv tool upgrade python-hwpx-automation" in text, name
+        assert "uv cache prune" in text, name
+        assert re.search(r'(?m)^\s*"?command"?\s*:\s*"?uvx\b', text) is None, name
+        assert re.search(r'(?m)^\s*"?command"?\s*:\s*"?hwpx-automation-mcp"?\s*,?$', text), name

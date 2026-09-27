@@ -31,35 +31,26 @@ jobs:
         with:
           path: hwpx-skill
       - name: Require explicit candidate refs
+        id: refs
         env:
           CORE_CANDIDATE_REF: ${{ inputs.core_ref || vars.HWPX_CORE_CANDIDATE_REF }}
           AUTOMATION_CANDIDATE_REF: ${{ inputs.automation_ref || vars.HWPX_AUTOMATION_CANDIDATE_REF }}
-        run: |
-          test -n "${CORE_CANDIDATE_REF}" || {
-            echo "::error::Set workflow input core_ref or HWPX_CORE_CANDIDATE_REF to the reviewed candidate commit."
-            exit 2
-          }
-          test -n "${AUTOMATION_CANDIDATE_REF}" || {
-            echo "::error::Set workflow input automation_ref or HWPX_AUTOMATION_CANDIDATE_REF to the reviewed candidate commit."
-            exit 2
-          }
-          [[ "${CORE_CANDIDATE_REF}" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "::error::core_ref must be an exact lowercase 40-hex commit, not a branch or guessed SHA."
-            exit 2
-          }
-          [[ "${AUTOMATION_CANDIDATE_REF}" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "::error::automation_ref must be an exact lowercase 40-hex commit, not a branch or guessed SHA."
-            exit 2
-          }
+          AUTOMATION_CANDIDATE_REPOSITORY: ${{ inputs.automation_repository || vars.HWPX_AUTOMATION_CANDIDATE_REPOSITORY }}
+          # Fork pull requests receive no `vars`; only they may fall back to
+          # the public release tags of the candidate declared in this tree.
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+        run: python3 hwpx-skill/scripts/resolve_ci_candidate_refs.py
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: airmang/python-hwpx
-          ref: ${{ inputs.core_ref || vars.HWPX_CORE_CANDIDATE_REF }}
+          ref: ${{ steps.refs.outputs.core_ref }}
           path: python-hwpx
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ inputs.automation_repository || vars.HWPX_AUTOMATION_CANDIDATE_REPOSITORY || 'airmang/hwpx-mcp-server' }}
-          ref: ${{ inputs.automation_ref || vars.HWPX_AUTOMATION_CANDIDATE_REF }}
+          repository: ${{ steps.refs.outputs.automation_repository }}
+          ref: ${{ steps.refs.outputs.automation_ref }}
           path: python-hwpx-automation
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

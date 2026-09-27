@@ -585,6 +585,17 @@ def validate_product_identity(config: dict, identity: dict) -> None:
                 automation["mcpConsole"] in text,
                 f"{path}: canonical MCP console missing",
             )
+            # Ephemeral uvx environments leave one orphan venv in the uv cache per
+            # resolved version set; direct-host wiring uses one persistent
+            # `uv tool` environment instead (hwpx-plugins #29).
+            require(
+                "uv tool install" in text and "uv tool upgrade" in text,
+                f"{path}: direct-host wiring must install one persistent uv tool environment",
+            )
+            require(
+                re.search(r'(?m)^\s*"?command"?\s*:\s*"?uvx\b', text) is None,
+                f"{path}: direct-host wiring must not launch an ephemeral uvx environment",
+            )
     require(skill_env in (PACKAGING / "templates" / "codex.mcp.json").read_text(encoding="utf-8"), "Codex MCP skill pin mismatch")
 
     _require_fragments(
@@ -697,7 +708,63 @@ def validate_product_identity(config: dict, identity: dict) -> None:
     )
 
 
-def validate_sync(host: dict, out: Path, skill_dir: Path, identity: dict) -> set[Path]:
+# Codex forwards only the environment variables its .mcp.json declares in
+# ``env_vars``. The codex template is re-pinned by hand on every release train, so
+# a rewrite from a stale buffer could silently drop an entry (hwpx-plugins #19:
+# the Chrome path went missing and preview rendering failed). Keep every
+# documented passthrough pinned here.
+CODEX_REQUIRED_ENV_VARS = frozenset(
+    {
+        "HWPX_STACK_CHANNEL",
+        "HWPX_STACK_AUTO_UPDATE",
+        "HWPX_STACK_UPDATE_INTERVAL_HOURS",
+        "HWPX_AUTOMATION_RUNTIME_ROOT",
+        "HWPX_AUTOMATION_ADVANCED",
+        "HWPX_AUTOMATION_WORKSPACE_ROOTS",
+        "HWPX_RENDER_QUEUE_ROOT",
+        "HWPX_RENDER_QUEUE_URL",
+        "HWPX_RENDER_QUEUE_SECRET",
+        "HWPX_RENDER_CA_FILE",
+        "HWPX_RENDER_CLIENT_CERT_FILE",
+        "HWPX_RENDER_CLIENT_KEY_FILE",
+        "HWPX_RENDER_TRANSPORT_AUTH",
+        "HWPX_AUTOMATION_CHROME_PATH",
+        "HWPX_MCP_CHROME_PATH",
+    }
+)
+
+
+def validate_codex_env_passthrough(server: dict) -> None:
+    env_vars = server.get("env_vars")
+    require(
+        isinstance(env_vars, list) and all(isinstance(name, str) for name in env_vars),
+        "codex: .mcp.json env_vars must be a list of variable names",
+    )
+    missing = sorted(CODEX_REQUIRED_ENV_VARS - set(env_vars))
+    require(
+        not missing,
+        "codex documented environment passthrough is incomplete; missing env_vars: "
+        + ", ".join(missing),
+    )
+
+
+def expected_transformed_sources(host: dict, config: dict) -> set[str]:
+    """Sources the builder rewrites instead of copying byte-for-byte.
+
+    Every other sync record must be an exact copy. Deriving this set from the
+    build configuration (rather than trusting each record's own ``transformed``
+    flag) stops a hand-edited bundle file from escaping the template/bundle
+    byte-identity invariant by flipping the flag (hwpx-plugins #21).
+    """
+    expected = {config["canonicalSkill"]}
+    if host["id"] == "codex":
+        expected.add(f"packaging/{host['mcp']['template']}")
+    return expected
+
+
+def validate_sync(
+    host: dict, out: Path, skill_dir: Path, identity: dict, config: dict
+) -> set[Path]:
     sync_path = out / "plugin-sync.json"
     require_file(sync_path)
     sync = load_json(sync_path)
@@ -709,6 +776,7 @@ def validate_sync(host: dict, out: Path, skill_dir: Path, identity: dict) -> set
     files = sync.get("files")
     require(isinstance(files, list) and files, f"{host['id']}: sync files must be a non-empty list")
     skill_dests: set[Path] = set()
+    transformed_sources = expected_transformed_sources(host, config)
     for index, rec in enumerate(files):
         require(isinstance(rec, dict), f"{host['id']}: sync record {index} invalid")
         source = rec.get("source")
@@ -723,8 +791,20 @@ def validate_sync(host: dict, out: Path, skill_dir: Path, identity: dict) -> set
         require_file(source_path)
         require_file(dest_path)
         require(sha256(source_path) == source_sha, f"{host['id']}: source drifted (rebuild needed): {source}")
-        if not rec.get("transformed", False):
-            require(source_sha == dest_sha, f"{host['id']}: untransformed source/destination mismatch: {dest}")
+        transformed = rec.get("transformed")
+        require(
+            isinstance(transformed, bool),
+            f"{host['id']}: sync record {index} transformed flag must be a boolean",
+        )
+        require(
+            transformed == (source in transformed_sources),
+            f"{host['id']}: sync record {index} transformed flag disagrees with the build for {source}",
+        )
+        if not transformed:
+            require(
+                source_sha == dest_sha,
+                f"{host['id']}: untransformed source/destination mismatch (edit the template, then rebuild): {dest}",
+            )
         require(sha256(dest_path) == dest_sha, f"{host['id']}: bundle file tampered: {dest}")
         try:
             dest_path.resolve().relative_to(skill_dir.resolve())
@@ -914,15 +994,7 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
                 (PACKAGING / config["launcherTemplate"]).read_text(encoding="utf-8"),
             )
             require(mcp_data == json.loads(expected), "codex managed launcher differs from canonical source; rebuild required")
-            forwarded = set(server.get("env_vars", []))
-            required_env = {
-                "HWPX_STACK_CHANNEL", "HWPX_STACK_AUTO_UPDATE", "HWPX_STACK_UPDATE_INTERVAL_HOURS",
-                "HWPX_AUTOMATION_RUNTIME_ROOT", "HWPX_AUTOMATION_ADVANCED", "HWPX_AUTOMATION_WORKSPACE_ROOTS",
-                "HWPX_RENDER_QUEUE_ROOT", "HWPX_RENDER_QUEUE_URL", "HWPX_RENDER_QUEUE_SECRET",
-                "HWPX_RENDER_CA_FILE", "HWPX_RENDER_CLIENT_CERT_FILE", "HWPX_RENDER_CLIENT_KEY_FILE",
-                "HWPX_RENDER_TRANSPORT_AUTH", "HWPX_AUTOMATION_CHROME_PATH", "HWPX_MCP_CHROME_PATH",
-            }
-            require(required_env <= forwarded, "codex documented environment passthrough is incomplete")
+            validate_codex_env_passthrough(server)
         require("HWPX_AUTOMATION_ADVANCED" not in server.get("env", {}), "bundled env must not override the user's advanced toggle")
         require(
             server.get("env", {}).get("HWPX_SKILL_VERSION") == plugin_version,
@@ -947,7 +1019,7 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
     if host.get("bundleLauncher"):
         validate_launcher(out, host["id"], identity)
 
-    recorded = validate_sync(host, out, skill_dir, identity)
+    recorded = validate_sync(host, out, skill_dir, identity, config)
     validate_skill_files_match(host, skill_dir, recorded)
     validate_no_internal_identifiers(list(recorded), f"{host['id']} bundle")
     validate_markdown_links(
