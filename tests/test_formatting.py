@@ -202,7 +202,9 @@ def test_list_styles(tmp_path: Path):
 def test_merge_table_cells(tmp_path: Path):
     target = tmp_path / "merge_table.hwpx"
     create_document(str(target))
-    add_table(str(target), 2, 2, [["A", "B"], ["C", "D"]])
+    # a 3x3 table, so the merged 2x2 block leaves a row and a column that other cells start in
+    # (a merge over whole rows or columns folds them, as Hancom's does)
+    add_table(str(target), 3, 3, [["A", "B", "C"], ["D", "E", "F"], ["G", "H", "I"]])
 
     merge_table_cells(str(target), 0, 0, 0, 1, 1)
 
