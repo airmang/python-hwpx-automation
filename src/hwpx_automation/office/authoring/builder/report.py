@@ -62,6 +62,10 @@ class BuilderSaveReport:
     # through (plan §2 Phase B). Additive: ``None`` only if a caller builds a
     # report by hand without going through ``Document.save_to_path``.
     visual_complete: VisualCompleteReport | None = None
+    # ``key`` of each keyed Paragraph/Table -> ``{"section": i, "paragraph": j}``
+    # in the saved file (for a Table, the paragraph that holds it), so later
+    # edits need not find the node again by its text.
+    anchors: dict[str, dict[str, int]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         hard_gates = dict(self.hard_gates)
@@ -80,6 +84,7 @@ class BuilderSaveReport:
             "path": str(self.path),
             "metadata": dict(self.metadata or {}),
             "hard_gates": dict(self.hard_gates),
+            "anchors": {key: dict(value) for key, value in self.anchors.items()},
             "fidelity_contract": {
                 "proves": list(FIDELITY_CONTRACT["proves"]),
                 "does_not_prove": list(FIDELITY_CONTRACT["does_not_prove"]),

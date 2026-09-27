@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Builder `Metadata` now goes to the document properties (`content.hpf`: title, creator, and created/modified stamped at build time), which Hancom shows under File > Document Info. **Behavior change:** the builder no longer writes visible `제목:`/`작성자:`/`기관:` paragraphs at the top of the body; put a title block in the body explicitly if one should be seen. OPF has no organization field, so `organization` is kept in the save report's `metadata` only.
+- The builder save report's `hard_gates["schema_lint"]` now comes from python-hwpx's full OWPML schema check: `pass` only when that check ran clean, `warning` for schema violations (for example an out-of-schema enum value), `fail` on validation errors, and `not_checked` with a python-hwpx that has no full-schema check (before 6.6, sections were only checked against a lax stub, yet the gate said `pass`).
+- Builder `Paragraph` and `Table` take an optional `key`; `save_to_path()` reports `anchors` (`{key: {"section": i, "paragraph": j}}`, the paragraph holding a table), so later edits can address the saved paragraph instead of matching its text. Keys must be unique. Python API only; the MCP tool contract is unchanged.
 - Write page orientation the way Hancom does when a document plan sets the page: portrait as `landscape="WIDELY"` and landscape as `NARROWLY`, both with the paper's portrait size. With python-hwpx 6.5 the builder stored `PORTRAIT`/`LANDSCAPE`, which Hancom reads as `NARROWLY` and turns, so a planned page opened in the other orientation.
 - Read page size and orientation as Hancom draws the page (a page is turned unless `landscape="WIDELY"`): style profiles, template analysis, agent section summaries, and the table-flow page body height. Landscape documents saved by Hancom were reported as portrait.
 - Accept Hancom's `WIDELY`/`NARROWLY` in a plan's page `orientation` as portrait/landscape.
