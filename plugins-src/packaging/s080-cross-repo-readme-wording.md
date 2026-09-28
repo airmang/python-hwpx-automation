@@ -1,8 +1,8 @@
-# Cross-repository README wording — 현재 공개 릴리스와 미발행 후보
+# Cross-repository README wording — 현재 공개 릴리스와 발행 승인 후보
 
-릴리스 상태: `unreleased-candidate` (2026-09-28). 현재 공개 트레인은
+릴리스 상태: `release-approved` (2026-09-28). 현재 공개 트레인은
 python-hwpx 6.5.0 / python-hwpx-automation 7.2.0 / hwpx-plugin 2.3.0이고,
-미발행 후보는 python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 / hwpx-plugin 2.4.0이다.
+발행 승인 후보는 python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 / hwpx-plugin 2.4.0이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
 `python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의
@@ -84,4 +84,4 @@ https://github.com/airmang/python-hwpx-automation/actions/workflows/tests.yml/ba
 
 렌더 성공은 시각 검토 완료를 뜻하지 않는다. 과거 셀 채움 글자 가림 두 건은 남아 있다.
 
-현재 공개 릴리스와 미발행 후보를 구분한다. 미발행 후보: python-hwpx 6.6.0 · python-hwpx-automation 7.3.1 · hwpx-plugin 2.4.0.
+현재 공개 릴리스와 발행 승인 후보를 구분한다. 발행 승인 후보: python-hwpx 6.6.0 · python-hwpx-automation 7.3.1 · hwpx-plugin 2.4.0.

@@ -1,6 +1,11 @@
 # Changelog
 
-## [2.4.0] - Unreleased candidate
+## [2.4.0] - 2026-09-28
+
+automation 7.3.1과 core 6.6.0 위에서 검증한 조합입니다. automation은 다른 환경에서 한컴 렌더를 부르는
+`hwpx render-pdf` 명령을 더하고, 빌더·누름틀·쪽 방향을 한/글이 여는 대로 씁니다. 빌더 메타데이터는
+이제 본문이 아닌 문서 정보에 들어갑니다. core는 HWP 5.0(`.hwp`) 읽기·쓰기와 템플릿·양식을 공개
+API로 다루는 기능을 더했습니다. MCP 도구 계약(`5e5c23651f92785a`)은 그대로입니다.
 
 - Verify against the `python-hwpx 6.6.0` / `python-hwpx-automation 7.3.1` pair; the launcher's verified channel pins it and the install window starts there (`>=6.6.0,<7`, `>=7.3.1,<8`).
 - Keep the skill contract floor at core `>=6.5.0` / automation `>=7.2.0`; the tool contract `5e5c23651f92785a` (128/136/29) is unchanged.
