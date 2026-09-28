@@ -65,6 +65,11 @@ def main() -> int:
                     ]
                 ),
                 children=[
+                    # Metadata는 문서 정보에 들어간다. 본문에 보일 제목은 문단으로 둔다.
+                    Paragraph(
+                        align="center",
+                        children=[Run("2026 AI 교육 운영계획", bold=True, size=20)],
+                    ),
                     Heading(level=1, text="추진 개요"),
                     Heading(level=2, text="세부 목표"),
                     Paragraph(

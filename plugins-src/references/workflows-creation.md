@@ -57,7 +57,10 @@ MCP가 없으면 local Python에서 `validate_document_plan()` → `create_docum
 머리글/바닥글, 쪽번호, 리치 런, 다단계 목록, 병합/음영/열너비 표, 이미지, 페이지 나눔을
 한 번에 조립해야 하면 local `hwpx.builder`를 사용한다.
 
-1. `Document(metadata=..., sections=[Section(...)])`로 객체모델을 만든다.
+1. `Document(metadata=..., sections=[Section(...)])`로 객체모델을 만든다. automation 7.3.1부터
+   `metadata`는 문서 정보(`content.hpf`의 제목·작성자)에만 기록되고 본문에는 나타나지 않는다
+   (7.2.0은 본문 첫머리에 `제목:`·`작성자:` 문단으로 썼다). 본문에 보일 제목은 `Paragraph`나
+   `Heading`으로 직접 넣는다.
 2. 본문은 `Heading`, `Paragraph(children=[Run(...)])`, `Bullet`, `NumberedList`,
    `Table`, `Image`, `PageBreak`로 구성한다.
 3. 머리글/바닥글은 `Header`/`Footer` 안에 `Paragraph(children=[Run(...), PageNumber(...)])`.
@@ -76,7 +79,9 @@ builder는 내부 XML을 직접 만들지 않고 `HwpxDocument` facade로 loweri
 1. 붙여넣은 텍스트는 `parse_government_report_text(text, title)`로 plan v2로 변환한다.
 2. 금액/비율/증감률/날짜는 `compute_report_value(operation, values)`로 계산한다(수동 계산 금지).
 3. 반환 plan에 `preset="government_report"`와 필요한 결문·메타데이터를 확인하고
-   `validate_document_plan` → `create_document_from_plan`으로 생성한다.
+   `validate_document_plan` → `create_document_from_plan`으로 생성한다. automation 7.3.1부터
+   plan v2의 `title`·`metadata`는 문서 정보에만 들어가므로, 보고서 제목이 본문에 보여야 하면 첫
+   block에 제목 `paragraph`를 둔다.
 4. `inspect_document_authoring_quality(..., quality_profile="government_report")`로 확인한다.
 
 `create_government_report_document`는 기존 호출자를 위한 compatibility facade다. 새 요청은

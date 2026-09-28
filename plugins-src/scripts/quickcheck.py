@@ -171,8 +171,12 @@ def main(argv: list[str] | None = None) -> int:
             "from hwpx import HwpxDocument; "
             f"doc = HwpxDocument.open({str(builder_output)!r}); "
             "text = doc.export_text(); "
+            "metadata = doc.package.document_metadata(); "
             "checks = ["
-            "('제목: 2026 AI 교육 운영계획' in text, 'metadata title missing'), "
+            "('2026 AI 교육 운영계획' in text.splitlines(), 'body title missing'), "
+            # automation 7.3.1+ writes Metadata to the document properties; 7.2.0 wrote a visible paragraph.
+            "((metadata is not None and metadata.title == '2026 AI 교육 운영계획') "
+            "or '제목: 2026 AI 교육 운영계획' in text, 'metadata title missing'), "
             "('추진 개요' in text, 'heading missing'), "
             "('전 학년' in text, 'rich run text missing'), "
             "('준비' in text and '운영' in text, 'table text missing'), "
