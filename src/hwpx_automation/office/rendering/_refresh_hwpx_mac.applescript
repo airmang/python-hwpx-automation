@@ -98,7 +98,10 @@ end windowNames
 
 on listContains(theList, theValue)
 	repeat with x in theList
-		if (x as string) is theValue then return true
+		-- a window without a title (missing value) cannot become a string
+		try
+			if (x as string) is theValue then return true
+		end try
 	end repeat
 	return false
 end listContains

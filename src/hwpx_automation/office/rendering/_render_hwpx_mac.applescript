@@ -174,7 +174,10 @@ end windowNames
 
 on listContains(theList, theValue)
 	repeat with x in theList
-		if (x as string) is theValue then return true
+		-- a window without a title (missing value) cannot become a string
+		try
+			if (x as string) is theValue then return true
+		end try
 	end repeat
 	return false
 end listContains
@@ -248,8 +251,10 @@ on closeOwnedDocument(winName)
                 set owned to (first window whose name is winName)
                 if (count of sheets of owned) > 0 then
                     repeat with b in buttons of sheet 1 of owned
-                        set bn to name of b as string
-                        if bn contains "안 함" or bn contains "안함" then click b
+                        try
+                            set bn to name of b as string
+                            if bn contains "안 함" or bn contains "안함" then click b
+                        end try
                     end repeat
                 end if
             end if
