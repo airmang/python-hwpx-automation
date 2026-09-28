@@ -180,3 +180,58 @@ def test_parse_government_report_text_returns_validated_document_plan() -> None:
     assert result["plan_validation"]["ok"] is True
     assert result["can_create"] is True
     assert result["next_tool"] == "create_government_report_document"
+
+
+def _body_lines(path) -> list[str]:
+    from hwpx import HwpxDocument
+
+    return [line for line in HwpxDocument.open(path).text.plain().splitlines() if line.strip()]
+
+
+def test_a_parsed_report_shows_its_title_as_the_first_body_line(tmp_path) -> None:
+    # Builder metadata goes to the document properties, not the body, so the
+    # parsed plan itself has to carry a visible title block (#137).
+    from hwpx_automation.office.authoring.report_parser import parse_government_report_text
+
+    plan = parse_government_report_text("Ⅰ. 추진 개요\n□ 주요 성과", title="AI 활용 교육 추진 보고")
+
+    first = plan["sections"][0]["blocks"][0]
+    assert first == {
+        "type": "paragraph",
+        "align": "center",
+        "runs": [{"text": "AI 활용 교육 추진 보고", "bold": True}],
+    }
+    out = tmp_path / "report.hwpx"
+    result = server.create_government_report_document(str(out), plan)
+    assert result.get("ok", True) is not False
+    lines = _body_lines(out)
+    assert lines[0] == "AI 활용 교육 추진 보고"
+    assert lines.count("AI 활용 교육 추진 보고") == 1
+
+
+def test_a_title_already_on_the_first_line_is_not_repeated() -> None:
+    from hwpx_automation.office.authoring.report_parser import parse_government_report_text
+
+    plan = parse_government_report_text("AI 활용 교육 추진 보고\nⅠ. 추진 개요", title="AI 활용 교육 추진 보고")
+    texts = [
+        block.get("text") or "".join(run["text"] for run in block.get("runs", []))
+        for block in plan["sections"][0]["blocks"]
+    ]
+    assert texts.count("AI 활용 교육 추진 보고") == 1
+    assert plan["sections"][0]["blocks"][0]["align"] == "center"
+
+
+def test_a_report_without_a_title_gets_no_title_block() -> None:
+    from hwpx_automation.office.authoring.report_parser import parse_government_report_text
+
+    plan = parse_government_report_text("Ⅰ. 추진 개요\n□ 주요 성과")
+    assert plan["sections"][0]["blocks"][0] == {"type": "heading", "level": 1, "text": "Ⅰ. 추진 개요"}
+
+
+def test_a_title_with_no_body_text_is_written_once() -> None:
+    from hwpx_automation.office.authoring.report_parser import parse_government_report_text
+
+    plan = parse_government_report_text("", title="빈 보고")
+    assert plan["sections"][0]["blocks"] == [
+        {"type": "paragraph", "align": "center", "runs": [{"text": "빈 보고", "bold": True}]}
+    ]

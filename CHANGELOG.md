@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- `parse_government_report_text(text, title=...)` puts the title at the top of the body as a centred bold paragraph. Since 7.3.1 the plan title and builder metadata go to the document properties, so a report created from parsed text (including `create_government_report_document`) showed no title (#137). A first line that already is the title becomes that paragraph instead of a copy; without a title nothing is added.
+
 ## [7.3.1] - 2026-09-28
 
 `v7.3.0`은 보존된 실패 태그입니다 — 아무것도 게시되지 않았습니다. 발행 전

@@ -178,7 +178,8 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/authoring/builder/core.py", "_section_feature_flags", 14),
     ("src/hwpx_automation/office/authoring/builder/core.py", "lower", 18),
     ("src/hwpx_automation/office/authoring/presets/proposal.py", "create_proposal_document", 11),
-    ("src/hwpx_automation/office/authoring/report_parser.py", "parse_government_report_text", 13),
+    # 13 -> 11: the title block moved into _with_title_block (#137).
+    ("src/hwpx_automation/office/authoring/report_parser.py", "parse_government_report_text", 11),
     ("src/hwpx_automation/office/authoring/template_analyzer.py", "main", 11),
     ("src/hwpx_automation/office/compliance/official_lint.py", "_paragraphs_from_document_plan", 14),
     ("src/hwpx_automation/office/compliance/pii.py", "detect_pii", 13),
