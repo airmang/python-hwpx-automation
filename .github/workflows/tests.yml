@@ -132,6 +132,47 @@ jobs:
           python scripts/render_contract_delta.py --check
         working-directory: python-hwpx-automation
 
+  # The release workflow runs this suite against the published core the train
+  # pins (identity.json's candidate core), while `test` above runs it against
+  # core main. v7.3.0 became a preserved failure tag because three tests needed
+  # a core feature not yet in the pinned core: they passed here and failed only
+  # at tag time. Run the release-facing suite against that core on every push.
+  candidate-core-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: python-hwpx-automation
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Bootstrap the coordinate script's own dependencies
+        run: >-
+          python -m pip install
+          "packaging>=23.0"
+          "tomli>=2.0; python_version < '3.11'"
+      - name: Derive the candidate core from identity.json
+        id: coords
+        working-directory: python-hwpx-automation
+        run: python scripts/release_coordinates.py --github-output
+      # Fixtures the runtime-parity suites read come from a core checkout.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: airmang/python-hwpx
+          ref: ${{ steps.coords.outputs.candidate_core_tag }}
+          path: python-hwpx
+      - name: Install the candidate core from PyPI, as the release does
+        working-directory: python-hwpx-automation
+        env:
+          CANDIDATE_CORE: ${{ steps.coords.outputs.candidate_core }}
+        run: |
+          python -m pip install "python-hwpx[visual,preview]==${CANDIDATE_CORE}"
+          python -m pip install -e ".[mcp,oracle,test]"
+          python -m pip install "uv>=0.7"
+      - name: Run the release-facing tests against the candidate core
+        working-directory: python-hwpx-automation
+        run: python -m pytest -q
+
   # Issue #98: every Windows save failed because os.open defaulted to CRT
   # text mode, so snapshot digests never matched binary reads. POSIX runners
   # cannot reproduce text-mode descriptor semantics, so the workspace
