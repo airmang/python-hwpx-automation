@@ -18,9 +18,6 @@
 
 > [!NOTE]
 > 현재 공개 트레인은 `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0`입니다.
-> 2026-09-28에 공개 발행과 실제 Codex marketplace 설치·도구 호출을 관찰했습니다.
-> 계약은 `5e5c23651f92785a`(2.3.0과 같음)입니다. 과거 셀 채움 페이지 흐름의 글자 가림 두 건은 남아 있습니다.
-> [설치 검증 영수증](references/release-2026-09-28-render-pdf-hwp5-stack.md)
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
@@ -36,8 +33,7 @@ HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Curs
 
 응용 저장소는 `python-hwpx-automation`으로 이름을 바꿨습니다 — 정식 배포·
 import·콘솔은 각각 `python-hwpx-automation` · `hwpx_automation` ·
-`hwpx-automation-mcp`이고, 기존 `hwpx-mcp-server` 표면은 6.x 동안 그대로
-동작합니다.
+`hwpx-automation-mcp`이고, 기존 `hwpx-mcp-server` 표면도 그대로 동작합니다.
 
 ## 시작하기
 
@@ -68,6 +64,8 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 ## 에이전트에게 말 걸기
 
+기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](references/workflows-existing-edit.md)를 먼저 확인하세요. 새 문서는 document-plan, 에이전트 연결은 선택 MCP와 호스트 플러그인을 사용합니다.
+
 설치 후 사용자가 직접 파이썬을 칠 일은 거의 없습니다. 에이전트에게 자연어로 말하면 스킬이 트리거됩니다.
 
 | 이렇게 말하면 | 에이전트가 하는 일 |
@@ -86,7 +84,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 - **문서 능력 한 벌** — 읽기·양식 채움·생성·편집·공문서·신구대조표·mail merge
 - **MCP 서버 동봉 배선** — 호스트별 MCP 설정과 런처가 포함되어 스킬과 도구가 한 번에 로드
 - **호스트별 번들** — Claude Code·Codex·Cursor·OpenClaw·Hermes 진입점을 한 canonical 소스에서 빌드
-- **신뢰 루프** — `render_preview` 페이지 PNG 자기검증·package/schema/text 검증·시각 검토 evidence
+- **신뢰 루프** — `render_preview` 페이지 PNG 자기검증, package/schema/text 검증, 시각 검토 기록
 
 자세한 내용: [SKILL.md](SKILL.md) · [references/](references/)
 
@@ -95,7 +93,6 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` |
-| 검증 좌표 | 공개 발행·설치 관찰 완료 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` |
 | 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 6.5.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` |
 | 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.6.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.3.1,<8` |
@@ -106,10 +103,31 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 산출물이 실제 한컴오피스에서 열리는지는 코어가 동결 코퍼스 전수로 측정해 그대로
 공개합니다 — [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html).
 
+## 관리 런타임의 갱신 시점
+
+Claude Code와 Codex는 같은 관리 런처를 실행합니다. 시작할 때 마지막 점검에서
+24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
+다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나
+실행하지 않은 호스트에서 24시간 내 활성화를 보장하지 않습니다. 최초 설치에는
+네트워크가 필요하고, 준비된 런타임의 시작은 네트워크를 기다리지 않습니다.
+`HWPX_STACK_CHANNEL=verified`는 정확 검증 조합을 고정하고 자동 갱신을 끕니다.
+OpenClaw·Hermes의 직접 설치 안내(`uv tool install`)는 관리 런처를 쓰지 않으므로 `uv tool upgrade`로 수동 갱신합니다.
+
+Codex는 번들 `env_vars`에 선언된 환경변수만 전달합니다. `HWPX_STACK_CHANNEL`,
+`HWPX_STACK_AUTO_UPDATE`, `HWPX_STACK_UPDATE_INTERVAL_HOURS`,
+`HWPX_AUTOMATION_RUNTIME_ROOT`, `HWPX_AUTOMATION_ADVANCED`,
+`HWPX_AUTOMATION_WORKSPACE_ROOTS` 및 실한컴 렌더의 큐·인증서 환경변수를
+설정한 환경에서 새 Codex 세션을 시작하세요. `HWPX_AUTOMATION_ADVANCED=1`은
+고급 도구를 켜며, 미지정 기본값은 0입니다. secret 값을 설정 파일에 복사할 필요는 없습니다.
+
+관리 상태의 `runtime.installed`는 다음 시작에 사용할 세대입니다. 상태 보고를 지원하는
+automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인 버전과
+구분합니다. `stackUpdate` 필드는 automation 7.1.0부터 제공됩니다.
+
 ## 알려진 제약
 
 - 대상 포맷은 Open XML 기반 `.hwpx`입니다. 레거시 바이너리 `.hwp` 직접 편집은 범위 밖입니다.
-- `visual_review_required=true`는 package/schema/text 검사는 통과했지만 열린 문서의 페이지 나눔·표 맞춤은 아직 미확인이라는 뜻입니다. 최종 제출을 말하려면 viewer에서 열어 `observed_pass` evidence를 남깁니다.
+- `visual_review_required=true`는 package/schema/text 검사는 통과했지만 열린 문서의 페이지 나눔·표 맞춤은 아직 미확인이라는 뜻입니다. 최종 제출이라고 하려면 한/글이나 뷰어에서 직접 열어 확인한 결과(`observed_pass`)를 남깁니다.
 - 예제·문서에는 이름·전화번호·이메일·주소 등 PII를 redaction 없이 넣지 않습니다.
 
 ## 기여하기
@@ -134,26 +152,3 @@ canonical `SKILL.md`·`references/`·`examples/`·`scripts/`를 편집한 뒤
 ## License · Maintainer
 
 Apache-2.0 ([LICENSE](https://github.com/airmang/hwpx-plugins/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/hwpx-plugins/blob/main/NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
-
-### 관리 런타임의 갱신 시점
-
-Claude Code와 Codex는 같은 관리 런처를 실행합니다. 시작할 때 마지막 점검에서
-24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
-다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나
-실행하지 않은 호스트에서 24시간 내 활성화를 보장하지 않습니다. 최초 설치에는
-네트워크가 필요하고, 준비된 런타임의 시작은 네트워크를 기다리지 않습니다.
-`HWPX_STACK_CHANNEL=verified`는 정확 검증 조합을 고정하고 자동 갱신을 끕니다.
-OpenClaw·Hermes의 직접 설치 안내(`uv tool install`)는 관리 런처를 쓰지 않으므로 `uv tool upgrade`로 수동 갱신합니다.
-
-Codex는 번들 `env_vars`에 선언된 환경변수만 전달합니다. `HWPX_STACK_CHANNEL`,
-`HWPX_STACK_AUTO_UPDATE`, `HWPX_STACK_UPDATE_INTERVAL_HOURS`,
-`HWPX_AUTOMATION_RUNTIME_ROOT`, `HWPX_AUTOMATION_ADVANCED`,
-`HWPX_AUTOMATION_WORKSPACE_ROOTS` 및 실한컴 렌더의 큐·인증서 환경변수를
-설정한 환경에서 새 Codex 세션을 시작하세요. `HWPX_AUTOMATION_ADVANCED=1`은
-고급 도구를 켜며, 미지정 기본값은 0입니다. secret 값을 설정 파일에 복사할 필요는 없습니다.
-
-관리 상태의 `runtime.installed`는 다음 시작에 사용할 세대입니다. 상태 보고를 지원하는
-automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인 버전과
-구분합니다. `stackUpdate` 필드는 automation 7.1.0부터 제공됩니다.
-
-기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](references/workflows-existing-edit.md)를 먼저 확인하세요. 새 문서는 document-plan, 에이전트 연결은 선택 MCP와 호스트 플러그인을 사용합니다.
