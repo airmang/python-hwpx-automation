@@ -14,12 +14,9 @@
 
 <!-- release-state: released -->
 > [!NOTE]
-> 7.3.1 공개 발행과 전체 트레인의 실제 marketplace 설치를 관찰했습니다.
-> 검증·공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0` (`5e5c23651f92785a`).
-> [발행·설치 영수증](docs/releases/2026-09-28-render-pdf.md)
+> 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`.
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
-> [릴리스 runbook](docs/release-runbook.md)
 
 [python-hwpx](https://github.com/airmang/python-hwpx) 엔진 위에서 문서 저작·
 양식 채움·시험지 조판·안전한 에이전트 워크플로를 제공하는 응용 계층입니다.
@@ -92,10 +89,10 @@ Gemini CLI는 `~/.gemini/settings.json`, Cursor·Windsurf는 각 에디터의 MC
 
 > 비-HWPX 문서(PDF/DOCX/XLSX/HTML/TXT)를 `document_to_markdown`으로 읽으려면
 > `pip install "python-hwpx-automation[ingest]"`로 MarkItDown adapter를 함께
-> 설치합니다. 요구 사항: `Python >= 3.10` · `python-hwpx >= 5.0.0`.
+> 설치합니다. 요구 사항: `Python >= 3.10` · `python-hwpx >= 6.5.0`.
 
-기존 `hwpx-mcp-server` 배포·import·콘솔·설정 키도 6.x 동안 그대로 동작합니다 —
-전체 목록과 유지 규칙: [6.x 호환 표면](docs/compatibility-6x.md)
+기존 `hwpx-mcp-server` 배포·import·콘솔·설정 키도 그대로 동작합니다 —
+전체 목록과 유지 규칙: [호환 표면](docs/compatibility-6x.md)
 
 ## 한컴으로 PDF 렌더하기
 
@@ -125,7 +122,8 @@ JSON 결과·종료 코드·플랫폼 요구 사항: [render-pdf](docs/render-pd
 
 ## 안전하게 쓰는 법
 
-처음부터 모든 도구를 외울 필요는 없습니다. 보통 이렇게 흘러갑니다.
+처음부터 모든 도구를 외울 필요는 없습니다. 기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](docs/existing-edit-navigation.md)를,
+새 문서는 document-plan을 먼저 봅니다. 보통 이렇게 흘러갑니다.
 
 1. **읽기** — `get_document_info` → `get_document_outline`/`get_document_text` → `find_text`, `get_table_map`으로 필요한 부분만 파악합니다. (저장하지 않음)
 2. **안전 수정** — `copy_document`로 사본을 만들고, 가장 작은 변경(`search_and_replace`, `set_table_cell_text`, `apply_document_commands`)을 적용한 뒤 다시 읽어 확인하고, 검토가 끝난 사본을 전달합니다.
@@ -138,7 +136,7 @@ JSON 결과·종료 코드·플랫폼 요구 사항: [render-pdf](docs/render-pd
 열림안전을 검사하고, 게이트가 실패하면 아무것도 쓰지 않습니다. capability
 handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단합니다.
 보안 상세: [하드닝 가이드](docs/hardening_guide_ko.md) · 옛 이름과의 호환
-식별자: [6.x 호환 표면](docs/compatibility-6x.md)
+식별자: [호환 표면](docs/compatibility-6x.md)
 
 > **위치 계약** — `paragraph_index`는 본문 직속 문단의 0-based 인덱스입니다. 표 안 문단은 여기 섞지 않고
 > `{"kind":"table_cell_paragraph","table_index":0,"row":0,"col":1,"cell_paragraph_index":0}` 같은 `location`
@@ -159,10 +157,10 @@ handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단�
 | `HWPX_AUTOMATION_WORKFLOW_STORE` | durable workflow SQLite 경로. 기존 `HWPX_WORKFLOW_STORE`보다 우선 | 기존 6.x 상태 경로 |
 | `LOG_LEVEL` | 로그 레벨 | `INFO` |
 
-동일 suffix의 기존 `HWPX_MCP_*` 키는 6.x 동안 fallback으로 유지되며, 두 키가
+동일 suffix의 기존 `HWPX_MCP_*` 키는 fallback으로 유지되며, 두 키가
 함께 있으면 `HWPX_AUTOMATION_*`이 우선합니다. render·workflow·oracle·plugin
 연동용 보존 키 전체 목록과 workflow DB 경로 규칙은
-[6.x 호환 표면](docs/compatibility-6x.md)에 있습니다.
+[호환 표면](docs/compatibility-6x.md)에 있습니다.
 
 경로는 기본적으로 workspace 밖 traversal과 symlink escape를 거부하고, URL 입력은 HTTPS·공개 IP만
 허용합니다. 원자 rename을 제공하지 않는 호스트의 동시성 주의사항은 [하드닝 가이드](docs/hardening_guide_ko.md)를 보세요.
@@ -193,5 +191,3 @@ python scripts/run_conformance.py run \
 ## License · Maintainer
 
 Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
-
-기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](docs/existing-edit-navigation.md)를 먼저 확인하세요. 새 문서는 document-plan, 에이전트 연결은 선택 MCP와 호스트 플러그인을 사용합니다.
