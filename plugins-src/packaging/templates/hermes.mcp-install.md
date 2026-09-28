@@ -33,7 +33,7 @@ mcp_servers:
     env:
       HWPX_AUTOMATION_ADVANCED: "0"
       HWPX_AUTOMATION_AUTOBACKUP: "1"
-      HWPX_SKILL_VERSION: "1.0.0"
+      HWPX_SKILL_VERSION: "2.4.0"
       HWPX_AUTOMATION_WORKSPACE_ROOTS: '["/absolute/path/to/workspace"]'
 ```
 

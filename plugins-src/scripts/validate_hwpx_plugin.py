@@ -585,6 +585,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
                 automation["mcpConsole"] in text,
                 f"{path}: canonical MCP console missing",
             )
+            validate_host_install_skill_version(text, path, plugin["currentVersion"])
             # Ephemeral uvx environments leave one orphan venv in the uv cache per
             # resolved version set; direct-host wiring uses one persistent
             # `uv tool` environment instead (hwpx-plugins #29).
@@ -745,6 +746,23 @@ def validate_codex_env_passthrough(server: dict) -> None:
         not missing,
         "codex documented environment passthrough is incomplete; missing env_vars: "
         + ", ".join(missing),
+    )
+
+
+# The direct-host install guides register the server by hand, so their
+# HWPX_SKILL_VERSION is a copied literal. A version merely appearing elsewhere in
+# the file is not enough: both guides kept "1.0.0" from the 1.0 train through
+# 2.4.0 while the candidate-coordinate sentence satisfied the looser check.
+HOST_SKILL_VERSION_RE = re.compile(r'"?HWPX_SKILL_VERSION"?\s*:\s*"([^"]*)"')
+
+
+def validate_host_install_skill_version(text: str, path: Path, plugin_version: str) -> None:
+    values = HOST_SKILL_VERSION_RE.findall(text)
+    require(values, f"{path}: HWPX_SKILL_VERSION missing from the server registration")
+    stale = sorted({value for value in values if value != plugin_version})
+    require(
+        not stale,
+        f"{path}: HWPX_SKILL_VERSION {', '.join(stale)} differs from plugin {plugin_version}",
     )
 
 

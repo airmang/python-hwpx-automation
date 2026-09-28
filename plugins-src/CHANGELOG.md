@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- Hermes·OpenClaw 설치 안내의 서버 등록 예시가 `HWPX_SKILL_VERSION`을 1.0 트레인 때 값인 `1.0.0`으로 남겨 두던 것을
+  현재 플러그인 버전으로 고칩니다. 검증기는 이제 두 안내의 이 값이 플러그인 버전과 다르면 실패합니다.
+
 ## [2.4.0] - 2026-09-28
 
 automation 7.3.1과 core 6.6.0 위에서 검증한 조합입니다. automation은 다른 환경에서 한컴 렌더를 부르는

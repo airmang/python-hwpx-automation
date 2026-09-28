@@ -875,3 +875,24 @@ def test_codex_env_passthrough_guard_requires_chrome_path() -> None:
     without = {key: value for key, value in server.items() if key != "env_vars"}
     with pytest.raises(SystemExit, match="env_vars must be a list"):
         validator.validate_codex_env_passthrough(without)
+
+
+@pytest.mark.parametrize("template", ("hermes.mcp-install.md", "openclaw.mcp-install.md"))
+def test_host_install_guides_register_the_current_skill_version(template: str) -> None:
+    validator = _validator_module()
+    version = _identity()["components"]["plugin"]["currentVersion"]
+    path = ROOT / "packaging" / "templates" / template
+    text = path.read_text(encoding="utf-8")
+    validator.validate_host_install_skill_version(text, path, version)
+
+    stale = re.sub(
+        r'("?HWPX_SKILL_VERSION"?\s*:\s*)"[^"]*"', r'\1"1.0.0"', text
+    )
+    assert stale != text and version in stale
+    with pytest.raises(SystemExit, match="HWPX_SKILL_VERSION 1.0.0 differs from plugin"):
+        validator.validate_host_install_skill_version(stale, path, version)
+
+    without = re.sub(r'.*HWPX_SKILL_VERSION.*\n', "", text)
+    with pytest.raises(SystemExit, match="HWPX_SKILL_VERSION missing"):
+        validator.validate_host_install_skill_version(without, path, version)
+
