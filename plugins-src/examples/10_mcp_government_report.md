@@ -62,6 +62,11 @@ The response contains `document_plan`, `plan_validation`, `can_create`, and
       "sections": [
         {
           "blocks": [
+            {
+              "type": "paragraph",
+              "align": "center",
+              "children": [{"type": "run", "text": "2026년 AI 활용 교육 추진 현황 보고", "bold": true, "size": 20}]
+            },
             {"type": "heading", "level": 1, "text": "Ⅰ. 추진 개요"},
             {"type": "paragraph", "text": "AI 활용 교육 사업의 추진 실적과 향후 조치 계획을 보고드림."},
             {"type": "bullets", "style": "square", "items": ["주요 성과: 교원 연수 및 학생 프로젝트 운영 확대"]},

@@ -6,7 +6,7 @@ server there.
 
 ## Candidate publishing command (do not run before release approval)
 
-The `2.3.0 / 7.2.0 / 6.5.0` coordinates below are an unpublished candidate; public installation requires its later release.
+The `2.4.0 / 7.3.1 / 6.6.0` coordinates below are an unpublished candidate; public installation requires its later release.
 
 
 ```bash
@@ -16,7 +16,7 @@ hermes skills publish plugins/hermes/hwpx --to github --repo airmang/hwpx-plugin
 ## Install the server once
 
 ```bash
-uv tool install --with "python-hwpx[preview]>=6.5.0,<7" "python-hwpx-automation[mcp,oracle]>=7.2.0,<8"
+uv tool install --with "python-hwpx[preview]>=6.6.0,<7" "python-hwpx-automation[mcp,oracle]>=7.3.1,<8"
 uv tool dir --bin
 ```
 
@@ -40,7 +40,7 @@ mcp_servers:
 ## Update and clean up
 
 같은 메이저 안의 최신으로 옮기려면 `uv tool upgrade python-hwpx-automation`을 실행합니다. 설치할 때
-준 범위(`>=7.2.0,<8`, `>=6.5.0,<7`)를 그대로 지키며 같은 가상환경을 제자리에서 갱신하고, 다음 서버
+준 범위(`>=7.3.1,<8`, `>=6.6.0,<7`)를 그대로 지키며 같은 가상환경을 제자리에서 갱신하고, 다음 서버
 시작부터 적용됩니다. 자동 갱신은 번들 런처 `scripts/hwpx-automation-mcp`(Claude Code·Codex 번들)
 경로만 제공합니다.
 

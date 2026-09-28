@@ -1,7 +1,18 @@
 # Changelog
 
-## [Unreleased]
+## [2.4.0] - 2026-09-28
 
+automation 7.3.1과 core 6.6.0 위에서 검증한 조합입니다. automation은 다른 환경에서 한컴 렌더를 부르는
+`hwpx render-pdf` 명령을 더하고, 빌더·누름틀·쪽 방향을 한/글이 여는 대로 씁니다. 빌더 메타데이터는
+이제 본문이 아닌 문서 정보에 들어갑니다. core는 HWP 5.0(`.hwp`) 읽기·쓰기와 템플릿·양식을 공개
+API로 다루는 기능을 더했습니다. MCP 도구 계약(`5e5c23651f92785a`)은 그대로입니다.
+
+- Verify against the `python-hwpx 6.6.0` / `python-hwpx-automation 7.3.1` pair; the launcher's verified channel pins it and the install window starts there (`>=6.6.0,<7`, `>=7.3.1,<8`).
+- Keep the skill contract floor at core `>=6.5.0` / automation `>=7.2.0`; the tool contract `5e5c23651f92785a` (128/136/29) is unchanged.
+- Regenerate the four host bundles; the published 6.5.0 / 7.2.0 / 2.3.0 stack remains currentPublic.
+- automation 7.3.1부터 빌더 메타데이터가 본문 대신 문서 정보에 들어갑니다. 정부보고서 예제 두 개와 빌더 예제는
+  보일 제목을 본문 첫 블록으로 직접 두고, 빌더 quickcheck는 제목을 문서 정보(7.2.0은 본문 `제목:` 문단)에서
+  확인합니다. 생성 안내에도 이 차이를 적었습니다.
 - OpenClaw·Hermes 배선을 `uvx` 임시 환경에서 `uv tool install` 고정 환경으로 바꿉니다. 버전 조합이 바뀔
   때마다 uv 캐시에 고아 가상환경이 쌓이던 문제를 막고, `uv tool upgrade` 갱신·`uv cache prune` 정리와
   예전 `--refresh` 계열 인자 제거 안내를 추가했습니다. 검증기는 두 템플릿이 다시 `uvx`로 기동하면 실패합니다.

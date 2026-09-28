@@ -21,12 +21,14 @@ def government_report_plan() -> dict:
     total_budget = 12_500_000
     executed_budget = 8_750_000
     execution_ratio = calculate_ratios(executed_budget, total_budget)
+    title = "2026년 AI 활용 교육 추진 현황 보고"
     return {
         "schemaVersion": "hwpx.document_plan.v2",
         "preset": "government_report",
-        "title": "2026년 AI 활용 교육 추진 현황 보고",
+        "title": title,
+        # metadata는 문서 정보(content.hpf)에만 들어간다. 본문에 보일 제목은 블록으로 둔다.
         "metadata": {
-            "title": "2026년 AI 활용 교육 추진 현황 보고",
+            "title": title,
             "author": "미래교육과",
             "organization": "샘플교육지원청",
         },
@@ -34,6 +36,11 @@ def government_report_plan() -> dict:
         "sections": [
             {
                 "blocks": [
+                    {
+                        "type": "paragraph",
+                        "align": "center",
+                        "children": [{"type": "run", "text": title, "bold": True, "size": 20}],
+                    },
                     {"type": "heading", "level": 1, "text": "Ⅰ. 추진 개요"},
                     {
                         "type": "paragraph",
@@ -131,7 +138,7 @@ def main() -> int:
         (report["validation"]["reopened"] is True, "reopen validation failed"),
         ("AI 활용 교육 추진 현황" in text, "report title missing"),
         (
-            plan["sections"][0]["blocks"][8]["unit"] == "단위: 원, %",
+            plan["sections"][0]["blocks"][9]["unit"] == "단위: 원, %",
             "government table unit missing from plan",
         ),
         ("팔백칠십오만원" in text, "KRW Hangul value missing"),
