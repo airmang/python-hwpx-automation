@@ -1,7 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [2.4.0] - Unreleased candidate
 
+- Verify against the `python-hwpx 6.6.0` / `python-hwpx-automation 7.3.1` pair; the launcher's verified channel pins it and the install window starts there (`>=6.6.0,<7`, `>=7.3.1,<8`).
+- Keep the skill contract floor at core `>=6.5.0` / automation `>=7.2.0`; the tool contract `5e5c23651f92785a` (128/136/29) is unchanged.
+- Regenerate the four host bundles; the published 6.5.0 / 7.2.0 / 2.3.0 stack remains currentPublic.
 - automation 7.3.1부터 빌더 메타데이터가 본문 대신 문서 정보에 들어갑니다. 정부보고서 예제 두 개와 빌더 예제는
   보일 제목을 본문 첫 블록으로 직접 두고, 빌더 quickcheck는 제목을 문서 정보(7.2.0은 본문 `제목:` 문단)에서
   확인합니다. 생성 안내에도 이 차이를 적었습니다.
