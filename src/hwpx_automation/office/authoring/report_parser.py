@@ -85,14 +85,9 @@ def parse_government_report_text(text: str, *, title: str = "") -> dict[str, Any
     flush_bullets()
     flush_table()
 
-    if not blocks:
-        fallback = normalize_cell_text(title) or "본문"
-        blocks.append({"type": "paragraph", "text": fallback})
-
-    metadata: dict[str, str] = {}
     normalized_title = normalize_cell_text(title)
-    if normalized_title:
-        metadata["title"] = normalized_title
+    metadata = {"title": normalized_title} if normalized_title else {}
+    blocks = _with_title_block(blocks, normalized_title) or [{"type": "paragraph", "text": "본문"}]
 
     return {
         "schemaVersion": DOCUMENT_PLAN_V2_SCHEMA_VERSION,
@@ -100,6 +95,23 @@ def parse_government_report_text(text: str, *, title: str = "") -> dict[str, Any
         "metadata": metadata,
         "sections": [{"blocks": blocks}],
     }
+
+
+def _with_title_block(blocks: list[dict[str, Any]], title: str) -> list[dict[str, Any]]:
+    """Put *title* at the top of the body as a centred bold paragraph.
+
+    The plan title and metadata go to the document properties, not the body, so
+    a report shows its title only through a body block. A first line that
+    already is the title becomes that block instead of a copy.
+    """
+
+    if not title:
+        return blocks
+    rest = blocks
+    if rest and rest[0].get("type") in {"paragraph", "heading"} and rest[0].get("text") == title:
+        rest = rest[1:]
+    title_block = {"type": "paragraph", "align": "center", "runs": [{"text": title, "bold": True}]}
+    return [title_block, *rest]
 
 
 def _parse_heading(line: str) -> tuple[int, str] | None:
