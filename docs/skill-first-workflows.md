@@ -1,6 +1,6 @@
 # Skill-First Workflows on the Automation MCP Adapter
 
-> Release status: `release-approved` — 7.3.0 publication is approved; remote publication and installation have not yet been observed.
+> Release status: `release-approved` — 7.3.1 publication is approved; remote publication and installation have not yet been observed.
 
 > Release status: `released` — 7.2.0 publication and the 6.5.0/7.2.0/2.3.0 marketplace installation were observed.
 
