@@ -95,25 +95,25 @@ def _with_landscape(value: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(builder_core.Document, "lower", lower)
 
 
-# python-hwpx 6.6 added the full-schema validator (`validate_document(full_schema=...)`).
-# The supported floor is still 6.5, where the builder honestly reports "not_checked".
-_HAS_FULL_SCHEMA = "full_schema" in signature(validate_document).parameters
-_needs_full_schema = pytest.mark.skipif(
-    not _HAS_FULL_SCHEMA, reason="python-hwpx < 6.6 has no full-schema validator"
-)
-
-
 def _document() -> Document:
     return Document(sections=[Section(page=PageSize.A4, children=[Paragraph(text="x")])])
 
 
-@_needs_full_schema
+# python-hwpx 6.6 added the full OWPML schema check (``full_schema``); the core
+# floor (6.5) has none, and the release gate tests against the floor.
+_FULL_SCHEMA = "full_schema" in signature(validate_document).parameters
+needs_full_schema = pytest.mark.skipif(
+    not _FULL_SCHEMA, reason="python-hwpx before 6.6 has no full OWPML schema check"
+)
+
+
+@needs_full_schema
 def test_schema_lint_passes_only_a_schema_clean_document(tmp_path: Path) -> None:
     report = _document().save_to_path(tmp_path / "clean.hwpx")
     assert report.hard_gates["schema_lint"] == "pass"
 
 
-@_needs_full_schema
+@needs_full_schema
 def test_schema_lint_reports_an_out_of_schema_enum_value(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -128,14 +128,13 @@ def test_schema_lint_reports_an_out_of_schema_enum_value(
 def test_schema_lint_is_not_checked_without_a_full_schema_validator(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # python-hwpx before 6.6 checks sections against a lax stub only; on 6.6+
-    # stand in for that by turning the full-schema pass off.
-    if _HAS_FULL_SCHEMA:
+    # python-hwpx before 6.6 checks sections against a lax stub only.
+    def stub_only(source: object) -> object:
+        if _FULL_SCHEMA:
+            return validate_document(source, full_schema=False)  # type: ignore[arg-type]
+        return validate_document(source)  # type: ignore[arg-type]
 
-        def stub_only(source: object) -> object:
-            return validate_document(source, full_schema=False)  # type: ignore[call-arg]
-
-        monkeypatch.setattr(builder_core, "validate_document", stub_only)
+    monkeypatch.setattr(builder_core, "validate_document", stub_only)
     _with_landscape("PORTRAIT", monkeypatch)
     report = _document().save_to_path(tmp_path / "unchecked.hwpx")
 
