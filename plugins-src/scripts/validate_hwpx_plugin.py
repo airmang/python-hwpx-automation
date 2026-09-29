@@ -545,7 +545,8 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         if manifest_path.name == "openclaw.plugin.json":
             manifest_id = manifest.get("id")
         require(manifest_id == plugin["installedPluginId"], f"{manifest_path}: plugin id mismatch")
-        require(manifest.get("version") == plugin["currentVersion"], f"{manifest_path}: version mismatch")
+        if manifest_path.name != "claude.plugin.json":
+            require(manifest.get("version") == plugin["currentVersion"], f"{manifest_path}: version mismatch")
         require("first-party" in manifest.get("description", ""), f"{manifest_path}: first-party scope missing")
         claim_targets.append(manifest_path)
 
@@ -849,25 +850,51 @@ def validate_skill_files_match(host: dict, skill_dir: Path, recorded: set[Path])
 CLAUDE_LOCK_MAX_BYTES = 256 * 1024
 
 
+def _load_refresh_module():
+    spec = importlib.util.spec_from_file_location("refresh_claude_runtime", ROOT / "scripts" / "refresh_claude_runtime.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
 def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
     """The Claude bundle pins the exact public pair through server/pyproject.toml + uv.lock."""
     import tomllib
 
     components = identity["components"]
     automation, core = components["automation"], components["core"]
-    automation_pin = f"{automation['distribution']}[{','.join(automation['pluginInstallExtras'])}]=={automation['currentVersion']}"
-    core_pin = f"{core['distribution']}[preview]=={core['currentVersion']}"
-
     pyproject_path = out / "server" / "pyproject.toml"
     lock_path = out / "server" / "uv.lock"
     icon_path = out / ".claude-plugin" / "icon.svg"
     for path in (pyproject_path, lock_path, icon_path):
         require_file(path)
+    refresh = _load_refresh_module()
     project = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))["project"]
+    pins = {}
+    for spec in project.get("dependencies", []):
+        match = re.fullmatch(r"(?P<dist>[A-Za-z0-9_.-]+)\[(?P<extras>[^\]]*)\]==(?P<version>\d+\.\d+\.\d+)", spec)
+        require(match is not None, f"claude: server/pyproject.toml dependency is not an exact pin: {spec}")
+        pins[match["dist"]] = (match["extras"], match["version"])
     require(
-        sorted(project.get("dependencies", [])) == sorted([automation_pin, core_pin]),
-        f"claude: server/pyproject.toml must pin exactly {automation_pin} and {core_pin}",
+        set(pins) == {automation["distribution"], core["distribution"]},
+        "claude: server/pyproject.toml must pin exactly python-hwpx and python-hwpx-automation",
     )
+    require(
+        pins[automation["distribution"]][0] == ",".join(automation["pluginInstallExtras"])
+        and pins[core["distribution"]][0] == "preview",
+        "claude: server/pyproject.toml extras differ from the plugin install extras",
+    )
+    for component in (core, automation):
+        pinned = refresh.parse(pins[component["distribution"]][1])
+        floor = refresh.parse(component["currentVersion"])
+        require(
+            pinned is not None and floor is not None and pinned >= floor and pinned[0] == floor[0],
+            f"claude: {component['distribution']} pin is outside the install window "
+            f">={component['currentVersion']},<{floor[0] + 1 if floor else '?'}; run scripts/refresh_claude_runtime.py",
+        )
+    core_version = pins[core["distribution"]][1]
+    automation_version = pins[automation["distribution"]][1]
     require(
         lock_path.stat().st_size <= CLAUDE_LOCK_MAX_BYTES,
         f"claude: server/uv.lock exceeds {CLAUDE_LOCK_MAX_BYTES} bytes (directory size limit)",
@@ -875,9 +902,9 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
     lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     versions = {pkg["name"]: pkg.get("version") for pkg in lock.get("package", [])}
     require(
-        versions.get(automation["distribution"]) == automation["currentVersion"]
-        and versions.get(core["distribution"]) == core["currentVersion"],
-        "claude: server/uv.lock does not lock the current public pair; run uv lock",
+        versions.get(automation["distribution"]) == automation_version
+        and versions.get(core["distribution"]) == core_version,
+        "claude: server/uv.lock does not lock the pinned pair; run scripts/refresh_claude_runtime.py",
     )
     root = next((pkg for pkg in lock.get("package", []) if pkg.get("source", {}).get("virtual") == "."), None)
     require(root is not None, "claude: server/uv.lock has no root project entry")
@@ -886,8 +913,8 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
         for req in root.get("metadata", {}).get("requires-dist", [])
     }
     require(
-        (automation["distribution"], f"=={automation['currentVersion']}") in requested
-        and (core["distribution"], f"=={core['currentVersion']}") in requested,
+        (automation["distribution"], f"=={automation_version}") in requested
+        and (core["distribution"], f"=={core_version}") in requested,
         "claude: server/uv.lock was locked from a different pyproject; run uv lock",
     )
     for pkg in lock.get("package", []):
@@ -897,6 +924,14 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
                     str(artifact.get("hash", "")).startswith("sha256:"),
                     f"claude: server/uv.lock artifact without sha256 hash in {pkg['name']}",
                 )
+    manifest_version = load_json(out / ".claude-plugin" / "plugin.json").get("version")
+    expected_version = refresh.claude_plugin_version(
+        components["plugin"]["currentVersion"], core_version, automation_version, identity
+    )
+    require(
+        manifest_version == expected_version,
+        f"claude: plugin.json version {manifest_version!r} must be {expected_version!r} for the locked runtime",
+    )
     svg = icon_path.read_text(encoding="utf-8")
     box = re.search(r'viewBox="\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*"', svg)
     require(
@@ -1019,7 +1054,8 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
         require_file(manifest_path)
         validate_no_placeholder(manifest_path, host["id"])
         data = load_json(manifest_path)
-        require(data.get("version") == plugin_version, f"{host['id']}: manifest version mismatch")
+        if host["id"] != "claude":  # the Claude version follows the locked runtime (validate_claude_locked_runtime)
+            require(data.get("version") == plugin_version, f"{host['id']}: manifest version mismatch")
         if host["id"] == "claude":
             require(data.get("name") == plugin_id, "claude: manifest name invalid")
             require(data.get("skills") == "./skills/", "claude: manifest skills invalid")
@@ -1060,9 +1096,13 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
                 server.get("args") == ["run", "--frozen", "--project", "${CLAUDE_PLUGIN_ROOT}/server", automation["mcpConsole"]],
                 "claude: .mcp.json must run the canonical console from the locked server project",
             )
+            redirects = [
+                key for key in server.get("env", {})
+                if key.startswith(("UV_", "PIP_", "NPM_", "PYPI_")) or "INDEX" in key or "REGISTRY" in key
+            ]
             require(
-                server.get("env", {}).get("UV_PROJECT_ENVIRONMENT") == "${CLAUDE_PLUGIN_DATA}/server-venv",
-                "claude: the runtime environment must live under ${CLAUDE_PLUGIN_DATA}",
+                not redirects,
+                f"claude: .mcp.json env must not redirect the package index or registry: {redirects}",
             )
             require("cwd" not in server, "claude: .mcp.json must preserve project cwd")
             validate_claude_locked_runtime(out, identity)

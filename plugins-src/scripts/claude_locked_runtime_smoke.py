@@ -2,11 +2,13 @@
 """Start the Claude bundle's MCP server exactly as its .mcp.json declares.
 
 The Claude bundle runs ``uv run --frozen`` against ``server/uv.lock``. This smoke
-substitutes ``${CLAUDE_PLUGIN_ROOT}`` and ``${CLAUDE_PLUGIN_DATA}`` the way Claude
-Code does, starts the server from an empty user project with a fresh data
-directory, and checks the MCP handshake, the default tool count from the tool
-contract, the reported engine versions, and that nothing was written to the
-user's project. Needs ``uv`` and network access for the first install.
+copies the bundle into a temporary plugin root (Claude Code installs a copy under
+``~/.claude/plugins/cache``), substitutes ``${CLAUDE_PLUGIN_ROOT}`` and
+``${CLAUDE_PLUGIN_DATA}`` the way Claude Code does, starts the server from an
+empty user project, and checks the MCP handshake, the default tool count from
+the tool contract, the reported engine versions, that the runtime environment
+was created inside the plugin copy, and that nothing was written to the user's
+project. Needs ``uv`` and network access for the first install.
 
 Usage::
 
@@ -39,15 +41,18 @@ def main(argv: list[str] | None = None) -> int:
     contract = json.loads((ROOT / "references" / "tool-contract.generated.json").read_text(encoding="utf-8"))
     server = json.loads((BUNDLE / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["hwpx"]
 
+    cache = Path(tempfile.mkdtemp(prefix="claude-plugin-cache-"))
+    plugin_root = cache / "hwpx-plugin"
+    shutil.copytree(BUNDLE, plugin_root)
     data = Path(tempfile.mkdtemp(prefix="claude-plugin-data-"))
     project = Path(tempfile.mkdtemp(prefix="claude-user-project-"))
 
     def sub(value: str) -> str:
-        return value.replace("${CLAUDE_PLUGIN_ROOT}", str(BUNDLE)).replace("${CLAUDE_PLUGIN_DATA}", str(data))
+        return value.replace("${CLAUDE_PLUGIN_ROOT}", str(plugin_root)).replace("${CLAUDE_PLUGIN_DATA}", str(data))
 
     command = [sub(server["command"]), *[sub(a) for a in server.get("args", [])]]
     env = {**os.environ, **{k: sub(v) for k, v in server.get("env", {}).items()}}
-    env.update(CLAUDE_PLUGIN_ROOT=str(BUNDLE), CLAUDE_PLUGIN_DATA=str(data))
+    env.update(CLAUDE_PLUGIN_ROOT=str(plugin_root), CLAUDE_PLUGIN_DATA=str(data))
     for key in ("VIRTUAL_ENV", "UV_PYTHON", "HWPX_AUTOMATION_REPO", "PYTHON_HWPX_REPO"):
         env.pop(key, None)
 
@@ -88,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             "serverVersion": info.get("version") == identity["automation"]["currentVersion"],
             "defaultToolCount": len(tools) == contract["defaultToolCount"],
             "coreVersionReported": identity["core"]["currentVersion"] in health_text,
-            "runtimeUnderPluginData": (data / "server-venv").is_dir(),
+            "runtimeInsidePluginCopy": (plugin_root / "server" / ".venv").is_dir(),
             "userProjectUntouched": not any(project.iterdir()),
         }
         result.update(
@@ -108,6 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         except subprocess.TimeoutExpired:
             proc.kill()
         shutil.rmtree(data, ignore_errors=True)
+        shutil.rmtree(cache, ignore_errors=True)
         shutil.rmtree(project, ignore_errors=True)
 
     text = json.dumps(result, ensure_ascii=False, indent=2)

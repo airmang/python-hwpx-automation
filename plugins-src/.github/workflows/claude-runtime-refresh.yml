@@ -1,0 +1,105 @@
+name: Claude runtime refresh
+
+# The Claude plugin directory requires exact pins, so the Claude bundle cannot
+# self-update on the user's machine. This workflow moves its locked runtime to
+# the newest python-hwpx / python-hwpx-automation inside the install window,
+# runs the full Tests workflow on a candidate branch, and fast-forwards main
+# only when everything passes. A failed run leaves main untouched and shows red.
+
+on:
+  schedule:
+    - cron: "23 21 * * *" # daily, 06:23 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: claude-runtime-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Pick the newest engine inside the install window
+        id: refresh
+        run: python scripts/refresh_claude_runtime.py
+      - name: Rebuild and validate bundles
+        if: steps.refresh.outputs.changed == 'true'
+        run: |
+          python scripts/build_hwpx_plugins.py
+          python scripts/validate_hwpx_plugin.py
+      - name: Start the locked runtime as Claude Code would
+        if: steps.refresh.outputs.changed == 'true'
+        run: python scripts/claude_locked_runtime_smoke.py
+      - name: Push a candidate branch
+        id: branch
+        if: steps.refresh.outputs.changed == 'true'
+        env:
+          CORE: ${{ steps.refresh.outputs.core }}
+          AUTOMATION: ${{ steps.refresh.outputs.automation }}
+          PLUGIN_VERSION: ${{ steps.refresh.outputs.version }}
+        run: |
+          base="$(git rev-parse --short=12 HEAD)"
+          branch="bot/claude-runtime-${CORE}-${AUTOMATION}-${base}"
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null; then
+            echo "::error::${branch} already exists: an earlier refresh for this base failed. Inspect it, then delete the branch to retry."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${branch}"
+          git add packaging plugins
+          git commit -m "chore(claude): lock the Claude runtime to python-hwpx ${CORE} and python-hwpx-automation ${AUTOMATION}" \
+            -m "Automated by the Claude runtime refresh workflow. Claude plugin version: ${PLUGIN_VERSION}."
+          git push origin "${branch}"
+          echo "name=${branch}" >> "${GITHUB_OUTPUT}"
+          echo "sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+      - name: Run the Tests workflow on the candidate branch
+        if: steps.branch.outputs.name
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          SHA: ${{ steps.branch.outputs.sha }}
+          CORE_REF: ${{ vars.HWPX_CORE_CANDIDATE_REF }}
+          AUTOMATION_REF: ${{ vars.HWPX_AUTOMATION_CANDIDATE_REF }}
+          AUTOMATION_REPOSITORY: ${{ vars.HWPX_AUTOMATION_CANDIDATE_REPOSITORY }}
+        run: |
+          gh workflow run tests.yml --ref "${BRANCH}" \
+            -f core_ref="${CORE_REF}" \
+            -f automation_ref="${AUTOMATION_REF}" \
+            -f automation_repository="${AUTOMATION_REPOSITORY}"
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id="$(gh run list --workflow tests.yml --branch "${BRANCH}" --event workflow_dispatch \
+              --json databaseId,headSha --jq ".[] | select(.headSha == \"${SHA}\") | .databaseId" | head -n 1)"
+            [ -n "${run_id}" ] && break
+            sleep 10
+          done
+          if [ -z "${run_id}" ]; then
+            echo "::error::the Tests run for ${SHA} did not start"
+            exit 1
+          fi
+          gh run watch "${run_id}" --exit-status --interval 30
+      - name: Fast-forward main
+        if: steps.branch.outputs.name
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "::warning::main moved while the candidate was tested; dropping it so the next run rebuilds on the new main"
+            git push origin --delete "${BRANCH}"
+            exit 0
+          fi
+          git push origin HEAD:main
+          git push origin --delete "${BRANCH}"
