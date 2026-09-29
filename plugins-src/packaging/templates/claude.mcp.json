@@ -10,7 +10,6 @@
         "hwpx-automation-mcp"
       ],
       "env": {
-        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/server-venv",
         "HWPX_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
         "HWPX_AUTOMATION_AUTOBACKUP": "1",
         "HWPX_SKILL_VERSION": "2.4.0"

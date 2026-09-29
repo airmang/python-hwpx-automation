@@ -51,7 +51,7 @@ codex plugin add hwpx-plugin@hwpx
 ```
 
 Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 고정한 검증 좌표로
-`uv run --frozen`으로 실행합니다(`uv` 필요). 런타임은 플러그인 업데이트로만 바뀝니다.
+`uv run --frozen`으로 실행합니다(`uv` 필요). 새 엔진은 CI 봇이 검증한 뒤 플러그인 업데이트로 전달합니다.
 Codex에서는 설치 뒤 번들 런처가 런타임을 하루 1회 같은 메이저 안의 최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
 `HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
 Claude Code는 `/plugin` → Marketplaces → `hwpx`에서 자동 업데이트를 켜거나
@@ -107,7 +107,8 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 ## 관리 런타임의 갱신 시점
 
 Codex는 관리 런처를 실행합니다. Claude Code는 관리 런처 대신 `server/uv.lock`으로 잠긴 런타임을
-`${CLAUDE_PLUGIN_DATA}` 아래 가상환경에 설치하고, 자동 갱신 없이 플러그인 업데이트를 따라갑니다.
+플러그인 폴더의 `server/.venv`에 설치합니다. 창 안의 새 엔진은 저장소의 CI 봇이 매일 확인해 전체 테스트를
+통과한 조합만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 됩니다.
 Codex 런처는 시작할 때 마지막 점검에서
 24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
 다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나
