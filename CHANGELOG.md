@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- macOS에서 한컴이 멈춘 경우(창이 없고 CPU 100%, 문서 열기 요청 안에서 응답 없음)를 일반 렌더 실패와 구분한다. 렌더가 PDF도 거부 창도 없이 끝나면 한컴 프로세스의 CPU를 `ps`로 몇 초간 여러 번 읽고, 매번 80% 이상이면 `render-pdf`는 `hancom-hung`(종료 코드 1)으로, 렌더 worker는 `HANCOM_HUNG`(재시도 안 함)으로 끝내며 한컴을 다시 실행한 뒤 렌더하라고 알린다. 지금까지는 시간 초과까지 기다린 뒤 `render-failed`("Hancom did not produce a PDF.")로 끝났고 이후 렌더도 모두 같은 식으로 실패했다. 한컴 프로세스는 읽기만 하고 절대 종료하지 않는다. 그 밖의 실패는 그대로 `render-failed`다 (#147).
+- macOS에서 표가 손상된 문서(깨진 `cellSpan` 등)를 PDF로 저장할 때 한컴이 띄우는 "손상된 표를 복원할까요?" 창(`취소`/`복원`)과, 취소 뒤에 뜨는 "PDF 파일을 저장하는데 오류가 있습니다." 창이 화면에 남아 이후 렌더를 모두 막던 문제를 고친다. 이 렌더가 연 뒤에 새로 뜬 복원 질문에는 `취소`로만 답하고(`복원`은 누르지 않음) 거부로 처리해 `render-pdf`는 `hancom-refused`, 렌더 worker는 `HANCOM_REFUSED`로 끝낸다. 이어서 뜨는 저장 오류 창도 몇 초 동안 찾아 닫는다. 렌더 전부터 떠 있던 창은 건드리지 않고, 하나로 특정되는 창만 누른다 (#148).
 - On macOS, a document Hancom refuses to open no longer leaves its alert ("파일이 손상되었습니다", "파일을 읽거나 저장하는데 오류가 있습니다") on screen, where it blocked every later render. The render compares Hancom's alert windows just before and after opening the document, dismisses only an alert that appeared after its own open, and ends at once: `render-pdf` exits 1 with `hancom-refused`, and the render worker reports `HANCOM_REFUSED` (not retryable) instead of timing out. Alerts that were already up are never touched.
 - `parse_government_report_text(text, title=...)` puts the title at the top of the body as a centred bold paragraph. Since 7.3.1 the plan title and builder metadata go to the document properties, so a report created from parsed text (including `create_government_report_document`) showed no title (#137). A first line that already is the title becomes that paragraph instead of a copy; without a title nothing is added.
 

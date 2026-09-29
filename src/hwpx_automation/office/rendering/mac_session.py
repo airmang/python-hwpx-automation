@@ -28,6 +28,17 @@ class HancomRefusedError(RuntimeError):
     worker_reason = "HANCOM_REFUSED"
 
 
+class HancomHungError(RuntimeError):
+    """The render produced no PDF while Hancom stayed busy and did not answer.
+
+    Every later render fails the same way until the user restarts Hancom, so
+    the worker reports it as ``HANCOM_HUNG`` and does not mark it retryable.
+    Hancom is never killed here: it is the user's application.
+    """
+
+    worker_reason = "HANCOM_HUNG"
+
+
 class _OwnedMacOracle(MacHancomOracle):
     def __init__(self, *, timeout: float) -> None:
         super().__init__(timeout=timeout, budget_seconds=timeout)
@@ -54,6 +65,13 @@ class _OwnedMacOracle(MacHancomOracle):
         finally:
             with self.guard:
                 self.process = None
+
+    def _hancom_hung(self, deadline: float | None) -> str | None:
+        # A cancelled render ended because we killed our own osascript; Hancom's
+        # CPU says nothing about that, and the worker is waiting on this thread.
+        if self.cancelled.is_set():
+            return None
+        return super()._hancom_hung(deadline)
 
     def abort(self) -> None:
         self.cancelled.set()
@@ -94,6 +112,8 @@ class MacHancomSession:
                 result = self.oracle.render_pdf(str(source), str(target))
                 if not result and self.oracle.last_refusal is not None:
                     raise HancomRefusedError(self.oracle.last_refusal)
+                if not result and getattr(self.oracle, "last_hang", None) is not None:
+                    raise HancomHungError(self.oracle.last_hang)
                 return Path(result) if result else None
             finally:
                 fcntl.flock(handle, fcntl.LOCK_UN)
