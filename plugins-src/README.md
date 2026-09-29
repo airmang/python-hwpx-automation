@@ -50,8 +50,9 @@ codex plugin marketplace add airmang/hwpx-plugins
 codex plugin add hwpx-plugin@hwpx
 ```
 
-설치 뒤 런타임(`python-hwpx`·`python-hwpx-automation`)은 번들 런처가 하루 1회 같은 메이저 안의
-최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
+Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 고정한 검증 좌표로
+`uv run --frozen`으로 실행합니다(`uv` 필요). 런타임은 플러그인 업데이트로만 바뀝니다.
+Codex에서는 설치 뒤 번들 런처가 런타임을 하루 1회 같은 메이저 안의 최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
 `HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
 Claude Code는 `/plugin` → Marketplaces → `hwpx`에서 자동 업데이트를 켜거나
 `claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx`, Codex는
@@ -95,7 +96,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` |
 | 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 6.5.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` |
-| 플러그인 설치 제약 | 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신 | `python-hwpx[preview]>=6.6.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.3.1,<8` |
+| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 검증 좌표를 `uv.lock`으로 고정 | `python-hwpx[preview]>=6.6.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.3.1,<8` |
 
 - 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
@@ -105,7 +106,9 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 ## 관리 런타임의 갱신 시점
 
-Claude Code와 Codex는 같은 관리 런처를 실행합니다. 시작할 때 마지막 점검에서
+Codex는 관리 런처를 실행합니다. Claude Code는 관리 런처 대신 `server/uv.lock`으로 잠긴 런타임을
+`${CLAUDE_PLUGIN_DATA}` 아래 가상환경에 설치하고, 자동 갱신 없이 플러그인 업데이트를 따라갑니다.
+Codex 런처는 시작할 때 마지막 점검에서
 24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
 다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나
 실행하지 않은 호스트에서 24시간 내 활성화를 보장하지 않습니다. 최초 설치에는

@@ -1,9 +1,17 @@
 {
   "mcpServers": {
     "hwpx": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/hwpx-automation-mcp",
-      "args": [],
+      "command": "uv",
+      "args": [
+        "run",
+        "--frozen",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/server",
+        "hwpx-automation-mcp"
+      ],
       "env": {
+        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/server-venv",
+        "HWPX_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
         "HWPX_AUTOMATION_AUTOBACKUP": "1",
         "HWPX_SKILL_VERSION": "2.4.0"
       }

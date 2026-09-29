@@ -437,8 +437,28 @@ def main() -> int:
             env=env,
         )
         e2e_report = temp / "plugin-e2e.json"
-        canonical_mcp_config = (
-            skill_copy / "plugins" / "claude" / "hwpx-plugin" / ".mcp.json"
+        # The Claude bundle runs a uv.lock-pinned runtime from PyPI, so it cannot
+        # carry candidate wheels. Exercise the MCP-config path through the canonical
+        # launcher (Codex bundle copy) with the env a host config would pass.
+        canonical_mcp_config = temp / "canonical-mcp-config.json"
+        canonical_mcp_config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "hwpx": {
+                            "command": str(launcher),
+                            "args": [],
+                            "env": {
+                                "HWPX_AUTOMATION_AUTOBACKUP": "1",
+                                "HWPX_SKILL_VERSION": SKILL_VERSION,
+                            },
+                        }
+                    }
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
         )
         e2e_command = [
             args.python,

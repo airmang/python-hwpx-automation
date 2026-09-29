@@ -105,7 +105,21 @@
         "template": "templates/claude.mcp.json",
         "dest": ".mcp.json"
       },
-      "bundleLauncher": true
+      "bundleLauncher": false,
+      "assets": [
+        {
+          "template": "templates/claude-runtime/pyproject.toml",
+          "dest": "server/pyproject.toml"
+        },
+        {
+          "template": "templates/claude-runtime/uv.lock",
+          "dest": "server/uv.lock"
+        },
+        {
+          "template": "templates/claude.icon.svg",
+          "dest": ".claude-plugin/icon.svg"
+        }
+      ]
     },
     {
       "id": "codex",
