@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- ChatGPT용 skills-only 플러그인을 빌드합니다(#42). `scripts/build_chatgpt_skill.py`가 `packaging/chatgpt/`에서
+  `dist/python-hwpx-plugin-<버전>.zip`(루트 `plugin.json` + `skills/hwpx-web/`)과 같은 스킬의 단독 ZIP을 만듭니다.
+  스킬은 python-hwpx·python-hwpx-automation과 의존 패키지 wheel을 PyPI 원본 그대로(sha256 고정) 담아
+  `--no-index`로만 설치하고, automation 의존이 없는 환경에서는 core만 설치해 알립니다. 웹 스킬 버전은
+  `packaging/chatgpt/sources.json`에 따로 둡니다(1.0.0).
+- `scripts/check_openai_plugin_zip.py`는 OpenAI 플러그인 포털의 제출 규칙(필드 길이, 아이콘, HTTPS URL,
+  skills-only의 MCP 설정 금지, `policy.products`)을 제출 전에 확인합니다. `scripts/chatgpt_sandbox_sim.py`는
+  Python 3.12·인덱스 차단·읽기 전용 스킬 폴더에서 작업 절차의 코드 블록 전부를 한/글이 저장한 공개 문서에 실행합니다.
+- 플러그인 목록에 필요한 개인정보처리방침(`PRIVACY.md`)과 이용약관(`TERMS.md`)을 추가합니다.
+
 - Hermes·OpenClaw 설치 안내의 서버 등록 예시가 `HWPX_SKILL_VERSION`을 1.0 트레인 때 값인 `1.0.0`으로 남겨 두던 것을
   현재 플러그인 버전으로 고칩니다. 검증기는 이제 두 안내의 이 값이 플러그인 버전과 다르면 실패합니다.
 

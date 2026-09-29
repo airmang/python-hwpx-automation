@@ -1,0 +1,41 @@
+{
+  "skillName": "hwpx-web",
+  "pluginName": "python-hwpx",
+  "version": "1.0.0",
+  "coreRepository": "airmang/python-hwpx",
+  "runtimeDependencies": [
+    "anyio==4.15.1",
+    "idna==3.20",
+    "typing_extensions==4.16.0"
+  ],
+  "coreDocs": [
+    {
+      "path": "docs/_extra/llms.txt",
+      "dest": "references/core/llms.txt"
+    },
+    {
+      "path": "docs/quickstart.md",
+      "dest": "references/core/quickstart.md"
+    },
+    {
+      "path": "docs/mutation-semantics.md",
+      "dest": "references/core/mutation-semantics.md"
+    },
+    {
+      "path": "docs/recipes-traversal.md",
+      "dest": "references/core/recipes-traversal.md"
+    },
+    {
+      "path": "docs/safe-write-contract.md",
+      "dest": "references/core/safe-write-contract.md"
+    },
+    {
+      "path": "docs/stable-api.md",
+      "dest": "references/core/stable-api.md"
+    },
+    {
+      "path": "docs/support-matrix.md",
+      "dest": "references/core/support-matrix.md"
+    }
+  ]
+}

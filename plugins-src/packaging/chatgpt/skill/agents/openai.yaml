@@ -1,0 +1,7 @@
+interface:
+  display_name: "HWPX 문서"
+  short_description: "HWPX 문서 읽기·편집·새로 작성"
+policy:
+  products:
+    - CHAT
+  allow_implicit_invocation: true
