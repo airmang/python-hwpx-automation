@@ -266,6 +266,22 @@ def test_dismissal_clicks_only_a_unique_match_and_only_its_ok_button() -> None:
     assert "if target is not missing value then return false" in dismiss
 
 
+def test_alert_entries_read_each_text_and_button_on_its_own() -> None:
+    # On a real Hancom refusal alert (AXDialog "한컴오피스 한글", one static text,
+    # one 확인 button) the bulk forms "value of static texts of w" and "name of
+    # buttons of w" fail as a whole, so the wording and the button went unread and
+    # no alert ever counted as a refusal (#143). Read element by element.
+    source = SCRIPT.read_text(encoding="utf-8")
+    entry = source[source.index("on alertEntryOf(") : source.index("end alertEntryOf")]
+
+    assert "value of static texts of w" not in entry
+    assert "name of buttons of w" not in entry
+    assert "repeat with t in (static texts of w)" in entry
+    assert "(value of t) as string" in entry
+    assert "repeat with b in (buttons of w)" in entry
+    assert "(name of b) as string" in entry
+
+
 def test_python_side_parses_the_script_refusal_line() -> None:
     marker = "ERR: HANCOM_REFUSED: "
     assert marker in SCRIPT.read_text(encoding="utf-8")
