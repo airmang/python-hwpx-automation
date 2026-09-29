@@ -4,7 +4,8 @@
 블록 안의 확인 단계는 지우지 않는다. 확인이 실패하면 `SystemExit`로 멈추고 결과 파일을 남기지 않으므로,
 그 메시지를 사용자에게 그대로 전한다.
 
-- 입력은 `/mnt/data`의 첨부 파일이다. 출력은 **항상 새 경로**다. 원본을 덮어쓰지 않는다.
+- 입력은 `/mnt/data`의 첨부 파일(`.hwpx` 또는 `.hwp`)이다. 출력은 **항상 새 경로**이고, 확장자는 원본과 같게
+  둔다(`.hwp` → `.hwp`). 원본을 덮어쓰지 않는다.
 - 저장은 임시 파일에 먼저 하고, 다시 열어 대조가 끝난 뒤에만 결과 경로로 옮긴다.
 - 기존 문서는 먼저 `mode="patch"`(손대지 않은 부분을 바이트 그대로 보존)로 저장을 시도하고,
   그 등급이 불가능하면 `mode="auto"`로 저장한 뒤 그 사실을 보고한다.
@@ -24,6 +25,9 @@ markdown = doc.text.markdown()
 tables = doc.tables.map()["tables"]
 fields = [(i, f.name, f.prompt, f.value) for i, f in enumerate(doc.fields.all)]
 print(f"글자 수 {len(markdown)}, 표 {len(tables)}개, 누름틀 {len(fields)}개")
+report = doc.conversion_report  # .hwp로 연 문서만 값이 있다
+if report is not None and (report.unconverted or report.dropped):
+    print("주의: .hwp에서 옮기지 못한 내용", dict(report.unconverted), dict(report.dropped), "— 사용자에게 알린다.")
 print(markdown[:6000])
 ```
 
@@ -38,7 +42,7 @@ print(markdown[:6000])
 ```python
 # W2 문구 바꾸기
 import os, re
-from hwpx import HwpxDocument, PreservationDowngradeError
+from hwpx import Hwp5Error, HwpxDocument, PreservationDowngradeError
 
 P = {
     "src": "/mnt/data/input.hwpx",
@@ -60,11 +64,15 @@ missing = [old for old, n in counts.items() if n == 0]
 if missing:
     raise SystemExit(f"찾지 못한 문구 {missing}: 저장하지 않았다. 문서에 있는 정확한 원문을 사용자에게 확인한다.")
 
-tmp = P["out"] + ".checking.hwpx"
+root, ext = os.path.splitext(P["out"])
+tmp = f"{root}.checking{ext}"  # 확장자가 저장 형식을 정한다(.hwp / .hwpx)
 try:
-    report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
-except PreservationDowngradeError:
-    report = doc.save_to_path(tmp, return_report=True)
+    try:
+        report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
+    except PreservationDowngradeError:
+        report = doc.save_to_path(tmp, return_report=True)
+except Hwp5Error as exc:
+    raise SystemExit(f".hwp로 쓸 수 없는 내용이 있다({exc}). .hwpx로 저장할지 사용자에게 묻는다.")
 
 # 재개봉 확인: 같은 글로 바꾸면 문서는 그대로 두고 개수만 센다.
 reopened = HwpxDocument.open(tmp)
@@ -98,7 +106,7 @@ for old, new in pairs:
 ```python
 # W3 표 라벨 칸 채우기
 import os
-from hwpx import HwpxDocument, PreservationDowngradeError
+from hwpx import Hwp5Error, HwpxDocument, PreservationDowngradeError
 
 P = {
     "src": "/mnt/data/input.hwpx",
@@ -159,11 +167,15 @@ result = doc.tables.fill_by_path(paths)
 if result["failed"]:
     raise SystemExit(f"채우지 못한 항목 {result['failed']}: 저장하지 않았다.")
 
-tmp = P["out"] + ".checking.hwpx"
+root, ext = os.path.splitext(P["out"])
+tmp = f"{root}.checking{ext}"  # 확장자가 저장 형식을 정한다(.hwp / .hwpx)
 try:
-    report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
-except PreservationDowngradeError:
-    report = doc.save_to_path(tmp, return_report=True)
+    try:
+        report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
+    except PreservationDowngradeError:
+        report = doc.save_to_path(tmp, return_report=True)
+except Hwp5Error as exc:
+    raise SystemExit(f".hwp로 쓸 수 없는 내용이 있다({exc}). .hwpx로 저장할지 사용자에게 묻는다.")
 
 after = {t["table_index"]: t for t in HwpxDocument.open(tmp).tables.map()["tables"]}
 for path, (table_index, row, col) in targets.items():
@@ -184,7 +196,7 @@ print("저장 등급:", report.actual_mode, "/ 저장 검사 통과:", report.ok
 ```python
 # W4 누름틀 채우기
 import os
-from hwpx import HwpxDocument, PreservationDowngradeError
+from hwpx import Hwp5Error, HwpxDocument, PreservationDowngradeError
 
 P = {
     "src": "/mnt/data/input.hwpx",
@@ -208,11 +220,15 @@ for name, value in values.items():
     filled = doc.fields.fill(value, name=name)
     print(f"{name}: {filled.before!r} → {filled.after!r}")
 
-tmp = P["out"] + ".checking.hwpx"
+root, ext = os.path.splitext(P["out"])
+tmp = f"{root}.checking{ext}"  # 확장자가 저장 형식을 정한다(.hwp / .hwpx)
 try:
-    report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
-except PreservationDowngradeError:
-    report = doc.save_to_path(tmp, return_report=True)
+    try:
+        report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
+    except PreservationDowngradeError:
+        report = doc.save_to_path(tmp, return_report=True)
+except Hwp5Error as exc:
+    raise SystemExit(f".hwp로 쓸 수 없는 내용이 있다({exc}). .hwpx로 저장할지 사용자에게 묻는다.")
 
 after = {f.name: f.value for f in HwpxDocument.open(tmp).fields.all}
 wrong = {name: after.get(name) for name, value in values.items() if after.get(name) != value}
@@ -269,7 +285,8 @@ report = api.validate_document_plan(P["plan"])
 if not report.ok:
     raise SystemExit("문서 계획 오류:\n" + "\n".join(f"- {i.path}: {i.message} → {i.suggestion}" for i in report.issues))
 
-tmp = P["out"] + ".checking.hwpx"
+root, ext = os.path.splitext(P["out"])
+tmp = f"{root}.checking{ext}"
 api.create_document_from_plan(P["plan"]).save_to_path(tmp)
 text = HwpxDocument.open(tmp).text.markdown()
 needed = [b["text"] for b in P["plan"]["blocks"] if b["type"] in ("heading", "paragraph")]
@@ -282,5 +299,6 @@ print("재개봉 확인 통과:", P["out"])
 print(text[:3000])
 ```
 
+- 새 문서는 기본으로 `.hwpx`로 만든다. 사용자가 `.hwp`를 원하면 `out`의 확장자만 `.hwp`로 바꾼다.
 - 장르 문법(공문 항목 기호, 결재란 등)이 필요한 요청은 [automation-python-api.md](automation-python-api.md)의
   한계를 먼저 읽는다. 이 경로는 일반 보고·안내 문서용이다.

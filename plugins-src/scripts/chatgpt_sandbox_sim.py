@@ -36,6 +36,7 @@ ALLOWED_IMPORTS = {"hwpx", "hwpx_automation", "importlib", "json", "os", "re", "
 # (case id, block id, input fixture or None, P overrides, expected outcome, reason substring for refusals)
 DISASTER = "hwpxlib_corpus/error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx"
 PROJECT = "hwpxlib_corpus/error__20250523__프로젝트 계획서.hwpx"
+HWP5 = "hwp5/rect_no_width_rel_to.hwp"
 CASES = [
     ("W1-read-disaster-report", "W1", DISASTER, {}, "ok", ""),
     ("W2-replace-everywhere", "W2", DISASTER, {"replacements": {"재난안전": "재난·안전"}}, "ok", ""),
@@ -54,6 +55,8 @@ CASES = [
     ("W4-fill-clickhere", "W4", PROJECT,
      {"values": {"_AI_프로젝트계획서프로젝트배경": "교실 수업에서 생성형 AI 활용이 늘고 있다."}}, "ok", ""),
     ("W4-refuse-unknown-field", "W4", PROJECT, {"values": {"없는누름틀": "x"}}, "refuse", "없는 이름"),
+    ("W1-read-hwp5", "W1", HWP5, {}, "ok", ""),
+    ("W2-replace-in-hwp5-keeps-hwp", "W2", HWP5, {"replacements": {"떠 있는 개체": "떠 있는 도형"}}, "ok", ""),
     ("W5-create-from-plan", "W5", None, {}, "ok", ""),
     ("W5-refuse-bad-plan", "W5", None,
      {"plan": {"schema": "hwpx.document_plan.v1", "blocks": [{"type": "heading", "text": "제목"}]}}, "refuse", "문서 계획 오류"),
@@ -172,13 +175,14 @@ def main(argv: list[str] | None = None) -> int:
                 src = case_dir / Path(fixture).name
                 shutil.copyfile(args.fixtures / fixture, src)
                 params["src"] = str(src)
-            params["out"] = str(case_dir / "output.hwpx")
+            out_name = "output.hwp" if fixture and fixture.endswith(".hwp") else "output.hwpx"
+            params["out"] = str(case_dir / out_name)
             code = prelude + "\n" + inject_overrides(workflows[block], params)
             code = code.replace("SKILL_DIR = None", f"SKILL_DIR = {json.dumps(str(skill))}", 1)
             code = code.replace('"/mnt/data"', json.dumps(str(case_dir)))
             proc = run([str(py), "-c", code], cwd=case_dir, env=env, timeout=300)
-            output_exists = (case_dir / "output.hwpx").exists()
-            leftovers = [p.name for p in case_dir.glob("*.checking.hwpx")]
+            output_exists = (case_dir / out_name).exists()
+            leftovers = [p.name for p in case_dir.glob("*.checking.*")]
             writes = block != "W1"
             if expected == "ok":
                 passed = proc.returncode == 0 and output_exists == writes

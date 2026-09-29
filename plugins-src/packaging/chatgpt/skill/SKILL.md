@@ -1,12 +1,12 @@
 ---
 name: hwpx-web
-description: "한/글 HWPX(.hwpx) 문서를 ChatGPT 안에서 읽고, 고치고, 표·누름틀을 채우고, 새로 만드는 스킬. 사용자가 .hwpx 파일을 첨부했거나 HWPX·한/글(.hwpx) 문서의 요약, 문구 바꾸기, 표 칸·누름틀 채우기, 새 .hwpx 작성을 부탁할 때 사용한다. 워드·PDF 같은 다른 형식이나 파일 형식을 정하지 않은 일반 글쓰기에는 쓰지 않는다. 스킬에 들어 있는 python-hwpx {{CORE_VERSION}}과 python-hwpx-automation {{AUTOMATION_VERSION}}을 코드 실행 환경에 인터넷 없이 설치해 순수 파이썬으로 처리한다."
+description: "한/글 문서(.hwpx, .hwp)를 ChatGPT 안에서 읽고, 고치고, 표·누름틀을 채우고, 새로 만드는 스킬. 사용자가 .hwpx·.hwp 파일을 첨부했거나 한/글 문서의 요약, 문구 바꾸기, 표 칸·누름틀 채우기, 새 한/글 문서 작성을 부탁할 때 사용한다. 워드·PDF 같은 다른 형식이나 파일 형식을 정하지 않은 일반 글쓰기에는 쓰지 않는다. 스킬에 들어 있는 python-hwpx {{CORE_VERSION}}과 python-hwpx-automation {{AUTOMATION_VERSION}}을 코드 실행 환경에 인터넷 없이 설치해 순수 파이썬으로 처리한다."
 ---
 
 # hwpx-web (ChatGPT용 · 스킬 {{WEB_VERSION}})
 
-`.hwpx`는 ZIP 안에 OWPML XML이 든 한/글 문서다. 이 스킬은 한컴 프로그램 없이 python-hwpx 엔진으로
-문서를 다룬다. 이 환경에는 MCP 도구(`start_workflow` 등)가 없다. 모든 작업은 Python 도구로 한다.
+`.hwpx`는 ZIP 안에 OWPML XML이 든 한/글 문서이고, `.hwp`는 HWP 5.0 바이너리다. 이 스킬은 한컴 프로그램 없이
+python-hwpx 엔진으로 두 형식을 같은 문서 모델로 다룬다. 이 환경에는 MCP 도구(`start_workflow` 등)가 없다. 모든 작업은 Python 도구로 한다.
 
 ## 1. 시작 — 대화마다 한 번
 
@@ -57,9 +57,15 @@ print("준비 완료: python-hwpx", hwpx.__version__, "/ 새 문서 만들기(W5
 - 첨부 파일은 `/mnt/data`에 있다(`os.listdir("/mnt/data")`로 확인). **원본을 덮어쓰지 않는다.**
   결과는 `/mnt/data/<원본 이름>_수정.hwpx`처럼 새 경로에 저장한다.
 - 결과 파일은 `[파일 이름](sandbox:/mnt/data/파일 이름)` 형식의 링크로 준다.
-- `.hwp`(구형 바이너리) 파일은 이 웹판에서 검증하지 않았으므로 처리하지 않는다.
-  "한/글에서 [다른 이름으로 저장 → HWPX 문서]로 저장해 다시 올려 달라"고 안내한다.
-- 암호가 걸린 문서는 열리지 않는다. 그대로 알린다.
+- `.hwp`(HWP 5.0)도 `HwpxDocument.open`으로 연다. 결과는 **원본과 같은 형식**으로 저장한다
+  (`.hwp` → `.hwp`, `.hwpx` → `.hwpx`). 사용자가 원하면 다른 형식으로 저장한다(출력 경로의 확장자만 바꾼다).
+- `.hwp`를 열면 `doc.conversion_report`를 본다. `unconverted`나 `dropped`에 개수가 있으면 옮기지 못한 내용이
+  있다는 뜻이므로 그 사실을 사용자에게 알린다.
+- `.hwp`로 쓸 수 없는 내용이면 저장 전에 `Hwp5Error`(`hwp5-write-unsupported`)가 난다. 이때는 `.hwpx`로
+  저장할지 사용자에게 묻는다.
+- 암호·배포용·DRM 문서는 열리지 않는다(`Hwp5Error`). 그대로 알린다.
+- [core/llms.txt](references/core/llms.txt)의 "`.hwp`는 `BadZipFile`" 문장은 `HwpxPackage`에만 해당한다.
+  `HwpxDocument.open`은 `.hwp`를 연다.
 
 ## 3. 요청 → 경로
 
@@ -109,5 +115,4 @@ W1~W5에 없는 편집은 [core/llms.txt](references/core/llms.txt)에 적힌 �
 ## 6. 할 수 없는 일
 
 - 미리보기 이미지·PDF 만들기, 한컴 렌더 검증
-- `.hwp` 처리 (이 웹판에서 검증하지 않음)
 - 같은 라벨이 여러 표에 있을 때 특정 표의 칸 채우기 (W3 참고)

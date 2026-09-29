@@ -4,7 +4,7 @@
 
 - ChatGPT용 skills-only 플러그인을 빌드합니다(#42). `scripts/build_chatgpt_skill.py`가 `packaging/chatgpt/`에서
   `dist/python-hwpx-plugin-<버전>.zip`(루트 `plugin.json` + `skills/hwpx-web/`)과 같은 스킬의 단독 ZIP을 만듭니다.
-  스킬은 python-hwpx·python-hwpx-automation과 의존 패키지 wheel을 PyPI 원본 그대로(sha256 고정) 담아
+  스킬은 `.hwpx`와 `.hwp`(HWP 5.0) 문서를 같은 절차로 다루고(`.hwp`는 `.hwp`로 저장), python-hwpx·python-hwpx-automation과 의존 패키지 wheel을 PyPI 원본 그대로(sha256 고정) 담아
   `--no-index`로만 설치하고, automation 의존이 없는 환경에서는 core만 설치해 알립니다. 웹 스킬 버전은
   `packaging/chatgpt/sources.json`에 따로 둡니다(1.0.0).
 - `scripts/check_openai_plugin_zip.py`는 OpenAI 플러그인 포털의 제출 규칙(필드 길이, 아이콘, HTTPS URL,
