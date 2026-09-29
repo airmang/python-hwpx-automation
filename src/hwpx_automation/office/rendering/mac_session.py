@@ -18,6 +18,16 @@ def _gui_lock_path() -> Path:
     return Path(tempfile.gettempdir()) / f"hwpx-hancom-gui-{os.getuid()}.lock"
 
 
+class HancomRefusedError(RuntimeError):
+    """Hancom refused to open the document; its alert was dismissed.
+
+    Retrying the same bytes gets the same answer, so the worker reports it as
+    ``HANCOM_REFUSED`` and does not mark it retryable.
+    """
+
+    worker_reason = "HANCOM_REFUSED"
+
+
 class _OwnedMacOracle(MacHancomOracle):
     def __init__(self, *, timeout: float) -> None:
         super().__init__(timeout=timeout, budget_seconds=timeout)
@@ -82,6 +92,8 @@ class MacHancomSession:
                 raise RuntimeError("MAC_GUI_BUSY") from None
             try:
                 result = self.oracle.render_pdf(str(source), str(target))
+                if not result and self.oracle.last_refusal is not None:
+                    raise HancomRefusedError(self.oracle.last_refusal)
                 return Path(result) if result else None
             finally:
                 fcntl.flock(handle, fcntl.LOCK_UN)

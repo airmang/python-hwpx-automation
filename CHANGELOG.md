@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- On macOS, a document Hancom refuses to open no longer leaves its alert ("파일이 손상되었습니다", "파일을 읽거나 저장하는데 오류가 있습니다") on screen, where it blocked every later render. The render compares Hancom's alert windows just before and after opening the document, dismisses only an alert that appeared after its own open, and ends at once: `render-pdf` exits 1 with `hancom-refused`, and the render worker reports `HANCOM_REFUSED` (not retryable) instead of timing out. Alerts that were already up are never touched.
 - `parse_government_report_text(text, title=...)` puts the title at the top of the body as a centred bold paragraph. Since 7.3.1 the plan title and builder metadata go to the document properties, so a report created from parsed text (including `create_government_report_document`) showed no title (#137). A first line that already is the title becomes that paragraph instead of a copy; without a title nothing is added.
 
 ## [7.3.1] - 2026-09-28

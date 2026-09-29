@@ -64,6 +64,7 @@ _MAC_APP_CANDIDATES = (
     "/Applications/Hancom Office HWP 2024.app",
     "/Applications/Hancom Office HWP 2022.app",
 )
+_MAC_REFUSED_PREFIX = "ERR: HANCOM_REFUSED:"
 _STRUCTURAL_ONLY_ENV = "HWPX_ORACLE_STRUCTURAL_ONLY"
 _TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 # The reachability probe must answer well under the customer E2E budget; a
@@ -522,6 +523,9 @@ class MacHancomOracle(RenderBackend):
         self.timeout = timeout
         self.dpi = dpi
         self._osascript = osascript
+        # The alert text when the last render_pdf ended because Hancom refused
+        # the document (the script dismissed the alert it raised); else None.
+        self.last_refusal: str | None = None
         # Single externally-propagated deadline: every subprocess timeout in
         # one public call is clamped so the whole call fits this budget.
         self.budget_seconds = budget_seconds
@@ -587,8 +591,13 @@ class MacHancomOracle(RenderBackend):
         return self._automation_reachable()
 
     def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
-        """Render a single ``.hwpx`` to PDF via the GUI; returns the path or ``None``."""
+        """Render a single ``.hwpx`` to PDF via the GUI; returns the path or ``None``.
 
+        When Hancom refuses the document, ``None`` comes back promptly and
+        :attr:`last_refusal` holds the text of the alert the script dismissed.
+        """
+
+        self.last_refusal = None
         if not self.available():
             return None
         if out_pdf is None:
@@ -628,7 +637,11 @@ class MacHancomOracle(RenderBackend):
                     # killed osascript; close the document it may have opened.
                     self._close_owned_document(script, staged.name)
                     raise
-            if proc.returncode != 0 or (proc.stdout or "").strip() != "OK":
+            answer = (proc.stdout or "").strip()
+            if answer.startswith(_MAC_REFUSED_PREFIX):
+                self.last_refusal = answer[len(_MAC_REFUSED_PREFIX):].strip()
+                return None
+            if proc.returncode != 0 or answer != "OK":
                 return None
             if staged_pdf.is_file() and staged_pdf.read_bytes().rstrip().endswith(b"%%EOF"):
                 os.replace(staged_pdf, out_pdf)

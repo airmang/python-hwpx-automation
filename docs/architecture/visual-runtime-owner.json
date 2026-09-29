@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3252,
-    "manifestSha256": "626f05aff8bfb07d11ced3a89cf443ca3db3cc14b300b1c9795b1626cefec3eb",
+    "loc": 3290,
+    "manifestSha256": "0acc4e9fd559a6903cbcdab67a522412224e791710877ebcc85bfd0d4eb7ad75",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -34,6 +34,11 @@
       "loc": 3190,
       "manifestSha256": "78cfc7743131c6f45490709d5e7a9b0289bcd319e79a4e41966886ec92f4eccd",
       "reason": "render-pdf on a shared desktop: the input is checked as an HWPX package before Hancom sees it, SIGTERM unwinds the render (osascript killed, owned document closed, staging removed, desktop lock released), and non-finite numbers are usage errors. Historical core source receipts unchanged."
+    },
+    "refusedAlertRefrozenFrom": {
+      "loc": 3252,
+      "manifestSha256": "626f05aff8bfb07d11ced3a89cf443ca3db3cc14b300b1c9795b1626cefec3eb",
+      "reason": "A document Hancom refuses to open: the Mac render reports the alert it dismissed (MacHancomOracle.last_refusal), render-pdf ends as hancom-refused and the worker as HANCOM_REFUSED (mac_session.HancomRefusedError). Historical core source receipts unchanged."
     }
   },
   "packageFiles": [
