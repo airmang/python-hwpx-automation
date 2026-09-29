@@ -18,8 +18,16 @@
 --   operation; it is still dismissed defensively here. A "문서 닫기" save-changes
 --   prompt is likewise discarded (we only exported; the doc is unmodified).
 --
+-- A document Hancom refuses to open raises a one-button alert (e.g. "파일이
+-- 손상되었습니다"). Left up, it blocks every later render on this Mac, from
+-- any process. So the alert-like windows are snapshotted just before the open;
+-- a refusal alert that appears after it is this render's, is dismissed with its
+-- lone 확인 button, and ends the render at once as HANCOM_REFUSED. An alert that
+-- was already up belongs to someone else and is never touched.
+--
 -- Usage:  osascript _render_hwpx_mac.applescript <input.hwpx> <out.pdf> [timeoutSecs]
--- Output: prints "OK" on success; prints "ERR: <reason>" and exits 1 otherwise.
+-- Output: prints "OK" on success; prints "ERR: <reason>" otherwise, and
+--         "ERR: HANCOM_REFUSED: <alert text>" when Hancom refused the document.
 
 property procName : "Hancom Office HWP"
 property appName : "Hancom Office HWP"
@@ -27,6 +35,10 @@ property pdfDialogTitle : "PDF로 저장하기"
 property fileMenuName : "파일"
 property savePdfPrefix : "PDF로 저장하기"
 property closeDocPrefix : "문서 닫기"
+-- Wording of the alerts Hancom raises when it refuses a document. Matching needs
+-- one of these AND a lone 확인 button, so no other alert is ever dismissed.
+property refusalPhrases : {"파일이 손상", "읽거나 저장하는데 오류", "읽거나 저장하는 데 오류"}
+property dismissButton : "확인"
 
 on run argv
 	if (count of argv) < 2 then return "ERR: usage: <input.hwpx> <out.pdf> [timeoutSecs]"
@@ -57,14 +69,18 @@ on run argv
 			end tell
 		end if
 	end tell
+	-- Every alert already up is someone else's; only a new one can be ours.
+	set beforeSigs to sigsOf(alertSnapshot())
 	try
 		-- 1) Open the staged input. LaunchServices focuses Hancom (launching it
 		--    if needed) and opens the document.
 		do shell script "open -a " & quoted form of appName & " " & quoted form of inputPath
 
-		-- 2) Wait for the document window to exist.
-		if not (waitForWindowNamed(inputBase, timeoutSecs)) then
-			return "ERR: document window did not open: " & inputBase
+		-- 2) Wait for the document window to exist, or for Hancom to refuse it.
+		set opened to waitForDocumentOrRefusal(inputBase, beforeSigs, timeoutSecs)
+		if opened is not "OK" then
+			if opened starts with "ERR: HANCOM_REFUSED" then closeOwnedDocument(inputBase)
+			return opened
 		end if
 		-- A prior timed-out render can leave a same-named window behind, and
 		-- LaunchServices does not guarantee that the newly opened document is
@@ -103,8 +119,14 @@ on run argv
 		dismissOverwriteSheetIfPresent()
 
 		-- 7) The render is asynchronous — wait until the PDF lands at out_pdf and
-		--    the dialog has closed.
-		set wrote to waitForFile(outPdf, timeoutSecs)
+		--    the dialog has closed. Hancom can still refuse while exporting.
+		set written to waitForFileOrRefusal(outPdf, beforeSigs, timeoutSecs)
+		if written starts with "ERR: HANCOM_REFUSED" then
+			waitForWindowGone(pdfDialogTitle, 5)
+			closeOwnedDocument(inputBase)
+			return written
+		end if
+		set wrote to (written is "OK")
 		waitForWindowGone(pdfDialogTitle, 15)
 
 		-- 8) Always close the document so the next render starts from a clean
@@ -198,19 +220,174 @@ on waitForWindowGone(winName, secs)
 	return false
 end waitForWindowGone
 
-on waitForFile(p, secs)
+on waitForDocumentOrRefusal(winName, beforeSigs, secs)
+	repeat (secs * 2) times
+		set refused to refusalResult(beforeSigs)
+		if refused is not "" then return refused
+		if listContains(windowNames(), winName) then return "OK"
+		delay 0.5
+	end repeat
+	return "ERR: document window did not open: " & winName
+end waitForDocumentOrRefusal
+
+on waitForFileOrRefusal(p, beforeSigs, secs)
 	-- size>0 alone is NOT completion: Hancom streams the PDF asynchronously and
 	-- closing the document mid-write truncates it (measured: a TOC-regenerating
 	-- document produced a deterministic %%EOF-less torso). Require the PDF
 	-- trailer marker so the export has actually finished before we move on.
 	repeat (secs * 2) times
 		if (do shell script "test -s " & quoted form of p & " && tail -c 64 " & quoted form of p & " | grep -q '%%EOF' && echo 1 || echo 0") is "1" then
-			return true
+			return "OK"
 		end if
+		set refused to refusalResult(beforeSigs)
+		if refused is not "" then return refused
 		delay 0.5
 	end repeat
+	return "TIMEOUT"
+end waitForFileOrRefusal
+
+-- ---------------------------------------------------------------------------
+-- Refusal alerts. A snapshot entry is {sig, txt, btns} for each Hancom window
+-- that could be an alert (a dialog subrole, or no title). sig is what "the same
+-- window before and after the open" is judged by; windows carry no stable id.
+-- ---------------------------------------------------------------------------
+on alertSnapshot()
+	set entries to {}
+	try
+		tell application "System Events" to tell process procName
+			repeat with w in (every window)
+				set e to my alertEntryOf(w)
+				if e is not missing value then set end of entries to e
+			end repeat
+		end tell
+	end try
+	return entries
+end alertSnapshot
+
+on alertEntryOf(w)
+	try
+		tell application "System Events"
+			set sr to ""
+			try
+				set sr to (subrole of w) as string
+			end try
+			set nm to ""
+			try
+				set nm to (name of w) as string
+			end try
+			if sr is not in {"AXDialog", "AXSystemDialog"} and nm is not "" then return missing value
+			set txt to nm
+			try
+				repeat with t in (value of static texts of w)
+					try
+						set txt to txt & linefeed & (t as string)
+					end try
+				end repeat
+			end try
+			set btns to {}
+			try
+				repeat with b in (name of buttons of w)
+					try
+						set bs to b as string
+						if bs is not "" then set end of btns to bs
+					end try
+				end repeat
+			end try
+		end tell
+		return {sig:sr & "|" & txt, txt:txt, btns:btns}
+	on error
+		return missing value
+	end try
+end alertEntryOf
+
+on sigsOf(entries)
+	set sigs to {}
+	repeat with e in entries
+		set end of sigs to (sig of e)
+	end repeat
+	return sigs
+end sigsOf
+
+on isRefusal(e)
+	if (btns of e) is not {dismissButton} then return false
+	repeat with phrase in refusalPhrases
+		if (txt of e) contains (phrase as string) then return true
+	end repeat
 	return false
-end waitForFile
+end isRefusal
+
+-- Refusal alerts in `entries` whose signature was not up before the open.
+on newRefusalAlerts(beforeSigs, entries)
+	set found to {}
+	repeat with e in entries
+		if isRefusal(e) and not listContains(beforeSigs, sig of e) then set end of found to (contents of e)
+	end repeat
+	return found
+end newRefusalAlerts
+
+-- "" while no alert of ours is up; otherwise dismiss it (only when exactly one
+-- can be ours) and return the HANCOM_REFUSED line.
+on refusalResult(beforeSigs)
+	set found to newRefusalAlerts(beforeSigs, alertSnapshot())
+	if (count of found) is 0 then return ""
+	set answer to "ERR: HANCOM_REFUSED: " & refusalLine(txt of item 1 of found)
+	if (count of found) > 1 then return answer & " (alert left up: more than one matched)"
+	if not dismissAlert(sig of item 1 of found) then return answer & " (alert left up: dismiss failed)"
+	return answer
+end refusalResult
+
+on dismissAlert(theSig)
+	-- Re-find the window right before clicking; click only a unique match.
+	try
+		tell application "System Events" to tell process procName
+			set target to missing value
+			repeat with w in (every window)
+				set e to my alertEntryOf(w)
+				if e is not missing value then
+					if (sig of e) is theSig then
+						if target is not missing value then return false
+						set target to contents of w
+					end if
+				end if
+			end repeat
+			if target is missing value then return false
+			click button dismissButton of target
+		end tell
+	on error
+		return false
+	end try
+	repeat 10 times
+		if not listContains(sigsOf(alertSnapshot()), theSig) then return true
+		delay 0.3
+	end repeat
+	return false
+end dismissAlert
+
+on refusalLine(txt)
+	set parts to {}
+	repeat with p in paragraphs of txt
+		set t to trimmed(p as string)
+		if t is not "" then set end of parts to t
+	end repeat
+	set saved to AppleScript's text item delimiters
+	set AppleScript's text item delimiters to " / "
+	set joined to parts as string
+	set AppleScript's text item delimiters to saved
+	return joined
+end refusalLine
+
+on trimmed(t)
+	set blanks to {" ", tab, return, linefeed}
+	repeat while t is not "" and (character 1 of t) is in blanks
+		if (length of t) is 1 then return ""
+		set t to text 2 thru -1 of t
+	end repeat
+	repeat while t is not "" and (character -1 of t) is in blanks
+		if (length of t) is 1 then return ""
+		set t to text 1 thru -2 of t
+	end repeat
+	return t
+end trimmed
 
 -- The overwrite confirmation is a SHEET of the PDF dialog window; its buttons are
 -- directly accessible (unlike the save panel's own nested buttons). Re-fetch the

@@ -225,6 +225,8 @@ class SerializedHancomWorker:
                     outcome["pdf"] = session.render_pdf(source, pdf)
                 except BaseException as exc:  # contained at the worker boundary
                     outcome["error"] = type(exc).__name__
+                    # A session may name a more exact reason (e.g. HANCOM_REFUSED).
+                    outcome["reason"] = getattr(exc, "worker_reason", None)
 
             thread = threading.Thread(target=invoke, name=f"hancom-{job.job_id}", daemon=True)
             thread.start()
@@ -246,6 +248,9 @@ class SerializedHancomWorker:
                 return self._failure(job, "CLIENT_CANCELLED" if was_cancelled else "COM_WATCHDOG_TIMEOUT", retryable=not was_cancelled)
             if "error" in outcome or not outcome.get("pdf") or not pdf.is_file():
                 self._restart_session()
+                reason = outcome.get("reason")
+                if isinstance(reason, str):
+                    return self._failure(job, reason, retryable=False)
                 return self._failure(job, "HANCOM_RENDER_FAILED", retryable=True)
 
             if cancelled and cancelled():

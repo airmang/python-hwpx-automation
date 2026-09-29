@@ -323,6 +323,14 @@ def _render(args: argparse.Namespace) -> dict[str, Any]:
         ) from None
 
     rendered = _render_on_desktop(backend, name, source, target, args.timeout)
+    refusal = getattr(backend, "last_refusal", None)
+    if rendered is None and refusal is not None:
+        raise _Failure(
+            "hancom-refused",
+            f"Hancom refused to open the document: {refusal}",
+            EXIT_RENDER_FAILED,
+            name,
+        )
     if rendered is None or not os.path.isfile(target):
         raise _Failure("render-failed", "Hancom did not produce a PDF.", EXIT_RENDER_FAILED, name)
 
