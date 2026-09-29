@@ -3,3 +3,5 @@ __pycache__/
 examples/out/
 .DS_Store
 **/examples/out/
+dist/
+.cache/
