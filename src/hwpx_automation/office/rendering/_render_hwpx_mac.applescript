@@ -276,20 +276,23 @@ on alertEntryOf(w)
 				set nm to (name of w) as string
 			end try
 			if sr is not in {"AXDialog", "AXSystemDialog"} and nm is not "" then return missing value
+			-- Read each text and button on its own: asking the window for all their
+			-- values at once fails as a whole on a real Hancom alert, which left the
+			-- alert's wording and its 확인 button unread (#143).
 			set txt to nm
 			try
-				repeat with t in (value of static texts of w)
+				repeat with t in (static texts of w)
 					try
-						set txt to txt & linefeed & (t as string)
+						set txt to txt & linefeed & ((value of t) as string)
 					end try
 				end repeat
 			end try
 			set btns to {}
 			try
-				repeat with b in (name of buttons of w)
+				repeat with b in (buttons of w)
 					try
-						set bs to b as string
-						if bs is not "" then set end of btns to bs
+						set bs to (name of b) as string
+						if bs is not "" and bs is not "missing value" then set end of btns to bs
 					end try
 				end repeat
 			end try
