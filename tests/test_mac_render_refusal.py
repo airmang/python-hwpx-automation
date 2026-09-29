@@ -30,6 +30,9 @@ from hwpx_automation.office.rendering.worker import SerializedHancomWorker, Work
 
 SCRIPT = Path(oracle.__file__).with_name("_render_hwpx_mac.applescript")
 REFUSAL = "파일이 손상되었습니다."
+TITLE = "한컴오피스 한글"
+# What real Hancom asks during PDF export for a table with a broken cellSpan.
+REPAIR = f"{TITLE}\n문서에 손상된 표가 있습니다.\n손상된 표를 복원할까요?"
 
 
 # --------------------------------------------------------------------------- #
@@ -180,6 +183,7 @@ needs_osascript = pytest.mark.skipif(
 
 def _alert(sig: str, text: str, buttons: tuple[str, ...] = ("확인",)) -> str:
     names = ", ".join(f'"{name}"' for name in buttons)
+    text = text.replace("\n", '" & linefeed & "')  # the title, then each static text
     return f'{{sig:"{sig}", txt:"{text}", btns:{{{names}}}}}'
 
 
@@ -211,6 +215,10 @@ def _call(compiled: Path, expression: str, tmp_path: Path) -> str:
         # a refusal alert that was not there before the open is ours
         ("{}", [_alert("AXDialog|a", REFUSAL)], "1"),
         ("{}", [_alert("AXDialog|a", "파일을 읽거나 저장하는데 오류가 있습니다.")], "1"),
+        # what Hancom raises after the broken-table repair prompt is cancelled
+        ("{}", [_alert("AXDialog|c", f"{TITLE}\nPDF 파일을 저장하는데 오류가 있습니다.")], "1"),
+        # the repair prompt itself is not a one-button refusal alert
+        ("{}", [_alert("AXDialog|r", REPAIR, ("취소", "복원"))], "0"),
         # the same alert already up before the open belongs to someone else
         ('{"AXDialog|a"}', [_alert("AXDialog|a", REFUSAL)], "0"),
         # our own PDF save panel, or any alert without the refusal wording
@@ -286,4 +294,87 @@ def test_python_side_parses_the_script_refusal_line() -> None:
     marker = "ERR: HANCOM_REFUSED: "
     assert marker in SCRIPT.read_text(encoding="utf-8")
     assert marker.strip() in Path(oracle.__file__).read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- #
+# The broken-table repair prompt: answered 취소, never 복원, then a refusal
+# --------------------------------------------------------------------------- #
+@needs_osascript
+@pytest.mark.parametrize(
+    ("before", "after", "expected"),
+    [
+        # a new repair prompt is ours, whatever order its buttons come in
+        ("{}", [_alert("AXDialog|r", REPAIR, ("취소", "복원"))], "1"),
+        ("{}", [_alert("AXDialog|r", REPAIR, ("복원", "취소"))], "1"),
+        # the same prompt already up before the open belongs to someone else
+        ('{"AXDialog|r"}', [_alert("AXDialog|r", REPAIR, ("취소", "복원"))], "0"),
+        # the buttons must be exactly 취소 and 복원
+        ("{}", [_alert("AXDialog|r", REPAIR, ("취소",))], "0"),
+        ("{}", [_alert("AXDialog|r", REPAIR, ("확인", "복원"))], "0"),
+        ("{}", [_alert("AXDialog|r", REPAIR, ("취소", "복원", "확인"))], "0"),
+        # and the wording must ask to repair
+        ("{}", [_alert("AXDialog|s", "문서를 저장하시겠습니까?", ("취소", "복원"))], "0"),
+        # a refusal alert is not a repair prompt
+        ("{}", [_alert("AXDialog|a", REFUSAL)], "0"),
+        # two identical new prompts: which one is ours cannot be proved
+        (
+            "{}",
+            [
+                _alert("AXDialog|r", REPAIR, ("취소", "복원")),
+                _alert("AXDialog|r", REPAIR, ("취소", "복원")),
+            ],
+            "2",
+        ),
+    ],
+)
+def test_only_a_new_repair_prompt_counts(
+    compiled_script: Path, tmp_path: Path, before: str, after: list[str], expected: str
+) -> None:
+    entries = "{" + ", ".join(after) + "}"
+    got = _call(compiled_script, f"count of newRepairPrompts({before}, {entries})", tmp_path)
+
+    assert got == expected
+
+
+def test_repair_prompt_is_cancelled_and_never_restored() -> None:
+    # 복원 would render a table Hancom rewrote, not the document given, so the
+    # only button ever clicked on the prompt is 취소.
+    source = SCRIPT.read_text(encoding="utf-8")
+    cancel = source[source.index("on cancelRepairPrompt(") : source.index("end cancelRepairPrompt")]
+
+    assert 'property repairCancelButton : "취소"' in source
+    assert "click button repairCancelButton of target" in cancel
+    assert cancel.count("click") == 1
+    assert "if target is not missing value then return false" in cancel
+    for line in source.splitlines():
+        if "click" in line and not line.strip().startswith("--"):
+            assert "복원" not in line and "repairAcceptButton" not in line, line
+    # Return presses a dialog's default button, which on the prompt may be 복원:
+    # the retried Return is held back while a repair prompt of ours is up.
+    run = source[source.index("on run argv") : source.index("end run")]
+    first = run.index("key code 36 -- Return")
+    retry = run.index("key code 36", first + 1)
+    guard = run.index("newRepairPrompts(beforeSigs, alertSnapshot())) is 0", first)
+    assert guard < retry
+
+
+def test_repair_prompt_ends_the_render_as_refused_and_clears_what_follows() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    result = source[source.index("on refusalResult(") : source.index("end refusalResult")]
+
+    cancelled = result.index("cancelRepairPrompt(sig of item 1 of prompts)")
+    follow_up = result.index("dismissFollowUpAlerts(beforeSigs, followUpSecs)")
+    assert cancelled < follow_up
+    assert '"ERR: HANCOM_REFUSED: " & refusalLine(txt of item 1 of prompts)' in result
+    assert "(prompt left up: more than one matched)" in result
+    # the follow-up alert is a one-button refusal alert, dismissed only when
+    # unique and new, for a bounded while
+    assert '"PDF 파일을 저장하는데 오류"' in source
+    follow = source[
+        source.index("on dismissFollowUpAlerts(") : source.index("end dismissFollowUpAlerts")
+    ]
+    assert "repeat (secs * 2) times" in follow
+    assert "newRefusalAlerts(beforeSigs, alertSnapshot())" in follow
+    assert "if (count of found) is 1 then dismissAlert(sig of item 1 of found)" in follow
+    assert "property followUpSecs : 5" in source
 

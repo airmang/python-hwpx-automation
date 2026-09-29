@@ -138,7 +138,10 @@ def test_mac_budget_clamps_subprocess_timeout(monkeypatch, tmp_path) -> None:
     src.write_bytes(b"x")
     oracle = MacHancomOracle(budget_seconds=10.0)
     oracle.render_pdf(str(src), str(tmp_path / "out.pdf"))
-    assert len(calls) == 1
+    # One render script; after it failed, only the read-only look for a hung
+    # Hancom (no Hancom process listed here, so nothing more).
+    assert [call["cmd"][0] for call in calls] == ["osascript", "pgrep"]
+    assert all(call["kwargs"]["timeout"] <= 10.0 for call in calls)
     assert calls[0]["kwargs"]["timeout"] <= 10.0  # clamped below 300+60
     script_wait = int(calls[0]["cmd"][-1])
     assert script_wait <= 10  # AppleScript internal wait inside the budget

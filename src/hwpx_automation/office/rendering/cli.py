@@ -331,6 +331,16 @@ def _render(args: argparse.Namespace) -> dict[str, Any]:
             EXIT_RENDER_FAILED,
             name,
         )
+    hang = getattr(backend, "last_hang", None)
+    if rendered is None and hang is not None:
+        raise _Failure(
+            "hancom-hung",
+            f"Hancom did not produce a PDF and is not responding ({hang}). "
+            "Quit and restart Hancom Office HWP before rendering again; "
+            "render-pdf never stops it for you.",
+            EXIT_RENDER_FAILED,
+            name,
+        )
     if rendered is None or not os.path.isfile(target):
         raise _Failure("render-failed", "Hancom did not produce a PDF.", EXIT_RENDER_FAILED, name)
 
