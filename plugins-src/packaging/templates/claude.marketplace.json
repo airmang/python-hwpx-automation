@@ -4,6 +4,7 @@
     "name": "Kohkyuhyun",
     "url": "https://github.com/airmang"
   },
+  "description": "python-hwpx 프로젝트가 직접 관리하는 한/글 문서(HWPX·HWP) 편집·추출·자동화 플러그인 마켓플레이스입니다.",
   "plugins": [
     {
       "name": "hwpx-plugin",

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Claude Code 번들이 관리 런처 대신 잠긴 런타임을 씁니다. `.mcp.json`은
+  `uv run --frozen --project ${CLAUDE_PLUGIN_ROOT}/server hwpx-automation-mcp`를 실행하고,
+  `server/pyproject.toml`·`server/uv.lock`은 검증 좌표(core 6.6.0·automation 7.3.1)를 전이 의존까지
+  해시로 고정합니다. 가상환경은 `${CLAUDE_PLUGIN_DATA}/server-venv`에 둡니다. Claude 플러그인
+  디렉터리의 버전 고정 규칙을 맞추기 위한 변경이며, Claude 번들의 창 안 자동 갱신은 없어지고 런타임은
+  플러그인 업데이트로만 바뀝니다. Codex·OpenClaw·Hermes는 그대로입니다. 검증기는 고정값·lock·크기·아이콘을
+  확인합니다. `.claude-plugin/icon.svg`와 마켓플레이스 설명을 추가했습니다.
 - ChatGPT용 skills-only 플러그인을 빌드합니다(#42). `scripts/build_chatgpt_skill.py`가 `packaging/chatgpt/`에서
   `dist/python-hwpx-plugin-<버전>.zip`(루트 `plugin.json` + `skills/hwpx-web/`)과 같은 스킬의 단독 ZIP을 만듭니다.
   스킬은 `.hwpx`와 `.hwp`(HWP 5.0) 문서를 같은 절차로 다루고(`.hwp`는 `.hwp`로 저장), python-hwpx·python-hwpx-automation과 의존 패키지 wheel을 PyPI 원본 그대로(sha256 고정) 담아

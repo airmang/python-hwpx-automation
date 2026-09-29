@@ -40,7 +40,8 @@ Codex: `codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`. 
 `stackUpdate.pluginBundle.latestKnown`이 `installed`보다 높으면 위 호스트별 갱신 명령을 사용자에게
 **한 번** 안내하고 작업을 계속한다. `stackUpdate.lastError`는 런타임 자동 갱신이 마지막에 실패했다는
 기록이지 작업 차단 사유가 아니다 — 보고만 한다. 런타임(`python-hwpx`·`python-hwpx-automation`)은
-Claude·Codex 관리 런처가 시작 시 점검 간격(기본 24시간)이 지났으면 갱신을 시도한다.
+Codex 관리 런처가 시작 시 점검 간격(기본 24시간)이 지났으면 갱신을 시도한다. Claude Code 번들은
+`server/uv.lock`에 고정한 조합만 쓰며 런타임은 플러그인 업데이트로만 바뀐다.
 `runtime.restartRequired`가 참이면 새 환경은 준비됐지만 현재 서버에는 아직 적용되지 않았으므로
 새 호스트 세션에서 사용된다고 안내한다. `verified` 채널은 고정이며 OpenClaw·Hermes 직접 설치(`uv tool`)는 `uv tool upgrade`로 수동 갱신한다.
 단위는 인간 단위다: 글자 크기 pt, 줄간격 %, 들여쓰기 mm, 문단 간격 pt, 용지/여백 mm.

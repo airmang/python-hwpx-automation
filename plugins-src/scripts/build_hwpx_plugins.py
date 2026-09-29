@@ -198,6 +198,14 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
         copy_file(src, dest)
         records.append(record(f"packaging/{manifest['template']}", src, dest, transformed=False))
 
+    for asset in host.get("assets", []):
+        src = PACKAGING / asset["template"]
+        if not src.is_file():
+            raise SystemExit(f"missing asset template: {asset['template']}")
+        dest = out / asset["dest"]
+        copy_file(src, dest)
+        records.append(record(f"packaging/{asset['template']}", src, dest, transformed=False))
+
     mcp = host["mcp"]
     mcp_src = PACKAGING / mcp["template"]
     if not mcp_src.is_file():

@@ -846,6 +846,69 @@ def validate_skill_files_match(host: dict, skill_dir: Path, recorded: set[Path])
     require(actual == recorded, f"{host['id']}: skill files do not match sync manifest")
 
 
+CLAUDE_LOCK_MAX_BYTES = 256 * 1024
+
+
+def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
+    """The Claude bundle pins the exact public pair through server/pyproject.toml + uv.lock."""
+    import tomllib
+
+    components = identity["components"]
+    automation, core = components["automation"], components["core"]
+    automation_pin = f"{automation['distribution']}[{','.join(automation['pluginInstallExtras'])}]=={automation['currentVersion']}"
+    core_pin = f"{core['distribution']}[preview]=={core['currentVersion']}"
+
+    pyproject_path = out / "server" / "pyproject.toml"
+    lock_path = out / "server" / "uv.lock"
+    icon_path = out / ".claude-plugin" / "icon.svg"
+    for path in (pyproject_path, lock_path, icon_path):
+        require_file(path)
+    project = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))["project"]
+    require(
+        sorted(project.get("dependencies", [])) == sorted([automation_pin, core_pin]),
+        f"claude: server/pyproject.toml must pin exactly {automation_pin} and {core_pin}",
+    )
+    require(
+        lock_path.stat().st_size <= CLAUDE_LOCK_MAX_BYTES,
+        f"claude: server/uv.lock exceeds {CLAUDE_LOCK_MAX_BYTES} bytes (directory size limit)",
+    )
+    lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    versions = {pkg["name"]: pkg.get("version") for pkg in lock.get("package", [])}
+    require(
+        versions.get(automation["distribution"]) == automation["currentVersion"]
+        and versions.get(core["distribution"]) == core["currentVersion"],
+        "claude: server/uv.lock does not lock the current public pair; run uv lock",
+    )
+    root = next((pkg for pkg in lock.get("package", []) if pkg.get("source", {}).get("virtual") == "."), None)
+    require(root is not None, "claude: server/uv.lock has no root project entry")
+    requested = {
+        (req["name"], req.get("specifier"))
+        for req in root.get("metadata", {}).get("requires-dist", [])
+    }
+    require(
+        (automation["distribution"], f"=={automation['currentVersion']}") in requested
+        and (core["distribution"], f"=={core['currentVersion']}") in requested,
+        "claude: server/uv.lock was locked from a different pyproject; run uv lock",
+    )
+    for pkg in lock.get("package", []):
+        for artifact in [pkg.get("sdist")] + list(pkg.get("wheels", [])):
+            if artifact:
+                require(
+                    str(artifact.get("hash", "")).startswith("sha256:"),
+                    f"claude: server/uv.lock artifact without sha256 hash in {pkg['name']}",
+                )
+    svg = icon_path.read_text(encoding="utf-8")
+    box = re.search(r'viewBox="\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*"', svg)
+    require(
+        box is not None and box.group(1) == box.group(2) and float(box.group(1)) >= 128,
+        "claude: .claude-plugin/icon.svg must be a square SVG of at least 128px",
+    )
+    require(
+        not (out / "scripts").exists(),
+        "claude: the locked runtime bundle must not ship the managed launcher scripts",
+    )
+
+
 def validate_no_placeholder(path: Path, host_id: str) -> None:
     require("[PLACEHOLDER:" not in path.read_text(encoding="utf-8"), f"{host_id}: placeholder in {path}")
 
@@ -990,16 +1053,19 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
         )
         command = server.get("command", "")
         if host["id"] == "claude":
+            # Claude plugin directory lints require every fetched package to be pinned
+            # in the command itself or through a committed uv.lock run with --frozen.
+            require(command == "uv", "claude: .mcp.json must start the locked runtime with uv")
             require(
-                automation["launcherPath"] in command,
-                "claude: .mcp.json canonical launcher command invalid",
+                server.get("args") == ["run", "--frozen", "--project", "${CLAUDE_PLUGIN_ROOT}/server", automation["mcpConsole"]],
+                "claude: .mcp.json must run the canonical console from the locked server project",
             )
             require(
-                "scripts/hwpx-mcp-server" not in command,
-                "claude: new .mcp.json must not call the compatibility launcher",
+                server.get("env", {}).get("UV_PROJECT_ENVIRONMENT") == "${CLAUDE_PLUGIN_DATA}/server-venv",
+                "claude: the runtime environment must live under ${CLAUDE_PLUGIN_DATA}",
             )
-            require("${CLAUDE_PLUGIN_ROOT}" in command, "claude: .mcp.json must use ${CLAUDE_PLUGIN_ROOT}")
             require("cwd" not in server, "claude: .mcp.json must preserve project cwd")
+            validate_claude_locked_runtime(out, identity)
         if host["id"] == "codex":
             args = server.get("args", [])
             require(command == "bash" and args[:1] == ["-c"], "codex must execute the managed launcher bootstrap")

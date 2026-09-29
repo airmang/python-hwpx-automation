@@ -191,16 +191,36 @@ def test_codex_bundle_embeds_the_common_managed_launcher() -> None:
     assert "HWPX_STACK_AUTO_UPDATE" in server["env_vars"]
 
 
-def test_claude_mcp_command_preserves_project_cwd() -> None:
+def test_claude_mcp_command_runs_the_locked_runtime() -> None:
     config = json.loads(
         (ROOT / "plugins/claude/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
     )
     assert set(config["mcpServers"]) == {"hwpx"}
     config = config["mcpServers"]["hwpx"]
-    assert config["command"].startswith("${CLAUDE_PLUGIN_ROOT}/")
-    assert config["command"].endswith("/scripts/hwpx-automation-mcp")
-    assert "scripts/hwpx-mcp-server" not in config["command"]
+    assert config["command"] == "uv"
+    assert config["args"] == ["run", "--frozen", "--project", "${CLAUDE_PLUGIN_ROOT}/server", "hwpx-automation-mcp"]
+    assert config["env"]["UV_PROJECT_ENVIRONMENT"] == "${CLAUDE_PLUGIN_DATA}/server-venv"
     assert "cwd" not in config
+    assert not (ROOT / "plugins/claude/hwpx-plugin/scripts").exists()
+
+
+def test_claude_locked_runtime_pins_the_current_public_pair() -> None:
+    import tomllib
+
+    identity = _identity()
+    components = identity["components"]
+    project = tomllib.loads((ROOT / "plugins/claude/hwpx-plugin/server/pyproject.toml").read_text(encoding="utf-8"))["project"]
+    extras = ",".join(components["automation"]["pluginInstallExtras"])
+    assert sorted(project["dependencies"]) == sorted([
+        f"python-hwpx-automation[{extras}]=={components['automation']['currentVersion']}",
+        f"python-hwpx[preview]=={components['core']['currentVersion']}",
+    ])
+    lock_path = ROOT / "plugins/claude/hwpx-plugin/server/uv.lock"
+    assert lock_path.stat().st_size <= 256 * 1024
+    lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    versions = {pkg["name"]: pkg.get("version") for pkg in lock["package"]}
+    assert versions["python-hwpx"] == components["core"]["currentVersion"]
+    assert versions["python-hwpx-automation"] == components["automation"]["currentVersion"]
 
 
 def test_quickcheck_verifies_editor_open_safety_for_generated_outputs() -> None:

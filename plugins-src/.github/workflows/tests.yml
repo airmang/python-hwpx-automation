@@ -77,6 +77,9 @@ jobs:
           python scripts/build_hwpx_plugins.py
           python scripts/validate_hwpx_plugin.py
           git diff --exit-code
+      - name: Claude locked runtime smoke
+        working-directory: hwpx-skill
+        run: python scripts/claude_locked_runtime_smoke.py
       - name: Plugin launcher protocol E2E (editable stack)
         working-directory: hwpx-skill
         run: python scripts/plugin_mcp_e2e.py --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx

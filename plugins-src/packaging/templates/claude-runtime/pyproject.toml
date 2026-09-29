@@ -1,0 +1,14 @@
+# Locked runtime for the Claude Code plugin's MCP server.
+# Pins follow packaging/product-identity.json (currentVersion); regenerate
+# uv.lock with `uv lock --project packaging/templates/claude-runtime` after a bump.
+[project]
+name = "hwpx-plugin-claude-runtime"
+version = "0"
+requires-python = "==3.12.*"
+dependencies = [
+    "python-hwpx-automation[mcp,oracle]==7.3.1",
+    "python-hwpx[preview]==6.6.0",
+]
+
+[tool.uv]
+package = false
