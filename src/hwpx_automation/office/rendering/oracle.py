@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -78,6 +79,10 @@ _MAC_PROBE_CACHE: dict[str, bool] = {}
 
 
 _BUDGET_ENV = "HWPX_ORACLE_BUDGET_SECONDS"
+# How the Windows backend writes its Hancom's start time (UTC, round-trip "o").
+_ISO_INSTANT = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})?")
+# Upper bound for ending a timed-out render's own Hancom.
+_END_HANCOM_TIMEOUT = 30.0
 
 
 def structural_only() -> bool:
@@ -319,6 +324,7 @@ class WindowsComOracle(RenderBackend):
 
         jobs_path = os.path.join(tmp, "jobs.json")
         res_path = os.path.join(tmp, "result.json")
+        pid_path = os.path.join(tmp, "hancom.json")
         with open(jobs_path, "w", encoding="utf-8") as handle:
             json.dump(jobs, handle, ensure_ascii=False)
 
@@ -330,14 +336,19 @@ class WindowsComOracle(RenderBackend):
             cmd = [
                 self._powershell, "-NoProfile", "-NonInteractive",
                 "-ExecutionPolicy", "Bypass", "-File", str(ps1),
-                "-Jobs", jobs_path, "-ResultPath", res_path,
+                "-Jobs", jobs_path, "-ResultPath", res_path, "-PidPath", pid_path,
             ]
             try:
                 subprocess.run(
                     cmd, capture_output=True, timeout=run_timeout,
                     check=False,
                 )
-            except (subprocess.TimeoutExpired, OSError):
+            except subprocess.TimeoutExpired:
+                # Hancom is a COM server, not a child of the script: ending
+                # the script leaves it running, often with a dialog open.
+                self._end_own_hancom(pid_path)
+                return None
+            except OSError:
                 return None
 
         if not os.path.exists(res_path):
@@ -355,6 +366,38 @@ class WindowsComOracle(RenderBackend):
         if not isinstance(entries, list):
             return None
         return list(entries)
+
+    def _end_own_hancom(self, pid_path: str) -> None:
+        """End the Hancom a timed-out backend run started, if it still runs.
+
+        The backend records its own automation process (PID and UTC start
+        time) right after creating the COM object. The process is ended only
+        while both still match, so a reused PID or a Hancom the user opened is
+        never touched; without a record nothing is ended.
+        """
+
+        try:
+            with open(pid_path, encoding="utf-8-sig") as handle:
+                record = json.load(handle)
+            pid = int(record["pid"])
+            started = str(record["started"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return
+        if pid <= 0 or not _ISO_INSTANT.fullmatch(started):
+            return
+        script = (
+            f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; "
+            f"if ($p -and $p.ProcessName -eq 'Hwp' -and "
+            f"$p.StartTime.ToUniversalTime().ToString('o') -eq '{started}') "
+            f"{{ Stop-Process -Id {pid} -Force }}"
+        )
+        try:
+            subprocess.run(
+                [self._powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+                capture_output=True, timeout=_END_HANCOM_TIMEOUT, check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            pass
 
     @staticmethod
     def _stage_jobs(

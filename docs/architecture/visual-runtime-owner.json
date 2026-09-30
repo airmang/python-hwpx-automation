@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3424,
-    "manifestSha256": "6979d3cea174d39ab0ead8adcda7f7e2dd2d2a01b90c166b239543e36ca8b39b",
+    "loc": 3467,
+    "manifestSha256": "7a6e9d43fe5b1ca6295787d2eee0c02a3210c3e62fdf8ee2cda48d68248810a1",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -49,6 +49,11 @@
       "loc": 3356,
       "manifestSha256": "45d45d2b4f907a7cabf29298792346db475f5c5df78482623090c92975c40608",
       "reason": "WindowsComOracle.refresh_document: Hancom opens a copy in a private temporary folder, lays it out and saves it as HWPX there, and the original is replaced only by a complete package (#152); the render and refresh share one backend runner (_run_jobs). Historical core source receipts unchanged."
+    },
+    "orphanHancomRefrozenFrom": {
+      "loc": 3424,
+      "manifestSha256": "6979d3cea174d39ab0ead8adcda7f7e2dd2d2a01b90c166b239543e36ca8b39b",
+      "reason": "A Windows render or refresh that times out ends its own Hancom: the backend records the automation Hwp.exe it started (PID and start time) and WindowsComOracle._end_own_hancom stops it only while both still match (#151). Historical core source receipts unchanged."
     }
   },
   "packageFiles": [

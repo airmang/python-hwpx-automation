@@ -29,14 +29,42 @@
 
 .PARAMETER ResultPath
     Optional path to write the JSON result array to; otherwise written to stdout.
+
+.PARAMETER PidPath
+    Optional path to write this render's own Hancom process to, as JSON
+    {"pid": N, "started": "<UTC start time>"}, right after the COM object is
+    created. The caller ends that process, and only it, when the render
+    outlives its timeout: Hancom runs as a COM server, not as a child of this
+    script, so ending the script leaves it running.
 #>
 param(
     [Parameter(Mandatory = $true)][string] $Jobs,
-    [string] $ResultPath = ""
+    [string] $ResultPath = "",
+    [string] $PidPath = ""
 )
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+
+function Write-OwnHancom {
+    # Record the one automation Hwp.exe that appeared while the COM object was
+    # created. Nothing is recorded when that is ambiguous.
+    param([int[]] $Before, [string] $Path)
+    $new = @(Get-Process -Name Hwp -ErrorAction SilentlyContinue | Where-Object { $Before -notcontains $_.Id })
+    $mine = @()
+    foreach ($process in $new) {
+        try {
+            $info = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $process.Id) -ErrorAction Stop
+            if ([string]$info.CommandLine -match "-Automation") { $mine += $process }
+        } catch {}
+    }
+    if ($mine.Count -ne 1) { return }
+    $record = [ordered]@{
+        pid     = $mine[0].Id
+        started = $mine[0].StartTime.ToUniversalTime().ToString("o")
+    }
+    Set-Content -LiteralPath $Path -Value ($record | ConvertTo-Json -Compress) -Encoding UTF8
+}
 
 function Register-FilePathCheck {
     # True when Hancom accepted a file-path check module. The module name is a
@@ -64,7 +92,11 @@ $jobList = Get-Content -LiteralPath $Jobs -Raw -Encoding UTF8 | ConvertFrom-Json
 $results = New-Object System.Collections.Generic.List[object]
 $hwp = $null
 try {
+    $before = @(Get-Process -Name Hwp -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
     $hwp = New-Object -ComObject "HWPFrame.HwpObject"
+    if ($PidPath) {
+        try { Write-OwnHancom -Before $before -Path $PidPath } catch {}
+    }
     $registered = Register-FilePathCheck $hwp
     # Auto-dismiss modal dialogs so automation never blocks.
     try { $null = $hwp.SetMessageBoxMode(0x00020000) } catch {}
