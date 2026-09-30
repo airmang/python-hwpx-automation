@@ -211,3 +211,27 @@ def test_portal_preflight_requires_portal_product_spelling(tmp_path: Path, monke
                 data = data.replace(b"- CHAT\n", b"- CHATGPT\n")
             dst.writestr(info, data)
     assert any("CHAT and/or CODEX" in p for p in portal.check(str(bad)))
+
+
+def test_portal_preflight_wants_english_base_listing_and_no_skills_field(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lock = _fake_lock(tmp_path, monkeypatch)
+    _, plugin_zip = build.build(lock)
+    with zipfile.ZipFile(plugin_zip) as archive:
+        manifest = json.loads(archive.read("plugin.json"))
+    assert "skills" not in manifest  # portable packages discover skills/ automatically
+    publication = manifest["extensions"]["com.openai"]["publication"]
+    assert publication["translations"]["ko-KR"]["subtitle"]
+
+    bad = tmp_path / "korean-base.zip"
+    with zipfile.ZipFile(plugin_zip) as src, zipfile.ZipFile(bad, "w") as dst:
+        for info in src.infolist():
+            data = src.read(info)
+            if info.filename == "plugin.json":
+                broken = json.loads(data)
+                broken["skills"] = "./skills/"
+                broken["extensions"]["com.openai"]["interface"]["shortDescription"] = "한/글 문서 편집"
+                data = json.dumps(broken, ensure_ascii=False).encode()
+            dst.writestr(info, data)
+    problems = portal.check(str(bad))
+    assert any("must be English" in p for p in problems)
+    assert any("must not declare skills" in p for p in problems)

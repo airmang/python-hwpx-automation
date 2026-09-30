@@ -1,7 +1,7 @@
 {
   "skillName": "hwpx-web",
   "pluginName": "python-hwpx",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "coreRepository": "airmang/python-hwpx",
   "runtimeDependencies": [
     "anyio==4.15.1",
