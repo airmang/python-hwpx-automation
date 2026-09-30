@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""G2/G3 gate: run the built ``hwpx-web`` skill the way the ChatGPT sandbox does.
+"""G2/G3 gate: run the built ChatGPT skill the way the ChatGPT sandbox does.
 
 The simulation reproduces what the owner observed in ChatGPT web Chat
 (2026-09-29): Python 3.12, lxml/pydantic/cryptography preinstalled, no
@@ -10,7 +10,7 @@ the third-party hwpxlib corpus and public-sector samples).
 
 Usage::
 
-    python3 scripts/chatgpt_sandbox_sim.py --zip dist/hwpx-web-1.0.0.zip \\
+    python3 scripts/chatgpt_sandbox_sim.py --zip dist/python-hwpx-skill-1.0.2.zip \\
         --fixtures ../python-hwpx/tests/fixtures --evidence out.json
 """
 
@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--keep", action="store_true", help="keep the temporary sandbox for inspection")
     args = parser.parse_args(argv)
 
-    work = Path(tempfile.mkdtemp(prefix="hwpx-web-sim-"))
+    work = Path(tempfile.mkdtemp(prefix="hwpx-chatgpt-sim-"))
     evidence: dict = {"zip": str(args.zip), "python": args.python, "cases": [], "problems": []}
     try:
         py = make_sandbox(args.python, work)

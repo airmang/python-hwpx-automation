@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""G1 gate for the ChatGPT web skill (``hwpx-web``): lock, source and ZIP shape."""
+"""G1 gate for the ChatGPT skill (``hwpx``): lock, source and ZIP shape."""
 
 import hashlib
 import importlib.util
@@ -48,7 +48,7 @@ def test_lock_pins_current_public_train() -> None:
 
 def test_skill_frontmatter_follows_agent_skills_limits() -> None:
     fields = _frontmatter((SOURCE / "skill" / "SKILL.md").read_text(encoding="utf-8"))
-    assert fields["name"] == build.load_json(build.SOURCES)["skillName"] == "hwpx-web"
+    assert fields["name"] == build.load_json(build.SOURCES)["skillName"] == "hwpx"
     assert re.fullmatch(r"[a-z0-9-]{1,64}", fields["name"])
     rendered = build.render_template(fields["description"], build.load_json(build.LOCK))
     assert 0 < len(rendered) <= 1024
@@ -104,37 +104,37 @@ def test_zip_has_one_top_folder_and_is_deterministic(tmp_path: Path, monkeypatch
     digests = [hashlib.sha256(p.read_bytes()).hexdigest() for p in (first, first_plugin)]
     second, second_plugin = build.build(lock)
     assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in (second, second_plugin)] == digests
-    assert first.name == f"hwpx-web-{build.web_version()}.zip"
+    assert first.name == f"python-hwpx-skill-{build.web_version()}.zip"
 
     with zipfile.ZipFile(first) as archive:
         names = archive.namelist()
-        assert {name.split("/")[0] for name in names} == {"hwpx-web"}
+        assert {name.split("/")[0] for name in names} == {"hwpx"}
         for required in (
-            "hwpx-web/SKILL.md",
-            "hwpx-web/skill-manifest.json",
-            "hwpx-web/THIRD_PARTY_NOTICES.md",
-            "hwpx-web/agents/openai.yaml",
-            "hwpx-web/scripts/bootstrap.py",
-            "hwpx-web/wheels/SHA256SUMS",
-            "hwpx-web/references/web-workflows.md",
-            "hwpx-web/references/automation-python-api.md",
-            "hwpx-web/references/core/llms.txt",
+            "hwpx/SKILL.md",
+            "hwpx/skill-manifest.json",
+            "hwpx/THIRD_PARTY_NOTICES.md",
+            "hwpx/agents/openai.yaml",
+            "hwpx/scripts/bootstrap.py",
+            "hwpx/wheels/SHA256SUMS",
+            "hwpx/references/web-workflows.md",
+            "hwpx/references/automation-python-api.md",
+            "hwpx/references/core/llms.txt",
         ):
             assert required in names
-        skill_md = archive.read("hwpx-web/SKILL.md").decode("utf-8")
+        skill_md = archive.read("hwpx/SKILL.md").decode("utf-8")
         assert not build.BUILD_TOKEN.search(skill_md)
-        manifest = json.loads(archive.read("hwpx-web/skill-manifest.json"))
+        manifest = json.loads(archive.read("hwpx/skill-manifest.json"))
         assert manifest["version"] == build.web_version()
         assert manifest["core"] == lock["versions"]["core"]
         assert manifest["automation"] == lock["versions"]["automation"]
-        sums = archive.read("hwpx-web/wheels/SHA256SUMS").decode()
+        sums = archive.read("hwpx/wheels/SHA256SUMS").decode()
         assert all(w["sha256"] in sums for w in lock["wheels"])
         skill_files = {n.split("/", 1)[1]: archive.read(n) for n in names if not n.endswith("/")}
 
     with zipfile.ZipFile(first_plugin) as archive:
         plugin_names = archive.namelist()
         assert "plugin.json" in plugin_names  # portal expects the manifest at the archive root
-        plugin_skill = {n.split("/", 2)[2]: archive.read(n) for n in plugin_names if n.startswith("skills/hwpx-web/") and not n.endswith("/")}
+        plugin_skill = {n.split("/", 2)[2]: archive.read(n) for n in plugin_names if n.startswith("skills/hwpx/") and not n.endswith("/")}
         assert plugin_skill == skill_files
         assert json.loads(archive.read("plugin.json"))["version"] == build.web_version()
 
@@ -201,13 +201,13 @@ def test_portal_preflight_requires_portal_product_spelling(tmp_path: Path, monke
     lock = _fake_lock(tmp_path, monkeypatch)
     _, plugin_zip = build.build(lock)
     with zipfile.ZipFile(plugin_zip) as archive:
-        yaml_text = archive.read("skills/hwpx-web/agents/openai.yaml").decode()
+        yaml_text = archive.read("skills/hwpx/agents/openai.yaml").decode()
     assert "- CHAT\n" in yaml_text
     bad = tmp_path / "bad.zip"
     with zipfile.ZipFile(plugin_zip) as src, zipfile.ZipFile(bad, "w") as dst:
         for info in src.infolist():
             data = src.read(info)
-            if info.filename == "skills/hwpx-web/agents/openai.yaml":
+            if info.filename == "skills/hwpx/agents/openai.yaml":
                 data = data.replace(b"- CHAT\n", b"- CHATGPT\n")
             dst.writestr(info, data)
     assert any("CHAT and/or CODEX" in p for p in portal.check(str(bad)))
