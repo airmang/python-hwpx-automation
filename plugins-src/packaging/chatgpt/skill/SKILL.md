@@ -1,9 +1,9 @@
 ---
-name: hwpx-web
-description: "한/글 문서(.hwpx, .hwp)를 ChatGPT 안에서 읽고, 고치고, 표·누름틀을 채우고, 새로 만드는 스킬. 사용자가 .hwpx·.hwp 파일을 첨부했거나 한/글 문서의 요약, 문구 바꾸기, 표 칸·누름틀 채우기, 새 한/글 문서 작성을 부탁할 때 사용한다. 워드·PDF 같은 다른 형식이나 파일 형식을 정하지 않은 일반 글쓰기에는 쓰지 않는다. 스킬에 들어 있는 python-hwpx {{CORE_VERSION}}과 python-hwpx-automation {{AUTOMATION_VERSION}}을 코드 실행 환경에 인터넷 없이 설치해 순수 파이썬으로 처리한다."
+name: hwpx
+description: "한/글 문서(.hwpx, .hwp)를 읽고, 고치고, 표·누름틀을 채우고, 새로 만든다. .hwpx나 .hwp 파일이 첨부됐거나 한/글 문서 작업을 부탁받으면 사용한다."
 ---
 
-# hwpx-web (ChatGPT용 · 스킬 {{WEB_VERSION}})
+# hwpx (ChatGPT용 · 스킬 {{WEB_VERSION}})
 
 `.hwpx`는 ZIP 안에 OWPML XML이 든 한/글 문서이고, `.hwp`는 HWP 5.0 바이너리다. 이 스킬은 한컴 프로그램 없이
 python-hwpx 엔진으로 두 형식을 같은 문서 모델로 다룬다. 이 환경에는 MCP 도구(`start_workflow` 등)가 없다. 모든 작업은 Python 도구로 한다.
@@ -19,7 +19,7 @@ import importlib, json, os, site, subprocess, sys
 SKILL_DIR = None
 if SKILL_DIR is None:
     found = subprocess.run(
-        ["find", "/", "-maxdepth", "8", "-name", "skill-manifest.json", "-path", "*hwpx-web*", "-not", "-path", "/proc/*"],
+        ["find", "/", "-maxdepth", "8", "-name", "skill-manifest.json", "-path", "*hwpx*", "-not", "-path", "/proc/*"],
         capture_output=True, text=True, timeout=120,
     ).stdout.split()
     SKILL_DIR = os.path.dirname(found[0]) if found else None

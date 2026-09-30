@@ -1,6 +1,6 @@
 {
   "schemaVersion": "hwpx.chatgpt-skill-lock.v1",
-  "skillName": "hwpx-web",
+  "skillName": "hwpx",
   "versions": {
     "core": "6.6.0",
     "automation": "7.3.1",

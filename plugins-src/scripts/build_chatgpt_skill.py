@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the ChatGPT web skill ZIP (``hwpx-web``) from pinned public artifacts.
+"""Build the ChatGPT skill and skills-only plugin ZIPs from pinned public artifacts.
 
 The ChatGPT code sandbox cannot launch the local MCP server, so this host
 channel ships the released engine wheels inside the skill and routes work
@@ -9,7 +9,7 @@ core documentation copied from a release tag) is pinned by URL and sha256 in
 
 Usage::
 
-    python3 scripts/build_chatgpt_skill.py                 # dist/hwpx-web-<ver>.zip + dist/<plugin>-plugin-<ver>.zip
+    python3 scripts/build_chatgpt_skill.py                 # dist/<plugin>-skill-<ver>.zip + dist/<plugin>-plugin-<ver>.zip
     python3 scripts/build_chatgpt_skill.py --check         # lock matches product identity (offline)
     python3 scripts/build_chatgpt_skill.py --refresh-lock  # re-pin from PyPI / GitHub (network)
 """
@@ -47,7 +47,7 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def fetch(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "hwpx-web-skill-build"})
+    request = urllib.request.Request(url, headers={"User-Agent": "hwpx-chatgpt-skill-build"})
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
@@ -263,7 +263,7 @@ def write_zip(tree: Path, target: Path, *, top_folder: bool) -> Path:
 def build(lock: dict) -> tuple[Path, Path]:
     version = web_version()
     skill_tree = assemble(lock)
-    skill_zip = write_zip(skill_tree, DIST / f"{lock['skillName']}-{version}.zip", top_folder=True)
+    skill_zip = write_zip(skill_tree, DIST / f"{load_json(SOURCES)['pluginName']}-skill-{version}.zip", top_folder=True)
     plugin_tree = assemble_plugin(skill_tree, lock)
     plugin_zip = write_zip(plugin_tree, DIST / f"{plugin_tree.name}-{version}.zip", top_folder=False)
     return skill_zip, plugin_zip

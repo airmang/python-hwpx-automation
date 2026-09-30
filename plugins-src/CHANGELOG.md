@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- ChatGPT 플러그인 1.0.2: 스킬 이름을 `hwpx-web`에서 `hwpx`로 바꿉니다(플러그인 안에서는 `python-hwpx:hwpx`로 구분됩니다).
+  스킬 설명과 플러그인 설명을 핵심만 남겨 줄이고, 단독 스킬 ZIP 이름을 `python-hwpx-skill-<버전>.zip`으로 바꿉니다.
 - ChatGPT 플러그인 1.0.1: 공식 패키징 문서(Package your plugin, Submit plugins) 현행에 맞춰 다시 묶습니다.
   기본 목록 필드(짧은·긴 설명, 시작 프롬프트)는 영어로 두고, 한국어는 `extensions.com.openai.publication.translations.ko-KR`로
   옮깁니다. 이식형 매니페스트에서 `skills` 필드를 뺍니다(`skills/`는 자동 인식). 릴리스 노트를 매니페스트에 넣어 업로드 때
@@ -21,7 +23,7 @@
   버전 그대로이고, 더 새 조합이면 `2.4.0+core.X.automation.Y` 형태가 되어 Claude Code가 업데이트로 받습니다.
   검증기는 고정값이 창 안인지, lock이 고정값과 같은지, 버전 문자열이 규칙대로인지 확인합니다.
 - ChatGPT용 skills-only 플러그인을 빌드합니다(#42). `scripts/build_chatgpt_skill.py`가 `packaging/chatgpt/`에서
-  `dist/python-hwpx-plugin-<버전>.zip`(루트 `plugin.json` + `skills/hwpx-web/`)과 같은 스킬의 단독 ZIP을 만듭니다.
+  `dist/python-hwpx-plugin-<버전>.zip`(루트 `plugin.json` + `skills/hwpx/`)과 같은 스킬의 단독 ZIP을 만듭니다.
   스킬은 `.hwpx`와 `.hwp`(HWP 5.0) 문서를 같은 절차로 다루고(`.hwp`는 `.hwp`로 저장), python-hwpx·python-hwpx-automation과 의존 패키지 wheel을 PyPI 원본 그대로(sha256 고정) 담아
   `--no-index`로만 설치하고, automation 의존이 없는 환경에서는 core만 설치해 알립니다. 웹 스킬 버전은
   `packaging/chatgpt/sources.json`에 따로 둡니다(1.0.0).

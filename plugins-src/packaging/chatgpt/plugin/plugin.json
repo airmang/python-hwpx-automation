@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "python-hwpx",
   "version": "{{WEB_VERSION}}",
-  "description": "Read, edit, fill and create Korean Hangul documents (.hwpx and HWP 5.0 .hwp) inside ChatGPT with the open-source python-hwpx engine. Everything runs in the chat's own code environment; nothing is sent to a third-party server.",
+  "description": "Read, edit, fill, and create Korean Hangul documents (.hwpx and .hwp) in ChatGPT.",
   "author": {
     "name": "Kohkyuhyun",
     "email": "kokyuhyun@hotmail.com",
