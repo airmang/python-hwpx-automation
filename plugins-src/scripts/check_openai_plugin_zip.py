@@ -35,6 +35,8 @@ CATEGORIES = {
 PRODUCTS = {"CHAT", "CODEX"}
 POLICY_KEYS = {"products", "allow_implicit_invocation"}
 HTTPS_FIELDS = ("websiteURL", "privacyPolicyURL", "termsOfServiceURL", "supportURL")
+HANGUL = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]")
+FORBIDDEN_REVIEW_KEYS = ("test_credentials", "reviewer_instructions")
 
 
 def _frontmatter(text: str) -> dict[str, str]:
@@ -117,9 +119,26 @@ def check(path: str) -> list[str]:
             problems.append("plugin_version_not_semver")
         if not 0 < len(manifest.get("description", "")) <= 1024:
             problems.append("plugin_description length")
-        for key in ("mcpServers", "apps"):
+        for key in ("mcpServers", "apps", "skills"):
             if key in manifest:
-                problems.append(f"skills-only manifest must not declare {key}")
+                problems.append(f"portable skills-only manifest must not declare {key} (skills/ is discovered automatically)")
+        openai_ext = manifest.get("extensions", {}).get("com.openai", {})
+        if "hooks" in openai_ext or "apps" in openai_ext or any(n.startswith("hooks/") for n in names):
+            problems.append("ZIPs with lifecycle hooks or app references cannot currently be submitted")
+        review = openai_ext.get("review") or {}
+        for key in FORBIDDEN_REVIEW_KEYS:
+            if key in review:
+                problems.append(f"review.{key} must not be in the package; enter reviewer access in the dashboard")
+        publication = openai_ext.get("publication") or {}
+        for locale, text in (publication.get("translations") or {}).items():
+            if not locale.strip() or not isinstance(text, dict):
+                problems.append(f"publication.translations: invalid locale entry {locale!r}")
+                continue
+            subtitle, description = text.get("subtitle"), text.get("description")
+            if subtitle is not None and (not subtitle.strip() or len(subtitle) > 30 or "\n" in subtitle or "\t" in subtitle):
+                problems.append(f"publication.translations.{locale}.subtitle must be one line of 1-30 characters")
+            if description is not None and (not description.strip() or len(description) > 4000 or "\t" in description):
+                problems.append(f"publication.translations.{locale}.description must be 1-4000 characters without tabs")
         author = manifest.get("author", {})
         if not author.get("name"):
             problems.append("plugin_developer_missing: author.name")
@@ -139,6 +158,10 @@ def check(path: str) -> list[str]:
         for key in HTTPS_FIELDS:
             if not str(ui.get(key, "")).startswith("https://"):
                 problems.append(f"interface.{key} must be an HTTPS URL")
+        base_text = [ui.get(k, "") for k in ("displayName", "shortDescription", "longDescription")]
+        base_text += ui.get("defaultPrompt", []) if isinstance(ui.get("defaultPrompt"), list) else [ui.get("defaultPrompt", "")]
+        if any(HANGUL.search(text or "") for text in base_text):
+            problems.append("base listing fields must be English; put Korean text in publication.translations.ko-KR")
         prompts = ui.get("defaultPrompt", [])
         prompts = [prompts] if isinstance(prompts, str) else prompts
         normalized = [" ".join(unicodedata.normalize("NFKC", p).split()) for p in prompts]

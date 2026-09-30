@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- ChatGPT 플러그인 1.0.1: 공식 패키징 문서(Package your plugin, Submit plugins) 현행에 맞춰 다시 묶습니다.
+  기본 목록 필드(짧은·긴 설명, 시작 프롬프트)는 영어로 두고, 한국어는 `extensions.com.openai.publication.translations.ko-KR`로
+  옮깁니다. 이식형 매니페스트에서 `skills` 필드를 뺍니다(`skills/`는 자동 인식). 릴리스 노트를 매니페스트에 넣어 업로드 때
+  자동으로 채워지게 합니다. skills-only 플러그인은 심사 테스트 사례와 데모 영상이 필요 없습니다. 포털 사전 검사기는
+  기본 목록 필드의 한글, 번역문 길이, 훅·앱 참조, 패키지 안의 심사 자격 증명 필드를 확인합니다.
 - Claude Code 번들이 관리 런처 대신 잠긴 런타임을 씁니다. `.mcp.json`은
   `uv run --frozen --project ${CLAUDE_PLUGIN_ROOT}/server hwpx-automation-mcp`를 실행하고,
   `server/pyproject.toml`·`server/uv.lock`은 검증 좌표(core 6.6.0·automation 7.3.1)를 전이 의존까지
