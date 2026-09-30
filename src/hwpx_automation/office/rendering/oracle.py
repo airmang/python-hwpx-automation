@@ -41,6 +41,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
 from importlib import resources
 from pathlib import Path
 
@@ -130,6 +131,17 @@ def _clamped_timeout(base: float, deadline: float | None) -> float | None:
     if remaining <= 0:
         return None
     return min(base, remaining)
+
+
+def _complete_package(path: str) -> bool:
+    """True when ``path`` is a readable package whose first entry is ``mimetype``."""
+
+    try:
+        with zipfile.ZipFile(path) as package:
+            names = package.namelist()
+            return bool(names) and names[0] == "mimetype" and package.testzip() is None
+    except (OSError, zipfile.BadZipFile):
+        return False
 
 
 def _promote_file(staged: str, target: str) -> None:
@@ -281,42 +293,8 @@ class WindowsComOracle(RenderBackend):
             if not staged:
                 return result
             jobs = [{"src": job_src, "pdf": job_pdf} for _src, job_src, job_pdf, _out in staged]
-            jobs_path = os.path.join(tmp, "jobs.json")
-            res_path = os.path.join(tmp, "result.json")
-            with open(jobs_path, "w", encoding="utf-8") as handle:
-                json.dump(jobs, handle, ensure_ascii=False)
-
-            with resources.as_file(
-                resources.files("hwpx_automation.office.rendering").joinpath(
-                    _BACKEND_SCRIPT
-                )
-            ) as ps1:
-                cmd = [
-                    self._powershell, "-NoProfile", "-NonInteractive",
-                    "-ExecutionPolicy", "Bypass", "-File", str(ps1),
-                    "-Jobs", jobs_path, "-ResultPath", res_path,
-                ]
-                try:
-                    subprocess.run(
-                        cmd, capture_output=True, timeout=run_timeout,
-                        check=False,
-                    )
-                except (subprocess.TimeoutExpired, OSError):
-                    return result
-
-            if not os.path.exists(res_path):
-                return result
-            try:
-                # PowerShell Set-Content -Encoding UTF8 prepends a BOM; utf-8-sig
-                # strips it (and reads BOM-less output fine too).
-                with open(res_path, encoding="utf-8-sig") as handle:
-                    entries = json.load(handle)
-            except (json.JSONDecodeError, ValueError, OSError):
-                # PowerShell/COM failure left no parseable result -> all unrendered.
-                return result
-            if isinstance(entries, dict):  # single job -> ConvertTo-Json emits an object
-                entries = [entries]
-            if not isinstance(entries, list):
+            entries = self._run_jobs(jobs, tmp, run_timeout)
+            if entries is None:
                 return result
             for (src, _job_src, job_pdf, out_pdf), entry in zip(staged, entries):
                 if not (isinstance(entry, dict) and entry.get("saved") and os.path.exists(job_pdf)):
@@ -329,6 +307,54 @@ class WindowsComOracle(RenderBackend):
             return result
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    def _run_jobs(
+        self, jobs: list[dict[str, str]], tmp: str, run_timeout: float
+    ) -> list[object] | None:
+        """Run the COM backend over ``jobs`` in one Hancom session.
+
+        Returns the per-job result entries in job order, or ``None`` when the
+        backend timed out, could not start, or left no parseable result.
+        """
+
+        jobs_path = os.path.join(tmp, "jobs.json")
+        res_path = os.path.join(tmp, "result.json")
+        with open(jobs_path, "w", encoding="utf-8") as handle:
+            json.dump(jobs, handle, ensure_ascii=False)
+
+        with resources.as_file(
+            resources.files("hwpx_automation.office.rendering").joinpath(
+                _BACKEND_SCRIPT
+            )
+        ) as ps1:
+            cmd = [
+                self._powershell, "-NoProfile", "-NonInteractive",
+                "-ExecutionPolicy", "Bypass", "-File", str(ps1),
+                "-Jobs", jobs_path, "-ResultPath", res_path,
+            ]
+            try:
+                subprocess.run(
+                    cmd, capture_output=True, timeout=run_timeout,
+                    check=False,
+                )
+            except (subprocess.TimeoutExpired, OSError):
+                return None
+
+        if not os.path.exists(res_path):
+            return None
+        try:
+            # PowerShell Set-Content -Encoding UTF8 prepends a BOM; utf-8-sig
+            # strips it (and reads BOM-less output fine too).
+            with open(res_path, encoding="utf-8-sig") as handle:
+                entries = json.load(handle)
+        except (json.JSONDecodeError, ValueError, OSError):
+            # PowerShell/COM failure left no parseable result -> all unrendered.
+            return None
+        if isinstance(entries, dict):  # single job -> ConvertTo-Json emits an object
+            return [entries]
+        if not isinstance(entries, list):
+            return None
+        return list(entries)
 
     @staticmethod
     def _stage_jobs(
@@ -362,6 +388,48 @@ class WindowsComOracle(RenderBackend):
             handle, out_pdf = tempfile.mkstemp(suffix=".pdf")
             os.close(handle)
         return self.render_many([(hwpx_path, out_pdf)]).get(hwpx_path)
+
+    def refresh_document(self, hwpx_path: str) -> bool:
+        """Open ``hwpx_path`` in Hancom, lay it out, and save it in place as HWPX.
+
+        Hancom writes its line layout cache (``hp:linesegarray``) for the
+        paragraphs it lays out, so the saved file carries the line breaks
+        Hancom computed. As in :meth:`render_many`, Hancom opens and saves a
+        copy in a private temporary folder, and the original is replaced only
+        by a complete package: a failed refresh leaves it as it was. Returns
+        True when the file was re-saved.
+        """
+
+        if not self.available():
+            return False
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
+        if run_timeout is None:
+            return False
+        src = os.path.abspath(hwpx_path)
+        tmp = tempfile.mkdtemp(prefix="hwpx-refresh-")
+        try:
+            name = os.path.basename(src) or "document.hwpx"
+            job_src = os.path.join(tmp, "open", name)
+            job_out = os.path.join(tmp, "saved", name)
+            try:
+                os.makedirs(os.path.dirname(job_src))
+                os.makedirs(os.path.dirname(job_out))
+                shutil.copyfile(src, job_src)
+            except OSError:
+                return False
+            job = {"src": job_src, "out": job_out, "format": "HWPX"}
+            entries = self._run_jobs([job], tmp, run_timeout)
+            entry = entries[0] if entries else None
+            if not (isinstance(entry, dict) and entry.get("saved") and _complete_package(job_out)):
+                return False
+            try:
+                _promote_file(job_out, src)
+            except OSError:
+                return False
+            return True
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def open_check_many(self, paths: list[str]) -> list[dict[str, object]]:
         """OPEN-check ``paths`` through Hancom COM and return per-file verdicts.

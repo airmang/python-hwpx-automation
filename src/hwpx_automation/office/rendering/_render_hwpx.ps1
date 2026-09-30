@@ -7,6 +7,9 @@
     ([{ "src": "...", "pdf": "..." }, ...]) so many file paths (incl. Korean
     names) survive without argument-quoting issues, opens each through
     HWPFrame.HwpObject, exports to PDF, and writes a JSON result array.
+    A job may name its output "out" instead of "pdf" and carry a SaveAs
+    "format" other than "PDF" (WindowsComOracle.refresh_document saves
+    "HWPX"); such a document is laid out before it is saved.
 
     Hancom Office 2022 (v12) exposes Open with a fixed (filename, format, arg)
     signature -- the 1-arg form fails to bind, so pass ("", "") for auto-detect.
@@ -69,11 +72,20 @@ try {
     foreach ($job in $jobList) {
         $src = [string]$job.src
         $pdf = [string]$job.pdf
+        if ($job.out) { $pdf = [string]$job.out }
+        $format = "PDF"
+        if ($job.format) { $format = [string]$job.format }
         $opened = $false; $saved = $false; $err = $null
         try {
             $opened = [bool]$hwp.Open($src, "", "")
             if ($opened) {
-                $saved = [bool]$hwp.SaveAs($pdf, "PDF", "")
+                if ($format -ne "PDF") {
+                    # A hidden automation window lays nothing out until asked, and
+                    # an HWPX saved unlaid carries no line layout cache
+                    # (hp:linesegarray). Asking for the page count lays it out.
+                    $null = $hwp.PageCount
+                }
+                $saved = [bool]$hwp.SaveAs($pdf, $format, "")
             }
         } catch {
             $err = $_.Exception.Message
