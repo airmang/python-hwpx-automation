@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3467,
-    "manifestSha256": "7a6e9d43fe5b1ca6295787d2eee0c02a3210c3e62fdf8ee2cda48d68248810a1",
+    "loc": 3468,
+    "manifestSha256": "c8528d4fc7d4482eb0e23ab7f3f72cbcaa5f63df70ef28c3b9d59bf83a9c7e54",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",

@@ -134,3 +134,30 @@ def test_the_backend_lays_the_document_out_before_a_non_pdf_save() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
     loop = script[script.index("foreach ($job in $jobList)"):]
     assert re.search(r"\$format -ne \"PDF\".*?\$hwp\.PageCount.*?SaveAs\(\$pdf, \$format", loop, re.S)
+
+
+@pytest.mark.usefixtures("windows")
+def test_a_link_is_followed_to_the_document_it_names(
+    monkeypatch: pytest.MonkeyPatch, document: Path, tmp_path: Path
+) -> None:
+    seen: list[dict[str, Any]] = []
+    monkeypatch.setattr(subprocess, "run", _fake_powershell(seen))
+    link = tmp_path / "link.hwpx"
+    link.symlink_to(document)
+
+    assert WindowsComOracle(timeout=30).refresh_document(str(link)) is True
+    assert link.is_symlink()  # the link stays a link
+    assert document.read_bytes() == _SAVED  # and the document it names is refreshed
+
+
+@pytest.mark.usefixtures("windows")
+def test_a_file_that_is_not_hwpx_is_left_alone(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen: list[dict[str, Any]] = []
+    monkeypatch.setattr(subprocess, "run", _fake_powershell(seen))
+    legacy = tmp_path / "문서.hwp"
+    legacy.write_bytes(b"HWP Document File")
+
+    # Hancom saves the copy as HWPX; that must never land in an .hwp file.
+    assert WindowsComOracle(timeout=30).refresh_document(str(legacy)) is False
+    assert legacy.read_bytes() == b"HWP Document File"
+    assert seen == []
