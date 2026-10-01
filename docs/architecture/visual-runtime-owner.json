@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3356,
-    "manifestSha256": "45d45d2b4f907a7cabf29298792346db475f5c5df78482623090c92975c40608",
+    "loc": 3425,
+    "manifestSha256": "dbb0acb7cd9cc62202c3b1d1b002b3a8564115b5f3c22f53e43cbe7322c5ca3f",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -44,6 +44,11 @@
       "loc": 3290,
       "manifestSha256": "0acc4e9fd559a6903cbcdab67a522412224e791710877ebcc85bfd0d4eb7ad75",
       "reason": "Windows renders stage each document in a private folder under the user's temporary folder, where Hancom opens and saves without its file-access approval prompt, and move only a finished PDF to the requested path (WindowsComOracle._stage_jobs, _promote_file); the packaged scripts register a file-path check module with its module type FilePathCheckDLL (#150). Historical core source receipts unchanged."
+    },
+    "windowsRefreshRefrozenFrom": {
+      "loc": 3356,
+      "manifestSha256": "45d45d2b4f907a7cabf29298792346db475f5c5df78482623090c92975c40608",
+      "reason": "WindowsComOracle.refresh_document: Hancom opens a copy in a private temporary folder, lays it out and saves it as HWPX there, and the original is replaced only by a complete package (#152); the render and refresh share one backend runner (_run_jobs). Historical core source receipts unchanged."
     }
   },
   "packageFiles": [
