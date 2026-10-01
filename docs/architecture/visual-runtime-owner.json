@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3468,
-    "manifestSha256": "c8528d4fc7d4482eb0e23ab7f3f72cbcaa5f63df70ef28c3b9d59bf83a9c7e54",
+    "loc": 3483,
+    "manifestSha256": "fae72de8d0eae774547d0fdbba35775ba9fea9a50b5c0bdba1e2d060feeb118e",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -54,6 +54,11 @@
       "loc": 3424,
       "manifestSha256": "6979d3cea174d39ab0ead8adcda7f7e2dd2d2a01b90c166b239543e36ca8b39b",
       "reason": "A Windows render or refresh that times out ends its own Hancom: the backend records the automation Hwp.exe it started (PID and start time) and WindowsComOracle._end_own_hancom stops it only while both still match (#151). Historical core source receipts unchanged."
+    },
+    "refreshKeepsChangedDocumentRefrozenFrom": {
+      "loc": 3468,
+      "manifestSha256": "c8528d4fc7d4482eb0e23ab7f3f72cbcaa5f63df70ef28c3b9d59bf83a9c7e54",
+      "reason": "WindowsComOracle.refresh_document replaces the original only when its size and modification time are still what they were when Hancom opened the copy (_unchanged); a document saved in the meantime is not overwritten. Historical core source receipts unchanged."
     }
   },
   "packageFiles": [

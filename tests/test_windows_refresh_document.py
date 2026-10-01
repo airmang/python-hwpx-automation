@@ -161,3 +161,21 @@ def test_a_file_that_is_not_hwpx_is_left_alone(monkeypatch: pytest.MonkeyPatch, 
     assert WindowsComOracle(timeout=30).refresh_document(str(legacy)) is False
     assert legacy.read_bytes() == b"HWP Document File"
     assert seen == []
+
+
+@pytest.mark.usefixtures("windows")
+def test_a_document_changed_while_hancom_ran_is_not_overwritten(
+    monkeypatch: pytest.MonkeyPatch, document: Path
+) -> None:
+    edited = _package(b"<hs:sec><hp:p>edited by the user</hp:p></hs:sec>")
+    backend = _fake_powershell([])
+
+    def run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        result = backend(cmd, **kwargs)
+        document.write_bytes(edited)  # the user saves the document while Hancom has the copy open
+        return result
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    assert WindowsComOracle(timeout=30).refresh_document(str(document)) is False
+    assert document.read_bytes() == edited
