@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `WindowsComOracle.refresh_document(path)` no longer overwrites a document that changed while Hancom ran. It copies the document, lets Hancom lay the copy out and save it, and replaces the original only when the original's size and modification time are still what they were when it was copied; otherwise it returns `False` and the change stays.
+
 ## [7.3.2] - 2026-10-01
 
 - `WindowsComOracle.refresh_document(path)` re-saves a document through Hancom on Windows, like the macOS backend already does: Hancom opens a copy in a private temporary folder, lays it out, and saves it as HWPX there, and the original is replaced only by a complete package, so the saved file carries Hancom's own line layout cache (`hp:linesegarray`). A hidden automation window lays nothing out until asked, so the backend asks for the page count before a non-PDF save; saved unlaid, the HWPX had no line layout cache at all. Returns `False` and leaves the file as it was when Hancom is unreachable or the save fails, and for a file that is not `.hwpx` (the copy is always saved as HWPX); a link is followed to the file it names. `verify_toc(..., refresh=True)` now reaches this method on Windows too; whether Hancom there regenerates a dirty table of contents on open has not been checked (#152).

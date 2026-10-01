@@ -149,6 +149,16 @@ def _complete_package(path: str) -> bool:
         return False
 
 
+def _unchanged(path: str, before: os.stat_result) -> bool:
+    """True when ``path`` still has the size and modification time in ``before``."""
+
+    try:
+        now = os.stat(path)
+    except OSError:
+        return False
+    return (now.st_size, now.st_mtime_ns) == (before.st_size, before.st_mtime_ns)
+
+
 def _promote_file(staged: str, target: str) -> None:
     """Move a finished file to ``target`` without leaving a partial ``target``.
 
@@ -442,6 +452,8 @@ class WindowsComOracle(RenderBackend):
         by a complete package: a failed refresh leaves it as it was. Returns
         True when the file was re-saved. Only an ``.hwpx`` file is refreshed
         (Hancom saves it as HWPX), and a link is followed to the file it names.
+        A document that changed while Hancom ran (size or modification time)
+        is not overwritten: the refresh returns False and the change stays.
         """
 
         src = os.path.realpath(hwpx_path)
@@ -459,6 +471,7 @@ class WindowsComOracle(RenderBackend):
             try:
                 os.makedirs(os.path.dirname(job_src))
                 os.makedirs(os.path.dirname(job_out))
+                before = os.stat(src)
                 shutil.copyfile(src, job_src)
             except OSError:
                 return False
@@ -466,6 +479,8 @@ class WindowsComOracle(RenderBackend):
             entries = self._run_jobs([job], tmp, run_timeout)
             entry = entries[0] if entries else None
             if not (isinstance(entry, dict) and entry.get("saved") and _complete_package(job_out)):
+                return False
+            if not _unchanged(src, before):
                 return False
             try:
                 _promote_file(job_out, src)
