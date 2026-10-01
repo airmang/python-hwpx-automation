@@ -38,7 +38,7 @@ function Write-JsonLine {
 
 function New-Hwp {
     $obj = New-Object -ComObject "HWPFrame.HwpObject"
-    try { $null = $obj.RegisterModule("FilePathCheckerModule", "FilePathCheckerModuleExample") } catch {}
+    try { $null = $obj.RegisterModule("FilePathCheckDLL", "FilePathCheckerModuleExample") } catch {}
     try { $null = $obj.SetMessageBoxMode(0x00020000) } catch {}
     return $obj
 }

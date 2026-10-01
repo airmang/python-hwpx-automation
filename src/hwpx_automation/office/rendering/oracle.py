@@ -132,6 +132,34 @@ def _clamped_timeout(base: float, deadline: float | None) -> float | None:
     return min(base, remaining)
 
 
+def _promote_file(staged: str, target: str) -> None:
+    """Move a finished file to ``target`` without leaving a partial ``target``.
+
+    ``os.replace`` is atomic on one volume, but a staging folder in the
+    temporary folder may sit on another volume than ``target``. Then the file
+    is copied beside ``target`` first and replaced from there.
+    """
+
+    try:
+        os.replace(staged, target)
+        return
+    except OSError:
+        pass
+    handle, partial = tempfile.mkstemp(
+        prefix=".hwpx-render-", suffix=".part", dir=os.path.dirname(target) or "."
+    )
+    os.close(handle)
+    try:
+        shutil.copyfile(staged, partial)
+        os.replace(partial, target)
+    except BaseException:
+        try:
+            os.unlink(partial)
+        except OSError:
+            pass
+        raise
+
+
 class RenderBackend:
     """Common render-oracle interface.
 
@@ -231,6 +259,12 @@ class WindowsComOracle(RenderBackend):
 
         Returns ``{src: pdf_path or None}``. A single COM session is reused for
         the whole batch (Hancom startup dominates), and dialogs are auto-dismissed.
+
+        Hancom asks the user to approve each automated open or save of a file
+        outside the user's temporary folder, and nobody answers that prompt
+        here. So every source is copied into a private temporary folder, its
+        PDF is written next to the copy, and only a finished PDF is moved to
+        ``out_pdf``. A failed render leaves an existing ``out_pdf`` as it was.
         """
 
         result: dict[str, str | None] = {src: None for src, _ in pairs}
@@ -243,7 +277,10 @@ class WindowsComOracle(RenderBackend):
 
         tmp = tempfile.mkdtemp(prefix="hwpx-render-")
         try:
-            jobs = [{"src": os.path.abspath(src), "pdf": os.path.abspath(pdf)} for src, pdf in pairs]
+            staged = self._stage_jobs(pairs, tmp)
+            if not staged:
+                return result
+            jobs = [{"src": job_src, "pdf": job_pdf} for _src, job_src, job_pdf, _out in staged]
             jobs_path = os.path.join(tmp, "jobs.json")
             res_path = os.path.join(tmp, "result.json")
             with open(jobs_path, "w", encoding="utf-8") as handle:
@@ -281,13 +318,42 @@ class WindowsComOracle(RenderBackend):
                 entries = [entries]
             if not isinstance(entries, list):
                 return result
-            for (src, _pdf), entry in zip(pairs, entries):
-                pdf = entry.get("pdf")
-                if entry.get("saved") and pdf and os.path.exists(pdf):
-                    result[src] = pdf
+            for (src, _job_src, job_pdf, out_pdf), entry in zip(staged, entries):
+                if not (isinstance(entry, dict) and entry.get("saved") and os.path.exists(job_pdf)):
+                    continue
+                try:
+                    _promote_file(job_pdf, out_pdf)
+                except OSError:
+                    continue
+                result[src] = out_pdf
             return result
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    @staticmethod
+    def _stage_jobs(
+        pairs: list[tuple[str, str]], tmp: str
+    ) -> list[tuple[str, str, str, str]]:
+        """Copy each source into its own folder under ``tmp``.
+
+        Returns ``(src, staged_src, staged_pdf, out_pdf)`` per readable source;
+        a source that cannot be copied is left unrendered. The copy keeps the
+        file name, so Hancom sees the document under its own name.
+        """
+
+        staged: list[tuple[str, str, str, str]] = []
+        for index, (src, out_pdf) in enumerate(pairs):
+            folder = os.path.join(tmp, str(index))
+            name = os.path.basename(src) or "document.hwpx"
+            job_src = os.path.join(folder, name)
+            try:
+                os.makedirs(folder)
+                shutil.copyfile(src, job_src)
+            except OSError:
+                continue
+            job_pdf = os.path.join(folder, os.path.splitext(name)[0] + ".pdf")
+            staged.append((src, job_src, job_pdf, os.path.abspath(out_pdf)))
+        return staged
 
     def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
         """Render a single ``.hwpx`` to PDF; returns the PDF path or ``None``."""

@@ -124,13 +124,35 @@ function Copy-ToTrustedTemp {
     return @{ Directory = $dir; Path = $target }
 }
 
+function Register-FilePathCheck {
+    # True when Hancom accepted a file-path check module. The module name is a
+    # value name under HKCU\SOFTWARE\HNC\HwpAutomation\Modules:
+    # HWPX_HANCOM_SECURITY_MODULE first, then Hancom's example name, then every
+    # other value registered there. The module type is always "FilePathCheckDLL".
+    param($Hwp)
+    $names = New-Object System.Collections.Generic.List[string]
+    if ($env:HWPX_HANCOM_SECURITY_MODULE) { $names.Add([string]$env:HWPX_HANCOM_SECURITY_MODULE) }
+    if (-not $names.Contains("FilePathCheckerModuleExample")) { $names.Add("FilePathCheckerModuleExample") }
+    try {
+        $key = Get-Item -LiteralPath "HKCU:\SOFTWARE\HNC\HwpAutomation\Modules" -ErrorAction Stop
+        foreach ($name in $key.GetValueNames()) {
+            if ($name -and -not $names.Contains($name)) { $names.Add($name) }
+        }
+    } catch {}
+    foreach ($name in $names) {
+        try {
+            if ([bool]$Hwp.RegisterModule("FilePathCheckDLL", $name)) { return $true }
+        } catch {}
+    }
+    return $false
+}
+
 function New-HwpObject {
     $hwp = New-Object -ComObject "HWPFrame.HwpObject"
-    try {
-        $null = $hwp.RegisterModule("FilePathCheckerModule", "FilePathCheckerModuleExample")
-    } catch {
-        Write-Warning ("RegisterModule FilePathCheckerModule failed: " + $_.Exception.Message)
-    }
+    # Inputs are opened from a copy in %TEMP% (Copy-ToTrustedTemp), which Hancom
+    # opens without its access-approval prompt. A registered file-path check
+    # module is used as well when there is one.
+    $null = Register-FilePathCheck $hwp
     # FR-002a: suppress modal dialogs. The negative controls (FR-005) prove the
     # suppressed default action is NOT silent auto-repair.
     try { $null = $hwp.SetMessageBoxMode($MESSAGE_BOX_MODE) } catch {

@@ -79,7 +79,14 @@ stdout에 결과를, stderr에 오류를 씁니다. 종료 코드는 같습니�
   있어야 합니다. GUI로 메뉴를 조작해 렌더하므로 한 번에 하나씩만 렌더합니다.
   렌더 worker와 같은 데스크톱 잠금을 써서, 다른 렌더가 끝날 때까지
   `--timeout`(없으면 백엔드 기본값 300초) 안에서 기다립니다.
-- **Windows**: 한글과 COM 클래스 `HWPFrame.HwpObject` 등록이 필요합니다.
+- **Windows**: 한글과 COM 클래스 `HWPFrame.HwpObject` 등록이 필요합니다. 한글은
+  자동화가 사용자 임시 폴더(`%TEMP%`) 밖의 파일을 열거나 저장할 때마다 접근을
+  허용할지 묻는데, 무인 렌더에서는 아무도 답하지 않습니다. 그래서 문서를 임시
+  폴더 안의 전용 폴더로 복사해 렌더하고, 다 만든 PDF만 요청한 경로로 옮깁니다.
+  보안 모듈이 `HKCU\SOFTWARE\HNC\HwpAutomation\Modules`에 등록돼 있으면 그것도
+  모듈 종류 `FilePathCheckDLL`로 등록해 씁니다. 등록할 값 이름은
+  `HWPX_HANCOM_SECURITY_MODULE`로 정할 수 있고, 없으면 `FilePathCheckerModuleExample`,
+  그다음 등록된 다른 이름을 차례로 씁니다.
 - `HWPX_ORACLE_STRUCTURAL_ONLY=1`이면 한컴을 찾지도 실행하지도 않고 종료 코드
   3으로 끝납니다.
 - `--timeout`을 주지 않으면 `HWPX_ORACLE_BUDGET_SECONDS`가 시간 예산이 됩니다.
