@@ -397,16 +397,17 @@ class WindowsComOracle(RenderBackend):
         Hancom computed. As in :meth:`render_many`, Hancom opens and saves a
         copy in a private temporary folder, and the original is replaced only
         by a complete package: a failed refresh leaves it as it was. Returns
-        True when the file was re-saved.
+        True when the file was re-saved. Only an ``.hwpx`` file is refreshed
+        (Hancom saves it as HWPX), and a link is followed to the file it names.
         """
 
-        if not self.available():
+        src = os.path.realpath(hwpx_path)
+        if not src.lower().endswith(".hwpx") or not self.available():
             return False
         deadline = _deadline_from(self.budget_seconds)
         run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
         if run_timeout is None:
             return False
-        src = os.path.abspath(hwpx_path)
         tmp = tempfile.mkdtemp(prefix="hwpx-refresh-")
         try:
             name = os.path.basename(src) or "document.hwpx"
