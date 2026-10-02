@@ -51,7 +51,7 @@ codex plugin add hwpx-plugin@hwpx
 ```
 
 Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 고정한 검증 좌표로
-`uv run --frozen`으로 실행합니다(`uv` 필요). 새 엔진은 CI 봇이 검증한 뒤 플러그인 업데이트로 전달합니다.
+`uv run --frozen`으로 실행합니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 새 엔진은 CI 봇이 검증한 뒤 플러그인 업데이트로 전달합니다.
 Codex에서는 설치 뒤 번들 런처가 런타임을 하루 1회 같은 메이저 안의 최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
 `HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
 Claude Code는 `/plugin` → Marketplaces → `hwpx`에서 자동 업데이트를 켜거나
@@ -130,7 +130,7 @@ automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인
 
 ## 알려진 제약
 
-- 대상 포맷은 Open XML 기반 `.hwpx`입니다. 레거시 바이너리 `.hwp` 직접 편집은 범위 밖입니다.
+- `.hwpx`와 HWP 5.0 `.hwp`를 다룹니다. `.hwp`는 python-hwpx 6.6.0 이상이 같은 문서 모델로 읽고 HWP 5.0으로 다시 씁니다. 옮기지 못한 내용과 쓸 수 없는 내용(암호·배포용·DRM 포함)은 숨기지 않고 보고합니다. automation 7.3.x MCP 도구는 아직 `.hwp` 편집을 거부하므로 그때는 Python 경로를 씁니다.
 - `visual_review_required=true`는 package/schema/text 검사는 통과했지만 열린 문서의 페이지 나눔·표 맞춤은 아직 미확인이라는 뜻입니다. 최종 제출이라고 하려면 한/글이나 뷰어에서 직접 열어 확인한 결과(`observed_pass`)를 남깁니다.
 - 예제·문서에는 이름·전화번호·이메일·주소 등 PII를 redaction 없이 넣지 않습니다.
 

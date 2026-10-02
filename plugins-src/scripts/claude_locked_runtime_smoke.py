@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import re
 import time
 from pathlib import Path
 
@@ -40,6 +41,12 @@ def main(argv: list[str] | None = None) -> int:
     identity = json.loads((ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8"))["components"]
     contract = json.loads((ROOT / "references" / "tool-contract.generated.json").read_text(encoding="utf-8"))
     server = json.loads((BUNDLE / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["hwpx"]
+    # The locked pair is whatever server/pyproject.toml pins: the refresh bot may move it
+    # ahead of the identity's verified coordinates inside the install window.
+    pins = dict(re.findall(r'"(python-hwpx(?:-automation)?)\[[^\]]*\]==([^"]+)"',
+                           (BUNDLE / "server" / "pyproject.toml").read_text(encoding="utf-8")))
+    expected_automation = pins[identity["automation"]["distribution"]]
+    expected_core = pins[identity["core"]["distribution"]]
 
     cache = Path(tempfile.mkdtemp(prefix="claude-plugin-cache-"))
     plugin_root = cache / "hwpx-plugin"
@@ -90,9 +97,9 @@ def main(argv: list[str] | None = None) -> int:
         health_text = json.dumps(receive(3), ensure_ascii=False)
 
         checks = {
-            "serverVersion": info.get("version") == identity["automation"]["currentVersion"],
+            "serverVersion": info.get("version") == expected_automation,
             "defaultToolCount": len(tools) == contract["defaultToolCount"],
-            "coreVersionReported": identity["core"]["currentVersion"] in health_text,
+            "coreVersionReported": expected_core in re.findall(r'pythonHwpxVersion\\*"\s*:\s*\\*"([^"\\]+)', health_text),
             "runtimeInsidePluginCopy": (plugin_root / "server" / ".venv").is_dir(),
             "userProjectUntouched": not any(project.iterdir()),
         }

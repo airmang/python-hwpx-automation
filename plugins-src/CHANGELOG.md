@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- 스킬이 `.hwp`(HWP 5.0)를 "지원하지 않는 형식"으로 돌려보내지 않습니다. python-hwpx 6.6.0부터 `.hwp`를 같은 문서 모델로
+  열고 HWP 5.0으로 다시 쓰므로, SKILL.md·README·`references/api.md`의 낡은 "`.hwpx`만 지원" 문장을 바로잡았습니다.
+  automation 7.3.x MCP 도구가 `.hwp` 편집을 거부하면 Python 경로로 같은 작업을 합니다.
+- MCP 서버 연결이 실패하면 스킬이 먼저 `uv` 설치 여부를 확인하고 설치 방법을 안내합니다. Claude Code 번들은 `uv`가 없으면
+  서버를 시작할 수 없습니다. README 설치 절에도 이 요구 사항을 드러냈습니다.
+- Claude 런타임 갱신 봇의 기동 점검이 서버 버전을 `server/pyproject.toml`의 고정값과 비교합니다. 전에는 검증 좌표와
+  비교해서, 같은 메이저 안의 새 엔진(core 6.7.0·automation 7.3.2)으로 올리는 첫 갱신이 실패했습니다.
+
 - ChatGPT 플러그인 1.0.2: 스킬 이름을 `hwpx-web`에서 `hwpx`로 바꿉니다(플러그인 안에서는 `python-hwpx:hwpx`로 구분됩니다).
   스킬 설명과 플러그인 설명을 핵심만 남겨 줄이고, 단독 스킬 ZIP 이름을 `python-hwpx-skill-<버전>.zip`으로 바꿉니다.
 - ChatGPT 플러그인 1.0.1: 공식 패키징 문서(Package your plugin, Submit plugins) 현행에 맞춰 다시 묶습니다.
