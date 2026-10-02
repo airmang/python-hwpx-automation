@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -22,13 +23,32 @@ APPROVED_SUPPORT_SCRIPTS = frozenset(
 )
 
 
+def _vendored_engine_files(root: Path) -> set[Path]:
+    """Published engine source unpacked by scripts/vendor_claude_engine.py, byte-identical to VENDOR.json.
+
+    It is the released python-hwpx / python-hwpx-automation itself, not Python
+    written for the skill, so only files whose sha256 matches the manifest are
+    exempt. An edited or added file under engine/ is still a violation.
+    """
+    exempt: set[Path] = set()
+    for manifest_path in (root / "plugins").glob("*/*/skills/*/engine/VENDOR.json"):
+        engine = manifest_path.parent
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for rel, digest in manifest.get("files", {}).items():
+            path = engine / rel
+            if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == digest:
+                exempt.add(path.resolve())
+    return exempt
+
+
 def evaluate(root: Path) -> dict[str, Any]:
     violations: list[str] = []
     files = sorted((root / "plugins").rglob("*.py"))
+    vendored = _vendored_engine_files(root)
     for path in files:
         relative = path.relative_to(root).as_posix()
         parts = path.relative_to(root).parts
-        if "examples" in parts:
+        if "examples" in parts or path.resolve() in vendored:
             continue
         if "scripts" in parts and path.name in APPROVED_SUPPORT_SCRIPTS:
             continue
@@ -36,6 +56,7 @@ def evaluate(root: Path) -> dict[str, Any]:
     return {
         "ok": not violations,
         "pluginPythonFiles": len(files),
+        "vendoredEngineFiles": len(vendored),
         "approvedSupportScripts": sorted(APPROVED_SUPPORT_SCRIPTS),
         "violations": violations,
     }

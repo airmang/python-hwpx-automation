@@ -58,6 +58,13 @@ Claude Code는 `/plugin` → Marketplaces → `hwpx`에서 자동 업데이트�
 `claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx`, Codex는
 `codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`를 실행합니다.
 
+**claude.ai 채팅**에서는 로컬 MCP 서버가 돌지 않고 코드 실행 환경이 PyPI에 닿지 않습니다. 그래서 Claude 번들의
+스킬에는 같은 버전의 `python-hwpx`·`python-hwpx-automation`이 원본 그대로 `skills/hwpx/engine/`에 들어 있고,
+MCP 도구가 없으면 스킬이 `chat-engine.md` 절차로 이 엔진을 불러와 쓰기 시작합니다(설치·인터넷 접속 없음).
+환경에 `lxml`이 있어야 하며, 새 문서 만들기는 `pydantic`·`cryptography`도 있어야 합니다. 엔진 사본은 손으로
+고치지 않습니다. 봇이 `server/uv.lock`을 올릴 때 같은 wheel에서 다시 풀고 파일마다 해시를 `engine/VENDOR.json`에 남기므로,
+MCP 서버와 채팅 경로는 항상 같은 엔진 버전으로 함께 바뀝니다.
+
 Cursor는 canonical skill 파일을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.cursor/skills/hwpx/`)에 복사하고
 `.cursor/rules/hwpx.mdc` 트리거 룰을 둡니다. OpenClaw·Hermes는 각 호스트 번들(`plugins/openclaw/hwpx-plugin`,
 `plugins/hermes/hwpx`)에 MCP 배선 안내가 함께 들어 있습니다. 저장소 이름 `hwpx-plugins`와 설치되는

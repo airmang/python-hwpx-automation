@@ -776,6 +776,8 @@ def expected_transformed_sources(host: dict, config: dict) -> set[str]:
     byte-identity invariant by flipping the flag (hwpx-plugins #21).
     """
     expected = {config["canonicalSkill"]}
+    for generated in host.get("generatedReferences", []):
+        expected.update(f"packaging/{generated[key]}" for key in ("template", "workflows", "automationApi"))
     if host["id"] == "codex":
         expected.add(f"packaging/{host['mcp']['template']}")
     return expected
@@ -833,21 +835,39 @@ def validate_sync(
     return skill_dests
 
 
+def vendored_engine_dir(host: dict, skill_dir: Path) -> Path | None:
+    """The engine unpacked by scripts/vendor_claude_engine.py; verified by its own manifest."""
+    rel = host.get("vendoredEngine")
+    return skill_dir / rel if rel else None
+
+
 def validate_skill_files_match(host: dict, skill_dir: Path, recorded: set[Path]) -> None:
     # When skillSubdir == "." the bundle root is the skill dir, so the bundle's own
     # plugin-sync.json and INSTALL-mcp.md live alongside skill files. plugin-sync.json
     # is never self-recorded; exclude it. Everything else under skill_dir must be recorded.
+    engine = vendored_engine_dir(host, skill_dir)
     actual = {
         p.resolve()
         for p in skill_dir.rglob("*")
         if p.is_file()
         and p.name != "plugin-sync.json"
         and "examples/out" not in p.relative_to(skill_dir).as_posix()
+        and (engine is None or not p.is_relative_to(engine))
     }
     require(actual == recorded, f"{host['id']}: skill files do not match sync manifest")
 
 
 CLAUDE_LOCK_MAX_BYTES = 256 * 1024
+
+
+def validate_vendored_engine() -> None:
+    """Engine source = the uv.lock wheels, unchanged; bundle inside the directory's file limits."""
+    spec = importlib.util.spec_from_file_location("vendor_claude_engine", ROOT / "scripts" / "vendor_claude_engine.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    problems = module.check()
+    require(not problems, "claude: vendored engine: " + "; ".join(problems))
 
 
 def _load_refresh_module():
@@ -1046,8 +1066,14 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
     else:
         require("\nversion:" not in fm, f"{host['id']}: SKILL.md must not declare version")
 
+    excluded = set(host.get("excludeSharedAssets", []))
     for rel in config["sharedAssets"]:
-        require_file(skill_dir / rel)
+        if rel in excluded:
+            require(not (skill_dir / rel).exists(), f"{host['id']}: excluded shared asset is bundled: {rel}")
+        else:
+            require_file(skill_dir / rel)
+    for generated in host.get("generatedReferences", []):
+        require_file(skill_dir / generated["dest"])
 
     for manifest in host.get("manifests", []):
         manifest_path = out / manifest["dest"]
@@ -1146,11 +1172,14 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
     recorded = validate_sync(host, out, skill_dir, identity, config)
     validate_skill_files_match(host, skill_dir, recorded)
     validate_no_internal_identifiers(list(recorded), f"{host['id']} bundle")
+    engine = vendored_engine_dir(host, skill_dir)
     validate_markdown_links(
-        list(out.rglob("*.md")),
+        [path for path in out.rglob("*.md") if engine is None or not path.is_relative_to(engine)],
         out,
         f"{host['id']} bundle",
     )
+    if engine is not None:
+        validate_vendored_engine()
 
 
 def validate_marketplace(config: dict, identity: dict) -> None:

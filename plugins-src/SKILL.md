@@ -5,6 +5,10 @@ description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한�
 
 # hwpx (HWPX / OWPML)
 
+> **HWPX MCP 도구가 없는 환경**(claude.ai 채팅, MCP 서버가 뜨지 않은 Claude Code): 이 스킬 폴더에
+> `chat-engine.md`가 있으면 그 문서를 먼저 읽고 그 절차대로 한다. 스킬에 든 python-hwpx 엔진을
+> 불러와 Python으로 작업하며, 엔진을 따로 설치하거나 인터넷에서 받지 않는다.
+
 `.hwpx`는 ZIP 기반 OWPML 문서이고, `.hwp`는 HWP 5.0 바이너리 문서다. python-hwpx 6.6.0부터
 `HwpxDocument.open`이 `.hwp`도 같은 문서 모델로 열고 `save_to_path("x.hwp")`로 HWP 5.0을 다시 쓴다.
 따라서 `.hwp`라는 이유만으로 거절하거나 한/글에서 `.hwpx`로 바꿔 오라고 하지 않는다. 결과는 원본과 같은 형식으로
@@ -43,7 +47,7 @@ Claude Code 번들은 `uv run --frozen`으로 서버를 띄우므로 `uv`가 없
 `curl -LsSf https://astral.sh/uv/install.sh | sh`, Windows: `winget install --id=astral-sh.uv -e`)
 호스트 앱을 다시 시작하라고 한다. 사용자 동의 없이 설치 명령을 실행하지 않는다. `uv`가 있는데도 실패하면
 첫 실행의 Python 3.12·패키지 내려받기가 끝나지 않았거나 네트워크가 막힌 경우이므로 그 사실을 보고한다.
-기다리는 동안 할 수 있는 일은 local Python 경로로 한다.
+기다리는 동안 할 수 있는 일은 `chat-engine.md`(있으면) 또는 local Python 경로로 한다.
 
 MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호출해
 `version`, `pythonHwpxVersion`, `toolSurface.status`, `toolSurface.missingKeyTools`를 확인한다.

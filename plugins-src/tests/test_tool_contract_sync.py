@@ -84,7 +84,10 @@ def test_every_host_bundle_carries_the_canonical_contract() -> None:
     canonical = CONTRACT_PATH.read_bytes()
     bundled = sorted((ROOT / "plugins").glob("**/tool-contract.generated.json"))
 
-    assert len(bundled) == 4
+    # The Claude bundle ships only the Markdown contract: the JSON is larger than the
+    # Claude plugin directory reads (256 KiB per file).
+    assert len(bundled) == 3
+    assert not (ROOT / "plugins" / "claude" / "hwpx-plugin" / "skills" / "hwpx" / "references" / "tool-contract.generated.json").exists()
     assert all(path.read_bytes() == canonical for path in bundled)
 
 

@@ -80,6 +80,9 @@ jobs:
       - name: Claude locked runtime smoke
         working-directory: hwpx-skill
         run: python scripts/claude_locked_runtime_smoke.py
+      - name: Claude chat path (vendored engine, no MCP) simulation
+        working-directory: hwpx-skill
+        run: python scripts/claude_chat_sim.py --python python --fixtures ../python-hwpx/tests/fixtures
       - name: Plugin launcher protocol E2E (editable stack)
         working-directory: hwpx-skill
         run: python scripts/plugin_mcp_e2e.py --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx

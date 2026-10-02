@@ -68,6 +68,38 @@ def render_skill_md(canonical_text: str, extra_frontmatter: str) -> str:
     return "---\n" + frontmatter + "\n---\n" + body
 
 
+CHAT_ENGINE_REWRITES = [
+    ("# 웹 작업 절차 (W1~W5)", "## 작업 절차 (W1~W5)"),
+    ("`/mnt/data`의 첨부 파일", "`IN_DIR`의 첨부 파일"),
+    ("[SKILL.md의 시작 절차](../SKILL.md)", "[시작 블록](#1-시작--대화마다-한-번)"),
+    ('"src": "/mnt/data/', '"src": "/mnt/user-data/uploads/'),
+    ('"out": "/mnt/data/', '"out": "/mnt/user-data/outputs/'),
+    ("](core/recipes-traversal.md)", "](engine/hwpx/data/contract_docs/recipes-traversal.md)"),
+    ("[automation-python-api.md](automation-python-api.md#", "[문서 계획 v1](#"),
+    ("[automation-python-api.md](automation-python-api.md)", "[python-hwpx-automation 파이썬 API](#python-hwpx-automation-파이썬-api)"),
+    ("# python-hwpx-automation 파이썬 API (웹판)", "## python-hwpx-automation 파이썬 API"),
+    ("\n## 문서 계획 v1", "\n### 문서 계획 v1"),
+    ("\n## 이 웹판에서 검증하지 않은 경로", "\n### 이 웹판에서 검증하지 않은 경로"),
+    ("](core/llms.txt)", "](engine/docs/llms.txt)"),
+]
+
+
+def render_chat_engine(template: str, workflows: str, automation_api: str) -> str:
+    """The no-MCP guide: Claude template + the ChatGPT W1~W5 blocks and facade notes, re-pathed.
+
+    The workflow code stays single-sourced with the ChatGPT skill (whose sandbox
+    simulation exercises it); only paths, headings and links change here.
+    """
+    text = template.replace("{{WORKFLOWS}}", workflows.strip()).replace("{{AUTOMATION_API}}", automation_api.strip())
+    for old, new in CHAT_ENGINE_REWRITES:
+        text = text.replace(old, new)
+    leftovers = [token for token in ("/mnt/data/", "sandbox:", "](core/", "automation-python-api.md", "{{WORKFLOWS}}",
+                                     "{{AUTOMATION_API}}", "`/mnt/data`의") if token in text]
+    if leftovers:
+        raise SystemExit(f"chat engine guide still carries ChatGPT-only text: {leftovers}")
+    return text
+
+
 def copy_file(src: Path, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
@@ -172,7 +204,10 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
     )
     records.append(record(config["canonicalSkill"], canonical, skill_md, transformed=True))
 
+    excluded = set(host.get("excludeSharedAssets", []))
     for rel in config["sharedAssets"]:
+        if rel in excluded:
+            continue
         src = ROOT / rel
         if not src.is_file():
             raise SystemExit(f"missing shared asset: {rel}")
@@ -189,6 +224,17 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
             dest = skill_dir / rel
             copy_file(src, dest)
             records.append(record(rel, src, dest, transformed=False))
+
+    for generated in host.get("generatedReferences", []):
+        sources = [PACKAGING / generated[key] for key in ("template", "workflows", "automationApi")]
+        for src in sources:
+            if not src.is_file():
+                raise SystemExit(f"missing generated-reference source: {src.relative_to(ROOT)}")
+        dest = skill_dir / generated["dest"]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(render_chat_engine(*(src.read_text(encoding="utf-8") for src in sources)), encoding="utf-8")
+        for src in sources:
+            records.append(record(src.relative_to(ROOT).as_posix(), src, dest, transformed=True))
 
     for manifest in host.get("manifests", []):
         src = PACKAGING / manifest["template"]

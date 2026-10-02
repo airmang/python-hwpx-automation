@@ -94,6 +94,18 @@
       "outputDir": "plugins/claude/hwpx-plugin",
       "skillSubdir": "skills/hwpx",
       "frontmatterExtra": "",
+      "excludeSharedAssets": [
+        "references/tool-contract.generated.json"
+      ],
+      "generatedReferences": [
+        {
+          "template": "templates/claude-chat-engine.md",
+          "workflows": "chatgpt/skill/references/web-workflows.md",
+          "automationApi": "chatgpt/skill/references/automation-python-api.md",
+          "dest": "chat-engine.md"
+        }
+      ],
+      "vendoredEngine": "engine",
       "manifests": [
         {
           "template": "templates/claude.plugin.json",
