@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 스킬의 `uv` 설치 안내에서 내려받은 설치 스크립트를 셸에 바로 넘기는 명령을 뺐습니다. Claude 플러그인 디렉터리 검사가
+  이를 설치 시점 위험(`RUNTIME_FETCH_EXEC`)으로 표시했습니다. 이제 패키지 관리자(`brew`, `winget`)와 공식 설치 문서만 안내합니다.
+
 - claude.ai 채팅에서 스킬을 쓸 수 있습니다. 채팅은 로컬 MCP 서버를 띄울 수 없고 PyPI에도 닿지 않으므로, Claude 번들
   스킬에 `server/uv.lock`과 같은 버전의 `python-hwpx`·`python-hwpx-automation`을 원본 그대로 `skills/hwpx/engine/`에
   넣었습니다. MCP 도구가 없으면 스킬이 `chat-engine.md`의 시작 블록으로 이 엔진을 `sys.path`에서 불러오고, ChatGPT 웹판과

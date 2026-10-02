@@ -43,9 +43,9 @@ primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단�
 
 HWPX MCP 도구가 보이지 않거나 서버 연결이 실패했으면(예: `CONNECTION_CLOSED`) 먼저 원인을 확인한다.
 Claude Code 번들은 `uv run --frozen`으로 서버를 띄우므로 `uv`가 없으면 서버가 시작되지 않는다.
-`uv --version`으로 확인하고, 없으면 사용자에게 설치를 안내한 뒤(macOS·Linux:
-`curl -LsSf https://astral.sh/uv/install.sh | sh`, Windows: `winget install --id=astral-sh.uv -e`)
-호스트 앱을 다시 시작하라고 한다. 사용자 동의 없이 설치 명령을 실행하지 않는다. `uv`가 있는데도 실패하면
+`uv --version`으로 확인하고, 없으면 사용자에게 패키지 관리자로 설치하도록 안내한 뒤(macOS: `brew install uv`,
+Windows: `winget install --id=astral-sh.uv -e`, 그 밖에는 https://docs.astral.sh/uv/getting-started/installation/)
+호스트 앱을 다시 시작하라고 한다. 내려받은 스크립트를 셸로 바로 실행하는 설치 명령은 안내하지 않는다. 사용자 동의 없이 설치 명령을 실행하지 않는다. `uv`가 있는데도 실패하면
 첫 실행의 Python 3.12·패키지 내려받기가 끝나지 않았거나 네트워크가 막힌 경우이므로 그 사실을 보고한다.
 기다리는 동안 할 수 있는 일은 `chat-engine.md`(있으면) 또는 local Python 경로로 한다.
 
