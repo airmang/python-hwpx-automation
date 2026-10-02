@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 
 [[package]]
@@ -168,8 +168,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "python-hwpx", extras = ["preview"], specifier = "==6.6.0" },
-    { name = "python-hwpx-automation", extras = ["mcp", "oracle"], specifier = "==7.3.1" },
+    { name = "python-hwpx", extras = ["preview"], specifier = "==6.7.0" },
+    { name = "python-hwpx-automation", extras = ["mcp", "oracle"], specifier = "==7.3.2" },
 ]
 
 [[package]]
@@ -414,14 +414,14 @@ wheels = [
 
 [[package]]
 name = "python-hwpx"
-version = "6.6.0"
+version = "6.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8f/64/bbbbd6468e13f76ffa148ba68f1efa5382ae2f79c1e8f597800f7c17efa2/python_hwpx-6.6.0.tar.gz", hash = "sha256:3dbeb1e183e163e57272adda3844e4324ed7128f7312525a7a99489c19a0d7ad", size = 1328103, upload-time = "2026-09-27T15:40:25.549Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/51/75/08bebcf0b7ea2ff9d18e79e61960a2a903bf249883b9c0a8b80fad065745/python_hwpx-6.7.0.tar.gz", hash = "sha256:d1c3d727f11fcf565f4ed989868eed38e54a40547794e0298d7197e82c72383a", size = 1466564, upload-time = "2026-10-01T09:33:40.944Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f6/a1/b7b295f7fe02ed3ac9fc2fe59b3658623eb8e8cdc8e0207d2b26428a4d2f/python_hwpx-6.6.0-py3-none-any.whl", hash = "sha256:382081817486df356fbc85b14639ef757a597585a4fecb51152653085475ff1c", size = 904616, upload-time = "2026-09-27T15:40:23.357Z" },
+    { url = "https://files.pythonhosted.org/packages/23/b1/6efc290bbb6f04df270c93a0cc4403331351e3e358ba12d003a3b27abe17/python_hwpx-6.7.0-py3-none-any.whl", hash = "sha256:d8deaff2cb87c407eb8405dbdffad2d9c1a0f04b1d5af43de380f55f792b25c6", size = 983739, upload-time = "2026-10-01T09:33:39.166Z" },
 ]
 
 [package.optional-dependencies]
@@ -431,7 +431,7 @@ preview = [
 
 [[package]]
 name = "python-hwpx-automation"
-version = "7.3.1"
+version = "7.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -439,9 +439,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-hwpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f7/cb/c837dfd070bf85c010fe14eba7d275496b839a2be3d05d7b4ddac7e2800e/python_hwpx_automation-7.3.1.tar.gz", hash = "sha256:a7e26276e0eb38658a6113433c60c0fbbffedd176086db74295eafd1294d1bc9", size = 741094, upload-time = "2026-09-28T00:31:03.516Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/da/5ffd901c72e06f9135f401bd17b13a10ad246e476e849d8ada0f071089ff/python_hwpx_automation-7.3.2.tar.gz", hash = "sha256:1f6aa0e37a06eab4c9bea18e68fff428510b89f43c8c923373a3caf19f50c40b", size = 746921, upload-time = "2026-10-01T03:00:14.388Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ef/60/3cd2248d7645213465d3e7f86408ff69b278cd04275bbc06763d14533f69/python_hwpx_automation-7.3.1-py3-none-any.whl", hash = "sha256:cc14f9f10c0119056ea1d370a3b2b0b88953b365decc7dea104a28144455dc3f", size = 842241, upload-time = "2026-09-28T00:31:01.463Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/8a/5260d6ff2fa36c784e2a212a5a8a67f8f3a34f9fda57e13c838accf917a9/python_hwpx_automation-7.3.2-py3-none-any.whl", hash = "sha256:4f2a7be3dc6461401514f2c456098ef7b8074e11448bd35d2f2f64c18a52483d", size = 848623, upload-time = "2026-10-01T03:00:12.531Z" },
 ]
 
 [package.optional-dependencies]
