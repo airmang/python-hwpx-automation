@@ -73,6 +73,7 @@ DEFAULT_ERROR_SUGGESTIONS: dict[str, str] = {
     "EMPTY_MATCH": "찾을 텍스트나 앵커 조건을 실제 문서 내용에 맞게 수정하세요.",
     "HWP_CONVERSION_FAILED": "원본 HWP가 손상되지 않았는지 확인하고 변환 로그의 원인을 기준으로 다시 시도하세요.",
     "HWP_TEXT_EXTRACT_FAILED": "HWP 파일을 다른 뷰어에서 열어 유효성을 확인한 뒤 텍스트 추출을 다시 실행하세요.",
+    "HWPX_PACKAGE_REQUIRED": "copy_document로 .hwpx 사본을 만들어 이 도구를 쓰고, .hwp가 필요하면 결과를 copy_document로 .hwp 경로에 복사하세요. search_and_replace·set_table_cell_text 같은 문서 편집 도구는 .hwp를 그대로 편집합니다.",
     "IDEMPOTENT_REPLAY": "이미 적용된 planId입니다. 최신 preview/plan을 새로 만든 뒤 apply를 다시 호출하세요.",
     "MEMO_NOT_FOUND": "list_memos 또는 문서 리소스에서 memoId를 다시 확인한 뒤 호출하세요.",
     "MISSING_NODE": "대상 섹션, 문단, 표, 셀이 아직 존재하는지 조회한 뒤 새 앵커로 다시 실행하세요.",
@@ -81,7 +82,10 @@ DEFAULT_ERROR_SUGGESTIONS: dict[str, str] = {
     "PIPELINE_ERROR": "details.pipelineCode와 hint를 확인한 뒤 preview부터 다시 생성하세요.",
     "PLAN_RECORD_MISSING": "preview_edit 또는 plan_edit으로 planId를 새로 발급받은 뒤 apply를 다시 호출하세요.",
     "PREVIEW_REQUIRED": "preview_edit으로 변경 내용을 확인한 뒤 반환된 planId로 apply_edit을 호출하세요.",
-    "READ_ONLY_HWP_DOCUMENT": "HWP 바이너리는 직접 저장할 수 없습니다. 먼저 HWPX로 변환한 뒤 편집하세요.",
+    "HWP_DOCUMENT_UNREADABLE": "한/글에서 문서를 열어 다시 저장한 뒤 사용하세요. details.hwp5Code가 원인입니다.",
+    "HWP_ENCRYPTED_DOCUMENT": "한/글에서 문서 암호·배포용 보호를 풀고 다시 저장한 뒤 사용하세요. DRM 문서는 열 수 없습니다.",
+    "HWP_WRITE_UNSUPPORTED": "HWP 5.0으로 쓸 수 없는 내용이 있습니다. 출력 경로를 .hwpx로 지정해 저장하세요.",
+    "READ_ONLY_HWP_DOCUMENT": "python-hwpx 6.6.0 이상을 설치하면 .hwp 문서를 그대로 열고 편집·저장할 수 있습니다.",
     "RENDER_PREVIEW_INVALID_MODE": "mode는 'pages' 또는 'long'으로 지정한 뒤 다시 실행하세요.",
     "RENDER_PREVIEW_INVALID_SCREENSHOT_MODE": "screenshot은 'auto', 'require', 'off' 중 하나로 지정하세요.",
     "RENDER_PREVIEW_UNAVAILABLE": "matching python-hwpx 버전을 설치하고 MCP 서버를 새로 시작한 뒤 다시 실행하세요.",
@@ -175,3 +179,52 @@ def build_error_payload(
         suggestion=suggestion
         or suggestion_for_error(code, details=details, hint=hint),
     ).model_dump(exclude_none=True, by_alias=True)
+
+
+class HwpDocumentError(RuntimeError):
+    """An ``.hwp`` request the installed engine cannot carry out."""
+
+    def __init__(
+        self, message: str, *, code: str, details: Optional[Dict[str, Any]] = None
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.details = details
+
+    def to_payload(self) -> Dict[str, Any]:
+        return build_error_payload(
+            code=self.code, message=self.message, details=self.details
+        )
+
+
+_HWP5_ENCRYPTED_CODES = frozenset({"hwp5-password", "hwp5-distribution", "hwp5-drm"})
+
+
+def hwp5_error_payload(exc: BaseException) -> Optional[Dict[str, Any]]:
+    """The MCP error for python-hwpx's ``Hwp5Error``; None for any other exception.
+
+    Matched by its ``hwp5-*`` code so this module needs no core import.
+    """
+
+    hwp5_code = getattr(exc, "code", None)
+    if not isinstance(hwp5_code, str) or not hwp5_code.startswith("hwp5-"):
+        return None
+    details = {"hwp5Code": hwp5_code}
+    if hwp5_code == "hwp5-write-unsupported":
+        return build_error_payload(
+            code="HWP_WRITE_UNSUPPORTED",
+            message="문서에 HWP 5.0(.hwp)으로 쓸 수 없는 내용이 있어 아무것도 저장하지 않았습니다.",
+            details=details,
+        )
+    if hwp5_code in _HWP5_ENCRYPTED_CODES:
+        return build_error_payload(
+            code="HWP_ENCRYPTED_DOCUMENT",
+            message="암호·배포용·DRM으로 보호된 HWP 문서는 열 수 없습니다.",
+            details=details,
+        )
+    return build_error_payload(
+        code="HWP_DOCUMENT_UNREADABLE",
+        message="HWP 5.0(.hwp) 문서를 읽을 수 없습니다.",
+        details=details,
+    )

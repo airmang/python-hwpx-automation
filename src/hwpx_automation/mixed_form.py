@@ -41,7 +41,7 @@ from pydantic import (
 from .execution_lock import PUBLIC_MUTATION_LOCK
 from .office.agent._batch_publication import GuardedSavePipeline
 from .office.rendering import resolve_hancom_backend
-from .storage import build_hwpx_open_safety_report
+from .storage import build_hwpx_open_safety_report, require_hwpx_package
 from .utils.helpers import resolve_path
 from .workspace import (
     WorkspaceMissingParentGuard,
@@ -1374,6 +1374,7 @@ def analyze_mixed_form_plan(
 
     request = _authorize_public_plan(_payload(plan, apply=False))
     source = Path(request["source"])
+    require_hwpx_package(source, output=request["output"])
     source_snapshot = _capture_path_snapshot(source)
     if source_snapshot.data is None:
         raise FileNotFoundError(source)
@@ -1494,6 +1495,7 @@ def _apply_canonical_mixed_form_plan_locked(
 
     compiled = validate_mixed_form_plan(compiled).to_dict()
     source, output = _authorize_compiled_plan(compiled)
+    require_hwpx_package(source, output=output)
     source_snapshot = _capture_path_snapshot(source)
     if source_snapshot.data is None:  # pragma: no cover - compiled plan invariant
         raise FileNotFoundError(source)

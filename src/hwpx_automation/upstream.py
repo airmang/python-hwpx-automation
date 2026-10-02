@@ -12,6 +12,7 @@ from copy import deepcopy
 from os import PathLike
 from typing import Any, Iterable, Literal
 from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
 from .compat import patch_python_hwpx
 
@@ -59,6 +60,59 @@ def open_document(source: str | PathLike[str] | Any) -> HwpxDocument:
     return HwpxDocument.open(source)
 
 
+# HWP 5.0 (.hwp) files are OLE2 compound files; HWPX files are ZIP packages.
+_OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
+def native_hwp5_supported() -> bool:
+    """Whether the installed python-hwpx opens and writes ``.hwp`` itself (6.6.0+)."""
+
+    return hasattr(HwpxDocument, "conversion_report")
+
+
+def is_hwp5_source(source: str | PathLike[str] | bytes) -> bool:
+    """Whether *source* holds an HWP 5.0 file, judged by its leading bytes."""
+
+    if isinstance(source, bytes):
+        return source[:8] == _OLE2_MAGIC
+    try:
+        with open(source, "rb") as stream:
+            return stream.read(8) == _OLE2_MAGIC
+    except OSError:
+        return False
+
+
+def is_hwp5_target(path: str | PathLike[str]) -> bool:
+    """Whether saving to *path* writes HWP 5.0; the extension picks the format."""
+
+    return str(path).lower().endswith(".hwp")
+
+
+def hwp5_conversion_report(document: HwpxDocument) -> dict[str, dict[str, int]] | None:
+    """What opening an ``.hwp`` left out of the model; None for an HWPX source."""
+
+    report = getattr(document, "conversion_report", None)
+    if report is None:
+        return None
+    return {"unconverted": dict(report.unconverted), "dropped": dict(report.dropped)}
+
+
+def hwp5_document_bytes(document: HwpxDocument) -> bytes:
+    """Serialize *document* as HWP 5.0; core raises ``Hwp5Error`` before writing anything."""
+
+    return document.to_bytes(format="hwp")
+
+
+def hwpx_view_bytes(source: str | PathLike[str] | bytes) -> bytes:
+    """The HWPX package of the document model an ``.hwp`` source opens to."""
+
+    document = HwpxDocument.open(source)
+    try:
+        return document.to_bytes()
+    finally:
+        document.close()
+
+
 def new_document() -> HwpxDocument:
     return HwpxDocument.new()
 
@@ -71,11 +125,11 @@ def open_package(path: str | PathLike[str]) -> HwpxPackage:
     return HwpxPackage.open(path)
 
 
-def create_text_extractor(path: str | PathLike[str]) -> TextExtractor:
+def create_text_extractor(path: str | PathLike[str] | ZipFile) -> TextExtractor:
     return TextExtractor(path)
 
 
-def create_object_finder(path: str | PathLike[str]) -> ObjectFinder:
+def create_object_finder(path: str | PathLike[str] | ZipFile) -> ObjectFinder:
     return ObjectFinder(path)
 
 

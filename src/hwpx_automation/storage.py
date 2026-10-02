@@ -32,7 +32,18 @@ else:
     _OPEN_SAFETY_CLASSIFIER_IMPORT_ERROR = None
 
 from . import quality as quality_contract
-from .upstream import HwpxDocument, open_document, validate_document_path
+from .errors import HwpDocumentError
+from .upstream import (
+    HwpxDocument,
+    hwp5_conversion_report,
+    hwp5_document_bytes,
+    hwpx_view_bytes,
+    is_hwp5_source,
+    is_hwp5_target,
+    native_hwp5_supported,
+    open_document,
+    validate_document_path,
+)
 from .workspace import (
     LEGACY_SANDBOX_ROOT_ENV,
     LEGACY_WORKSPACE_ROOTS_ENV,
@@ -231,8 +242,7 @@ class LocalDocumentStorage:
 
     def open_document(self, path: str) -> Tuple[HwpxDocument, Path]:
         resolved = self.resolve_path(path)
-        require_hwpx_editor_open_safe(resolved, role="local HWPX open")
-        document = open_document(resolved)
+        document = open_local_document(resolved, role="local HWPX open")
         return document, resolved
 
     def save_document(
@@ -241,12 +251,15 @@ class LocalDocumentStorage:
         # General document saves use the SavePipeline gate. Byte-preserving
         # form writers have their own guarded open-safety publication path.
         quality_contract.assert_write_capability()
+        if is_hwp5_target(target):
+            require_native_hwp5()
         guard = self.capture_output_guard(target)
         self.maybe_backup(target)
         pre_save_snapshot = build_hwpx_presave_snapshot(target)
         # Validate in an isolated temp, then publish through the identity-bound
         # workspace guard. Candidate creation never follows the output parent.
-        tmp_fd, tmp_path_str = tempfile.mkstemp(suffix=target.suffix)
+        # The gate always checks HWPX parts, so an .hwp target is staged as HWPX.
+        tmp_fd, tmp_path_str = tempfile.mkstemp(suffix=_staging_suffix(target))
         tmp_path = Path(tmp_path_str)
         try:
             os.close(tmp_fd)
@@ -259,7 +272,8 @@ class LocalDocumentStorage:
                     "saved HWPX failed open-safety verification: "
                     + verification_report["openSafety"]["summary"]
                 )
-            self.atomic_write_bytes(guard, tmp_path.read_bytes())
+            data = _published_bytes(document, target, tmp_path, verification_report)
+            self.atomic_write_bytes(guard, data)
             verification_report["filePath"] = str(target)
             verification_report["visualComplete"] = quality_contract.visual_complete_block(report)
             return verification_report
@@ -302,6 +316,75 @@ def require_hwpx_editor_open_safe(
             + open_safety["summary"]
         )
     return open_safety
+
+
+def require_native_hwp5() -> None:
+    """Refuse ``.hwp`` work clearly when the installed core cannot read or write it."""
+
+    if not native_hwp5_supported():
+        raise HwpDocumentError(
+            "설치된 python-hwpx는 HWP 5.0(.hwp) 문서를 열거나 저장하지 못합니다.",
+            code="READ_ONLY_HWP_DOCUMENT",
+        )
+
+
+def open_local_document(path: Path, *, role: str) -> HwpxDocument:
+    """Open a local HWPX or HWP 5.0 document for editing.
+
+    An HWPX package must pass the editor open-safety check first. An ``.hwp``
+    file is converted by python-hwpx, which refuses damaged, encrypted and
+    DRM files itself (``Hwp5Error``).
+    """
+
+    if is_hwp5_source(path):
+        require_native_hwp5()
+        return open_document(path)
+    require_hwpx_editor_open_safe(path, role=role)
+    return open_document(path)
+
+
+def require_hwpx_package(
+    source: Path | str, *, output: Path | str | None = None
+) -> None:
+    """Refuse an ``.hwp`` source or output for editors that patch HWPX package bytes."""
+
+    if is_hwp5_source(source) or (output is not None and is_hwp5_target(output)):
+        raise HwpDocumentError(
+            "이 도구는 HWPX 패키지의 바이트를 직접 고치므로 HWP 5.0(.hwp) 문서를 입력이나 출력으로 쓸 수 없습니다.",
+            code="HWPX_PACKAGE_REQUIRED",
+        )
+
+
+def _staging_suffix(target: Path) -> str:
+    return ".hwpx" if is_hwp5_target(target) else (target.suffix or ".hwpx")
+
+
+def _published_bytes(
+    document: HwpxDocument,
+    target: Path,
+    staged: Path,
+    verification_report: Dict[str, Any],
+) -> bytes:
+    """The bytes to publish at *target*: the verified HWPX, or HWP 5.0 for ``.hwp``.
+
+    The HWP 5.0 bytes are reopened before anything is written, and the report
+    records what an ``.hwp`` source could not carry into the document model.
+    """
+
+    conversion = hwp5_conversion_report(document)
+    if conversion is not None and (conversion["unconverted"] or conversion["dropped"]):
+        verification_report["hwpConversion"] = conversion
+        verification_report["warnings"].append(
+            "content the .hwp source could not carry into the document model is not in the saved file"
+        )
+    if not is_hwp5_target(target):
+        return staged.read_bytes()
+    data = hwp5_document_bytes(document)
+    reopened = open_document(data)
+    reopened.close()
+    verification_report["format"] = "hwp"
+    verification_report["fileSizeBytes"] = len(data)
+    return data
 
 
 @dataclass(slots=True)
@@ -423,7 +506,10 @@ class HttpDocumentStorage:
         try:
             with os.fdopen(tmp_fd, "wb") as tmp_fh:
                 tmp_fh.write(payload)
-            require_hwpx_editor_open_safe(tmp_path, role="HTTP storage open")
+            if is_hwp5_source(tmp_path):
+                require_native_hwp5()
+            else:
+                require_hwpx_editor_open_safe(tmp_path, role="HTTP storage open")
             os.replace(tmp_path, local_path)
         except Exception:
             tmp_path.unlink(missing_ok=True)
@@ -437,6 +523,8 @@ class HttpDocumentStorage:
         self, document: HwpxDocument, target: Path, *, quality: Any = None
     ) -> Dict[str, Any]:
         quality_contract.assert_write_capability()
+        if is_hwp5_target(target):
+            require_native_hwp5()
         remote_key = str(target)
         cache_path = self._cache.get(remote_key)
         if cache_path is None:
@@ -445,7 +533,7 @@ class HttpDocumentStorage:
 
         pre_save_snapshot = build_hwpx_presave_snapshot(cache_path if cache_path.exists() else None)
         tmp_fd, tmp_path_str = tempfile.mkstemp(
-            suffix=cache_path.suffix or ".hwpx",
+            suffix=_staging_suffix(cache_path),
             dir=str(cache_path.parent),
         )
         tmp_path = Path(tmp_path_str)
@@ -460,7 +548,9 @@ class HttpDocumentStorage:
                     + verification_report["openSafety"]["summary"]
                 )
             verification_report["visualComplete"] = quality_contract.visual_complete_block(report)
-            payload = tmp_path.read_bytes()
+            payload = _published_bytes(document, target, tmp_path, verification_report)
+            if is_hwp5_target(target):
+                tmp_path.write_bytes(payload)
         except quality_contract.QualityGateError:
             tmp_path.unlink(missing_ok=True)
             raise
@@ -489,6 +579,19 @@ def build_hwpx_presave_snapshot(
     if source is None or (isinstance(source, Path) and not source.exists()):
         return None
     return _collect_hwpx_snapshot(source)
+
+
+def _hwpx_view(source: HwpxVerificationSource) -> HwpxVerificationSource:
+    """*source* itself, or for an ``.hwp`` the HWPX package of its document model.
+
+    HWPX verification reads package parts, so an HWP 5.0 file is checked
+    through the model python-hwpx opens it to.
+    """
+
+    if is_hwp5_source(source):
+        require_native_hwp5()
+        return hwpx_view_bytes(source)
+    return source
 
 
 def _issue_messages(report: Any, attr_name: str = "issues") -> List[str]:
@@ -520,6 +623,7 @@ def build_hwpx_open_safety_report(
     document_payload: Dict[str, Any]
     reopen_payload: Dict[str, Any]
 
+    source = _hwpx_view(source)
     dependency_error = _open_safety_dependency_error()
     if dependency_error is not None:
         package_payload = {
@@ -606,8 +710,9 @@ def build_hwpx_verification_report(
     *,
     file_path: Path | None = None,
 ) -> Dict[str, Any]:
-    snapshot = _collect_hwpx_snapshot(source)
-    open_safety = build_hwpx_open_safety_report(source)
+    view = _hwpx_view(source)
+    snapshot = _collect_hwpx_snapshot(view)
+    open_safety = build_hwpx_open_safety_report(view)
     displayed_path = file_path or (source if isinstance(source, Path) else None)
     file_size = len(source) if isinstance(source, bytes) else source.stat().st_size
     totals = snapshot["totals"]
@@ -681,6 +786,7 @@ def _collect_hwpx_snapshot(source: HwpxVerificationSource) -> Dict[str, Any]:
         "suspiciousPatterns": 0,
     }
 
+    source = _hwpx_view(source)
     archive_source = BytesIO(source) if isinstance(source, bytes) else source
     with zipfile.ZipFile(archive_source) as archive:
         names = set(archive.namelist())

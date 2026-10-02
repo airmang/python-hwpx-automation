@@ -35,6 +35,7 @@ from ..office.compliance import DEFAULT_POLICY, mask_pii
 from ..runtime_services import RUNTIME_SERVICES
 from ..upstream import (
     HP_NS,
+    hwp5_conversion_report,
     open_document,
 )
 from ..utils.helpers import default_max_chars, resolve_path, truncate_response
@@ -777,16 +778,19 @@ def get_document_info(filename: str) -> dict:
     path = resolve_path(filename)
     doc = open_doc(path)
     file_size = Path(path).stat().st_size
-    return _with_document_state(
-        {
-            "filename": filename,
-            "sections": len(doc.sections),
-            "paragraphs": _paragraph_count(doc),
-            "tables": _table_count(doc),
-            "file_size": str(file_size),
-        },
-        path,
-    )
+    info: dict[str, Any] = {
+        "filename": filename,
+        "sections": len(doc.sections),
+        "paragraphs": _paragraph_count(doc),
+        "tables": _table_count(doc),
+        "file_size": str(file_size),
+    }
+    conversion = hwp5_conversion_report(doc)
+    if conversion is not None:
+        # An .hwp is edited through the document model; this is what it left out.
+        info["format"] = "hwp"
+        info["hwpConversion"] = conversion
+    return _with_document_state(info, path)
 
 
 def get_document_text(

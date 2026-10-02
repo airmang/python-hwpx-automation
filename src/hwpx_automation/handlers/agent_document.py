@@ -9,6 +9,8 @@ from typing import Any
 
 
 from ..document_state import document_state_payload
+from ..errors import HwpDocumentError
+from ..storage import require_hwpx_package
 from ..agent_document import (
     AgentChildLimit,
     AgentCommandList,
@@ -100,6 +102,7 @@ def apply_document_commands(
     try:
         resolved_input = resolve_path(filename)
         resolved_output = resolve_path(output)
+        require_hwpx_package(resolved_input, output=resolved_output)
         quality_contract.assert_write_capability()
         store = ScopedIdempotencyStore(
             RUNTIME_SERVICES.idempotency_cache,
@@ -132,6 +135,8 @@ def apply_document_commands(
         if Path(state_path).exists():
             payload.update(document_state_payload(state_path))
         return payload
+    except HwpDocumentError:
+        raise
     except Exception as exc:
         return agent_batch_error_payload(
             exc,
