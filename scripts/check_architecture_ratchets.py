@@ -37,7 +37,9 @@ EXPECTED_SERVICE_LINES = {
     # dispatch to the page/shapes namespaces and .to_dict() the returned
     # living views before this op's dict-mutation contract (result.update()).
     "content_layout.py": 547,
-    "context.py": 213,
+    # .hwp documents: python-hwpx opens and writes HWP 5.0 itself, so services
+    # route .hwp through it and refuse it where they patch HWPX package bytes.
+    "context.py": 259,
     # Receipt-truthfulness repair: the publish decision now compares the
     # produced bytes against the source instead of trusting a field on the
     # domain payload. A payload describing only the structural step suppressed
@@ -45,7 +47,7 @@ EXPECTED_SERVICE_LINES = {
     # WP-F (core 6.0 namespace adaptation): add_form_field/fill_form_field now
     # rebuild the 5.x form-field dict shape from FormField/FieldFillResult
     # living views via a local _form_field_to_legacy_dict helper (design §2.3).
-    "form_fields.py": 742,
+    "form_fields.py": 745,
     # WP-F: insert_picture/replace_picture rebuild the picture-reference and
     # replacement payload shapes from PictureRef/PictureReplacement, whose own
     # to_dict() keys do not match this op's established contract.
@@ -58,17 +60,17 @@ EXPECTED_SERVICE_LINES = {
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
     "preview_export.py": 585,
-    "read_query.py": 601,
+    "read_query.py": 606,
     # Receipt-truthfulness repair: the written verification report copied the
     # domain payload's preservation claim verbatim, so an incoherent payload
     # printed a byteIdentical receipt onto a rewritten document. The seam now
     # refuses the impossible combination rather than forwarding it.
-    "save_policy.py": 616,
+    "save_policy.py": 619,
     # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
     # hasattr fallback (equivalent direct itemCnt computation) is now the only
     # branch, so the dead private call went away.
     "tables.py": 536,
-    "transactions.py": 616,
+    "transactions.py": 617,
 }
 
 EXPECTED_FACADE_LINES = {

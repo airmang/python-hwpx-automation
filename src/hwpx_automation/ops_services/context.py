@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from io import BytesIO
 from pathlib import Path
+from zipfile import ZipFile
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ..errors import HwpDocumentError, hwp5_error_payload
 from ..hwp_support import HwpBinaryError, extract_hwp_text
 from ..core.locator import RegisteredHandle
 from ..core.context import default_session_lifecycle_policy
-from ..storage import DocumentStorage, LocalDocumentStorage
+from ..storage import DocumentStorage, LocalDocumentStorage, require_hwpx_package
 from ..workspace import (
     WorkspacePathError,
 )
@@ -18,6 +21,8 @@ from ..upstream import (
     HwpxDocument,
     HwpxOxmlParagraph,
     HwpxOxmlTable,
+    hwpx_view_bytes,
+    native_hwp5_supported,
 )
 
 logger = logging.getLogger("hwpx_automation.hwpx_ops")
@@ -158,12 +163,50 @@ class DocumentContext:
     def _relative_path(self, path: Path) -> str:
         return self.storage.relative_path(path)
 
+    def _is_legacy_hwp(self, resolved: Path) -> bool:
+        """An ``.hwp`` the installed core cannot open; only its preview text is readable."""
+
+        return resolved.suffix.lower() == ".hwp" and not native_hwp5_supported()
+
+    def _text_source(self, resolved: Path) -> Path | ZipFile:
+        """What the text extractor reads: the HWPX file, or an ``.hwp``'s HWPX model."""
+
+        if resolved.suffix.lower() != ".hwp":
+            return resolved
+        try:
+            return ZipFile(BytesIO(hwpx_view_bytes(resolved)))
+        except Exception as exc:
+            hwp_error = self._hwp_error(exc)
+            if hwp_error is None:
+                raise
+            raise hwp_error from exc
+
+    def _hwp_error(self, exc: BaseException) -> Optional[RuntimeError]:
+        """The operation error for an ``.hwp`` refusal, or None for any other failure."""
+
+        if isinstance(exc, HwpDocumentError):
+            return self._new_error(exc.code, exc.message, details=exc.details)
+        payload = hwp5_error_payload(exc)
+        if payload is None:
+            return None
+        return self._new_error(
+            payload["code"], payload["message"], details=payload.get("details")
+        )
+
+    def _require_hwpx_package(self, source: Path, output: Optional[str] = None) -> None:
+        """Refuse ``.hwp`` for editors that patch HWPX package bytes."""
+
+        try:
+            require_hwpx_package(source, output=output)
+        except HwpDocumentError as exc:
+            raise self._new_error(exc.code, exc.message, details=exc.details) from exc
+
     def _open_document(self, path: str) -> Tuple[HwpxDocument, Path]:
         resolved = self._resolve_path(path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._is_legacy_hwp(resolved):
             raise self._new_error(
                 "READ_ONLY_HWP_DOCUMENT",
-                "HWP 파일은 편집이 불가합니다. 먼저 convert_hwp_to_hwpx 도구로 HWPX 변환 후 편집하세요.",
+                "설치된 python-hwpx는 HWP 5.0(.hwp) 문서를 열거나 저장하지 못합니다.",
             )
         try:
             document, resolved = self.storage.open_document(path)
@@ -186,6 +229,9 @@ class DocumentContext:
                 details={"requestedName": Path(path).name},
             ) from exc
         except Exception as exc:  # pragma: no cover - delegated to backend
+            hwp_error = self._hwp_error(exc)
+            if hwp_error is not None:
+                raise hwp_error from exc
             raise self._new_error(
                 "DOCUMENT_OPEN_FAILED",
                 f"failed to open '{path}': {exc}",

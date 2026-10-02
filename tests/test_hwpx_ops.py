@@ -7,6 +7,7 @@ import pytest
 from hwpx.document import HwpxDocument
 from hwpx_automation.hwpx_ops import HH_NS, HP_NS, HwpxOps
 import hwpx_automation.hwpx_ops as ops_module
+import hwpx_automation.ops_services.context as context_module
 import hwpx_automation.ops_services.read_query as read_query_module
 
 PNG_1X1_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
@@ -831,6 +832,8 @@ def test_replace_table_region_auto_fit_scales_each_column(ops_with_sample):
     assert widths[2] > widths[1] > widths[0]
 
 def test_hwp_open_info_returns_read_only_metadata(monkeypatch, tmp_path):
+    # A core that cannot open .hwp leaves only the preview-text reader.
+    monkeypatch.setattr(context_module, "native_hwp5_supported", lambda: False)
     ops = HwpxOps(base_directory=tmp_path)
     hwp_path = tmp_path / "sample.hwp"
     hwp_path.write_bytes(b"fake")
@@ -850,6 +853,7 @@ def test_hwp_open_info_returns_read_only_metadata(monkeypatch, tmp_path):
 
 
 def test_hwp_read_text_and_find_use_read_only_pipeline(monkeypatch, tmp_path):
+    monkeypatch.setattr(context_module, "native_hwp5_supported", lambda: False)
     ops = HwpxOps(base_directory=tmp_path)
     hwp_path = tmp_path / "sample.hwp"
     hwp_path.write_bytes(b"fake")
@@ -868,7 +872,8 @@ def test_hwp_read_text_and_find_use_read_only_pipeline(monkeypatch, tmp_path):
     assert found["matches"][0]["paragraphIndex"] == 1
 
 
-def test_hwp_edit_tools_raise_clear_error(tmp_path):
+def test_hwp_edit_tools_raise_clear_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(context_module, "native_hwp5_supported", lambda: False)
     ops = HwpxOps(base_directory=tmp_path)
     hwp_path = tmp_path / "sample.hwp"
     hwp_path.write_bytes(b"fake")
@@ -876,7 +881,9 @@ def test_hwp_edit_tools_raise_clear_error(tmp_path):
     with pytest.raises(Exception) as exc_info:
         ops.replace_text_in_runs(hwp_path.name, "A", "B")
 
-    assert "convert_hwp_to_hwpx" in str(exc_info.value)
+    assert exc_info.value.code == "READ_ONLY_HWP_DOCUMENT"
+    # The refusal must not name a tool the server does not expose.
+    assert "convert_hwp_to_hwpx" not in str(exc_info.value)
 
 
 def test_analyze_template_structure_returns_regions_and_placeholders(ops_with_sample):

@@ -39,7 +39,7 @@ class PlanningService:
     def _ensure_planner_document(self, doc_id: str, path: str) -> None:
         resolved = self._context._resolve_path(path)
         paragraphs: List[str] = []
-        with create_text_extractor(resolved) as extractor:
+        with create_text_extractor(self._context._text_source(resolved)) as extractor:
             for paragraph in extractor.iter_document_paragraphs():
                 paragraphs.append(paragraph.text(preserve_breaks=True))
         self._manager.register_document(doc_id, "\n".join(paragraphs))

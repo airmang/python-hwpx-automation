@@ -135,7 +135,7 @@ class PackageValidationService:
         resolved = self._context._resolve_path(path)
         patterns = [re.compile(pat) for pat in (forbid_patterns or [])]
         warnings: List[Dict[str, Any]] = []
-        with create_text_extractor(resolved) as extractor:
+        with create_text_extractor(self._context._text_source(resolved)) as extractor:
             for paragraph in extractor.iter_document_paragraphs():
                 text = paragraph.text()
                 if max_line_len is not None and len(text) > max_line_len:
