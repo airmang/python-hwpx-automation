@@ -1,11 +1,18 @@
 ---
 name: hwpx
-description: "한글 문서(.hwpx/OWPML) 편집·추출·자동화 스킬. '한글 문서 편집해줘', 가정통신문·공문·한글 양식 작성, HWPX 편집, 한글 파일/OWPML 분석, 플레이스홀더 치환, 문서 자동화 요청이면 이 스킬을 반드시 사용하세요. 줄간격·여백·쪽번호·머리글 등 서식 변경, 그림 삽입/교체, 문서 비교·신구대조표, 메일머지 대량생산(상장·수료증·가정통신문), 사진대지·회의명패·조직도 생성, 표 합계/소계 계산 요청도 모두 이 스킬의 대상입니다."
+description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한글 문서 편집해줘', 가정통신문·공문·한글 양식 작성, HWPX 편집, 한글 파일/OWPML 분석, 플레이스홀더 치환, 문서 자동화 요청이면 이 스킬을 반드시 사용하세요. 줄간격·여백·쪽번호·머리글 등 서식 변경, 그림 삽입/교체, 문서 비교·신구대조표, 메일머지 대량생산(상장·수료증·가정통신문), 사진대지·회의명패·조직도 생성, 표 합계/소계 계산 요청도 모두 이 스킬의 대상입니다."
 ---
 
 # hwpx (HWPX / OWPML)
 
-`.hwpx`는 ZIP 기반 OWPML 문서다. 모든 작업은
+`.hwpx`는 ZIP 기반 OWPML 문서이고, `.hwp`는 HWP 5.0 바이너리 문서다. python-hwpx 6.6.0부터
+`HwpxDocument.open`이 `.hwp`도 같은 문서 모델로 열고 `save_to_path("x.hwp")`로 HWP 5.0을 다시 쓴다.
+따라서 `.hwp`라는 이유만으로 거절하거나 한/글에서 `.hwpx`로 바꿔 오라고 하지 않는다. 결과는 원본과 같은 형식으로
+저장하고, 옮기지 못한 내용(`doc.conversion_report`의 `unconverted`·`dropped`)이나
+`Hwp5Error`(`hwp5-write-unsupported`, 암호·배포용·DRM)는 그대로 보고한다. MCP 서버가 `.hwp` 편집을
+`READ_ONLY_HWP_DOCUMENT`로 거부하면 같은 작업을 아래 local Python 경로로 한다.
+
+모든 작업은
 `python-hwpx-automation`의 MCP 도구를 1차 경로로 사용한다. 새 설정은 정식
 host-local key `hwpx`, launcher `scripts/hwpx-automation-mcp`, 콘솔
 `hwpx-automation-mcp`를 사용한다. `hwpx-mcp-server` 이름과 launcher wrapper는
@@ -29,6 +36,14 @@ primitive 도구는 workflow가 지원하지 않는 전문 작업 또는 진단�
 [기존 편집 안내](references/workflows-existing-edit.md)를 따른다. 구조 검사 통과와 실제 한컴 화면 확인은 별도로 보고한다.
 
 ## 시작 체크
+
+HWPX MCP 도구가 보이지 않거나 서버 연결이 실패했으면(예: `CONNECTION_CLOSED`) 먼저 원인을 확인한다.
+Claude Code 번들은 `uv run --frozen`으로 서버를 띄우므로 `uv`가 없으면 서버가 시작되지 않는다.
+`uv --version`으로 확인하고, 없으면 사용자에게 설치를 안내한 뒤(macOS·Linux:
+`curl -LsSf https://astral.sh/uv/install.sh | sh`, Windows: `winget install --id=astral-sh.uv -e`)
+호스트 앱을 다시 시작하라고 한다. 사용자 동의 없이 설치 명령을 실행하지 않는다. `uv`가 있는데도 실패하면
+첫 실행의 Python 3.12·패키지 내려받기가 끝나지 않았거나 네트워크가 막힌 경우이므로 그 사실을 보고한다.
+기다리는 동안 할 수 있는 일은 local Python 경로로 한다.
 
 MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호출해
 `version`, `pythonHwpxVersion`, `toolSurface.status`, `toolSurface.missingKeyTools`를 확인한다.
