@@ -6,8 +6,9 @@ self-update on the user's machine the way the managed launcher does. Instead
 this script runs in CI (``claude-runtime-refresh`` workflow): it picks the
 newest stable, non-yanked ``python-hwpx`` and ``python-hwpx-automation`` on PyPI
 inside the window from ``packaging/product-identity.json`` (>= currentVersion,
-< next major), rewrites the pins, re-locks ``uv.lock`` and changes the Claude
-plugin's version string so Claude Code sees an update.
+< next major), rewrites the pins, re-locks ``uv.lock``, re-vendors the skill's
+engine copy from the new lock and changes the Claude plugin's version string so
+Claude Code sees an update.
 
 Usage::
 
@@ -121,6 +122,12 @@ def main(argv: list[str] | None = None) -> int:
     if lock.returncode != 0:
         subprocess.run(["git", "checkout", "--", str(PYPROJECT)], cwd=ROOT, check=False)
         raise SystemExit(f"uv lock failed for {target}; pins restored:\n{lock.stderr[-2000:]}")
+
+    # The skill's vendored engine (claude.ai chat, no MCP) must move with the server runtime.
+    vendored = subprocess.run([sys.executable, str(ROOT / "scripts" / "vendor_claude_engine.py")],
+                              capture_output=True, text=True)
+    if vendored.returncode != 0:
+        raise SystemExit(f"vendoring the engine for {target} failed:\n{(vendored.stdout + vendored.stderr)[-2000:]}")
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     manifest["version"] = version

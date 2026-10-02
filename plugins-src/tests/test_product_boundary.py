@@ -37,3 +37,22 @@ def test_new_skill_runtime_implementation_fails_closed(tmp_path) -> None:
 
     assert not report["ok"]
     assert any("unapproved Python implementation" in item for item in report["violations"])
+
+
+def test_only_unmodified_vendored_engine_source_is_exempt(tmp_path) -> None:
+    import hashlib
+    import json
+
+    engine = tmp_path / "plugins" / "claude" / "hwpx-plugin" / "skills" / "hwpx" / "engine"
+    (engine / "hwpx").mkdir(parents=True)
+    published = engine / "hwpx" / "__init__.py"
+    published.write_text("__version__ = '0'\n", encoding="utf-8")
+    manifest = {"files": {"hwpx/__init__.py": hashlib.sha256(published.read_bytes()).hexdigest()}}
+    (engine / "VENDOR.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert boundary.evaluate(tmp_path)["ok"]
+
+    published.write_text("__version__ = '0'\ndef compose(): return None\n", encoding="utf-8")
+    (engine / "hwpx" / "house_style.py").write_text("", encoding="utf-8")
+    report = boundary.evaluate(tmp_path)
+    assert not report["ok"]
+    assert len(report["violations"]) == 2

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- claude.ai 채팅에서 스킬을 쓸 수 있습니다. 채팅은 로컬 MCP 서버를 띄울 수 없고 PyPI에도 닿지 않으므로, Claude 번들
+  스킬에 `server/uv.lock`과 같은 버전의 `python-hwpx`·`python-hwpx-automation`을 원본 그대로 `skills/hwpx/engine/`에
+  넣었습니다. MCP 도구가 없으면 스킬이 `chat-engine.md`의 시작 블록으로 이 엔진을 `sys.path`에서 불러오고, ChatGPT 웹판과
+  같은 W1~W5 절차(읽기, 문구 바꾸기, 표 칸 채우기, 누름틀 채우기, 새 문서)를 씁니다. `scripts/vendor_claude_engine.py`가
+  lock의 wheel을 해시로 대조해 풀고 파일별 해시를 `engine/VENDOR.json`에 남기며, 검증기는 엔진이 lock과 같은지와
+  디렉터리 한도(파일당 256 KiB, 플러그인당 512개)를 확인합니다. 런타임 갱신 봇은 lock을 올릴 때 엔진도 다시 풉니다.
+  `scripts/claude_chat_sim.py`는 이 경로를 채팅과 같은 조건(엔진 미설치, 인덱스 차단, 읽기 전용 스킬)에서 실행합니다.
+- Claude 번들에서 `references/tool-contract.generated.json`(656 KiB)을 뺍니다. 디렉터리 검사기가 256 KiB를 넘는 파일을
+  읽지 않아 검토 보류 사유가 됐습니다. 같은 계약의 Markdown판은 그대로 들어 있습니다.
+
 - 스킬이 `.hwp`(HWP 5.0)를 "지원하지 않는 형식"으로 돌려보내지 않습니다. python-hwpx 6.6.0부터 `.hwp`를 같은 문서 모델로
   열고 HWP 5.0으로 다시 쓰므로, SKILL.md·README·`references/api.md`의 낡은 "`.hwpx`만 지원" 문장을 바로잡았습니다.
   automation 7.3.x MCP 도구가 `.hwp` 편집을 거부하면 Python 경로로 같은 작업을 합니다.
