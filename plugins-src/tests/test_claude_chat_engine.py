@@ -71,3 +71,18 @@ def test_only_the_claude_bundle_carries_the_engine_and_every_skill_points_to_it(
         assert "`chat-engine.md`" in skill_md.read_text(encoding="utf-8")
     hosts_with_engine = sorted(p.parents[4].name for p in ROOT.glob("plugins/*/*/skills/hwpx/engine/VENDOR.json"))
     assert hosts_with_engine == ["claude"]
+
+
+def test_claude_bundle_text_never_pipes_a_download_into_a_shell() -> None:
+    # The Claude plugin directory flags download-and-run commands anywhere in shipped text
+    # (RUNTIME_FETCH_EXEC), including skill prose that only tells the user what to run.
+    fetch_exec = re.compile(
+        r"(curl|wget|irm|iwr|Invoke-WebRequest|Invoke-RestMethod)\b[^\n`]*\|\s*(sh|bash|zsh|iex|python3?|pwsh|powershell)\b"
+    )
+    offenders = [
+        path.relative_to(BUNDLE).as_posix()
+        for path in BUNDLE.rglob("*")
+        if path.is_file() and path.suffix in {".md", ".json", ".txt", ".py", ".toml", ".sh", ""}
+        and fetch_exec.search(path.read_text(encoding="utf-8", errors="ignore"))
+    ]
+    assert offenders == []
