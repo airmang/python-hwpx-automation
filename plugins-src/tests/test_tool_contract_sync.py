@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 from pathlib import Path
@@ -115,7 +116,6 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
     assert 'export HWPX_PLUGIN_ROOT="${HWPX_PLUGIN_ROOT:-${PLUGIN_ROOT}}"' in launcher
 
     for manifest in (
-        ROOT / "packaging" / "templates" / "claude.plugin.json",
         ROOT / "packaging" / "templates" / "codex.plugin.json",
         ROOT / "packaging" / "templates" / "openclaw.plugin.json",
     ):
@@ -123,6 +123,24 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
             json.loads(manifest.read_text(encoding="utf-8"))["version"]
             == components["plugin"]["currentVersion"]
         )
+    # The Claude version follows its locked runtime: the train version for the verified
+    # pair, otherwise a runtime-tagged variant the refresh bot writes inside the window.
+    pins = dict(re.findall(
+        r'"(python-hwpx(?:-automation)?)\[[^\]]*\]==([^"]+)"',
+        (ROOT / "packaging" / "templates" / "claude-runtime" / "pyproject.toml").read_text(encoding="utf-8"),
+    ))
+    spec = importlib.util.spec_from_file_location("refresh_claude_runtime", ROOT / "scripts" / "refresh_claude_runtime.py")
+    refresh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(refresh)
+    identity = json.loads((ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8"))
+    assert json.loads((ROOT / "packaging" / "templates" / "claude.plugin.json").read_text(encoding="utf-8"))["version"] == (
+        refresh.claude_plugin_version(
+            components["plugin"]["currentVersion"],
+            pins[components["core"]["distribution"]],
+            pins[components["automation"]["distribution"]],
+            identity,
+        )
+    )
 
 
 def test_skill_routes_to_generated_api_table() -> None:

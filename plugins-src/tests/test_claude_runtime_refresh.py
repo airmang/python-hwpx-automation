@@ -3,6 +3,7 @@
 
 import importlib.util
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -73,9 +74,11 @@ def test_validator_rejects_a_pin_outside_the_window(tmp_path: Path) -> None:
     bundle = tmp_path / "hwpx-plugin"
     shutil.copytree(ROOT / "plugins" / "claude" / "hwpx-plugin", bundle)
     pyproject = bundle / "server" / "pyproject.toml"
-    core = IDENTITY["components"]["core"]["currentVersion"]
+    # The bot may already pin a newer core inside the window, so move whatever is pinned now.
+    text = pyproject.read_text(encoding="utf-8")
+    core = re.search(r'"python-hwpx\[[^\]]*\]==([^"]+)"', text).group(1)
     major = int(core.split(".")[0])
-    pyproject.write_text(pyproject.read_text(encoding="utf-8").replace(f"=={core}", f"=={major + 1}.0.0"), encoding="utf-8")
+    pyproject.write_text(text.replace(f"=={core}", f"=={major + 1}.0.0"), encoding="utf-8")
     with pytest.raises(SystemExit, match="outside the install window"):
         validator.validate_claude_locked_runtime(bundle, IDENTITY)
 
