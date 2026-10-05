@@ -256,3 +256,41 @@ def test_get_document_text_uses_env_default_limit(sample_file: Path, monkeypatch
 
     assert result["truncated"] is True
     assert len(result["text"]) == 40
+
+
+def test_search_and_replace_does_not_replace_its_own_output(sample_file: Path):
+    # replace_text contains find_text: each occurrence is replaced once (#164).
+    _append_paragraph(sample_file, "성명 홍길동, 보호자 홍길동")
+
+    result = search_and_replace(str(sample_file), "홍길동", "홍길동(인)")
+    text = get_document_text(str(sample_file))["text"]
+
+    assert result["replaced_count"] == 2
+    assert "성명 홍길동(인), 보호자 홍길동(인)" in text
+    assert "(인)(인)" not in text
+
+
+def test_cross_run_replace_does_not_replace_its_own_output(sample_file: Path):
+    _append_paragraph(sample_file, "")
+    _set_split_runs(sample_file, 1, ["홍", "길동 귀하"])
+
+    result = search_and_replace(str(sample_file), "홍길동", "홍길동(인)")
+    doc = open_doc(str(sample_file))
+
+    assert result["replaced_count"] == 1
+    assert doc.paragraphs[1].text == "홍길동(인) 귀하"
+
+
+def test_xml_runs_replace_does_not_replace_its_own_output() -> None:
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    paragraph = ET.Element(f"{hp}p")
+    run = ET.SubElement(paragraph, f"{hp}run", {"charPrIDRef": "1"})
+    ET.SubElement(run, f"{hp}t").text = "마바사아 그리고 마바사아"
+    other = ET.SubElement(paragraph, f"{hp}run", {"charPrIDRef": "2"})
+    ET.SubElement(other, f"{hp}t").text = " 끝"
+
+    replaced = _replace_in_xml_runs([run, other], "마바사아", "마바사아ZZ")
+
+    assert replaced == 2
+    assert "".join(run.itertext()) == "마바사아ZZ 그리고 마바사아ZZ"
+    assert "".join(other.itertext()) == " 끝"  # within-run matches keep the other run as it was
