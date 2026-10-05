@@ -330,6 +330,12 @@ def test_task_eval_harness_assets_are_bundled() -> None:
         skill_root = bundle / "skills" / "hwpx"
         if not skill_root.exists():
             skill_root = bundle
+        if bundle.parent.name == "claude":
+            # The Claude bundle carries the vendored engine and must stay under the
+            # directory's 512-file limit, so the developer replay kit stays out of it.
+            assert not (skill_root / "scripts" / "task_eval_harness.py").exists()
+            assert not (skill_root / "examples" / "eval_tasks").exists()
+            continue
         assert (skill_root / "scripts" / "task_eval_harness.py").exists()
         assert (skill_root / "examples" / "12_task_eval_replay.md").exists()
         assert (skill_root / "examples" / "eval_tasks" / "tasks.json").exists()

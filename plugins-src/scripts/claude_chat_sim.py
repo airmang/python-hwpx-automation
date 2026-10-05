@@ -42,7 +42,7 @@ def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 
 def venv(python: str, path: Path, packages: list[str]) -> Path:
     run([python, "-m", "venv", str(path)], check=True)
-    py = path / "bin" / "python"
+    py = path / "Scripts" / "python.exe" if os.name == "nt" else path / "bin" / "python"
     if packages:
         run([str(py), "-m", "pip", "install", "-q", "--disable-pip-version-check", *packages], check=True)
     return py
@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         shutil.copytree(BUNDLE, plugin, ignore=shutil.ignore_patterns("__pycache__"))
         skill = plugin / "skills" / "hwpx"
         chatgpt.read_only(plugin)
-        env = {**os.environ, "HOME": str(home), "PIP_INDEX_URL": chatgpt.BLOCKED_INDEX, "PIP_TIMEOUT": "3",
+        env = {**os.environ, "HOME": str(home), "USERPROFILE": str(home), "PIP_INDEX_URL": chatgpt.BLOCKED_INDEX, "PIP_TIMEOUT": "3",
                "PIP_RETRIES": "0", "PYTHONNOUSERSITE": "1"}
         for key in ("PYTHONPATH", "VIRTUAL_ENV", "HWPX_AUTOMATION_WORKSPACE_ROOTS"):
             env.pop(key, None)
@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         case_dir = data / "discover"
         case_dir.mkdir()
         proc = run([str(py), "-c", start + "\nprint('ENGINE_AT', ENGINE)"], cwd=case_dir, env=env, timeout=300)
-        discovered = proc.returncode == 0 and f"ENGINE_AT {skill / 'engine'}" in proc.stdout
+        discovered = proc.returncode == 0 and os.path.normcase(f"ENGINE_AT {skill / 'engine'}") in os.path.normcase(proc.stdout)
         evidence["discovery"] = {"passed": discovered, "stdoutTail": proc.stdout[-400:], "stderrTail": proc.stderr[-400:]}
         print(f"[{'PASS' if discovered else 'FAIL'}] discovery without SKILL_DIR")
 
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
                    cwd=case_dir, env=env, timeout=300)
         vendored = json.loads((skill / "engine" / "VENDOR.json").read_text(encoding="utf-8"))
         core_version = next(w["version"] for w in vendored["wheels"] if w["distribution"] == "python-hwpx")
-        unshadowed = proc.returncode == 0 and f"LOADED {core_version} {skill / 'engine'}" in proc.stdout
+        unshadowed = proc.returncode == 0 and os.path.normcase(f"LOADED {core_version} {skill / 'engine'}") in os.path.normcase(proc.stdout)
         evidence["preinstalledOtherVersion"] = {"passed": unshadowed, "stdoutTail": proc.stdout[-400:],
                                                 "stderrTail": proc.stderr[-400:]}
         print(f"[{'PASS' if unshadowed else 'FAIL'}] an installed python-hwpx 6.5.0 does not shadow the engine")

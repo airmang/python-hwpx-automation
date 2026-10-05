@@ -10,5 +10,11 @@ dependencies = [
     "python-hwpx[preview]==6.7.0",
 ]
 
+# Not installed into the MCP server's environment (uv syncs only the default groups):
+# locked here so scripts/vendor_claude_engine.py can vendor it, sha256-pinned, into
+# the skill's engine for Python 3.10 hosts, where python-hwpx-automation needs tomli.
+[dependency-groups]
+chat-engine = ["tomli==2.4.1"]
+
 [tool.uv]
 package = false

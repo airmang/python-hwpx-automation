@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- MCP 없이 쓰는 경로(`chat-engine.md`)를 더 많은 환경에서 쓸 수 있습니다.
+  - Python 3.10: python-hwpx-automation이 3.11 미만에서 쓰는 `tomli`를 엔진에 함께 싣습니다. `server/uv.lock`의 `chat-engine`
+    그룹에 해시로 고정하며, MCP 서버 환경에는 설치되지 않습니다.
+  - 시작 블록이 Python 버전과 빠진 패키지(`lxml`·`pydantic`·`cryptography`)를 정확히 보고하고, Windows 경로도 비교합니다.
+    로컬 PC에서는 사용자 동의를 받은 뒤 같은 Python에 그 패키지만 설치하고, 네트워크가 막힌 환경에서는 알리고 멈춥니다.
+  - CI가 이 경로를 Ubuntu·Windows·macOS와 Python 3.10·3.12에서 시뮬레이션합니다(로컬 확인은 3.10~3.14).
+- Claude 번들에서 개발용 평가 재생 키트(`scripts/task_eval_harness.py`, `examples/eval_tasks/`, `examples/12_task_eval_replay.md`)를 뺍니다.
+  디렉터리 한도(플러그인당 512개 파일) 안에 엔진 갱신 여유를 두기 위해서입니다. 다른 호스트 번들에는 그대로 있습니다.
+  번들 안 상대 경로는 Windows 경로 길이 한도를 위해 140자 이하로 검사합니다.
+
 - 스킬의 `uv` 설치 안내에서 내려받은 설치 스크립트를 셸에 바로 넘기는 명령을 뺐습니다. Claude 플러그인 디렉터리 검사가
   이를 설치 시점 위험(`RUNTIME_FETCH_EXEC`)으로 표시했습니다. 이제 패키지 관리자(`brew`, `winget`)와 공식 설치 문서만 안내합니다.
 
