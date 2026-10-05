@@ -67,6 +67,18 @@ Claude Code·Cowork에서 MCP 서버가 뜨지 않을 때(`uv`가 없을 때 등
 고치지 않습니다. 봇이 `server/uv.lock`을 올릴 때 같은 wheel에서 다시 풀고 파일마다 해시를 `engine/VENDOR.json`에 남기므로,
 MCP 서버와 채팅 경로는 항상 같은 엔진 버전으로 함께 바뀝니다.
 
+환경마다 쓰는 경로가 다릅니다.
+
+| 환경 | 스킬 | MCP 서버 | 엔진을 쓰는 방법 |
+|---|---|---|---|
+| Claude Code(터미널·IDE·데스크톱 Code 탭) | 로드 | 로드 — `uv` 필요, 첫 실행 때 PyPI에서 설치 | MCP. `uv`가 없거나 서버가 실패하면 스킬의 동봉 엔진 |
+| Cowork(데스크톱) | 로드 | 세션이 내 컴퓨터에서 돌 때만 로드 | 위와 같음. 그 밖에는 동봉 엔진 |
+| claude.ai 채팅·데스크톱 채팅·모바일 | 로드 | 무시됨 | 동봉 엔진(코드 실행 환경에 `lxml` 필요) |
+| Claude Code 클라우드 세션 | 로드 | — | 동봉 엔진. 기본 네트워크 수준(Trusted)은 PyPI에 닿으므로, 빠진 패키지는 동의 후 설치 |
+
+첫 MCP 실행은 Python 3.12와 패키지를 내려받느라 오래 걸려 호스트의 시작 시간 제한에 걸릴 수 있습니다. 그때는 호스트를 다시
+시작하면 설치를 이어서 끝내고, Claude Code에서는 `MCP_TIMEOUT`(밀리초) 환경 변수로 제한을 늘릴 수 있습니다.
+
 Cursor는 canonical skill 파일을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.cursor/skills/hwpx/`)에 복사하고
 `.cursor/rules/hwpx.mdc` 트리거 룰을 둡니다. OpenClaw·Hermes는 각 호스트 번들(`plugins/openclaw/hwpx-plugin`,
 `plugins/hermes/hwpx`)에 MCP 배선 안내가 함께 들어 있습니다. 저장소 이름 `hwpx-plugins`와 설치되는

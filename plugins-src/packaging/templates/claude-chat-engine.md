@@ -16,6 +16,12 @@ Claude Code에서는 "Base directory for this skill")를 알면 `SKILL_DIR`에 �
 ```python
 import glob, importlib.util, json, os, sys
 
+for stream in (sys.stdout, sys.stderr):  # Windows 콘솔 기본 인코딩은 한글을 못 쓸 수 있다
+    try:
+        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except (AttributeError, ValueError):
+        pass
+
 SKILL_DIR = None
 if SKILL_DIR is None:
     patterns = ["/mnt/**/skills/**/hwpx/engine/VENDOR.json", "/mnt/**/hwpx/engine/VENDOR.json",

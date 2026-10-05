@@ -37,7 +37,9 @@ ALLOWED_IMPORTS = chatgpt.ALLOWED_IMPORTS | {"glob"}
 
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+    # The start block switches the child's stdout to UTF-8 (Windows consoles default to a
+    # legacy code page), so decode as UTF-8 here rather than with the parent's locale.
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", **kwargs)
 
 
 def venv(python: str, path: Path, packages: list[str]) -> Path:
@@ -118,6 +120,8 @@ def main(argv: list[str] | None = None) -> int:
                                       "passed": passed, "returncode": proc.returncode,
                                       "stdoutTail": proc.stdout[-600:], "stderrTail": proc.stderr[-600:]})
             print(f"[{'PASS' if passed else 'FAIL'}] {case_id}")
+            if not passed:
+                print(f"    returncode={proc.returncode} stderr: {proc.stderr[-600:]}")
 
         # Discovery: no SKILL_DIR, the engine must be found under the host's plugin cache.
         case_dir = data / "discover"
@@ -157,6 +161,10 @@ def main(argv: list[str] | None = None) -> int:
         evidence["noLxml"] = {"passed": bare, "stderrTail": proc.stderr[-400:]}
         print(f"[{'PASS' if bare else 'FAIL'}] sandbox without lxml refuses clearly")
 
+        for name, record in (("discovery", evidence["discovery"]), ("shadowing", evidence["preinstalledOtherVersion"]),
+                             ("lxml-only", evidence["lxmlOnly"]), ("no-lxml", evidence["noLxml"])):
+            if not record["passed"]:
+                print(f"    {name}: {record.get('stdoutTail', '')[-300:]} {record.get('stderrTail', '')[-400:]}")
         for name, ok in (("discovery", discovered), ("shadowing", unshadowed), ("lxml-only", lxml_only), ("no-lxml", bare)):
             if not ok:
                 evidence["problems"].append(f"{name} check failed")
