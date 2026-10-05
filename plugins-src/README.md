@@ -151,7 +151,7 @@ automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인
 
 ## 알려진 제약
 
-- `.hwpx`와 HWP 5.0 `.hwp`를 다룹니다. `.hwp`는 python-hwpx 6.6.0 이상이 같은 문서 모델로 읽고 HWP 5.0으로 다시 씁니다. 옮기지 못한 내용과 쓸 수 없는 내용(암호·배포용·DRM 포함)은 숨기지 않고 보고합니다. automation 7.3.x MCP 도구는 아직 `.hwp` 편집을 거부하므로 그때는 Python 경로를 씁니다.
+- `.hwpx`와 HWP 5.0 `.hwp`를 다룹니다. `.hwp`는 python-hwpx 6.6.0 이상이 같은 문서 모델로 읽고 HWP 5.0으로 다시 씁니다. 옮기지 못한 내용과 쓸 수 없는 내용(암호·배포용·DRM 포함)은 숨기지 않고 보고합니다. MCP 도구는 automation 7.3.3부터 `.hwp`를 직접 다루며, 표·본문 바이트를 고치는 도구만 `.hwpx` 사본을 거칩니다.
 - `visual_review_required=true`는 package/schema/text 검사는 통과했지만 열린 문서의 페이지 나눔·표 맞춤은 아직 미확인이라는 뜻입니다. 최종 제출이라고 하려면 한/글이나 뷰어에서 직접 열어 확인한 결과(`observed_pass`)를 남깁니다.
 - 예제·문서에는 이름·전화번호·이메일·주소 등 PII를 redaction 없이 넣지 않습니다.
 

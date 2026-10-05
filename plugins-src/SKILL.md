@@ -13,8 +13,11 @@ description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한�
 `HwpxDocument.open`이 `.hwp`도 같은 문서 모델로 열고 `save_to_path("x.hwp")`로 HWP 5.0을 다시 쓴다.
 따라서 `.hwp`라는 이유만으로 거절하거나 한/글에서 `.hwpx`로 바꿔 오라고 하지 않는다. 결과는 원본과 같은 형식으로
 저장하고, 옮기지 못한 내용(`doc.conversion_report`의 `unconverted`·`dropped`)이나
-`Hwp5Error`(`hwp5-write-unsupported`, 암호·배포용·DRM)는 그대로 보고한다. MCP 서버가 `.hwp` 편집을
-`READ_ONLY_HWP_DOCUMENT`로 거부하면 같은 작업을 아래 local Python 경로로 한다.
+`Hwp5Error`(`hwp5-write-unsupported`, 암호·배포용·DRM)는 그대로 보고한다. automation 7.3.3부터 MCP 도구가
+`.hwp`를 직접 열고 같은 형식으로 저장한다(`get_document_info`의 `format: "hwp"`, `hwpConversion`). 표·본문 바이트를 직접
+고치는 도구(`apply_table_ops`, `apply_body_ops`, `byte_preserving_patch`, `apply_document_commands`, 양식 채움 계획 등)가
+`HWPX_PACKAGE_REQUIRED`를 돌려주면 `copy_document`로 `.hwpx` 사본을 만들어 편집한 뒤 다시 `.hwp`로 복사한다. 그보다 오래된
+서버가 `READ_ONLY_HWP_DOCUMENT`로 거부하면 같은 작업을 아래 local Python 경로로 한다.
 
 모든 작업은
 `python-hwpx-automation`의 MCP 도구를 1차 경로로 사용한다. 새 설정은 정식
