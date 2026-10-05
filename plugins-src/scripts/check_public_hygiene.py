@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import os
 import re
 import subprocess
@@ -94,6 +95,31 @@ class RepositoryFile(NamedTuple):
     path: str
     source: str
     data: bytes
+
+
+def _vendored_upstream_files(files: list["RepositoryFile"]) -> set[str]:
+    """Paths of vendored engine files byte-identical to their published wheel.
+
+    scripts/vendor_claude_engine.py records every unpacked file's sha256 in
+    ``engine/VENDOR.json``. Those bytes are upstream releases (for example an
+    install-from-path example in a third-party README), not text we wrote, so the
+    workstation-path check skips them only while the hash still matches.
+    """
+    by_path = {item.path: item for item in files}
+    exempt: set[str] = set()
+    for item in files:
+        if not item.path.endswith("/engine/VENDOR.json"):
+            continue
+        engine = item.path[: -len("VENDOR.json")]
+        try:
+            recorded = json.loads(item.data.decode("utf-8")).get("files", {})
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            continue
+        for rel, digest in recorded.items():
+            vendored = by_path.get(engine + rel)
+            if vendored is not None and hashlib.sha256(vendored.data).hexdigest() == digest:
+                exempt.add(vendored.path)
+    return exempt
 
 
 def _git_output(root: Path, *args: str, input_bytes: bytes | None = None) -> bytes:
@@ -561,11 +587,12 @@ def _collect_failures(root: Path = ROOT) -> tuple[str, int, list[str]]:
         if value.strip()
     )
 
+    upstream = _vendored_upstream_files(files)
     for item in files:
         data = _text_bytes(item.data)
         if data is None:
             continue
-        if _WORKSTATION_PATH.search(data):
+        if _WORKSTATION_PATH.search(data) and item.path not in upstream:
             failures.append(f"workstation-shaped path: {_location(item)}")
         if any(marker in data for marker in private_markers):
             failures.append(f"private-origin marker: {_location(item)}")

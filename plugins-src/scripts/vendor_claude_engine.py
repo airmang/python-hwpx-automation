@@ -37,7 +37,8 @@ ENGINE = BUNDLE / "skills" / "hwpx" / "engine"
 MANIFEST = ENGINE / "VENDOR.json"
 CACHE = ROOT / ".cache" / "claude-engine"
 SCHEMA = "hwpx.claude-engine.v1"
-DISTRIBUTIONS = ("python-hwpx", "python-hwpx-automation")
+# tomli: python-hwpx-automation needs it below Python 3.11 (locked in the chat-engine group).
+DISTRIBUTIONS = ("python-hwpx", "python-hwpx-automation", "tomli")
 CORE_REPOSITORY = "airmang/python-hwpx"
 # API name list and stable surface from the core release tag; the wheel already
 # carries mutation semantics, traversal recipes and the support matrix.
@@ -47,6 +48,9 @@ SKIPPED_METADATA = {"RECORD", "WHEEL", "entry_points.txt"}
 # Claude plugin directory limits: larger files are not inspected.
 MAX_FILE_BYTES = 256 * 1024
 MAX_PLUGIN_FILES = 512
+# Windows without long-path support stops at 260 characters; the host's plugin cache
+# prefix (user profile, marketplace, plugin, version string) takes about 100 of them.
+MAX_RELATIVE_PATH = 140
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -170,6 +174,9 @@ def check() -> list[str]:
     if len(bundle_files) > MAX_PLUGIN_FILES:
         problems.append(f"Claude bundle has {len(bundle_files)} files; the directory reads at most {MAX_PLUGIN_FILES}")
     for path in bundle_files:
+        rel = path.relative_to(BUNDLE).as_posix()
+        if len(rel) > MAX_RELATIVE_PATH:
+            problems.append(f"{rel} is {len(rel)} characters; keep bundle paths within {MAX_RELATIVE_PATH} for Windows")
         if path.stat().st_size > MAX_FILE_BYTES:
             problems.append(f"{path.relative_to(BUNDLE)} is {path.stat().st_size} bytes; the directory reads at most {MAX_FILE_BYTES}")
     return problems

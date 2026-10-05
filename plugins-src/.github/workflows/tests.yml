@@ -105,3 +105,34 @@ jobs:
         with:
           name: hwpx-plugin-tested-runtime-sbom
           path: hwpx-skill/artifacts/hwpx-plugin-tested-runtime.cdx.json
+
+  claude-chat-path:
+    # The Claude bundle's no-MCP path (vendored engine) on every OS and the oldest
+    # supported Python; the plugin-contract job covers Linux on 3.12.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: hwpx-skill
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - id: core
+        shell: bash
+        run: |
+          tag="v$(python -c "import json; print(next(w['version'] for w in json.load(open('hwpx-skill/plugins/claude/hwpx-plugin/skills/hwpx/engine/VENDOR.json'))['wheels'] if w['distribution'] == 'python-hwpx'))")"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: airmang/python-hwpx
+          ref: ${{ steps.core.outputs.tag }}
+          path: python-hwpx
+          sparse-checkout: tests/fixtures
+      - name: Claude chat path simulation
+        working-directory: hwpx-skill
+        run: python scripts/claude_chat_sim.py --python python --fixtures ../python-hwpx/tests/fixtures

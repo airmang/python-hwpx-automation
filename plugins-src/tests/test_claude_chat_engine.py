@@ -27,7 +27,12 @@ def test_vendored_engine_is_the_locked_pair_and_within_directory_limits() -> Non
     manifest = json.loads((SKILL / "engine" / "VENDOR.json").read_text(encoding="utf-8"))
     pins = dict(re.findall(r'"(python-hwpx(?:-automation)?)\[[^\]]*\]==([^"]+)"',
                            (BUNDLE / "server" / "pyproject.toml").read_text(encoding="utf-8")))
-    assert {w["distribution"]: w["version"] for w in manifest["wheels"]} == pins
+    vendored = {w["distribution"]: w["version"] for w in manifest["wheels"]}
+    assert {name: vendored[name] for name in pins} == pins
+    # tomli (Python 3.10 hosts) comes from the lock's chat-engine group, not the server's pins.
+    group = re.search(r'chat-engine = \["tomli==([^"]+)"\]', (BUNDLE / "server" / "pyproject.toml").read_text(encoding="utf-8"))
+    assert group is not None and vendored["tomli"] == group.group(1)
+    assert set(vendored) == {*pins, "tomli"}
     # importlib.metadata needs the dist-info METADATA to report __version__ from the vendored path.
     for wheel in manifest["wheels"]:
         stem = wheel["filename"].split("-py3-none-any")[0]

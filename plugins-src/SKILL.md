@@ -46,7 +46,8 @@ Claude Code 번들은 `uv run --frozen`으로 서버를 띄우므로 `uv`가 없
 `uv --version`으로 확인하고, 없으면 사용자에게 패키지 관리자로 설치하도록 안내한 뒤(macOS: `brew install uv`,
 Windows: `winget install --id=astral-sh.uv -e`, 그 밖에는 https://docs.astral.sh/uv/getting-started/installation/)
 호스트 앱을 다시 시작하라고 한다. 내려받은 스크립트를 셸로 바로 실행하는 설치 명령은 안내하지 않는다. 사용자 동의 없이 설치 명령을 실행하지 않는다. `uv`가 있는데도 실패하면
-첫 실행의 Python 3.12·패키지 내려받기가 끝나지 않았거나 네트워크가 막힌 경우이므로 그 사실을 보고한다.
+첫 실행의 Python 3.12·패키지 내려받기가 시작 시간 제한 안에 끝나지 않았거나 네트워크가 막힌 경우다. 호스트를 다시 시작하면
+설치를 이어서 끝내고, Claude Code에서는 `MCP_TIMEOUT`(밀리초)으로 제한을 늘릴 수 있다고 보고한다.
 기다리는 동안 할 수 있는 일은 `chat-engine.md`(있으면) 또는 local Python 경로로 한다.
 
 MCP 서버가 연결되어 있으면 작업 전에 `mcp_server_health()`를 호출해

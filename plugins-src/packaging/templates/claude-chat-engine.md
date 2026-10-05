@@ -1,12 +1,12 @@
 # MCP 없이 쓰기 — 스킬에 든 python-hwpx 엔진
 
-claude.ai 채팅처럼 HWPX MCP 도구(`mcp_server_health`, `start_workflow` 등)가 없는 환경에서 쓰는 절차다.
-Claude Code에서 MCP 서버가 뜨지 않았을 때도 같은 절차를 쓸 수 있다.
+claude.ai 채팅·Claude 앱처럼 HWPX MCP 도구(`mcp_server_health`, `start_workflow` 등)가 없는 환경에서 쓰는 절차다.
+Claude Code·Cowork에서 MCP 서버가 뜨지 않았을 때(`uv`가 없거나 첫 설치가 끝나지 않았을 때)도 같은 절차를 쓴다.
 
 이 스킬의 `engine/` 폴더에는 공개 배포된 `python-hwpx`와 `python-hwpx-automation`이 원본 그대로
-들어 있다(버전과 파일 해시는 `engine/VENDOR.json`). MCP 서버가 쓰는 것과 같은 버전이다. 아래 시작 블록은
-이 폴더를 `sys.path` 맨 앞에 넣어 불러올 뿐, 아무것도 설치하지 않고 인터넷에 접속하지 않는다.
-`pip install`로 다른 버전을 받지 않는다.
+들어 있다(버전과 파일 해시는 `engine/VENDOR.json`). MCP 서버가 쓰는 것과 같은 버전이다. Python 3.10용 `tomli`도
+함께 있다. 아래 시작 블록은 이 폴더를 `sys.path` 맨 앞에 넣어 불러올 뿐, 아무것도 설치하지 않고 인터넷에 접속하지 않는다.
+엔진(`python-hwpx`·`python-hwpx-automation`)을 `pip install`로 따로 받지 않는다.
 
 ## 1. 시작 — 대화마다 한 번
 
@@ -14,7 +14,13 @@ Claude Code에서 MCP 서버가 뜨지 않았을 때도 같은 절차를 쓸 수
 Claude Code에서는 "Base directory for this skill")를 알면 `SKILL_DIR`에 그 경로를 적는다.
 
 ```python
-import glob, json, os, sys
+import glob, importlib.util, json, os, sys
+
+for stream in (sys.stdout, sys.stderr):  # Windows 콘솔 기본 인코딩은 한글을 못 쓸 수 있다
+    try:
+        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except (AttributeError, ValueError):
+        pass
 
 SKILL_DIR = None
 if SKILL_DIR is None:
@@ -25,19 +31,23 @@ if SKILL_DIR is None:
     SKILL_DIR = os.path.dirname(os.path.dirname(found[0])) if found else None
 if SKILL_DIR is None or not os.path.isfile(os.path.join(SKILL_DIR, "engine", "VENDOR.json")):
     raise SystemExit("스킬의 engine 폴더를 찾지 못했다. 이 문서가 있는 폴더를 SKILL_DIR에 적고 다시 실행한다.")
+if sys.version_info < (3, 10):
+    raise SystemExit(f"Python {sys.version.split()[0]}({sys.executable})은 너무 오래됐다. 엔진은 Python 3.10 이상이 필요하다. 사용자에게 알린다.")
 
-ENGINE = os.path.join(SKILL_DIR, "engine")
+ENGINE = os.path.abspath(os.path.join(SKILL_DIR, "engine"))
 with open(os.path.join(ENGINE, "VENDOR.json"), encoding="utf-8") as handle:
     EXPECTED = {w["distribution"]: w["version"] for w in json.load(handle)["wheels"]}
+MISSING = [name for name in ("lxml", "pydantic", "cryptography") if importlib.util.find_spec(name) is None]
+if "lxml" in MISSING:
+    raise SystemExit(f"이 Python({sys.executable})에 lxml이 없어 엔진을 쓸 수 없다. 없는 패키지: {MISSING}. "
+                     "chat-engine.md의 '필요한 패키지가 없을 때'를 따른다.")
 sys.dont_write_bytecode = True  # 스킬 폴더는 읽기 전용일 수 있다
 if ENGINE not in sys.path:
     sys.path.insert(0, ENGINE)
 
-try:
-    import hwpx
-except ImportError as exc:
-    raise SystemExit(f"엔진을 불러오지 못했다({exc}). 이 환경에 lxml이 없으면 쓸 수 없다. 사용자에게 그대로 알린다.")
-if hwpx.__version__ != EXPECTED["python-hwpx"] or not hwpx.__file__.startswith(ENGINE):
+import hwpx
+here = os.path.normcase(os.path.abspath(hwpx.__file__))
+if hwpx.__version__ != EXPECTED["python-hwpx"] or not here.startswith(os.path.normcase(ENGINE)):
     raise SystemExit(f"다른 python-hwpx({hwpx.__version__}, {hwpx.__file__})가 먼저 불러와져 있다. 새 대화에서 다시 시작한다.")
 try:
     import hwpx_automation
@@ -45,18 +55,39 @@ try:
     AUTOMATION = hwpx_automation.__version__ == EXPECTED["python-hwpx-automation"]
     AUTOMATION_NOTE = "" if AUTOMATION else f"버전 불일치 {hwpx_automation.__version__}"
 except ImportError as exc:  # pydantic·cryptography가 없는 환경
-    AUTOMATION, AUTOMATION_NOTE = False, str(exc)
+    AUTOMATION, AUTOMATION_NOTE = False, f"{exc}; 없는 패키지 {MISSING}"
 
 IN_DIR = next((d for d in ("/mnt/user-data/uploads", "/mnt/data") if os.path.isdir(d)), os.getcwd())
 OUT_DIR = next((d for d in ("/mnt/user-data/outputs", "/mnt/data") if os.path.isdir(d)), os.getcwd())
 os.environ["HWPX_AUTOMATION_WORKSPACE_ROOTS"] = json.dumps(sorted({IN_DIR, OUT_DIR}))
 print("준비 완료: python-hwpx", hwpx.__version__, "/ 새 문서 만들기(W5)", "가능" if AUTOMATION else f"불가({AUTOMATION_NOTE})")
+print("Python:", sys.version.split()[0], sys.executable)
 print("첨부 폴더:", IN_DIR, sorted(os.listdir(IN_DIR))[:20])
 print("결과 폴더:", OUT_DIR)
 ```
 
-- `AUTOMATION`이 거짓이면 W1~W4만 쓸 수 있다. 새 문서 요청에는 "이 환경에서는 새 문서 만들기를 쓸 수 없다"고 답한다.
-- 시작 블록이 멈추면 그 메시지를 사용자에게 그대로 전하고, 다른 방법으로 엔진을 설치하지 않는다.
+- `AUTOMATION`이 거짓이면 W1~W4만 쓸 수 있다. 새 문서 요청에는 "이 환경에서는 새 문서 만들기를 쓸 수 없다"고 답하고,
+  없는 패키지를 아래 절차로 채울 수 있는지 본다.
+- 시작 블록이 다른 이유로 멈추면 그 메시지를 사용자에게 그대로 전한다.
+
+### 필요한 패키지가 없을 때
+
+엔진 자체는 스킬에 들어 있고, 환경에서 빌리는 것은 `lxml`(필수)과 `pydantic`·`cryptography`(새 문서 만들기)뿐이다.
+
+1. 사용자에게 없는 패키지와 이유를 말하고 **설치해도 되는지 묻는다.** 동의 없이 설치하지 않는다.
+2. 동의하면 시작 블록이 출력한 **같은 Python**으로 PyPI에서 그 패키지만 설치하고, 시작 블록을 다시 실행한다.
+
+   ```python
+   import subprocess, sys
+   need = MISSING or ["lxml", "pydantic", "cryptography"]
+   done = subprocess.run([sys.executable, "-m", "pip", "install", "--user", *need], capture_output=True, text=True)
+   print(done.returncode, (done.stdout + done.stderr)[-1500:])
+   ```
+
+3. 네트워크가 막혀 실패하면(claude.ai 채팅의 코드 실행 환경 등) 그대로 알리고 멈춘다. 다른 출처에서 받지 않는다.
+   `externally-managed-environment`로 거부되면 `--break-system-packages`를 쓰지 않는다. 대신 `uv`를 설치해
+   MCP 서버를 쓰는 방법(SKILL.md의 시작 체크)을 안내한다.
+4. Python이 없거나 3.10보다 낮으면 엔진을 쓸 수 없다. Python 3.10 이상 또는 `uv` 설치를 안내한다.
 
 ## 2. 파일 규칙
 
