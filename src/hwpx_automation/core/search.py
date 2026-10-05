@@ -93,11 +93,16 @@ def _replace_in_runs(runs: list[Any], find_text: str, replace_text: str) -> int:
     if not runs:
         return 0
 
-    replaced = _replace_within_runs(runs, find_text, replace_text)
-    merged_after_simple = "".join(run.text or "" for run in runs)
-    if find_text in merged_after_simple:
-        replaced += _replace_across_runs(runs, find_text, replace_text)
-    return replaced
+    # Decide from the text before any replacement: re-scanning afterwards would find
+    # find_text again inside replace_text when the one contains the other.
+    if not _has_match_across_runs([run.text or "" for run in runs], find_text):
+        return _replace_within_runs(runs, find_text, replace_text)
+    return _replace_across_runs(runs, find_text, replace_text)
+
+
+def _has_match_across_runs(texts: list[str], find_text: str) -> bool:
+    """Whether some occurrence of *find_text* in the joined text spans two runs."""
+    return "".join(texts).count(find_text) != sum(text.count(find_text) for text in texts)
 
 
 def _replace_within_xml_runs(run_elements: list[Any], find_text: str, replace_text: str) -> int:
@@ -134,11 +139,9 @@ def _replace_in_xml_runs(run_elements: list[Any], find_text: str, replace_text: 
     if not run_elements:
         return 0
 
-    replaced = _replace_within_xml_runs(run_elements, find_text, replace_text)
-    merged_after_simple = "".join(_xml_run_text(run_element) for run_element in run_elements)
-    if find_text in merged_after_simple:
-        replaced += _replace_across_xml_runs(run_elements, find_text, replace_text)
-    return replaced
+    if not _has_match_across_runs([_xml_run_text(run_element) for run_element in run_elements], find_text):
+        return _replace_within_xml_runs(run_elements, find_text, replace_text)
+    return _replace_across_xml_runs(run_elements, find_text, replace_text)
 
 
 def find_in_doc(doc: Any, text_to_find: str, match_case: bool = True, max_results: int = 50) -> dict:
