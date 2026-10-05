@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 스킬의 `.hwp` 안내를 automation 7.3.3에 맞춥니다. MCP 도구가 `.hwp`를 직접 열고 같은 형식으로 저장하며, 표·본문 바이트를 고치는
+  도구가 `HWPX_PACKAGE_REQUIRED`를 돌려주면 `copy_document`로 `.hwpx` 사본을 거칩니다. 그 이전 서버에서는 Python 경로를 씁니다.
+
 - MCP 없이 쓰는 경로(`chat-engine.md`)를 더 많은 환경에서 쓸 수 있습니다.
   - Python 3.10: python-hwpx-automation이 3.11 미만에서 쓰는 `tomli`를 엔진에 함께 싣습니다. `server/uv.lock`의 `chat-engine`
     그룹에 해시로 고정하며, MCP 서버 환경에는 설치되지 않습니다.
