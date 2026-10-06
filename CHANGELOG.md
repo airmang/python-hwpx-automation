@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [7.3.4] - 2026-10-06
+
 - `search_and_replace`, `batch_replace`, `replace_in_paragraph` and the table-cell paths replace each occurrence once when the replacement contains the text being replaced ("홍길동" → "홍길동(인)"). Before, the run-level pass replaced it, and a second pass meant for matches that span runs found the text again inside the replacement and replaced it a second time: two occurrences came back as `replaced_count: 4` and "홍길동(인)(인)" (#164).
 
 ## [7.3.3] - 2026-10-06
