@@ -1,6 +1,6 @@
 # python-hwpx-automation 하드닝 가이드
 
-> 릴리스 상태: `release-approved` — 7.3.3 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
+> 릴리스 상태: `release-approved` — 7.3.4 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
 
 > 릴리스 상태: `released` — 7.3.1 공개 발행과 6.6.0/7.3.1/2.4.0 marketplace 설치를 관찰했습니다.
 
