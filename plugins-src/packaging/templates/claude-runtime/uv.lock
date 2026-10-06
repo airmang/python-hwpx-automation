@@ -174,7 +174,7 @@ chat-engine = [
 [package.metadata]
 requires-dist = [
     { name = "python-hwpx", extras = ["preview"], specifier = "==6.7.0" },
-    { name = "python-hwpx-automation", extras = ["mcp", "oracle"], specifier = "==7.3.3" },
+    { name = "python-hwpx-automation", extras = ["mcp", "oracle"], specifier = "==7.3.4" },
 ]
 
 [package.metadata.requires-dev]
@@ -439,7 +439,7 @@ preview = [
 
 [[package]]
 name = "python-hwpx-automation"
-version = "7.3.3"
+version = "7.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -447,9 +447,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-hwpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/50/61f73eecac19c1b08875bd69d7c1d2cb173afedf6ab59bbf405ebdcefa74/python_hwpx_automation-7.3.3.tar.gz", hash = "sha256:54f17b5318525d8baf8e68a3930cc8dac414ddf3d33b864472dd9de2e02ac59c", size = 751134, upload-time = "2026-10-05T15:30:24.435Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/bb/03f0d009ebdcf40a78920af1039de8e5ba03c84d3f50792d432f30a6fb0c/python_hwpx_automation-7.3.4.tar.gz", hash = "sha256:f9674ad54e18c8d326b19a510417871f4263e344923b27ece6ef89c0f4d93bcc", size = 751387, upload-time = "2026-10-06T05:44:32.303Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/53/8d7439d1be7e6782e607b1cedb602beef5981559218d503c9bd6f272d549/python_hwpx_automation-7.3.3-py3-none-any.whl", hash = "sha256:c5acba166841856d73a1c5d5d070c3fafc7f7d6704907e7d18295d7a50c02d10", size = 852710, upload-time = "2026-10-05T15:30:22.576Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/c2/22944ad74894ef3d59bb7e634948c5ea1bb859a7bd3d01bc439b25ac8292/python_hwpx_automation-7.3.4-py3-none-any.whl", hash = "sha256:48abd00f10e0924c44499c3e101c0c58d838908385a19a56c3a9a6def965c2b2", size = 852872, upload-time = "2026-10-06T05:44:30.416Z" },
 ]
 
 [package.optional-dependencies]
