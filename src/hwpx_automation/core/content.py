@@ -14,8 +14,15 @@ from uuid import uuid4
 from xml.etree import ElementTree as ET
 
 from ..compat import patch_python_hwpx
-from ..storage import build_hwpx_open_safety_report
-from ..upstream import HP_NS as _HP_NS, HwpxDocument, repair_pathological_text_spacing
+from ..storage import build_hwpx_open_safety_report, open_local_document
+from ..upstream import (
+    HP_NS as _HP_NS,
+    HwpxDocument,
+    is_hwp5_source,
+    is_hwp5_target,
+    repair_pathological_text_spacing,
+)
+from .document import save_doc
 from .formatting import resolve_style_id
 from .locations import resolve_paragraph_reference
 
@@ -500,6 +507,15 @@ def copy_document_file(source: str, destination: str = None) -> str:
         destination = f"{stem}_copy.{ext}"
     source_path = Path(source)
     destination_path = Path(destination)
+    if is_hwp5_source(source_path) != is_hwp5_target(destination_path):
+        # The destination extension picks the format, so a copy between .hwp
+        # and .hwpx is written through the document model, not byte-copied.
+        document = open_local_document(source_path, role="copy source")
+        try:
+            save_doc(document, str(destination_path))
+        finally:
+            document.close()
+        return str(destination_path)
     if source_path.suffix.lower() != ".hwpx" and destination_path.suffix.lower() != ".hwpx":
         shutil.copy2(source_path, destination_path)
         return str(destination_path)

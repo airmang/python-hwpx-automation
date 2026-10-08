@@ -108,6 +108,9 @@ class SavePolicy:
                 details={"path": str(target)},
             ) from exc
         except Exception as exc:  # pragma: no cover - delegated to backend
+            hwp_error = self._context._hwp_error(exc)
+            if hwp_error is not None:
+                raise hwp_error from exc
             raise self._context._new_error(
                 "DOCUMENT_SAVE_FAILED",
                 f"failed to save '{target}': {exc}",

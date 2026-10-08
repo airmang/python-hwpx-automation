@@ -427,6 +427,7 @@ class TransactionService:
             ) from exc
 
         source_path = self._context._resolve_path(path)
+        self._context._require_hwpx_package(source_path, output)
         output_precondition = None
         if isinstance(self._context.storage, LocalDocumentStorage):
             output_precondition = self._context.storage.capture_output_precondition(

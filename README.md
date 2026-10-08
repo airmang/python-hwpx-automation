@@ -12,8 +12,9 @@
   </p>
 </p>
 
-<!-- release-state: released -->
+<!-- release-state: release-approved -->
 > [!NOTE]
+> 발행이 승인된 7.3.4 후보 (release-approved; 원격 발행 대기): `python-hwpx 6.6.0 → python-hwpx-automation 7.3.4 → hwpx-plugin 2.4.0` (`5e5c23651f92785a`).
 > 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`.
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
@@ -101,7 +102,7 @@ PDF와 쪽 PNG로 렌더합니다. 별도 환경에서 실행하므로 호출하
 고정 버전을 건드리지 않습니다.
 
 ```bash
-uvx --from "python-hwpx-automation[oracle]==7.3.1" \
+uvx --from "python-hwpx-automation[oracle]==7.3.4" \
   hwpx render-pdf in.hwpx out.pdf --png out/page --json
 ```
 

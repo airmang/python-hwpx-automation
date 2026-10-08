@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import zipfile
 from typing import Any, cast
 
 import mcp.types as mcp_types
@@ -17,7 +18,12 @@ from hwpx_automation.office.agent.model import RECOVERABILITY
 from . import __version__
 from . import quality as quality_contract
 from .configuration import env_value
-from .errors import build_error_payload, mcp_code_for_error
+from .errors import (
+    HwpDocumentError,
+    build_error_payload,
+    hwp5_error_payload,
+    mcp_code_for_error,
+)
 from .fastmcp_adapter import configure_runtime
 from .hwpx_ops import HwpxOperationError
 from .network_policy import NetworkPolicyError
@@ -81,11 +87,28 @@ def _exception_chain(exc: BaseException) -> list[BaseException]:
     return chain
 
 
+def _document_error_payload(item: BaseException) -> dict[str, Any] | None:
+    """The payload for an operation, ``.hwp`` or non-package failure; else None."""
+
+    if isinstance(item, (HwpxOperationError, HwpDocumentError)):
+        return item.to_payload()
+    hwp5_payload = hwp5_error_payload(item)
+    if hwp5_payload is not None:
+        return hwp5_payload
+    if isinstance(item, zipfile.BadZipFile):
+        return build_error_payload(
+            code="HWPX_PACKAGE_REQUIRED",
+            message="이 도구는 HWPX 패키지(ZIP)를 읽는데, 대상 파일은 HWPX 패키지가 아닙니다.",
+        )
+    return None
+
+
 def _classified_error_payload(exc: BaseException | None) -> dict[str, Any]:
     if exc is not None:
         for item in _exception_chain(exc):
-            if isinstance(item, HwpxOperationError):
-                return item.to_payload()
+            document_payload = _document_error_payload(item)
+            if document_payload is not None:
+                return document_payload
             if isinstance(item, AgentContractError):
                 return build_error_payload(
                     code=item.code,

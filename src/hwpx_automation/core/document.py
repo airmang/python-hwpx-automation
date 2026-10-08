@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from ..configuration import env_value
-from ..storage import LocalDocumentStorage, require_hwpx_editor_open_safe
+from ..storage import LocalDocumentStorage, open_local_document
 from ..upstream import HwpxDocument, blank_document_template_bytes, open_document
 
 
@@ -18,8 +18,7 @@ def _local_storage() -> LocalDocumentStorage:
 def open_doc(path: str) -> HwpxDocument:
     if not os.path.exists(path):
         raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
-    require_hwpx_editor_open_safe(Path(path), role="local HWPX open")
-    return open_document(path)
+    return open_local_document(Path(path), role="local HWPX open")
 
 
 def save_doc(doc: HwpxDocument, path: str, *, quality: Any = None) -> dict[str, Any]:

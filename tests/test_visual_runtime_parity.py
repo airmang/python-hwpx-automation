@@ -138,11 +138,15 @@ def test_frozen_visual_modules_shape_matches_frozen_core() -> None:
     # oracle either (unlike the agent/authoring/exam parity files), only
     # specific behaviour; excluded here rather than silently made to pass.
     oracle_fingerprint = fingerprint(mcp_oracle)
-    frozen_oracle = {
+    frozen_oracle = copy.deepcopy({
         name: entry
         for name, entry in FROZEN["hwpx.visual.oracle"].items()
         if name != "WordBox"
-    }
+    })
+    # The Windows COM backend gained the Mac backend's refresh_document (#152)
+    # after the core freeze; RenderOracle is the same class.
+    for name in ("RenderOracle", "WindowsComOracle"):
+        frozen_oracle[name]["methods"]["refresh_document"] = "(self, hwpx_path: 'str') -> 'bool'"
     assert oracle_fingerprint == frozen_oracle
 
     assert fingerprint(mcp_page_qa) == FROZEN["hwpx.visual.page_qa"]

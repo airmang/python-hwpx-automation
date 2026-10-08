@@ -18,6 +18,7 @@ from ..upstream import (
     AnnotationOptions,
     create_object_finder,
     create_text_extractor,
+    hwp5_conversion_report,
 )
 
 from .context import DocumentContext
@@ -45,7 +46,7 @@ class ReadQueryService:
     def get_paragraphs_by_handle(self, handle_id: str) -> Dict[str, Any]:
         handle = self._context.get_registered_handle(handle_id)
         resolved = self._context._resolve_path(handle.path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             paragraphs, _, _ = self._context._read_only_hwp_paragraphs(handle.path)
             hwp_serialized = [
                 ParagraphResourceEntry(paragraphIndex=index, text=text)
@@ -57,7 +58,7 @@ class ReadQueryService:
             return model.model_dump(by_alias=True)
 
         serialized: List[ParagraphResourceEntry] = []
-        with create_text_extractor(resolved) as extractor:
+        with create_text_extractor(self._context._text_source(resolved)) as extractor:
             for paragraph in extractor.iter_document_paragraphs():
                 serialized.append(
                     ParagraphResourceEntry(
@@ -73,7 +74,7 @@ class ReadQueryService:
     def get_tables_by_handle(self, handle_id: str) -> Dict[str, Any]:
         handle = self._context.get_registered_handle(handle_id)
         resolved = self._context._resolve_path(handle.path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             model = DocumentTablesResource(handleId=handle.handle_id, tables=[])
             return model.model_dump(by_alias=True)
 
@@ -92,7 +93,7 @@ class ReadQueryService:
 
     def open_info(self, path: str) -> Dict[str, Any]:
         resolved = self._context._resolve_path(path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             paragraphs, _, source = self._context._read_only_hwp_paragraphs(path)
             stat = resolved.stat()
             meta = {
@@ -123,6 +124,10 @@ class ReadQueryService:
             "size": stat.st_size,
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         }
+        conversion = hwp5_conversion_report(document)
+        if conversion is not None:
+            meta["format"] = "hwp"
+            meta["hwpConversion"] = conversion
         return {
             "meta": meta,
             "sectionCount": section_count,
@@ -169,7 +174,7 @@ class ReadQueryService:
         with_footnotes: bool = False,
     ) -> Dict[str, Any]:
         resolved = self._context._resolve_path(path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             hwp_paragraphs, _, _ = self._context._read_only_hwp_paragraphs(path)
             effective_limit = (
                 self._context.paging_limit if limit is None else max(1, limit)
@@ -195,7 +200,7 @@ class ReadQueryService:
         paragraphs: List[str] = []
         next_offset: Optional[int] = None
         start = max(0, offset)
-        with create_text_extractor(resolved) as extractor:
+        with create_text_extractor(self._context._text_source(resolved)) as extractor:
             paragraph_iter = extractor.iter_document_paragraphs()
             sentinel = object()
 
@@ -239,7 +244,7 @@ class ReadQueryService:
             unique_indexes.add(int(index))
 
         resolved = self._context._resolve_path(path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             paragraphs, _, _ = self._context._read_only_hwp_paragraphs(path)
             hwp_collected = {
                 idx: paragraphs[idx] for idx in unique_indexes if idx < len(paragraphs)
@@ -266,7 +271,7 @@ class ReadQueryService:
             )
 
         collected: Dict[int, str] = {}
-        with create_text_extractor(resolved) as extractor:
+        with create_text_extractor(self._context._text_source(resolved)) as extractor:
             for paragraph in extractor.iter_document_paragraphs():
                 para_index = paragraph.index
                 if para_index in unique_indexes and para_index not in collected:
@@ -292,7 +297,7 @@ class ReadQueryService:
 
     def text_extract_report(self, path: str, mode: str = "plain") -> Dict[str, Any]:
         resolved = self._context._resolve_path(path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             paragraphs, _, source = self._context._read_only_hwp_paragraphs(path)
             return {
                 "content": "\n".join(paragraphs)
@@ -307,7 +312,7 @@ class ReadQueryService:
                 endnote="inline",
                 control="placeholder",
             )
-        with create_text_extractor(resolved) as extractor:
+        with create_text_extractor(self._context._text_source(resolved)) as extractor:
             content = extractor.extract_text(
                 annotations=annotations,
                 include_nested=True,
@@ -322,11 +327,11 @@ class ReadQueryService:
         lock_keywords: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
         resolved = self._context._resolve_path(path)
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             paragraphs, _, source = self._context._read_only_hwp_paragraphs(path)
         else:
             paragraphs = []
-            with create_text_extractor(resolved) as extractor:
+            with create_text_extractor(self._context._text_source(resolved)) as extractor:
                 for paragraph in extractor.iter_document_paragraphs():
                     paragraphs.append(paragraph.text(preserve_breaks=True))
             source = "hwpx.text_extractor"
@@ -474,7 +479,7 @@ class ReadQueryService:
             return snippet
 
         pattern = re.compile(query) if is_regex else None
-        if resolved.suffix.lower() == ".hwp":
+        if self._context._is_legacy_hwp(resolved):
             paragraphs, _, _ = self._context._read_only_hwp_paragraphs(path)
             for para_index, text in enumerate(paragraphs):
                 if is_regex:
@@ -512,7 +517,7 @@ class ReadQueryService:
                         start = found + len(query)
             return {"matches": matches}
 
-        with create_text_extractor(resolved) as extractor:
+        with create_text_extractor(self._context._text_source(resolved)) as extractor:
             for paragraph in extractor.iter_document_paragraphs():
                 text = paragraph.text()
                 if is_regex:
@@ -558,7 +563,7 @@ class ReadQueryService:
         max_results: int = 200,
     ) -> Dict[str, Any]:
         resolved = self._context._resolve_path(path)
-        finder = create_object_finder(resolved)
+        finder = create_object_finder(self._context._text_source(resolved))
         objects = []
         for found in finder.iter(tag=tag_name, limit=max_results):
             element = found.element
@@ -582,7 +587,7 @@ class ReadQueryService:
         max_results: int = 200,
     ) -> Dict[str, Any]:
         resolved = self._context._resolve_path(path)
-        finder = create_object_finder(resolved)
+        finder = create_object_finder(self._context._text_source(resolved))
         tag_filter = None if element_type in {None, "", "*"} else element_type
         attr_matcher: Any = value if value is not None else (lambda _: True)
         objects = []

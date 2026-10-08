@@ -299,6 +299,7 @@ class FormFieldService:
             ) from exc
 
         source_path = self._context._resolve_path(path)
+        self._context._require_hwpx_package(source_path, output)
         output_precondition = None
         if isinstance(self._context.storage, LocalDocumentStorage):
             output_precondition = (
@@ -468,6 +469,7 @@ class FormFieldService:
                 "installed python-hwpx does not provide hwpx.body_patch.apply_body_ops",
             ) from exc
         source_path = self._context._resolve_path(path)
+        self._context._require_hwpx_package(source_path, output)
         output_precondition = None
         if isinstance(self._context.storage, LocalDocumentStorage):
             output_precondition = (
@@ -633,6 +635,7 @@ class FormFieldService:
             ) from exc
 
         blank = self._context._resolve_path(path)
+        self._context._require_hwpx_package(blank, output)
         md = self._context._resolve_path(review_md)
         output_precondition = None
         if isinstance(self._context.storage, LocalDocumentStorage):

@@ -12,8 +12,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .. import quality as quality_contract
-from ..storage import build_hwpx_verification_report, require_hwpx_editor_open_safe
-from ..upstream import HwpxDocument, open_document
+from ..storage import (
+    build_hwpx_verification_report,
+    require_hwpx_editor_open_safe,
+    require_native_hwp5,
+)
+from ..upstream import HwpxDocument, hwp5_document_bytes, is_hwp5_target, open_document
 
 _MAX_SUMMARY_ITEMS = 20
 _MAX_SNIPPET = 80
@@ -341,9 +345,13 @@ def save_dry_run(
     document: HwpxDocument, target: str | Path, *, quality: Any = None
 ) -> dict[str, Any]:
     target_path = Path(target)
+    hwp_target = is_hwp5_target(target_path)
+    if hwp_target:
+        require_native_hwp5()
+    # The gate checks HWPX parts, so an .hwp target is staged as HWPX.
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{target_path.stem}.dry-run.",
-        suffix=target_path.suffix or ".hwpx",
+        suffix=".hwpx" if hwp_target else (target_path.suffix or ".hwpx"),
         dir=str(target_path.parent),
     )
     tmp_path = Path(tmp_name)
@@ -366,6 +374,10 @@ def save_dry_run(
                 "dry-run HWPX failed open-safety verification: "
                 + verification["openSafety"]["summary"]
             )
+        if hwp_target:
+            # Raises Hwp5Error (hwp5-write-unsupported) as the real save would.
+            hwp5_document_bytes(document)
+            verification["format"] = "hwp"
         diff = semantic_diff(target_path, tmp_path) if target_path.exists() else None
         verification["filePath"] = str(target_path)
         verification["dryRunTempDeleted"] = True
