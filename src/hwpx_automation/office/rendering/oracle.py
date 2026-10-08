@@ -43,6 +43,7 @@ import sys
 import tempfile
 import time
 import zipfile
+from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
 
@@ -185,6 +186,101 @@ def _promote_file(staged: str, target: str) -> None:
         except OSError:
             pass
         raise
+
+
+# A hung Hancom (main thread stuck inside the open-document Apple event: no
+# windows, one core at 100%) cannot be told apart from a slow one by the render
+# script, which only sees that no window or PDF came. Its CPU can: a Hancom
+# that stays this busy across every sample after a failed render is not
+# rendering anything, and every later render fails the same way until the user
+# restarts it. The process is only read with ps, never signalled.
+_MAC_HANCOM_PROCESS = "Hancom Office HWP.app/Contents/MacOS"
+_HUNG_CPU_PERCENT = 80.0
+_HUNG_SAMPLES = 4
+_HUNG_SAMPLE_INTERVAL = 1.0
+_PS_TIMEOUT = 2.0
+# Upper bound for closing the owned document after the render script was cut off.
+_CLOSE_OWNED_TIMEOUT = 3
+
+
+def _hang_probe_seconds() -> float:
+    """What the probe needs of a budget after a cut-off render script.
+
+    The owned-document cleanup comes first, then the pauses between samples,
+    plus slack for the ``ps`` calls themselves.
+    """
+
+    return _CLOSE_OWNED_TIMEOUT + (_HUNG_SAMPLES - 1) * _HUNG_SAMPLE_INTERVAL + 1.0
+
+
+def _leave_room_for_hang_probe(run_timeout: float, deadline: float | None) -> float:
+    """Shorten the render's wait so the hang probe still fits the budget.
+
+    Only when the budget, not the render's own timeout, bounds the wait; a
+    budget too small to share is left whole to the render.
+    """
+
+    if deadline is None:
+        return run_timeout
+    room = _hang_probe_seconds()
+    remaining = deadline - time.monotonic()
+    if remaining - run_timeout >= room or run_timeout <= 2 * room:
+        return run_timeout
+    return remaining - room
+
+
+def _probe(cmd: list[str]) -> str:
+    """Run a read-only process-table command; ``""`` when it cannot answer."""
+
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=_PS_TIMEOUT, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return proc.stdout or ""
+
+
+def _cpu_percent(pid: int) -> float | None:
+    try:
+        return float(_probe(["ps", "-o", "%cpu=", "-p", str(pid)]).strip())
+    except ValueError:
+        return None  # the process is gone, or ps said something else
+
+
+def _busy_mac_hancom(
+    sleep: Callable[[float], None] = time.sleep, deadline: float | None = None
+) -> str | None:
+    """Describe a Hancom process that stays busy across every sample, else ``None``.
+
+    Stops at the first idle sample, so a Hancom that is not stuck costs one
+    ``ps`` call, and gives up (``None``) rather than sample past ``deadline``.
+    Structural-only operation never looks for Hancom at all.
+    """
+
+    if structural_only():
+        return None
+    found = _probe(["pgrep", "-f", _MAC_HANCOM_PROCESS]).split()
+    pids = [int(word) for word in found if word.isdigit()]
+    readings: dict[int, list[float]] = {pid: [] for pid in pids}
+    for sample in range(_HUNG_SAMPLES):
+        if sample:
+            if deadline is not None and time.monotonic() + _HUNG_SAMPLE_INTERVAL > deadline:
+                return None
+            sleep(_HUNG_SAMPLE_INTERVAL)
+        for pid in list(readings):
+            cpu = _cpu_percent(pid)
+            if cpu is None or cpu < _HUNG_CPU_PERCENT:
+                del readings[pid]
+            else:
+                readings[pid].append(cpu)
+        if not readings:
+            return None
+    pid, values = next(iter(readings.items()))
+    return (
+        f"Hancom Office HWP (pid {pid}) stayed at {min(values):.0f}% CPU or more "
+        f"across {len(values)} samples"
+    )
 
 
 class RenderBackend:
@@ -719,6 +815,10 @@ class MacHancomOracle(RenderBackend):
         # The alert text when the last render_pdf ended because Hancom refused
         # the document (the script dismissed the alert it raised); else None.
         self.last_refusal: str | None = None
+        # Why Hancom looks hung when the last render_pdf ended without a PDF and
+        # without a refusal while Hancom stayed busy (see _busy_mac_hancom);
+        # else None. The user must restart Hancom; nothing here kills it.
+        self.last_hang: str | None = None
         # Single externally-propagated deadline: every subprocess timeout in
         # one public call is clamped so the whole call fits this budget.
         self.budget_seconds = budget_seconds
@@ -788,9 +888,12 @@ class MacHancomOracle(RenderBackend):
 
         When Hancom refuses the document, ``None`` comes back promptly and
         :attr:`last_refusal` holds the text of the alert the script dismissed.
+        When the render ends without a PDF for any other reason while Hancom
+        stays busy, :attr:`last_hang` says so.
         """
 
         self.last_refusal = None
+        self.last_hang = None
         if not self.available():
             return None
         if out_pdf is None:
@@ -806,6 +909,7 @@ class MacHancomOracle(RenderBackend):
         run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
         if run_timeout is None:
             return None
+        run_timeout = _leave_room_for_hang_probe(run_timeout, deadline)
         script_timeout = max(1, int(min(self.timeout, run_timeout)))
         # Unique owned document name: a prior render or user document can never
         # be mistaken for this job. Never pre-delete or stage over caller files.
@@ -824,6 +928,7 @@ class MacHancomOracle(RenderBackend):
                     # Best-effort cleanup is restricted to our uniquely named
                     # document. The worker adapter also handles cancellation.
                     self._close_owned_document(script, staged.name)
+                    self.last_hang = self._hancom_hung(deadline)
                     return None
                 except BaseException:
                     # Interrupted (a signal turned into an exception): run() has
@@ -834,12 +939,22 @@ class MacHancomOracle(RenderBackend):
             if answer.startswith(_MAC_REFUSED_PREFIX):
                 self.last_refusal = answer[len(_MAC_REFUSED_PREFIX):].strip()
                 return None
-            if proc.returncode != 0 or answer != "OK":
-                return None
-            if staged_pdf.is_file() and staged_pdf.read_bytes().rstrip().endswith(b"%%EOF"):
+            written = (
+                proc.returncode == 0
+                and answer == "OK"
+                and staged_pdf.is_file()
+                and staged_pdf.read_bytes().rstrip().endswith(b"%%EOF")
+            )
+            if written:
                 os.replace(staged_pdf, out_pdf)
                 return out_pdf
+            self.last_hang = self._hancom_hung(deadline)
             return None
+
+    def _hancom_hung(self, deadline: float | None) -> str | None:
+        """Why Hancom looks hung after a render with no PDF, or ``None``."""
+
+        return _busy_mac_hancom(deadline=deadline)
 
     def _run_render_script(self, cmd: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
@@ -848,7 +963,7 @@ class MacHancomOracle(RenderBackend):
         try:
             subprocess.run(
                 [self._osascript, str(script), "--close-owned", name],
-                capture_output=True, text=True, timeout=3, check=False,
+                capture_output=True, text=True, timeout=_CLOSE_OWNED_TIMEOUT, check=False,
             )
         except (OSError, subprocess.TimeoutExpired):
             pass

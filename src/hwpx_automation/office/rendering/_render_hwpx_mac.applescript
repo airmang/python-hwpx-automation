@@ -25,6 +25,13 @@
 -- lone 확인 button, and ends the render at once as HANCOM_REFUSED. An alert that
 -- was already up belongs to someone else and is never touched.
 --
+-- A document with a broken table (e.g. a bad cellSpan) makes Hancom ask during
+-- the export whether to repair it ("손상된 표를 복원할까요?", buttons 취소 and
+-- 복원). A new such prompt is this render's: it is answered 취소 — never 복원,
+-- which would render a document Hancom rewrote instead of the one given — and
+-- the render ends as HANCOM_REFUSED. Hancom then reports that the PDF could not
+-- be saved; that alert is dismissed too, so nothing is left up.
+--
 -- Usage:  osascript _render_hwpx_mac.applescript <input.hwpx> <out.pdf> [timeoutSecs]
 -- Output: prints "OK" on success; prints "ERR: <reason>" otherwise, and
 --         "ERR: HANCOM_REFUSED: <alert text>" when Hancom refused the document.
@@ -37,8 +44,17 @@ property savePdfPrefix : "PDF로 저장하기"
 property closeDocPrefix : "문서 닫기"
 -- Wording of the alerts Hancom raises when it refuses a document. Matching needs
 -- one of these AND a lone 확인 button, so no other alert is ever dismissed.
-property refusalPhrases : {"파일이 손상", "읽거나 저장하는데 오류", "읽거나 저장하는 데 오류"}
+property refusalPhrases : {"파일이 손상", "읽거나 저장하는데 오류", "읽거나 저장하는 데 오류", "PDF 파일을 저장하는데 오류", "PDF 파일을 저장하는 데 오류"}
 property dismissButton : "확인"
+-- The repair prompt for a broken table. Matching needs this wording AND exactly
+-- the buttons 취소 and 복원; only 취소 is ever clicked on it.
+property repairPhrase : "복원할까요"
+property repairCancelButton : "취소"
+property repairAcceptButton : "복원"
+-- How long to keep dismissing the alerts Hancom raises after the repair prompt
+-- is cancelled ("PDF 파일을 저장하는데 오류가 있습니다."). Bounded: the render ends
+-- after it whatever Hancom does.
+property followUpSecs : 5
 
 on run argv
 	if (count of argv) < 2 then return "ERR: usage: <input.hwpx> <out.pdf> [timeoutSecs]"
@@ -107,7 +123,9 @@ on run argv
 		-- Some Hancom builds expose the dialog before its default button is
 		-- ready. Retry Return once only while the same dialog is still present.
 		delay 1.0
-		if listContains(windowNames(), pdfDialogTitle) then
+		-- Never while a repair prompt of ours is up: Return would press its
+		-- default button, which may be 복원.
+		if listContains(windowNames(), pdfDialogTitle) and (count of newRepairPrompts(beforeSigs, alertSnapshot())) is 0 then
 			tell application "System Events" to tell process procName
 				set frontmost to true
 				key code 36
@@ -328,10 +346,37 @@ on newRefusalAlerts(beforeSigs, entries)
 	return found
 end newRefusalAlerts
 
+-- A repair prompt: the wording, and exactly the buttons 취소 and 복원 in any order.
+on isRepairPrompt(e)
+	set bs to btns of e
+	if (count of bs) is not 2 then return false
+	if bs does not contain repairCancelButton or bs does not contain repairAcceptButton then return false
+	return (txt of e) contains repairPhrase
+end isRepairPrompt
+
+-- Repair prompts in `entries` whose signature was not up before the open.
+on newRepairPrompts(beforeSigs, entries)
+	set found to {}
+	repeat with e in entries
+		if isRepairPrompt(e) and not listContains(beforeSigs, sig of e) then set end of found to (contents of e)
+	end repeat
+	return found
+end newRepairPrompts
+
 -- "" while no alert of ours is up; otherwise dismiss it (only when exactly one
--- can be ours) and return the HANCOM_REFUSED line.
+-- can be ours) and return the HANCOM_REFUSED line. A repair prompt of ours is
+-- cancelled, and the alerts Hancom raises after that are dismissed as well.
 on refusalResult(beforeSigs)
-	set found to newRefusalAlerts(beforeSigs, alertSnapshot())
+	set entries to alertSnapshot()
+	set prompts to newRepairPrompts(beforeSigs, entries)
+	if (count of prompts) > 0 then
+		set answer to "ERR: HANCOM_REFUSED: " & refusalLine(txt of item 1 of prompts)
+		if (count of prompts) > 1 then return answer & " (prompt left up: more than one matched)"
+		if not cancelRepairPrompt(sig of item 1 of prompts) then return answer & " (prompt left up: cancel failed)"
+		dismissFollowUpAlerts(beforeSigs, followUpSecs)
+		return answer
+	end if
+	set found to newRefusalAlerts(beforeSigs, entries)
 	if (count of found) is 0 then return ""
 	set answer to "ERR: HANCOM_REFUSED: " & refusalLine(txt of item 1 of found)
 	if (count of found) > 1 then return answer & " (alert left up: more than one matched)"
@@ -365,6 +410,46 @@ on dismissAlert(theSig)
 	end repeat
 	return false
 end dismissAlert
+
+-- The same re-find-then-click-a-unique-match as dismissAlert, for the repair
+-- prompt: the only button ever clicked on it is 취소 (repairCancelButton).
+on cancelRepairPrompt(theSig)
+	try
+		tell application "System Events" to tell process procName
+			set target to missing value
+			repeat with w in (every window)
+				set e to my alertEntryOf(w)
+				if e is not missing value then
+					if (sig of e) is theSig then
+						if target is not missing value then return false
+						set target to contents of w
+					end if
+				end if
+			end repeat
+			if target is missing value then return false
+			click button repairCancelButton of target
+		end tell
+	on error
+		return false
+	end try
+	repeat 10 times
+		if not listContains(sigsOf(alertSnapshot()), theSig) then return true
+		delay 0.3
+	end repeat
+	return false
+end cancelRepairPrompt
+
+-- After 취소 on the repair prompt Hancom gives up the export and raises one more
+-- alert ("PDF 파일을 저장하는데 오류가 있습니다.", lone 확인). Keep dismissing new
+-- refusal alerts for a bounded while so none of this render's is left up; as
+-- everywhere, only an alert that was not up before the open, and only a unique one.
+on dismissFollowUpAlerts(beforeSigs, secs)
+	repeat (secs * 2) times
+		set found to newRefusalAlerts(beforeSigs, alertSnapshot())
+		if (count of found) is 1 then dismissAlert(sig of item 1 of found)
+		delay 0.5
+	end repeat
+end dismissFollowUpAlerts
 
 on refusalLine(txt)
 	set parts to {}
