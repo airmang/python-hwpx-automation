@@ -438,6 +438,32 @@ def _insert_direct_child(
         container.insert(list(container).index(siblings[index]), element)
 
 
+def _drop_layout_cache(paragraph_element: Any | None) -> None:
+    """Remove a paragraph's line layout cache (``hp:linesegarray``) after its content changed.
+
+    The cache records where each line starts in the paragraph's content. Once an object or a run has left or
+    joined the paragraph, the cache no longer matches: Hancom reports a document whose cached lines point past
+    the remaining content as damaged, while without the cache it lays the paragraph out again. Only the
+    paragraph that changed is touched; every other paragraph keeps the cache Hancom wrote. ``None`` (an
+    element no paragraph holds) changes nothing.
+    """
+
+    if paragraph_element is None:
+        return
+    for child in list(paragraph_element):
+        if _local_name(child).lower() == "linesegarray":
+            paragraph_element.remove(child)
+
+
+def _paragraph_element_of(element: Any) -> Any | None:
+    """The nearest ``hp:p`` holding *element*, or ``None`` when it is detached."""
+
+    current = element
+    while current is not None and _local_name(current) != "p":
+        current = current.getparent() if hasattr(current, "getparent") else None
+    return current
+
+
 def _insert_inline(
     view: HwpxAgentDocument,
     parent: NodeRecord,
@@ -468,6 +494,7 @@ def _insert_inline(
         if _local_name(anchor_run) == "ctrl":
             anchor_run = anchor_run.getparent()
         paragraph.element.insert(list(paragraph.element).index(anchor_run), run)
+    _drop_layout_cache(paragraph.element)
     paragraph.section.mark_dirty()
     return run
 
@@ -482,6 +509,7 @@ def _remove_inline_element(element: Any, paragraph: Any) -> None:
         run.remove(control)
     if not list(run) and run in list(paragraph.element):
         paragraph.element.remove(run)
+    _drop_layout_cache(paragraph.element)
     paragraph.section.mark_dirty()
 
 
@@ -834,7 +862,8 @@ def _add(
         if position["mode"] != "append":
             parent.native.element.remove(created.element)
             _insert_direct_child(view, parent, kind, created.element, position)
-            parent.native.section.mark_dirty()
+        _drop_layout_cache(parent.native.element)
+        parent.native.section.mark_dirty()
         return created
     if kind == "table":
         created = parent.native.add_table(
@@ -896,7 +925,9 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
     if record.kind == "paragraph":
         native.remove()
     elif record.kind == "run":
+        paragraph_element = native.paragraph.element
         native.remove()
+        _drop_layout_cache(paragraph_element)
     elif record.kind == "table":
         _remove_inline_element(native.element, native.paragraph)
     elif record.kind == "row":
@@ -914,6 +945,7 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
         if parent is None:
             raise AgentContractError("not_found", "picture is detached", target=record.path)
         parent.remove(_element(record.native))
+        _drop_layout_cache(_paragraph_element_of(parent))
         _mark_containing_section(document, parent)
     elif record.kind == "shape":
         _remove_inline_element(native.element, native.paragraph)
@@ -934,6 +966,7 @@ def _detach(view: HwpxAgentDocument, record: NodeRecord) -> Any:
         record.native.section.mark_dirty()
     elif record.kind == "run":
         record.native.paragraph.element.remove(element)
+        _drop_layout_cache(record.native.paragraph.element)
         record.native.paragraph.section.mark_dirty()
     elif record.kind in _INLINE_KINDS:
         paragraph = record.native.paragraph if hasattr(record.native, "paragraph") else None
@@ -1002,6 +1035,7 @@ def _move(
         if source.kind == "paragraph":
             parent.native.mark_dirty()
         elif source.kind == "run":
+            _drop_layout_cache(parent.native.element)
             parent.native.section.mark_dirty()
         else:
             _refresh_table_rows(source.native.table)
@@ -1157,6 +1191,7 @@ def _copy_node(
         if source.kind == "paragraph":
             parent.native.mark_dirty()
         elif source.kind == "run":
+            _drop_layout_cache(parent.native.element)
             parent.native.section.mark_dirty()
         else:
             _refresh_table_rows(parent.native)
