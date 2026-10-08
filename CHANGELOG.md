@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `apply_document_commands` drops the line layout cache (`hp:linesegarray`) of each paragraph a command changes inside: moving a picture, table, shape or note out of a paragraph or into another, reordering one within its paragraph, removing a picture or a run, and adding or copying inline content. The cache records where each line starts in the paragraph; moving two of three pictures out of a paragraph left its `textpos` 0, 8 and 16 behind for one picture, and Hancom reported the saved file as damaged or altered while the open-safety check passed. Without the cache Hancom lays the paragraph out again; every paragraph no command changed keeps the cache Hancom wrote (#167).
+
 ## [7.3.4] - 2026-10-06
 
 - `search_and_replace`, `batch_replace`, `replace_in_paragraph` and the table-cell paths replace each occurrence once when the replacement contains the text being replaced ("홍길동" → "홍길동(인)"). Before, the run-level pass replaced it, and a second pass meant for matches that span runs found the text again inside the replacement and replaced it a second time: two occurrences came back as `replaced_count: 4` and "홍길동(인)(인)" (#164).
