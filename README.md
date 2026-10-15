@@ -192,3 +192,9 @@ python scripts/run_conformance.py run \
 ## License · Maintainer
 
 Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
+
+## Experimental native previews
+
+The opt-in [`native-preview` runtime](docs/native-preview.md) adds local PNG rendering
+and the bounded worker service for desktop file viewing. Base and MCP dependencies
+remain unchanged; coordinated development core support and explicit fonts are required.

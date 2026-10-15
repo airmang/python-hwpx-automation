@@ -41,13 +41,17 @@ def test_public_module_manifest_freezes_the_complete_shipped_source_surface() ->
     assert base_modules == sorted(set(base_modules))
     assert adapter_modules == sorted(set(adapter_modules))
     assert set(base_modules).isdisjoint(adapter_modules)
-    assert manifest["basePublicModuleCount"] == len(base_modules) == 183
+    assert manifest["basePublicModuleCount"] == len(base_modules) == 195
     assert manifest["mcpAdapterModuleCount"] == len(adapter_modules) == 5
-    assert manifest["moduleCount"] == len(all_modules) == 188
+    assert manifest["moduleCount"] == len(all_modules) == 200
     assert manifest["basePublicModuleSha256"] == _digest(base_modules)
     assert manifest["mcpAdapterModuleSha256"] == _digest(adapter_modules)
     assert manifest["moduleSha256"] == _digest(all_modules)
     assert all_modules == _source_modules()
+    # The opt-in native runtime adds 12 import-safe modules to the frozen base
+    # surface; it adds no MCP adapter and does not load its native libraries.
+    assert len([name for name in base_modules if name == "hwpx_automation.preview_runtime"
+                or name.startswith("hwpx_automation.preview_runtime.")]) == 12
     assert adapter_modules == [
         "hwpx_automation.fastmcp_adapter",
         "hwpx_automation.handlers.quality_render",
@@ -82,7 +86,7 @@ modules = manifest["basePublicModules"]
 digest = hashlib.sha256(
     ("\n".join(sorted(modules)) + "\n").encode()
 ).hexdigest()
-assert len(modules) == manifest["basePublicModuleCount"] == 183
+assert len(modules) == manifest["basePublicModuleCount"] == 195
 assert digest == manifest["basePublicModuleSha256"]
 for module in modules:
     importlib.import_module(module)

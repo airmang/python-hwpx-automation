@@ -42,6 +42,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Native rasterization is opt-in; it never becomes a base/MCP dependency.
+native-preview = [
+    "python-hwpx>=6.8.0,<7",
+    "Pillow==11.3.0",
+    "fonttools==4.60.1",
+    "uharfbuzz==0.52.0",
+    "freetype-py==2.5.1",
+]
+
 # MCP는 이 제품의 어댑터 하나지 본체가 아니다. office/·workflow/·
 # ops_services/·core/ 122개 파일 중 mcp를 import하는 것은 0개다. 파이썬으로
 # 문서 자동화만 하는 사용자가 MCP SDK를 강제로 깔 이유가 없다.
@@ -86,6 +95,7 @@ Homepage = "https://github.com/airmang/python-hwpx-automation"
 Issues = "https://github.com/airmang/python-hwpx-automation/issues"
 
 [project.scripts]
+"hwpx-native-preview" = "hwpx_automation.preview_runtime.launcher:main"
 # Inherited from python-hwpx 5.0, which no longer declares it. Same command, same
 # subcommands; the agent runtime it drives is canonical in this package.
 "hwpx" = "hwpx_automation.office.agent.cli:main"
@@ -105,6 +115,7 @@ where = ["src"]
 include = ["hwpx_automation*"]
 
 [tool.setuptools.package-data]
+"hwpx_automation.preview_runtime" = ["viewer.html"]
 "hwpx_automation" = [
     "identity.json",
     "public-modules.json",
@@ -172,6 +183,7 @@ files = [
     "src/hwpx_automation/office",
     "src/hwpx_automation/tool_contract.py",
     "src/hwpx_automation/workflow/service.py",
+    "src/hwpx_automation/preview_runtime",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true
@@ -206,6 +218,7 @@ include = [
     "src/hwpx_automation/office",
     "src/hwpx_automation/tool_contract.py",
     "src/hwpx_automation/workflow/service.py",
+    "src/hwpx_automation/preview_runtime",
 ]
 reportMissingTypeStubs = false
 
