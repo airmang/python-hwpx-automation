@@ -13,6 +13,20 @@ import pytest
 from hwpx_automation.preview_runtime.render import check_input
 
 
+@pytest.mark.skipif(os.name != 'nt', reason='Windows extended font resource path')
+def test_font_resources_under_long_frozen_helper_path(tmp_path):
+    from pathlib import Path
+    from hwpx_automation.preview_runtime.fonts import font_resources
+    directory = tmp_path / ('helper-cache-' * 10) / ('resources-' * 10)
+    extended = Path('\\\\?\\' + str(directory))
+    extended.mkdir(parents=True)
+    for name in ['HCRBatang.ttf', 'HCRBatang-Bold.ttf', 'HCRDotum.ttf', 'HCRDotum-Bold.ttf']:
+        (extended / name).write_bytes(b'font-discovery-fixture')
+    resources = font_resources(directory)
+    assert set(resources) >= {'함초롬바탕', '함초롬돋움'}
+    assert all(p.is_file() for pair in resources.values() for p in pair)
+
+
 def test_optional_modules_import_without_native_dependencies():
     code = r'''
 import importlib, importlib.abc, sys

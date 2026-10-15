@@ -6,6 +6,11 @@ import sys
 
 def font_resources(directory=None):
     root=Path(directory) if directory else Path(__file__).with_name('resources')/'fonts'
+    if os.name=='nt':
+        value=os.path.abspath(root)
+        if not value.startswith('\\\\?\\'):
+            value=('\\\\?\\UNC\\'+value[2:]) if value.startswith('\\\\') else ('\\\\?\\'+value)
+        root=Path(value)
     registry={
         '함초롬바탕':(root/'HCRBatang.ttf',root/'HCRBatang-Bold.ttf'),
         '함초롬돋움':(root/'HCRDotum.ttf',root/'HCRDotum-Bold.ttf'),
