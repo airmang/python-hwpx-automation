@@ -21,7 +21,12 @@ def test_ledger_imports_match_the_gate() -> None:
         f"src/{module.replace('.', '/')}.py": entry["coreOwner"]
         for module, entry in OWNER["coreDelegatedModules"].items()
     }
-    assert delegated == BOUNDARY["CORE_DELEGATED_MODULES"]
+    authoring = {
+        path: owner
+        for path, owner in BOUNDARY["CORE_DELEGATED_MODULES"].items()
+        if path.startswith("src/hwpx_automation/office/authoring/")
+    }
+    assert delegated == authoring
 
 
 def _tree(tmp_path: Path, source: str) -> Path:
@@ -38,7 +43,7 @@ def test_a_delegated_module_that_reads_xml_again_fails(tmp_path: Path) -> None:
         "from hwpx.tools.template_analyzer import analyze_template\n"
         "from xml.etree import ElementTree as ET\n",
     )
-    assert violations(root) == [
+    assert violations(root, {TEMPLATE: "hwpx.tools.template_analyzer"}) == [
         f"core-delegated module reads packages or XML itself: {TEMPLATE} -> xml.etree"
     ]
 
@@ -46,7 +51,7 @@ def test_a_delegated_module_that_reads_xml_again_fails(tmp_path: Path) -> None:
 def test_a_delegated_module_that_drops_its_core_seam_fails(tmp_path: Path) -> None:
     violations = BOUNDARY["_delegated_module_violations"]
     root = _tree(tmp_path, "from hwpx.opc.package import HwpxPackage\n")
-    assert violations(root) == [
+    assert violations(root, {TEMPLATE: "hwpx.tools.template_analyzer"}) == [
         f"core-delegated module does not import its core seam: {TEMPLATE} -> hwpx.tools.template_analyzer",
         f"core-delegated module reads packages or XML itself: {TEMPLATE} -> hwpx.opc.package",
     ]

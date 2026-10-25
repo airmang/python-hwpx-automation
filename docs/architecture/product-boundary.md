@@ -68,6 +68,23 @@ same clean-wheel smoke on the minimum supported Python before publication.
 `handlers/specialized.py` are frozen compatibility debt; new direct discovery
 sites fail the product-boundary check.
 
+### Core-native modules re-exported here
+
+Two modules keep their import path but no implementation of their own, because
+python-hwpx's module-ownership ledger classifies the code core-native and a
+second copy had started to drift:
+
+| Automation path | Core owner | What stays here |
+|---|---|---|
+| `office.authoring.template_analyzer` | `hwpx.tools.template_analyzer` | the agent schema and its `--schema-json`/`--output-schema-json` CLI options (#176) |
+| `office.quality.page_guard` | `hwpx.tools.page_guard` | nothing but the path; thresholds and gate decisions stay with each workflow (#177) |
+
+`scripts/check_product_boundary.py` lists them in `CORE_DELEGATED_MODULES`:
+each must import its core owner and must not import `lxml`, `xml`, `zipfile`,
+`hwpx.opc` or `hwpx.oxml`, so a package reader cannot grow back under the same
+path. The owner ledgers record each under `coreDelegatedModules`; their frozen
+source receipts are left as they were captured.
+
 Moving released core workflows here is a compatibility project, not a copy
 project. Each move needs one owner, a primitive seam, a 4.x migration path, and
 an explicit later removal gate.

@@ -110,6 +110,8 @@ FROZEN_CORE_AUTHORING_IMPORTS = (
 CORE_DELEGATED_MODULES = {
     # #176: format analysis is core's; the agent schema and its CLI options stay.
     "src/hwpx_automation/office/authoring/template_analyzer.py": "hwpx.tools.template_analyzer",
+    # #177: generic structural metrics are core's; thresholds stay with workflows.
+    "src/hwpx_automation/office/quality/page_guard.py": "hwpx.tools.page_guard",
 }
 DELEGATED_MODULE_FORBIDDEN_IMPORTS = (
     "lxml",
@@ -120,13 +122,14 @@ DELEGATED_MODULE_FORBIDDEN_IMPORTS = (
 )
 CANONICAL_POLICY_ROOTS = {
     "src/hwpx_automation/office/compliance": ("hwpx.document",),
-    "src/hwpx_automation/office/quality": ("hwpx",),
+    # #177: the structural layout-drift metrics are core-native; quality
+    # re-exports them and keeps no package reader of its own.
+    "src/hwpx_automation/office/quality": ("hwpx.tools.page_guard",),
     "src/hwpx_automation/office/utilities": (),
 }
 FROZEN_CORE_POLICY_IMPORTS = (
     "hwpx.tools.official_lint",
     "hwpx.tools.pii",
-    "hwpx.tools.page_guard",
     "hwpx.tools.table_compute",
 )
 CANONICAL_FORM_FILL_ROOT = "src/hwpx_automation/office/form_fill"
@@ -222,9 +225,12 @@ def _imported_members(path: Path) -> list[tuple[str, str]]:
     return members
 
 
-def _delegated_module_violations(root: Path) -> list[str]:
+def _delegated_module_violations(
+    root: Path,
+    modules: dict[str, str] = CORE_DELEGATED_MODULES,
+) -> list[str]:
     violations: list[str] = []
-    for relative, core_module in CORE_DELEGATED_MODULES.items():
+    for relative, core_module in modules.items():
         path = root / relative
         if not path.is_file():
             violations.append(f"core-delegated module is missing: {relative}")

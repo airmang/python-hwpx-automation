@@ -3,8 +3,17 @@
  "canonicalOwners": {
   "hwpx.tools.official_lint": "hwpx_automation.office.compliance.official_lint",
   "hwpx.tools.pii": "hwpx_automation.office.compliance.pii",
-  "hwpx.tools.page_guard": "hwpx_automation.office.quality.page_guard",
   "hwpx.tools.table_compute": "hwpx_automation.office.utilities.table_compute"
+ },
+ "coreDelegatedModules": {
+  "hwpx_automation.office.quality.page_guard": {
+   "coreOwner": "hwpx.tools.page_guard",
+   "keptHere": [
+    "import path hwpx_automation.office.quality(.page_guard)"
+   ],
+   "reason": "core module-ownership.json classifies page_guard core-native; workflow thresholds and gate decisions stay with their workflows (#177)",
+   "requiresCore": "6.5.0 (unchanged since)"
+  }
  },
  "packageRoots": {
   "compliance": "src/hwpx_automation/office/compliance",
@@ -20,8 +29,8 @@
  },
  "canonical": {
   "pythonFiles": 7,
-  "loc": 1684,
-  "manifestSha256": "a395e5eef5c1c96d860e3787881644ea0ddf322adc969910322feb09fd35c5ec",
+  "loc": 1443,
+  "manifestSha256": "1aace7e1e77146afd08522c05e0b8ffda51f8d7e97676e813cacfeda3699d733",
   "packageFileCounts": {
    "compliance": 3,
    "quality": 2,
@@ -29,8 +38,13 @@
   },
   "refrozenFrom": {
    "loc": 1684,
-   "manifestSha256": "74112864e78e032e39bf0859f24a77b9aa519756f6c5700c85dd08c26ebf67c6",
-   "reason": "패키지 이름을 hwpx_mcp_server에서 hwpx_automation으로 바꿨다. 동작 변화 없음."
+   "manifestSha256": "a395e5eef5c1c96d860e3787881644ea0ddf322adc969910322feb09fd35c5ec",
+   "reason": "#177: quality/page_guard.py는 core hwpx.tools.page_guard를 다시 내보내기만 한다. 두 번째 지표 구현을 지웠다.",
+   "previous": {
+    "loc": 1684,
+    "manifestSha256": "74112864e78e032e39bf0859f24a77b9aa519756f6c5700c85dd08c26ebf67c6",
+    "reason": "패키지 이름을 hwpx_mcp_server에서 hwpx_automation으로 바꿨다. 동작 변화 없음."
+   }
   }
  },
  "approvedCoreImports": {
@@ -38,7 +52,7 @@
    "hwpx.document"
   ],
   "quality": [
-   "hwpx"
+   "hwpx.tools.page_guard"
   ],
   "utilities": []
  },
@@ -46,14 +60,16 @@
   "hwpx.document": [
    "HwpxDocument"
   ],
-  "hwpx": [
-   "HwpxPackage"
+  "hwpx.tools.page_guard": [
+   "DocumentMetrics",
+   "collect_metrics",
+   "compare_metrics",
+   "main"
   ]
  },
  "forbiddenCoreCompatibilityImports": [
   "hwpx.tools.official_lint",
   "hwpx.tools.pii",
-  "hwpx.tools.page_guard",
   "hwpx.tools.table_compute"
  ],
  "productionConsumersToRoute": [
@@ -71,7 +87,8 @@
  "coreRetainedPrimitives": [
   "HwpxDocument",
   "HwpxPackage",
-  "generic HWPX package, XML, traversal, serialization, and preservation behavior"
+  "generic HWPX package, XML, traversal, serialization, and preservation behavior",
+  "hwpx.tools.page_guard structural layout-drift metrics (DocumentMetrics, collect_metrics, compare_metrics, CLI)"
  ],
  "compatibilityPolicy": {
   "coreLine": "4.x",
