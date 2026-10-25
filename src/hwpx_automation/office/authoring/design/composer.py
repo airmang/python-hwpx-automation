@@ -213,6 +213,10 @@ def _marked_fragment_for(
         values[slots[0]] = block.text
     paragraphs = fragment_paragraphs(prof.fragment(block.role))
     unfilled = fill_placeholders(paragraphs, block.role, values)
+    if not values:
+        # A block with no text and no values asks for the role as is (a page
+        # break line, a separator) -- blank slots are what it wants.
+        return paragraphs
     for slot in unfilled:
         name = f"{block.role}.{slot}" if slot else block.role
         warnings.append(f"MARKED_SLOT_EMPTY: no value for {{{{{name}}}}}; left blank")

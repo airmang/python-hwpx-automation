@@ -112,6 +112,16 @@ def test_missing_slot_is_blank_and_reported(tmp_path: Path) -> None:
     assert any("{{띠.제목}}" in warning for warning in result.warnings)
 
 
+def test_block_without_text_or_values_uses_the_role_blank_silently(tmp_path: Path) -> None:
+    _, profile = _harvest(tmp_path)
+
+    data, result = compose_bytes(_plan({"role": "1단계"}), profile=profile)
+
+    assert result.ok
+    assert "{{" not in _section_xml(data)
+    assert not any("MARKED_SLOT_EMPTY" in warning for warning in result.warnings)
+
+
 def test_unknown_role_is_refused_in_production(tmp_path: Path) -> None:
     _, profile = _harvest(tmp_path)
 
