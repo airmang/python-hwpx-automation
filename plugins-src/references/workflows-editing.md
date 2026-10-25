@@ -294,8 +294,9 @@ run_edit_plan(plan, dry_run=False)
   `doc.set_page_setup(...)`, `doc.set_header_footer(...)`, `doc.set_page_number(...)`,
   `doc.set_list_format(...)`, `doc.add_picture(...)`, `doc.replace_picture(...)` →
   `doc.save_to_path(path)`. 시그니처는 [`api.md`](api.md).
-- 런 수준 치환: `doc.replace_text_in_runs(...)`. 표 셀 포함 전역 치환:
+- 런 수준 치환: `doc.replace_text_in_runs(...)`. 표 셀·메타데이터 포함 전역 치환:
   `python3 scripts/zip_replace_all.py input.hwpx output.hwpx --replace "키=값" [--auto-fix-ns]`
-  (open-safety 통과 시에만 대상 교체).
-- ZIP-level 수정 후 네임스페이스 정리: `python3 scripts/fix_namespaces.py input.hwpx --inplace --backup`.
+  (python-hwpx `replace_package_text` 래퍼, 6.10.0 이상. 텍스트 노드만 바꾸고 open-safety 통과 시에만 대상 교체).
+- 네임스페이스 정리: `python3 scripts/fix_namespaces.py input.hwpx --inplace --backup`
+  (python-hwpx `normalize_package_namespaces` 래퍼).
 - 저장 후에는 항상 `validate_editor_open_safety(path).ok == True`를 확인한다.

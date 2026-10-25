@@ -17,7 +17,8 @@
   `repair_hwpx`(또는 `hwpx-repair`)로 복구 복사본을 만들고 `crcOk`,
   `validatePackage.ok`, `openSafety.ok`, `reordered`, `recovered`를 evidence로 남긴다.
 - local 스크립트(`scripts/zip_replace_all.py`, `scripts/fix_namespaces.py`)도 open-safety
-  검증 통과 시에만 대상을 교체한다. 이 가드를 우회하는 경로를 만들지 않는다.
+  검증 통과 시에만 대상을 교체한다. 두 스크립트는 python-hwpx 공개 함수의 CLI 래퍼이며, 이 가드를
+  우회하는 경로를 만들지 않는다. 구조 검증 통과는 렌더 검증이 아니다.
 
 ## 2. visual-review v1 (열린 문서 검토 증거)
 

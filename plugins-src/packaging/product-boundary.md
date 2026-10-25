@@ -24,6 +24,13 @@ already required by the hosts. A new Python file outside `examples/`, or a new
 runtime script not in the approved support-script set, fails
 `scripts/check_product_boundary.py` until the responsibility decision is
 reviewed. This prevents application logic from drifting into the prompt layer.
+The two package-editing support scripts, `zip_replace_all.py` and
+`fix_namespaces.py`, are command-line wrappers around python-hwpx's public
+`hwpx.patch.replace_package_text` and
+`hwpx.tools.repair.normalize_package_namespaces`. The gate checks the root
+scripts and every generated copy: each must call its core function and must not
+import `lxml`, `xml`, `re` or `copy`, use `zipfile` beyond `is_zipfile`, touch
+`ZipFile`/`ZipInfo`/`writestr`/`etree`, or import a private hwpx name.
 Viewer detection and visual-review batch evidence orchestration are approved
 skill support roles: they select/report an external viewer and aggregate
 evidence, but do not implement HWPX document, workflow, policy, or renderer

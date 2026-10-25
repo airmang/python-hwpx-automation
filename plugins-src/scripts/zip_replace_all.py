@@ -2,10 +2,22 @@
 # SPDX-License-Identifier: Apache-2.0
 """zip_replace_all.py
 
-Replace plain-text placeholders across XML/HPF parts in an HWPX container.
+Replace plain-text placeholders across the XML/HPF parts of an HWPX package.
 
-This script is intended for template-style replacements where placeholders
-exist as text nodes across the package, including table cells.
+For template-style replacements where placeholders sit anywhere in the
+package: body, table cells, headers and footers, and ``content.hpf``
+metadata.
+
+This is a thin command-line wrapper. The work is python-hwpx's
+``hwpx.patch.replace_package_text``: only character data (text nodes) of the
+``.xml``/``.hpf`` parts is searched — element and attribute names, attribute
+values, comments and CDATA are not — keys and values are plain text and are
+escaped on the way in, a changed part loses its ``linesegarray`` layout
+caches, and every other part keeps its bytes. ``--auto-fix-ns`` runs
+``hwpx.tools.repair.normalize_package_namespaces`` on the result. The output
+is checked for editor open-safety and written atomically only when the check
+passes; otherwise the target is left as it was. This script only parses
+arguments, picks the target and prints the result.
 
 Usage:
   python3 scripts/zip_replace_all.py input.hwpx output.hwpx --replace "{A}=B"
@@ -16,47 +28,32 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import copy
 import os
-import re
 import shutil
 import sys
-import tempfile
 import zipfile
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from fix_namespaces import fix_namespaces, normalize_hwpml_root_bytes, validate_open_safety
+from fix_namespaces import REQUIRED_CORE, _normalize, _publish
 
 
-_LINESEGARRAY_PATTERN = re.compile(
-    r"<(?P<tag>(?:[A-Za-z_][\w.-]*:)?lineSegArray)\b[^>]*>.*?</(?P=tag)>"
-    r"|<(?P<empty>(?:[A-Za-z_][\w.-]*:)?lineSegArray)\b[^>]*/>",
-    re.IGNORECASE | re.DOTALL,
-)
-
-
-def _clone_zipinfo(info: zipfile.ZipInfo, *, force_stored: bool = False) -> zipfile.ZipInfo:
-    cloned = copy.copy(info)
-    if force_stored:
-        cloned.compress_type = zipfile.ZIP_STORED
-    return cloned
+def _replace_package_text() -> Any:
+    try:
+        from hwpx.patch import replace_package_text
+    except ImportError as exc:  # pragma: no cover - depends on the installed core
+        raise RuntimeError(f"{REQUIRED_CORE} is required for package text replacement: {exc}") from exc
+    return replace_package_text
 
 
 def _same_path(left: str | os.PathLike[str], right: str | os.PathLike[str]) -> bool:
     left_path = os.path.normcase(str(Path(left).resolve(strict=False)))
     right_path = os.path.normcase(str(Path(right).resolve(strict=False)))
     return left_path == right_path
-
-
-def _make_temp_hwpx_path(directory: Path, prefix: str) -> str:
-    fd, temp_path = tempfile.mkstemp(prefix=prefix, suffix=".hwpx", dir=directory)
-    os.close(fd)
-    return temp_path
 
 
 def parse_replace_args(values: list[str]) -> dict[str, str]:
@@ -74,21 +71,37 @@ def parse_replace_args(values: list[str]) -> dict[str, str]:
 
 
 def warn_if_xml_like_keys(replacements: Mapping[str, str]) -> int:
+    """Warn about keys that look like markup: only text nodes are searched now."""
+
     warnings = 0
     for old in replacements:
-        if "<" in old or ">" in old or "</" in old:
+        if "<" in old or ">" in old:
             warnings += 1
             print(
-                f"[WARN] replacement key looks like XML markup: {old!r}",
+                f"[WARN] replacement key looks like XML markup and is matched as plain text only: {old!r}",
                 file=sys.stderr,
             )
     return warnings
 
 
-def _remove_layout_cache(text: str) -> tuple[str, int]:
-    """Remove HWPX paragraph line-layout caches from a changed XML part."""
+def _replace(source: str | bytes, replacements: Mapping[str, str]) -> Any:
+    result = _replace_package_text()(source, replacements)
+    if not result.ok:
+        raise RuntimeError(
+            "generated HWPX failed open-safety validation: " + str(result.open_safety.get("summary", ""))
+        )
+    return result
 
-    return _LINESEGARRAY_PATTERN.subn("", text)
+
+def _stats(result: Any) -> dict[str, int]:
+    return {
+        "parts": len(result.entries),
+        "xml_parts": len(result.scanned_parts),
+        "changed_xml": len(result.changed_parts),
+        "replacements": result.replacements,
+        "layout_caches_removed": result.layout_caches_removed,
+        "decode_failed": len(result.undecodable_parts),
+    }
 
 
 def zip_replace_all(
@@ -96,80 +109,21 @@ def zip_replace_all(
     out_hwpx: str | os.PathLike[str],
     replacements: Mapping[str, str],
 ) -> dict[str, int]:
-    """Replace plain strings across XML/HPF parts in an HWPX package."""
+    """Replace plain text in the text nodes of an HWPX package; write only an open-safe result."""
 
+    result = _replace(str(in_hwpx), replacements)
     output_path = Path(out_hwpx)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = Path(_make_temp_hwpx_path(output_path.parent, "hwpx-replace-"))
-    try:
-        stats = _zip_replace_all_unchecked(in_hwpx, temp_path, replacements)
-        validate_open_safety(str(temp_path))
-        os.replace(temp_path, output_path)
-        return stats
-    except BaseException:
-        temp_path.unlink(missing_ok=True)
-        raise
-
-
-def _zip_replace_all_unchecked(
-    in_hwpx: str | os.PathLike[str],
-    out_hwpx: str | os.PathLike[str],
-    replacements: Mapping[str, str],
-) -> dict[str, int]:
-    """Write a replaced ZIP without replacing a user target."""
-
-    stats = {
-        "parts": 0,
-        "xml_parts": 0,
-        "changed_xml": 0,
-        "replacements": 0,
-        "layout_caches_removed": 0,
-        "decode_failed": 0,
-    }
-
-    with zipfile.ZipFile(in_hwpx, "r") as zin:
-        with zipfile.ZipFile(out_hwpx, "w", compression=zipfile.ZIP_DEFLATED) as zout:
-            for info in zin.infolist():
-                stats["parts"] += 1
-                data = zin.read(info.filename)
-
-                if info.filename.lower().endswith((".xml", ".hpf")):
-                    stats["xml_parts"] += 1
-                    try:
-                        text = data.decode("utf-8")
-                    except UnicodeDecodeError:
-                        stats["decode_failed"] += 1
-                        zout.writestr(_clone_zipinfo(info, force_stored=info.filename == "mimetype"), data)
-                        continue
-
-                    original_text = text
-                    replaced_here = 0
-                    for old, new in replacements.items():
-                        count = text.count(old)
-                        if count:
-                            text = text.replace(old, new)
-                            replaced_here += count
-
-                    if text != original_text:
-                        text, removed_caches = _remove_layout_cache(text)
-                        stats["changed_xml"] += 1
-                        stats["replacements"] += replaced_here
-                        stats["layout_caches_removed"] += removed_caches
-                        data = normalize_hwpml_root_bytes(
-                            info.filename,
-                            text.encode("utf-8"),
-                        )
-
-                zout.writestr(_clone_zipinfo(info, force_stored=info.filename == "mimetype"), data)
-
-    return stats
+    _publish(result.data, str(output_path))
+    return _stats(result)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Replace plain-text placeholders across XML parts in a .hwpx package. "
-            "Use this for template-style global replacements, especially when table cells must be included."
+            "Replace plain-text placeholders in the text of a .hwpx package (python-hwpx "
+            "replace_package_text). Use this for template-style global replacements, "
+            "especially when table cells must be included."
         )
     )
     parser.add_argument("input_hwpx", help="Input .hwpx path")
@@ -189,7 +143,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--inplace",
         action="store_true",
-        help="Write back to the input file using a temporary file internally",
+        help="Write back to the input file (only after the result passes open-safety)",
     )
     parser.add_argument(
         "--backup",
@@ -199,7 +153,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--auto-fix-ns",
         action="store_true",
-        help="Run scripts/fix_namespaces.py logic after replacement",
+        help="Also normalize namespaces (python-hwpx normalize_package_namespaces)",
     )
     return parser.parse_args(argv)
 
@@ -231,76 +185,56 @@ def main(argv: list[str]) -> int:
     target_path = input_path if args.inplace else Path(args.output_hwpx).resolve()
     if not args.inplace:
         target_path.parent.mkdir(parents=True, exist_ok=True)
-    same_output_path = _same_path(input_path, target_path)
-    if same_output_path and not args.inplace:
+    if _same_path(input_path, target_path) and not args.inplace:
         print(
-            f"[WARN] output path matches input; using a temporary file: {target_path}",
+            f"[WARN] output path matches input; it is replaced only after validation: {target_path}",
             file=sys.stderr,
         )
 
     warn_if_xml_like_keys(replacements)
 
-    temp_dir = input_path.parent if args.inplace else target_path.parent
-    replace_out = Path(_make_temp_hwpx_path(temp_dir, "hwpx-replace-"))
-
     try:
-        replace_stats = _zip_replace_all_unchecked(
-            str(input_path),
-            str(replace_out),
-            replacements,
-        )
+        result = _replace(str(input_path), replacements)
     except Exception as exc:
         print(f"[ERR] replacement failed: {exc}", file=sys.stderr)
-        if replace_out != target_path and replace_out.exists():
-            replace_out.unlink(missing_ok=True)
         return 1
+    data = result.data
 
-    final_path = target_path
-    ns_stats: dict[str, int] | None = None
-
+    ns_result = None
     if args.auto_fix_ns:
-        ns_out = Path(_make_temp_hwpx_path(temp_dir, "hwpx-ns-"))
         try:
-            ns_stats = fix_namespaces(str(replace_out), str(ns_out))
+            ns_result = _normalize(data)
         except Exception as exc:
             print(f"[ERR] namespace fix failed: {exc}", file=sys.stderr)
-            replace_out.unlink(missing_ok=True)
-            ns_out.unlink(missing_ok=True)
             return 1
-        replace_out.unlink(missing_ok=True)
-        produced_path = ns_out
-    else:
-        produced_path = replace_out
+        data = ns_result.data
 
     try:
-        validate_open_safety(str(produced_path))
         if args.inplace and args.backup:
             backup_path = input_path.with_suffix(input_path.suffix + ".bak")
             shutil.copy2(input_path, backup_path)
             print(f"[OK] backup: {backup_path}")
         if args.backup and not args.inplace:
             print("[WARN] --backup is ignored when output does not overwrite input", file=sys.stderr)
-        os.replace(produced_path, final_path)
+        _publish(data, str(target_path))
     except Exception as exc:
         print(f"[ERR] open-safety validation failed: {exc}", file=sys.stderr)
         return 1
-    finally:
-        if produced_path != final_path and Path(produced_path).exists():
-            Path(produced_path).unlink(missing_ok=True)
 
-    print(f"[OK] wrote: {final_path}")
+    stats = _stats(result)
+    print(f"[OK] wrote: {target_path}")
     print(
         "[STATS] "
-        f"parts={replace_stats['parts']} xml={replace_stats['xml_parts']} "
-        f"changed_xml={replace_stats['changed_xml']} replacements={replace_stats['replacements']} "
-        f"layout_caches_removed={replace_stats['layout_caches_removed']} "
-        f"decode_failed={replace_stats['decode_failed']}"
+        f"parts={stats['parts']} xml={stats['xml_parts']} "
+        f"changed_xml={stats['changed_xml']} replacements={stats['replacements']} "
+        f"layout_caches_removed={stats['layout_caches_removed']} "
+        f"decode_failed={stats['decode_failed']}"
     )
-    if ns_stats is not None:
+    if ns_result is not None:
         print(
             "[NS] "
-            f"parts={ns_stats['total_parts']} xml={ns_stats['xml_parts']} "
-            f"fixed={ns_stats['xml_fixed']} failed={ns_stats['xml_failed']}"
+            f"parts={len(ns_result.entries)} xml={len(ns_result.xml_parts)} "
+            f"fixed={len(ns_result.normalized_parts)} failed={len(ns_result.unparsed_parts)}"
         )
     return 0
 
