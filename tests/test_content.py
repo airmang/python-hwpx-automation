@@ -250,13 +250,13 @@ def test_byte_preserving_patch_skips_unsupported_without_mutating(tmp_path: Path
         [
             {
                 "sectionPath": "Contents/section0.xml",
-                "paragraphIndex": added["paragraph_index"],
-                "text": "첫 줄\n둘째 줄",
+                "paragraphIndex": added["paragraph_index"] + 100,
+                "text": "바꿀 글",
             }
         ],
     )
 
-    assert result["skipped"][0]["reason"] == "line break insertion is unsupported"
+    assert result["skipped"][0]["reason"] == "paragraph index not found"
     assert target.read_bytes() == before
     assert result["verificationReport"]["ok"] is False
     assert {
@@ -278,14 +278,14 @@ def test_byte_preserving_patch_skip_does_not_create_missing_output_parent(
         [
             {
                 "sectionPath": "Contents/section0.xml",
-                "paragraphIndex": added["paragraph_index"],
-                "text": "첫 줄\n둘째 줄",
+                "paragraphIndex": added["paragraph_index"] + 100,
+                "text": "바꿀 글",
             }
         ],
         output=str(output),
     )
 
-    assert result["skipped"][0]["reason"] == "line break insertion is unsupported"
+    assert result["skipped"][0]["reason"] == "paragraph index not found"
     assert not output.parent.exists()
 
 

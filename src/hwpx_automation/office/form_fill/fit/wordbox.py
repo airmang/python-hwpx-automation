@@ -191,6 +191,33 @@ def fitz_available() -> bool:
     return True
 
 
+def _find_border_tables(page: Any) -> list[Any]:
+    """Tables a page's drawn borders form (``find_tables(strategy="lines_strict")``).
+
+    PyMuPDF 2.0 gates line detection behind its layout analyzer by default
+    (``use_layout=True``) and returns no tables when the analyzer sees none, which
+    drops plain bordered grids. Borders are the whole point here, so the gate is
+    turned off wherever the installed PyMuPDF accepts the flag.
+    """
+
+    kwargs: dict[str, Any] = {"strategy": "lines_strict"}
+    if _find_tables_takes_use_layout():
+        kwargs["use_layout"] = False
+    found = page.find_tables(**kwargs)
+    return list(found.tables) if found is not None else []
+
+
+def _find_tables_takes_use_layout() -> bool:
+    import inspect
+
+    import pymupdf as fitz
+
+    finder = getattr(getattr(fitz, "table", None), "find_tables", None)
+    if finder is None:
+        return False
+    return "use_layout" in inspect.signature(finder).parameters
+
+
 def _page_indices(doc: Any, page: int | None) -> list[int]:
     n = len(doc)
     if page is None:
@@ -752,8 +779,7 @@ def extract_cell_clips(pdf_path: str, *, page: int | None = None) -> list[Rect]:
     with doc:
         for pno in _page_indices(doc, page):
             try:
-                found = doc[pno].find_tables(strategy="lines_strict")
-                tables = found.tables if found is not None else []
+                tables = _find_border_tables(doc[pno])
             except Exception:
                 continue  # layout analysis failed on this page -> no clips, no crash
             for ti, table in enumerate(tables):
@@ -974,8 +1000,7 @@ def extract_layout_signature(pdf_path: str) -> LayoutSignature:
                 # positions and invents phantom tables from a fill's added text
                 # on the frozen corpus. Bordered form grids are detected identically either
                 # way; the text-sensitivity is the only difference we drop.
-                found = page.find_tables(strategy="lines_strict")
-                tables = found.tables if found is not None else []
+                tables = _find_border_tables(page)
             except Exception:
                 continue  # layout analysis failed on this page -> no tables, no crash
             for table in tables:
