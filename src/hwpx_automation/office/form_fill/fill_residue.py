@@ -83,7 +83,7 @@ class ResidueReport:
 
 def _scan_paragraphs(source: str | Path | HwpxDocument):
     doc = source if isinstance(source, HwpxDocument) else HwpxDocument.open(str(source))
-    chars = doc._root.char_properties
+    chars = doc.styles.char_properties
     out = []
     for s_idx, section in enumerate(doc.sections):
         walker = _Walker(chars)

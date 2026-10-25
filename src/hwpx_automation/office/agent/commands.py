@@ -676,6 +676,18 @@ def _apply_set_paragraph(document: HwpxDocument, native: Any, properties: Mappin
         )
 
 
+_FONT_LANGS = ("HANGUL", "LATIN", "HANJA", "JAPANESE", "OTHER", "SYMBOL", "USER")
+
+
+def _font_is_declared(document: HwpxDocument, face: str) -> bool:
+    """Whether any language block of the document declares *face*."""
+
+    target = str(face).strip()
+    return bool(target) and any(
+        font.face == target for lang in _FONT_LANGS for font in document.styles.fonts(lang).values()
+    )
+
+
 def _apply_set_run(document: HwpxDocument, native: Any, properties: Mapping[str, Any]) -> None:
     if "text" in properties:
         native.text = properties["text"]
@@ -691,10 +703,7 @@ def _apply_set_run(document: HwpxDocument, native: Any, properties: Mapping[str,
             flags[name] = properties[name]
     if set(properties) - {"text"}:
         requested_font = properties.get("fontName")
-        if requested_font is not None and not any(
-            header.font_ref_for_face(requested_font) is not None
-            for header in document._root.headers  # type: ignore[attr-defined]
-        ):
+        if requested_font is not None and not _font_is_declared(document, requested_font):
             raise AgentContractError(
                 "not_found", f"font is not declared by the document: {requested_font!r}", target="run.fontName"
             )

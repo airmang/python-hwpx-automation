@@ -26,6 +26,7 @@ from pathlib import Path
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
 
 from hwpx.document import HwpxDocument
+from hwpx.oxml.namespaces import OPF_NS
 
 import hwpx_automation.office.authoring.design._support as S
 
@@ -207,10 +208,10 @@ def _strip_binaries(doc) -> list[str]:
     skeleton small and content-free while leaving every style in header.xml.
     """
 
-    package = doc._package
+    package = doc.package
     removed: list[str] = []
 
-    for item in list(package._manifest_items()):
+    for item in list(package.manifest_tree().findall(f"./{{{OPF_NS}}}manifest/{{{OPF_NS}}}item")):
         href = item.get("href", "") or ""
         media = item.get("media-type", "") or ""
         base = href.rsplit("/", 1)[-1]
@@ -248,7 +249,7 @@ _SCRUB_META_NAMES = {
 def _scrub_metadata(doc) -> None:
     """Blank source-identifying OPF metadata in Contents/content.hpf (PII)."""
 
-    package = doc._package
+    package = doc.package
     try:
         tree = package.manifest_tree()
     except Exception:  # pragma: no cover - defensive

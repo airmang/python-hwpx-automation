@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from hwpx.document import HwpxDocument
+from hwpx.oxml.namespaces import OPF_NS
 
 from ..document import HwpxAgentDocument, NodeRecord
 from ..model import AgentContractError
@@ -97,14 +98,14 @@ def _target_dependency_indexes(
             numbering.setdefault(str(dependency["signature"]), []).append(
                 {"paraPrIDRef": str(record.native.element.get("paraPrIDRef") or "0")}
             )
-    for item in document._package._manifest_items():  # type: ignore[attr-defined]
+    for item in document.package.manifest_tree().findall(f"./{{{OPF_NS}}}manifest/{{{OPF_NS}}}item"):
         media_type = str(item.get("media-type") or "").casefold()
         item_id = str(item.get("id") or "")
         package_name = str(item.get("href") or "")
         if not item_id or not package_name or not media_type.startswith("image/"):
             continue
         try:
-            payload = document._package.read(package_name)  # type: ignore[attr-defined]
+            payload = document.package.read(package_name)
         except Exception:
             continue
         digest = "sha256:" + hashlib.sha256(payload).hexdigest()
