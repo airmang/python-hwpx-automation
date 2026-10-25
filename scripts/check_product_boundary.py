@@ -66,7 +66,8 @@ CANONICAL_AGENT_ROOT = "src/hwpx_automation/office/agent"
 CANONICAL_AGENT_FILE_COUNT = 21
 CANONICAL_AUTHORING_ROOT = "src/hwpx_automation/office/authoring"
 # 17 since the 5.0 train: report_parser joined the owner it always belonged to.
-CANONICAL_AUTHORING_FILE_COUNT = 17
+# 18 with design.marked: profiles harvested from placeholder-marked templates.
+CANONICAL_AUTHORING_FILE_COUNT = 18
 ALLOWED_AGENT_CORE_IMPORTS = (
     "hwpx.document",
     "hwpx.mutation_report",

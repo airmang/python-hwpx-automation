@@ -153,6 +153,10 @@ POST_FREEZE_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
         "Table": ("key",),
         "BuilderSaveReport": ("anchors",),
     },
+    # Slot values a block passes to a placeholder-marked template role.
+    "hwpx.design": {
+        "Block": ("values",),
+    },
 }
 
 
