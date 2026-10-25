@@ -1,10 +1,10 @@
 {
   "schemaVersion": "python-hwpx-automation.public-modules/v1",
   "scope": "All Python modules shipped by the canonical 6.x distribution. Base-public modules must import without the optional MCP SDK; the five adapter modules require the mcp extra by design.",
-  "moduleCount": 188,
-  "moduleSha256": "44b088ddfcdda0ca0445f5196fb8fff75178ca9cbf15b5d63898ee1859c56372",
-  "basePublicModuleCount": 183,
-  "basePublicModuleSha256": "b16655e4970f144b3ea3780aed94948141f50862fc8155a216ed508272177e8f",
+  "moduleCount": 189,
+  "moduleSha256": "0ac6e10965ac449c4bf349d70ca212cfa9e7f0d1f22385a2c88bcca54e5cfd9d",
+  "basePublicModuleCount": 184,
+  "basePublicModuleSha256": "36fa499222d3bb23c6abee3b98a6efc349f51db1ccf590399c2ecb3e9e891f82",
   "basePublicModules": [
     "hwpx_automation",
     "hwpx_automation.__main__",
@@ -86,6 +86,7 @@
     "hwpx_automation.office.authoring.design._support",
     "hwpx_automation.office.authoring.design.composer",
     "hwpx_automation.office.authoring.design.harvest",
+    "hwpx_automation.office.authoring.design.marked",
     "hwpx_automation.office.authoring.design.plan",
     "hwpx_automation.office.authoring.design.profile",
     "hwpx_automation.office.authoring.design.validator",
