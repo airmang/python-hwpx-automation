@@ -48,6 +48,28 @@
    "hwpx.tools.mail_merge.mail_merge"
   ]
  },
+ "coreKnownLeakMembers": {
+  "hwpx.tools.doc_diff.inspect_reference_consistency": {
+   "groups": [
+    "official-reference-policy",
+    "document-plan-input"
+   ],
+   "plannedOwners": [
+    "hwpx_automation.office.compliance",
+    "hwpx_automation.office.document_ops"
+   ],
+   "status": "core member until python-hwpx's known-leak migration moves it; see core-known-leak-moves.json"
+  },
+  "hwpx.tools.doc_diff.doc_diff": {
+   "groups": [
+    "document-plan-input"
+   ],
+   "plannedOwners": [
+    "hwpx_automation.office.document_ops"
+   ],
+   "status": "stays core for documents, text and paragraph sequences; only its document-plan input moves"
+  }
+ },
  "approvedCoreImports": [
   "hwpx.document",
   "hwpx.quality.rendering",
