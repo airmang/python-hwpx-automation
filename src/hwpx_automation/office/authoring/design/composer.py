@@ -22,6 +22,7 @@ from hwpx.document import HwpxDocument
 from hwpx.quality import QualityPolicy
 
 import hwpx_automation.office.authoring.design._support as S
+from .marked import OBJECT_TAGS, fill_placeholders, fragment_paragraphs, is_marked_profile
 from .plan import Block, DocumentPlan
 from .profile import Profile, load_profile
 from .validator import StyleCoverage, style_coverage
@@ -82,7 +83,11 @@ def compose(
         secpr = deepcopy(secpr)
 
         new_paragraphs: list[etree._Element] = []
+        marked = is_marked_profile(prof.manifest)
         for block in plan.iter_blocks():
+            if marked:
+                new_paragraphs.extend(_marked_fragment_for(prof, block, production, warnings))
+                continue
             frag = _fragment_for(prof, block, production, warnings)
             if frag is None:
                 continue
@@ -96,6 +101,7 @@ def compose(
         S.move_secpr_into(new_paragraphs[0], secpr)
         S.replace_section_body(section.element, new_paragraphs)
         _reassign_paragraph_ids(new_paragraphs)
+        _reassign_object_ids(new_paragraphs)
         section.mark_dirty()
 
         coverage = style_coverage(doc, new_paragraphs)
@@ -188,6 +194,31 @@ def _fragment_for(
     return frag
 
 
+def _marked_fragment_for(
+    prof: Profile, block: Block, production: bool, warnings: list[str]
+) -> list[etree._Element]:
+    """Clone the author-named role and fill its slots (marked-template profiles)."""
+
+    if not prof.has_role(block.role):
+        _forbid_fallback(
+            production, f"marked profile {prof.id!r} has no role {block.role!r}", warnings
+        )
+        return []
+    values = dict(block.values)
+    slots = prof.manifest.get("slots", {}).get(block.role, [])
+    # Plain ``text`` fills the unnamed slot, or the only slot a role has.
+    if block.text and "" in slots and "" not in values:
+        values[""] = block.text
+    elif block.text and len(slots) == 1 and slots[0] not in values:
+        values[slots[0]] = block.text
+    paragraphs = fragment_paragraphs(prof.fragment(block.role))
+    unfilled = fill_placeholders(paragraphs, block.role, values)
+    for slot in unfilled:
+        name = f"{block.role}.{slot}" if slot else block.role
+        warnings.append(f"MARKED_SLOT_EMPTY: no value for {{{{{name}}}}}; left blank")
+    return paragraphs
+
+
 def _forbid_fallback(production: bool, message: str, warnings: list[str]) -> None:
     if production:
         raise ProfileRequiredError("PROFILE_REQUIRED: " + message)
@@ -277,6 +308,22 @@ def _reassign_paragraph_ids(paragraphs: list[etree._Element]) -> None:
         for para in root.iter():
             if S.ln(para.tag) == "p" and para.get("id") is not None:
                 para.set("id", str(uuid4().int % (2**31)))
+
+
+# Composed bodies are made only of clones, so object ids restart from a fixed
+# base — deterministic output, and no clone shares the id of another.
+_OBJECT_ID_BASE = 1_000_000_000
+
+
+def _reassign_object_ids(paragraphs: list[etree._Element]) -> None:
+    """Give every table/drawing object a unique id (fragments may repeat)."""
+
+    next_id = _OBJECT_ID_BASE
+    for root in paragraphs:
+        for element in root.iter():
+            if S.ln(element.tag) in OBJECT_TAGS and element.get("id") is not None:
+                element.set("id", str(next_id))
+                next_id += 1
 
 
 __all__ = ["compose", "compose_bytes", "ComposeResult", "ProfileRequiredError"]

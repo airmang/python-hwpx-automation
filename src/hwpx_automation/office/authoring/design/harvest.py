@@ -3,8 +3,8 @@
 
 Given a genuine ``.hwpx`` it writes, under ``profiles/<id>/``:
 
-* ``template.hwpx`` — a **body-stripped skeleton**: the real document with its
-  section body reduced to a single ``secPr``-carrying paragraph. ``header.xml``
+* ``template.hwpx`` — a **body-stripped skeleton**: the real document reduced to
+  its first section, whose body is a single ``secPr``-carrying paragraph. ``header.xml``
   (every style/font/borderFill) and the page setup survive untouched, so the
   committed artifact is small and carries no document content (no PII), yet is
   genuinely Hancom-derived — never imagined XML.
@@ -160,6 +160,10 @@ def _subList(tc: etree._Element):
 
 def _build_skeleton(source: Path, out_path: Path) -> dict:
     doc = HwpxDocument.open(source)
+    # Only the first section's page setup is reused; later sections would ride
+    # into every composed document with the source's text.
+    for extra in reversed(doc.sections[1:]):
+        doc.remove_section(extra)
     section = doc.sections[0]
     secpr = S.find_secpr(section.element)
     if secpr is None:
@@ -209,6 +213,10 @@ def _strip_binaries(doc) -> list[str]:
 
     package = doc._package
     removed: list[str] = []
+    # Image fills defined in header.xml (borderFill imgBrush) are styles, not
+    # body content: dropping their binaries would leave dangling references.
+    kept_ids = _header_binary_refs(package)
+    kept_parts: set[str] = set()
 
     for item in list(package._manifest_items()):
         href = item.get("href", "") or ""
@@ -220,10 +228,15 @@ def _strip_binaries(doc) -> list[str]:
             or media.lower().startswith("image/")
         ):
             item_id = item.get("id")
+            if item_id in kept_ids:
+                kept_parts.add(href)
+                continue
             if item_id:
                 package.remove_manifest_item(item_id)
 
     for name in list(package.part_names()):
+        if any(name.endswith(href) for href in kept_parts):
+            continue
         if name.startswith("BinData/") or name.startswith("Preview/PrvImage"):
             try:
                 package.delete(name)
@@ -234,6 +247,16 @@ def _strip_binaries(doc) -> list[str]:
     if package.has_part("Preview/PrvText.txt"):
         package.set_part("Preview/PrvText.txt", b"")  # clear source text (PII)
     return removed
+
+
+def _header_binary_refs(package) -> set[str]:
+    refs: set[str] = set()
+    for path in package.header_paths():
+        for node in package.get_xml(path).iter():
+            for key, value in node.attrib.items():
+                if S.ln(key) == "binaryItemIDRef":
+                    refs.add(value)
+    return refs
 
 
 # Manifest (content.hpf) metadata that carries source PII — author, the person who

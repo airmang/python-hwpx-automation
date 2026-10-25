@@ -26,7 +26,8 @@ def test_canonical_authoring_inventory_and_profile_assets_are_complete() -> None
     profiles = CANONICAL_ROOT / "design" / "profiles"
 
     # 17 since the 5.0 train: report_parser joined the owner it always belonged to.
-    assert len(files) == 17
+    # 18 with design.marked: profiles harvested from placeholder-marked templates.
+    assert len(files) == 18
     assert len(canonical.__all__) == 14
     assert sorted(path.name for path in profiles.iterdir()) == [
         "application_form",
