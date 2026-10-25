@@ -26,6 +26,8 @@ class Block:
     text: str = ""
     columns: list[str] = field(default_factory=list)
     rows: list[list[str]] = field(default_factory=list)
+    #: Slot values for a marked-template role (``{{role.slot}}`` → value).
+    values: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Block":
@@ -35,6 +37,7 @@ class Block:
             text=str(data.get("text", "")),
             columns=[str(c) for c in data.get("columns", [])],
             rows=[[str(c) for c in row] for row in data.get("rows", [])],
+            values={str(k): str(v) for k, v in (data.get("values") or {}).items()},
         )
 
 

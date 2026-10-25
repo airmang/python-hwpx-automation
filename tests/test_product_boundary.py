@@ -25,7 +25,8 @@ def test_real_tree_satisfies_mcp_boundary() -> None:
     assert report["ok"], report["violations"]
     assert report["canonicalAgentPythonFiles"] == 21
     # 17 since the 5.0 train: report_parser joined the owner it always belonged to.
-    assert report["canonicalAuthoringPythonFiles"] == 17
+    # 18 with design.marked: profiles harvested from placeholder-marked templates.
+    assert report["canonicalAuthoringPythonFiles"] == 18
 
 
 def test_new_direct_render_discovery_fails_closed(tmp_path) -> None:
