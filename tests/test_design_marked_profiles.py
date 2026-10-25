@@ -199,3 +199,96 @@ def test_skeleton_keeps_images_used_by_header_fills(tmp_path: Path) -> None:
     assert manifest["skeleton_open_safe"] is True
     _, result = compose_bytes(_plan({"role": "그림칸", "text": "x"}), profile=profile)
     assert result.ok, result.errors
+
+
+def _with_click_here(doc: HwpxDocument) -> None:
+    doc.add_paragraph("담당: {{담당}} ").add_form_field("연락처", prompt="여기에 입력")
+
+
+def test_cloned_click_here_fields_keep_their_own_begin_end_pair(tmp_path: Path) -> None:
+    _, profile = _harvest(tmp_path, extra=_with_click_here)
+
+    data, result = compose_bytes(
+        _plan({"role": "담당", "text": "갑"}, {"role": "담당", "text": "을"}), profile=profile
+    )
+
+    assert result.ok, result.errors
+    section = _section_xml(data)
+    begins = re.findall(r'<hp:fieldBegin id="(\d+)"', section)
+    ends = re.findall(r'<hp:fieldEnd beginIDRef="(\d+)"', section)
+    assert len(begins) == 2 and len(set(begins)) == 2
+    assert ends == begins  # each end points at the begin of its own clone
+    reopened = HwpxDocument.open(data)
+    try:
+        assert [field.name for field in reopened.fields.all] == ["연락처", "연락처"]
+    finally:
+        reopened.close()
+
+
+def test_connector_follows_its_shapes_new_instance_id() -> None:
+    from lxml import etree
+
+    from hwpx_automation.office.authoring.design.composer import _reassign_object_ids
+
+    hp = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+    clone = (
+        f'<hp:p xmlns:hp="{hp}" id="0"><hp:run>'
+        '<hp:rect id="7" instid="70"/><hp:connectLine id="8" instid="80">'
+        '<hp:startPt subjectIDRef="70"/></hp:connectLine></hp:run></hp:p>'
+    )
+    paragraphs = [etree.fromstring(clone), etree.fromstring(clone)]
+
+    _reassign_object_ids(paragraphs)
+
+    instance_ids = [e.get("instid") for p in paragraphs for e in p.iter() if e.get("instid")]
+    assert len(set(instance_ids)) == 4
+    for paragraph in paragraphs:
+        rect = next(e for e in paragraph.iter() if e.tag.endswith("}rect"))
+        start = next(e for e in paragraph.iter() if e.tag.endswith("}startPt"))
+        assert start.get("subjectIDRef") == rect.get("instid")
+
+
+def test_value_with_no_placeholder_is_refused_in_production(tmp_path: Path) -> None:
+    _, profile = _harvest(tmp_path)
+    lossy = _plan({"role": "띠", "values": {"번호": "Ⅰ", "제목": "장", "부제": "사라질 값"}})
+
+    with pytest.raises(ProfileRequiredError, match="MARKED_VALUE_UNKNOWN"):
+        compose_bytes(lossy, profile=profile)
+    _, debug = compose_bytes(lossy, profile=profile, production=False)
+    assert any("MARKED_VALUE_UNKNOWN" in warning for warning in debug.warnings)
+    with pytest.raises(ProfileRequiredError, match="MARKED_VALUE_UNKNOWN"):
+        compose_bytes(_plan({"role": "띠", "text": "어느 칸?"}), profile=profile)
+
+
+def test_value_line_breaks_become_hancom_line_breaks(tmp_path: Path) -> None:
+    _, profile = _harvest(tmp_path)
+
+    data, result = compose_bytes(_plan({"role": "1단계", "text": "첫 줄\n둘째 줄"}), profile=profile)
+
+    assert result.ok, result.errors
+    section = _section_xml(data)
+    assert "□ 첫 줄<hp:lineBreak/>둘째 줄" in section
+    assert "첫 줄\n" not in section
+
+
+def test_split_placeholder_leaves_the_other_runs_and_styles_alone(tmp_path: Path) -> None:
+    def split_run(doc: HwpxDocument) -> None:
+        para = doc.add_paragraph("{{3단")
+        para.add_run("계}} 뒤 문구", bold=True)
+
+    _, profile = _harvest(tmp_path, extra=split_run)
+    data, result = compose_bytes(_plan({"role": "3단계", "text": "값"}), profile=profile)
+
+    assert result.ok, result.errors
+    from lxml import etree
+
+    section = etree.fromstring(_section_xml(data).encode("utf-8"))
+    runs = [
+        (run.get("charPrIDRef"), "".join(t.text or "" for t in run if t.tag.endswith("}t")))
+        for run in section.iter()
+        if run.tag.endswith("}run")
+    ]
+    filled = [(ref, text) for ref, text in runs if text]
+    assert [text for _, text in filled] == ["값", " 뒤 문구"]
+    # The fixed text after the placeholder keeps its own (bold) run.
+    assert filled[0][0] != filled[1][0]
