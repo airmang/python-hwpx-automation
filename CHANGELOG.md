@@ -2,7 +2,18 @@
 
 ## [Unreleased]
 
-## [7.4.0] - 2026-10-25
+## [7.4.1] - 2026-10-26
+
+`v7.4.0`은 보존된 실패 태그입니다. 정본 `python-hwpx-automation` 7.4.0은 PyPI에
+올라갔지만, 바로 다음 단계에서 호환 패키지가 정본 7.4.0을 PyPI 색인에서 찾지 못해
+(색인 전파 지연) 호환 `hwpx-mcp-server` 7.4.0과 GitHub Release는 만들어지지 않았습니다.
+부분 발행 규칙대로 정본 7.4.0을 그대로 두고, 정본과 호환 버전이 같아야 한다는 묶음을
+지키려고 같은 내용을 7.4.1로 다시 냅니다. 삭제·이동·재사용하지 않습니다.
+
+- 릴리스 워크플로의 호환 패키지 확인 단계가 정본 확인 단계처럼 10초 간격으로 여섯 번까지
+  다시 시도하고, pip 캐시를 쓰지 않습니다.
+
+## [7.4.0] - 2026-10-25 (preserved failed tag — canonical only)
 
 - `office.authoring.design.marked.harvest_marked_profile(source, profile_id, out_root)` builds a profile from a Hancom-saved template in which the author typed placeholders: `□ {{1단계}}` makes a paragraph role `1단계`, and `{{띠.번호}}`/`{{띠.제목}}` in the cells of a table make a role `띠` with the slots `번호` and `제목`. Each top-level paragraph carrying placeholders becomes one role, together with the blank paragraphs directly above it (the spacer lines between items). `compose` clones the role a block names and swaps only the placeholder text, taking slot values from the block's new `values` field (plain `text` fills an unnamed or only slot); fills, borders, fonts and indents stay as Hancom saved them. A coloured chapter-band table, a title box or each bullet level can now be repeated with its own formatting; `harvest_profile` guesses roles by font size and keeps one info table, so it could not tell these apart. A paragraph holding two roles, a role typed twice, a role containing an image, and a template without placeholders are refused with `MarkedTemplateError`; a slot with no value is left blank with a `MARKED_SLOT_EMPTY` warning, except in a block that gives neither `text` nor `values`, which asks for the role as is (a page-break line) (#172).
 - `compose` gives every table and drawing object in the composed body a fresh id, numbered from a fixed base so the same plan gives the same ids. A fragment cloned twice (two info tables in one plan) produced two `<hp:tbl>` with the same id.

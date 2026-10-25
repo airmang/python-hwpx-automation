@@ -9,14 +9,14 @@
 ## 실행
 
 ```bash
-uvx --from "python-hwpx-automation[oracle]==7.4.0" \
+uvx --from "python-hwpx-automation[oracle]==7.4.1" \
   hwpx render-pdf in.hwpx out.pdf --png out/page --json
 ```
 
 같은 명령을 모듈로도 실행할 수 있습니다.
 
 ```bash
-uv run --isolated --with "python-hwpx-automation[oracle]==7.4.0" \
+uv run --isolated --with "python-hwpx-automation[oracle]==7.4.1" \
   python -m hwpx_automation.office.rendering render-pdf in.hwpx out.pdf --json
 ```
 
