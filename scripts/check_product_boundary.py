@@ -90,6 +90,7 @@ ALLOWED_AUTHORING_CORE_IMPORTS = (
     "hwpx.tools.package_validator",
     "hwpx.tools.report_utils",
     "hwpx.tools.table_cleanup",
+    "hwpx.tools.template_analyzer",
     "hwpx.tools.toc_author",
     "hwpx.tools.validator",
 )
@@ -101,7 +102,21 @@ FROZEN_CORE_AUTHORING_IMPORTS = (
     "hwpx.presets",
     "hwpx.tools.advanced_generators",
     "hwpx.tools.style_profile",
-    "hwpx.tools.template_analyzer",
+)
+# Modules that only re-export a core-native implementation and add an
+# application projection on top. Each must import its core seam and must not
+# read packages or XML itself, so a second format implementation cannot grow
+# back under the same path.
+CORE_DELEGATED_MODULES = {
+    # #176: format analysis is core's; the agent schema and its CLI options stay.
+    "src/hwpx_automation/office/authoring/template_analyzer.py": "hwpx.tools.template_analyzer",
+}
+DELEGATED_MODULE_FORBIDDEN_IMPORTS = (
+    "lxml",
+    "xml",
+    "zipfile",
+    "hwpx.opc",
+    "hwpx.oxml",
 )
 CANONICAL_POLICY_ROOTS = {
     "src/hwpx_automation/office/compliance": ("hwpx.document",),
@@ -205,6 +220,30 @@ def _imported_members(path: Path) -> list[tuple[str, str]]:
         if isinstance(node, ast.ImportFrom) and node.module:
             members.extend((node.module, alias.name) for alias in node.names)
     return members
+
+
+def _delegated_module_violations(root: Path) -> list[str]:
+    violations: list[str] = []
+    for relative, core_module in CORE_DELEGATED_MODULES.items():
+        path = root / relative
+        if not path.is_file():
+            violations.append(f"core-delegated module is missing: {relative}")
+            continue
+        imports = _imports(path)
+        if core_module not in imports:
+            violations.append(
+                f"core-delegated module does not import its core seam: {relative} -> {core_module}"
+            )
+        for imported in imports:
+            if any(
+                imported == forbidden or imported.startswith(f"{forbidden}.")
+                for forbidden in DELEGATED_MODULE_FORBIDDEN_IMPORTS
+            ):
+                violations.append(
+                    "core-delegated module reads packages or XML itself: "
+                    f"{relative} -> {imported}"
+                )
+    return violations
 
 
 def _policy_owner_import_violation(
@@ -439,6 +478,8 @@ def evaluate(root: Path) -> dict[str, Any]:
             f"{CANONICAL_DOCUMENT_OPS_ROOT}"
         )
 
+    violations.extend(_delegated_module_violations(root))
+
     for path in files:
         relative = path.relative_to(root).as_posix()
         try:
@@ -599,6 +640,7 @@ def evaluate(root: Path) -> dict[str, Any]:
         "allowedAuthoringCoreImports": list(ALLOWED_AUTHORING_CORE_IMPORTS),
         "temporaryAuthoringCoreImports": list(TEMPORARY_AUTHORING_CORE_IMPORTS),
         "frozenCoreAuthoringImports": list(FROZEN_CORE_AUTHORING_IMPORTS),
+        "coreDelegatedModules": dict(sorted(CORE_DELEGATED_MODULES.items())),
         "canonicalPolicyRoots": {
             root: list(imports) for root, imports in CANONICAL_POLICY_ROOTS.items()
         },

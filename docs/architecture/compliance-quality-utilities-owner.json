@@ -62,8 +62,7 @@
   "hwpx_automation.handlers.read_export",
   "hwpx_automation.handlers.content_edit",
   "hwpx_automation.form_fill",
-  "hwpx_automation.office.authoring",
-  "hwpx_automation.office.authoring.template_analyzer"
+  "hwpx_automation.office.authoring"
  ],
  "policyInjection": {
   "formFill": "hwpx_automation.office.compliance.DEFAULT_POLICY",

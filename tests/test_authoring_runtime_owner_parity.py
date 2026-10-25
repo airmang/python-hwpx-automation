@@ -17,7 +17,8 @@ a library, so this file no longer imports them live. Instead:
   identical to MCP's own output at freeze time.
 
 The neutral part of ``hwpx.tools.template_analyzer`` remains in core and is
-compared live. Its agent-oriented schema member moved to the automation owner,
+compared live; since #176 the automation module re-exports it instead of
+keeping a copy. Its agent-oriented schema member moved to the automation owner,
 so that one member is compared against its pre-removal frozen value instead of
 being incorrectly required on core 5.0.
 
@@ -303,10 +304,15 @@ def test_design_profile_registry_matches_frozen_core_and_template_analysis_is_ex
 
     assert mcp_design.available_profiles() == GOLDEN["availableProfiles"]
     assert not hasattr(core_template, "template_analysis_agent_schema")
-    assert (
-        mcp_template.template_analysis_agent_schema()
-        == GOLDEN["templateAnalysisAgentSchema"]
+    # The frozen record stays as captured. #176 made the cell margin core's
+    # effective margin and said so in the one field guide line; nothing else
+    # in the schema moved.
+    expected_schema = json.loads(json.dumps(GOLDEN["templateAnalysisAgentSchema"]))
+    expected_schema["fieldGuide"]["table_summaries[].cells[].margin"] = (
+        "Effective cell inner margins in HWP units: the cell's own margin when hasMargin is on, "
+        "otherwise the table's inner margin."
     )
+    assert mcp_template.template_analysis_agent_schema() == expected_schema
     assert dataclasses.asdict(core_template.analyze_template(source)) == (
         dataclasses.asdict(mcp_template.analyze_template(source))
     )
