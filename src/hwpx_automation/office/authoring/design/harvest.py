@@ -162,8 +162,7 @@ def _build_skeleton(source: Path, out_path: Path) -> dict:
     doc = HwpxDocument.open(source)
     # Only the first section's page setup is reused; later sections would ride
     # into every composed document with the source's text.
-    for extra in reversed(doc.sections[1:]):
-        doc.remove_section(extra)
+    _drop_later_sections(doc)
     section = doc.sections[0]
     secpr = S.find_secpr(section.element)
     if secpr is None:
@@ -201,6 +200,26 @@ def _build_skeleton(source: Path, out_path: Path) -> dict:
         "open_safe": report.open_safety.ok,
         "stripped_parts": stripped,
     }
+
+
+def _drop_later_sections(doc) -> None:
+    """Remove every section after the first, part and manifest item included.
+
+    Older cores remove the section from the document tree but keep its part,
+    which would still be saved with the source text in it.
+    """
+
+    dropped = [section.part_name for section in doc.sections[1:]]
+    for extra in reversed(doc.sections[1:]):
+        doc.remove_section(extra)
+    package = doc._package
+    for item in list(package._manifest_items()):
+        href = item.get("href", "") or ""
+        if any(name.endswith(href) for name in dropped if href) and item.get("id"):
+            package.remove_manifest_item(item.get("id"))
+    for name in dropped:
+        if package.has_part(name):
+            package.delete(name)
 
 
 def _strip_binaries(doc) -> list[str]:
