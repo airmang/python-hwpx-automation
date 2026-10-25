@@ -213,8 +213,8 @@ def _drop_later_sections(doc) -> None:
     dropped = [section.part_name for section in doc.sections[1:]]
     for extra in reversed(doc.sections[1:]):
         doc.remove_section(extra)
-    package = doc._package
-    for item in list(package._manifest_items()):
+    package = doc.package
+    for item in list(package.manifest_tree().findall(f"./{{{OPF_NS}}}manifest/{{{OPF_NS}}}item")):
         href = item.get("href", "") or ""
         if any(name.endswith(href) for name in dropped if href) and item.get("id"):
             package.remove_manifest_item(item.get("id"))
