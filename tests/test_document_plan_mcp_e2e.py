@@ -294,6 +294,70 @@ def test_create_document_from_plan_creates_valid_handoff_file(tmp_path: Path) ->
     assert set(levels_by_text) == {"Executive Summary", "Budget"}
 
 
+def test_table_cell_styles_paint_one_body_cell_below_the_header(tmp_path: Path) -> None:
+    import zipfile
+
+    from lxml import etree
+
+    plan = _plan()
+    plan["blocks"][4]["cellStyles"] = [
+        {"row": 0, "column": "amount", "fillColor": "fff2cc", "textColor": "#c00000"}
+    ]
+    validation = server.validate_document_plan(plan)
+    assert validation["can_create"] is True
+    assert validation["normalizedPlan"]["blocks"][4]["cellStyles"] == [
+        {"row": 0, "column": "amount", "fillColor": "#FFF2CC", "textColor": "#C00000"}
+    ]
+    destination = tmp_path / "cell-styles.hwpx"
+    assert server.create_document_from_plan(str(destination), plan)["created"] is True
+    assert validate_package(destination).ok
+    assert validate_document(destination).ok
+
+    hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+    hc = "{http://www.hancom.co.kr/hwpml/2011/core}"
+    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
+    with zipfile.ZipFile(destination) as package:
+        header = etree.fromstring(package.read("Contents/header.xml"))
+        section = etree.fromstring(package.read("Contents/section0.xml"))
+    faces = {}
+    for fill in header.iter(f"{hh}borderFill"):
+        brush = fill.find(f".//{hc}winBrush")
+        faces[fill.get("id")] = brush.get("faceColor") if brush is not None else None
+    text_colors = {char.get("id"): char.get("textColor") for char in header.iter(f"{hh}charPr")}
+    budget = next(
+        table for table in section.iter(f"{hp}tbl") if "AI devices" in "".join(table.itertext())
+    )
+    rows = [list(row.iter(f"{hp}tc")) for row in budget.iter(f"{hp}tr")]
+    painted = {
+        (row_index, col_index)
+        for row_index, row in enumerate(rows)
+        for col_index, cell in enumerate(row)
+        if faces[cell.get("borderFillIDRef")] == "#FFF2CC"
+    }
+    assert painted == {(1, 1)}
+    assert {text_colors[run.get("charPrIDRef")] for run in rows[1][1].iter(f"{hp}run")} == {"#C00000"}
+    assert {text_colors[run.get("charPrIDRef")] for run in rows[1][0].iter(f"{hp}run")} != {"#C00000"}
+
+
+def test_validate_document_plan_refuses_cell_styles_it_cannot_place() -> None:
+    plan = _plan()
+    plan["blocks"][4]["cellStyles"] = [
+        {"row": 1, "column": "amount", "fillColor": "#FFF2CC"},
+        {"row": 0, "column": "price", "fillColor": "#FFF2CC"},
+        {"row": 0, "column": "amount", "fillColor": "yellow"},
+        {"row": 0, "column": "amount"},
+    ]
+
+    result = server.validate_document_plan(plan)
+
+    assert result["can_create"] is False
+    codes = {issue["path"]: issue["code"] for issue in result["issues"]}
+    assert codes["blocks[4].cellStyles[0].row"] == "invalid_cell_style_row"
+    assert codes["blocks[4].cellStyles[1].column"] == "invalid_cell_style_column"
+    assert codes["blocks[4].cellStyles[2].fillColor"] == "invalid_cell_style_color"
+    assert codes["blocks[4].cellStyles[3]"] == "missing_cell_style_color"
+
+
 def test_create_document_from_plan_returns_operating_plan_profile_and_handoff_status(tmp_path: Path) -> None:
     destination = tmp_path / "operating-plan.hwpx"
 

@@ -119,7 +119,60 @@ class TestGenreGrammarAndChip:
         assert block["showHeader"] is False
         assert [column["key"] for column in block["columns"]] == ["number", "gap", "title"]
         assert block["rows"] == [{"number": "Ⅰ", "gap": "", "title": "추진 배경"}]
-        assert result["styling"]["accentColor"] == "#1F4E79"
+        assert block["cellStyles"] == [
+            {"row": 0, "column": "number", "fillColor": "#1F4E79", "textColor": "#FFFFFF"}
+        ]
+        assert "styling" not in result
+
+    def test_section_chip_accent_fills_the_number_cell_in_the_saved_xml(
+        self, workspace: Path
+    ) -> None:
+        from lxml import etree
+        import zipfile
+
+        block = server.compose_section_chip("Ⅰ", "추진 배경", accent_color="003366")["block"]
+        plan = {
+            "schemaVersion": "hwpx.document_plan.v1",
+            "title": "운영 계획",
+            "blocks": [block, {"type": "paragraph", "text": "본문"}],
+        }
+        assert server.validate_document_plan(plan)["can_create"] is True
+        target = workspace / "chip.hwpx"
+        server.create_document_from_plan(str(target), plan)
+
+        with zipfile.ZipFile(target) as package:
+            header = etree.fromstring(package.read("Contents/header.xml"))
+            section = etree.fromstring(package.read("Contents/section0.xml"))
+        hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+        hc = "{http://www.hancom.co.kr/hwpml/2011/core}"
+        faces = {
+            fill.get("id"): fill.find(f".//{hc}winBrush").get("faceColor")
+            if fill.find(f".//{hc}winBrush") is not None
+            else None
+            for fill in header.iter(f"{hh}borderFill")
+        }
+        text_colors = {char.get("id"): char.get("textColor") for char in header.iter(f"{hh}charPr")}
+        chip = next(
+            table
+            for table in section.iter(f"{HP}tbl")
+            if "".join(table.itertext()).startswith("Ⅰ")
+        )
+        cells = list(chip.iter(f"{HP}tc"))
+        assert [faces[cell.get("borderFillIDRef")] for cell in cells] == [
+            "#003366",
+            faces[cells[1].get("borderFillIDRef")],
+            faces[cells[1].get("borderFillIDRef")],
+        ]
+        assert faces[cells[1].get("borderFillIDRef")] != "#003366"
+        number_runs = list(cells[0].iter(f"{HP}run"))
+        assert number_runs
+        assert {text_colors[run.get("charPrIDRef")] for run in number_runs} == {"#FFFFFF"}
+        title_runs = list(cells[2].iter(f"{HP}run"))
+        assert {text_colors[run.get("charPrIDRef")] for run in title_runs} != {"#FFFFFF"}
+
+    def test_section_chip_refuses_an_accent_that_is_not_a_colour(self) -> None:
+        with pytest.raises(ValueError):
+            server.compose_section_chip("Ⅰ", "추진 배경", accent_color="navy")
 
     def test_section_chip_inline_and_style_refusal(self) -> None:
         inline = server.compose_section_chip("1", "현황", style="inline")
