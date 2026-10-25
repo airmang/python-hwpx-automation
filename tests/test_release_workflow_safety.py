@@ -94,7 +94,7 @@ EXPECTED_RUN_SHA256 = {
             "aba882953b7b710e5499e8a2986ecba2f80d28e2fd5158bb33804fb3e8fe88ee"
         ),
         "Verify compatibility artifact resolves canonical remote": (
-            "3d04e80f1cd3121907b3e20462810cb001efc5e8afbc975cbdc55e60b1421e9d"
+            "787a5bf2925f6099412e92e40e9a71792dcdc525d554664bd714a87ff0bf80f1"
         ),
         "Observe compatibility PyPI truth": (
             "42525afa5049f350e9abe5050c0f5562c1ffc60c135c3615d645123a98a59452"
