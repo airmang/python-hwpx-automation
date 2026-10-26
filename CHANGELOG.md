@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- `compose` also renumbers click-here fields and drawing-object instance ids in each clone, and keeps their local references inside that clone: a `fieldEnd@beginIDRef` points at its own clone's `fieldBegin`, a connector's `subjectIDRef` at its shape's new `instid`. A marked role with a click-here field placed twice gave both fields one `fieldBegin` id, with both `fieldEnd`s pointing at it (#172).
+- A marked role refuses, in production, a value it has no placeholder for (`MARKED_VALUE_UNKNOWN`), including `text` for a role with several named slots; before, the value was dropped without a warning. A value's line breaks and tabs become `hp:lineBreak`/`hp:tab` instead of control characters in `hp:t`. A placeholder Hancom split across runs is replaced where it starts and loses only its own characters from the later runs; before, the whole paragraph's text moved into the first run, and fixed text after the placeholder took that run's style (#172).
+
 ## [7.4.1] - 2026-10-26
 
 `v7.4.0`은 보존된 실패 태그입니다. 정본 `python-hwpx-automation` 7.4.0은 PyPI에
