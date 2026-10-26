@@ -5,13 +5,15 @@ python-hwpx keeps docs/architecture/known-leak-migration.json: four groups of
 genre/policy logic still in core, each with the automation owner it moves to.
 docs/architecture/core-known-leak-moves.json is this repository's record of the
 same groups. These checks keep the two in step and keep the owners and
-consumers they name real. Nothing has moved yet.
+consumers they name real. Nothing has moved yet; the owner chose option A
+for retiring the core names, recorded here as a relative schedule.
 """
 from __future__ import annotations
 
 import importlib
 import json
 import os
+import re
 from pathlib import Path
 
 import hwpx
@@ -77,4 +79,17 @@ def test_matches_the_core_contract_when_the_core_checkout_has_it() -> None:
     assert list(core) == GROUP_IDS
     for group in MOVES["groups"]:
         assert core[group["id"]]["canonicalOwner"] == group["canonicalOwner"], group["id"]
-    assert contract["compatibility"]["decision"] == "pending-owner"
+    # The core contract recorded the decision after this file did; until the
+    # core checkout carries it, it still reads pending-owner.
+    assert contract["compatibility"]["decision"] in {"pending-owner", MOVES["coreCompatibility"]["decision"]}
+    if contract["compatibility"]["decision"] != "pending-owner":
+        assert list(contract["compatibility"]["schedule"]) == list(MOVES["coreCompatibility"]["schedule"])
+
+
+def test_the_owner_chose_option_a_with_a_relative_schedule() -> None:
+    compatibility = MOVES["coreCompatibility"]
+    assert compatibility["decision"] == "A"
+    assert list(compatibility["schedule"]) == ["6.x", "nextMajor", "majorAfterNext"]
+    text = json.dumps(MOVES, ensure_ascii=False)
+    assert not re.search(r"\b\d+\.\d+(\.\d+)?\b", text.replace("6.x", ""))
+    assert not re.search(r"\b20\d\d-\d\d-\d\d\b", text)
