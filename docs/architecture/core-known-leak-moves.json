@@ -2,14 +2,26 @@
  "schemaVersion": "python-hwpx-automation.core-known-leak-moves/v1",
  "status": "contract",
  "coreContract": "python-hwpx docs/architecture/known-leak-migration.json",
- "note": "The automation side of python-hwpx's known-leak migration contract (python-hwpx #565). Each group names the automation owner that will hold the policy and the core names automation still calls until the move. Nothing has moved yet; the core compatibility decision is the owner's and still open, so no version or date is recorded here.",
+ "note": "The automation side of python-hwpx's known-leak migration contract (python-hwpx #565). Each group names the automation owner that will hold the policy and the core names automation still calls until the move. Nothing has moved yet. The owner chose core compatibility option A (coreCompatibility); releases are named only relative to each other, so no version number or date is recorded here.",
+ "coreCompatibility": {
+  "decision": "A",
+  "schedule": {
+   "6.x": "Core names keep working without a warning. Every replacement entry point here ships and every consumer switches to it during 6.x.",
+   "nextMajor": "Core names warn and point to the replacements here, so those must already exist.",
+   "majorAfterNext": "Core names are removed; this repository must no longer call them."
+  }
+ },
  "groups": [
   {
    "id": "official-reference-policy",
    "canonicalOwner": "hwpx_automation.office.compliance",
    "plannedEntryPoint": "hwpx_automation.office.compliance.inspect_reference_consistency",
-   "coreCallsUntilMoved": ["hwpx.tools.doc_diff.inspect_reference_consistency"],
-   "consumers": ["hwpx_automation.handlers.quality_render.inspect_reference_consistency"]
+   "coreCallsUntilMoved": [
+    "hwpx.tools.doc_diff.inspect_reference_consistency"
+   ],
+   "consumers": [
+    "hwpx_automation.handlers.quality_render.inspect_reference_consistency"
+   ]
   },
   {
    "id": "document-plan-input",
@@ -28,15 +40,23 @@
    "id": "report-heading-guess",
    "canonicalOwner": "hwpx_automation.office.authoring.report_parser",
    "plannedEntryPoint": "a report heading detector in office.authoring.report_parser, passed to core Markdown export through its heading-detector hook",
-   "coreCallsUntilMoved": ["hwpx.ingest.DocumentIngestor.default (HwpxMarkdownConverter -> hwpx.tools.markdown_export.export_markdown)"],
-   "consumers": ["hwpx_automation.handlers.read_export._ingest_local_document"]
+   "coreCallsUntilMoved": [
+    "hwpx.ingest.DocumentIngestor.default (HwpxMarkdownConverter -> hwpx.tools.markdown_export.export_markdown)"
+   ],
+   "consumers": [
+    "hwpx_automation.handlers.read_export._ingest_local_document"
+   ]
   },
   {
    "id": "evalplan-caption-cleanup",
    "canonicalOwner": "hwpx_automation.office.evalplan",
    "plannedEntryPoint": "the '(N) short word' caption predicate in office.evalplan, passed to core's caller-selected trailing-text removal",
-   "coreCallsUntilMoved": ["hwpx.table_patch.strip_trailing_table_captions"],
-   "consumers": ["hwpx_automation.office.evalplan.runtime"]
+   "coreCallsUntilMoved": [
+    "hwpx.table_patch.strip_trailing_table_captions"
+   ],
+   "consumers": [
+    "hwpx_automation.office.evalplan.runtime"
+   ]
   }
  ]
 }
