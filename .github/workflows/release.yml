@@ -321,8 +321,23 @@ jobs:
 
       - name: Verify compatibility artifact resolves canonical remote
         run: |
-          python -m venv .compat-candidate
-          .compat-candidate/bin/python -m pip install dist/compat/*.whl
+          set -euo pipefail
+          # The canonical step above can see the new version on one PyPI index
+          # edge while this install lands on another that does not have it yet
+          # (v7.4.0 stopped here). Retry the same way, and never from pip's cache.
+          for attempt in 1 2 3 4 5 6; do
+            rm -rf .compat-candidate
+            python -m venv .compat-candidate
+            if .compat-candidate/bin/python -m pip install --no-cache-dir \
+              dist/compat/*.whl; then
+              break
+            fi
+            if [[ "${attempt}" == "6" ]]; then
+              echo "compatibility artifact did not resolve the canonical remote" >&2
+              exit 1
+            fi
+            sleep 10
+          done
           .compat-candidate/bin/python -m pip check
           .compat-candidate/bin/python - <<'PY'
           from importlib.metadata import version
