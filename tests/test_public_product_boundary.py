@@ -77,8 +77,8 @@ def test_fastmcp_dependency_stays_on_the_audited_minor_line() -> None:
     # 필수가 아니라 extra. 이 패키지는 MCP 어댑터를 포함하지만 그것이 본체는
     # 아니다 — office/·workflow/·ops_services/·core/ 어느 파일도 mcp를
     # import하지 않는다.
-    assert "mcp==1.28.1" not in dependencies
-    assert "mcp==1.28.1" in optional_dependencies["mcp"]
+    assert "mcp==1.30.0" not in dependencies
+    assert "mcp==1.30.0" in optional_dependencies["mcp"]
     assert "pydantic>=2.11,<3" in dependencies
 
 
