@@ -27,8 +27,16 @@ from hwpx import HwpxDocument
 from hwpx_automation.office.agent.model import AgentBatchResult
 from hwpx.body_patch import BodyOpsResult
 from hwpx.mutation_report import MUTATION_REPORT_SCHEMA, MutationReport
+import hwpx.patch as core_patch
 from hwpx.patch import BytePreservingPatchResult
 from hwpx.table_patch import CellFillResult
+
+# Core 6.10.0 adds replace_package_text(); older cores have no such result model.
+_CORE_OPTIONAL_BYTE_WRITE_MODELS = {
+    model
+    for model in (getattr(core_patch, "PackageTextReplaceResult", None),)
+    if model is not None
+}
 
 
 # The closed set of public mutation-write result models that project onto v1.
@@ -37,7 +45,7 @@ FROZEN_PROJECTION_MODELS = {
     CellFillResult,
     BodyOpsResult,
     AgentBatchResult,
-}
+} | _CORE_OPTIONAL_BYTE_WRITE_MODELS
 
 # Modules whose byte-write result models must all carry a projection. The agent
 # transaction result (AgentBatchResult) has a different shape (verification
@@ -78,7 +86,7 @@ def test_every_byte_write_result_model_has_a_projection() -> None:
         BytePreservingPatchResult,
         CellFillResult,
         BodyOpsResult,
-    }
+    } | _CORE_OPTIONAL_BYTE_WRITE_MODELS
 
 
 def test_agent_batch_result_exposes_projection() -> None:
