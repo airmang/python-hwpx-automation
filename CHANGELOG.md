@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- The `mcp` extra pins the MCP SDK at `mcp==1.30.0` (was `1.28.1`), the first 1.x release with the fix for GHSA-84m7-p3x7-pcfv. Before it, a server started with `--transport streamable-http` (stateful, the default) never released a session: a client that could reach the endpoint could grow the server's memory until a restart. stdio was not affected. From 1.30.0 a session with no request for 30 minutes is closed and its id answers `404`, and a request that would open more than 10,000 sessions at once is answered `503`. 1.30.0 was re-audited by the procedure in `docs/mcp-sdk-reaudit.md`, and the runtime admits only that patch.
+
 - `compose` also renumbers click-here fields and drawing-object instance ids in each clone, and keeps their local references inside that clone: a `fieldEnd@beginIDRef` points at its own clone's `fieldBegin`, a connector's `subjectIDRef` at its shape's new `instid`. A marked role with a click-here field placed twice gave both fields one `fieldBegin` id, with both `fieldEnd`s pointing at it (#172).
 - A marked role refuses, in production, a value it has no placeholder for (`MARKED_VALUE_UNKNOWN`), including `text` for a role with several named slots; before, the value was dropped without a warning. A value's line breaks and tabs become `hp:lineBreak`/`hp:tab` instead of control characters in `hp:t`. A placeholder Hancom split across runs is replaced where it starts and loses only its own characters from the later runs; before, the whole paragraph's text moved into the first run, and fixed text after the placeholder took that run's style (#172).
 
