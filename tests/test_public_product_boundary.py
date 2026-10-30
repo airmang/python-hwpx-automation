@@ -68,7 +68,7 @@ def test_fastmcp_dependency_stays_on_the_audited_minor_line() -> None:
     # 6.x line the automation code now targets. The dev-window pin
     # (>=6.0.0.dev0) served the pre-tag phase; the release narrows it to the
     # first published core of the line.
-    assert "python-hwpx>=6.5.0,<7" in dependencies
+    assert "python-hwpx>=6.10.0,<7" in dependencies
     # The imaging stack is declared here since the 5.0 boundary closed: core
     # stopped reading PDFs and images, so its `visual` extra is empty and
     # deferring to it would have installed nothing.
@@ -77,8 +77,8 @@ def test_fastmcp_dependency_stays_on_the_audited_minor_line() -> None:
     # 필수가 아니라 extra. 이 패키지는 MCP 어댑터를 포함하지만 그것이 본체는
     # 아니다 — office/·workflow/·ops_services/·core/ 어느 파일도 mcp를
     # import하지 않는다.
-    assert "mcp==1.28.1" not in dependencies
-    assert "mcp==1.28.1" in optional_dependencies["mcp"]
+    assert "mcp==1.30.0" not in dependencies
+    assert "mcp==1.30.0" in optional_dependencies["mcp"]
     assert "pydantic>=2.11,<3" in dependencies
 
 
@@ -126,7 +126,7 @@ def test_contract_and_live_registry_exclude_internal_product_boundaries() -> Non
         MIN_MCP_VERSION,
         MIN_SKILL_VERSION,
     ) == (
-        "6.5.0",
+        "6.10.0",
         "7.2.0",
         "7.2.0",
         "2.0.0",
