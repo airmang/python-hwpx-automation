@@ -108,6 +108,7 @@ _BOOLEAN_QUALITY_GATES = frozenset(
 _INTEGER_QUALITY_GATES = frozenset({"minNonEmptyParagraphs", "minTableCount"})
 _LIST_QUALITY_GATES = frozenset({"requiredText"})
 _COMPUTED_FIELD_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
+_PLAN_HEX_COLOR_RE = re.compile(r"#?([0-9A-Fa-f]{6})")
 _COMPUTED_CALL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$", re.DOTALL)
 
 
@@ -1523,6 +1524,15 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
         column_keys, column_issues = _validate_table_columns(raw_block.get("columns"), path=path)
         issues.extend(column_issues)
         issues.extend(_validate_table_rows(raw_block.get("rows"), column_keys, path=path))
+        raw_rows = raw_block.get("rows")
+        issues.extend(
+            _validate_table_cell_styles(
+                raw_block.get("cellStyles"),
+                column_keys,
+                len(raw_rows) if isinstance(raw_rows, list) else 0,
+                path=path,
+            )
+        )
         issues.extend(_computed_field_issues(raw_block.get("caption"), path=f"{path}.caption"))
         issues.extend(_computed_field_issues(raw_block.get("unit"), path=f"{path}.unit"))
         table_profile = str(raw_block.get("tableProfile") or "").strip()
@@ -1827,6 +1837,90 @@ def _validate_table_rows(
     return issues
 
 
+def _validate_table_cell_styles(
+    value: Any,
+    column_keys: list[str],
+    row_count: int,
+    *,
+    path: str,
+) -> list[PlanValidationIssue]:
+    """Check ``cellStyles``: per-cell fill and text colours of body rows."""
+
+    if value is None:
+        return []
+    styles_path = f"{path}.cellStyles"
+    if not isinstance(value, list):
+        return [
+            _plan_issue(
+                "invalid_cell_styles",
+                styles_path,
+                f"{styles_path} must be a list",
+                suggestion='Use [{"row": 0, "column": "<key>", "fillColor": "#RRGGBB"}].',
+            )
+        ]
+    issues: list[PlanValidationIssue] = []
+    for style_index, raw_style in enumerate(value):
+        style_path = f"{styles_path}[{style_index}]"
+        if not isinstance(raw_style, Mapping):
+            issues.append(
+                _plan_issue(
+                    "invalid_cell_style",
+                    style_path,
+                    f"{style_path} must be a mapping",
+                    suggestion="Give row, column and fillColor and/or textColor.",
+                )
+            )
+            continue
+        row = raw_style.get("row")
+        if isinstance(row, bool) or not isinstance(row, int) or not 0 <= row < row_count:
+            issues.append(
+                _plan_issue(
+                    "invalid_cell_style_row",
+                    f"{style_path}.row",
+                    f"{style_path}.row must be a row index from 0 to {row_count - 1}",
+                    suggestion="Count rows from 0 in the rows array; the header row is not counted.",
+                )
+            )
+        column = str(raw_style.get("column") or "")
+        if column_keys and column not in column_keys:
+            issues.append(
+                _plan_issue(
+                    "invalid_cell_style_column",
+                    f"{style_path}.column",
+                    f"{style_path}.column is not a column key: {column!r}",
+                    suggestion="Use one of: " + ", ".join(repr(key) for key in column_keys) + ".",
+                )
+            )
+        colors = [key for key in ("fillColor", "textColor") if raw_style.get(key) is not None]
+        if not colors:
+            issues.append(
+                _plan_issue(
+                    "missing_cell_style_color",
+                    style_path,
+                    f"{style_path} must set fillColor or textColor",
+                    suggestion="Add fillColor and/or textColor as #RRGGBB.",
+                )
+            )
+        for key in colors:
+            if _plan_hex_color(raw_style.get(key)) is None:
+                issues.append(
+                    _plan_issue(
+                        "invalid_cell_style_color",
+                        f"{style_path}.{key}",
+                        f"{style_path}.{key} must be a #RRGGBB colour",
+                        suggestion="Use six hex digits, with or without a leading #.",
+                    )
+                )
+    return issues
+
+
+def _plan_hex_color(value: Any) -> str | None:
+    """Return ``#RRGGBB`` (upper case) for a six-digit hex colour, else None."""
+
+    match = _PLAN_HEX_COLOR_RE.fullmatch(str(value or "").strip())
+    return f"#{match.group(1).upper()}" if match else None
+
+
 def _validate_quality_gates(gates: Mapping[str, Any]) -> list[PlanValidationIssue]:
     issues: list[PlanValidationIssue] = []
     for key, value in gates.items():
@@ -1939,7 +2033,7 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
             table_data["unit"] = unit
         if table_profile:
             table_data["tableProfile"] = table_profile
-        return DocumentBlock("table", table_data)
+        return DocumentBlock("table", {**table_data, **_plan_table_cell_style_extras(raw_block)})
 
     if block_type == "memo":
         return DocumentBlock(
@@ -2279,6 +2373,23 @@ def _lower_plan_to_builder_document(plan: DocumentPlan) -> BuilderDocument:
     return BuilderDocument(sections=(BuilderSection(children=tuple(children)),))
 
 
+@dataclass(frozen=True)
+class _PlanCellStyle:
+    """Fill and text colour of one body cell (``row`` counts from the first body row)."""
+
+    row: int
+    col: int
+    fill_color: str | None = None
+    text_color: str | None = None
+
+
+@dataclass(frozen=True)
+class _PlanTable(BuilderTable):
+    """A v1 plan table: the public builder table plus the plan's ``cellStyles``."""
+
+    cell_styles: tuple[_PlanCellStyle, ...] = ()
+
+
 def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
     if block.type == "heading":
         return (
@@ -2313,8 +2424,9 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
         if caption:
             nodes.append(BuilderParagraph(text=caption, style="heading"))
         show_header = block.data.get("showHeader") is not False
+        column_index = {str(column["key"]): index for index, column in enumerate(columns)}
         nodes.append(
-            BuilderTable(
+            _PlanTable(
                 header=(
                     tuple(str(column["label"]) for column in columns)
                     if show_header
@@ -2325,6 +2437,15 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
                     for row in rows
                 ),
                 column_widths=tuple(_plan_table_column_widths(columns)),
+                cell_styles=tuple(
+                    _PlanCellStyle(
+                        row=int(style["row"]),
+                        col=column_index[str(style["column"])],
+                        fill_color=style.get("fillColor"),
+                        text_color=style.get("textColor"),
+                    )
+                    for style in block.data.get("cellStyles") or ()
+                ),
             ),
         )
         unit = str(block.data.get("unit") or "").strip()
@@ -2365,6 +2486,20 @@ def _plan_table_header_extras(raw_block: Mapping[str, Any]) -> dict[str, Any]:
     if raw_block.get("showHeader") is False:
         return {"showHeader": False}
     return {}
+
+
+def _plan_table_cell_style_extras(raw_block: Mapping[str, Any]) -> dict[str, Any]:
+    """Carry validated ``cellStyles`` with ``#RRGGBB`` colours, dropping unset ones."""
+
+    styles: list[dict[str, Any]] = []
+    for raw_style in raw_block.get("cellStyles") or ():
+        style: dict[str, Any] = {"row": int(raw_style["row"]), "column": str(raw_style["column"])}
+        for key in ("fillColor", "textColor"):
+            color = _plan_hex_color(raw_style.get(key))
+            if color is not None:
+                style[key] = color
+        styles.append(style)
+    return {"cellStyles": styles} if styles else {}
 
 
 def _normalize_columns(value: Any, *, index: int) -> list[dict[str, Any]]:
@@ -2677,7 +2812,45 @@ def _add_builder_table(
         header_fill=table_node.header_shading or _TABLE_HEADER_FILL,
         header_rows=1 if table_node.header else 0,
     )
+    if isinstance(table_node, _PlanTable) and table_node.cell_styles:
+        _apply_plan_cell_styles(
+            document,
+            table,
+            table_node.cell_styles,
+            row_offset=row_offset,
+            base_char_pr_id=tokens["table_cell"],
+        )
     _flow_oversized_authored_table(table)
+
+
+def _apply_plan_cell_styles(
+    document: HwpxDocument,
+    table: Any,
+    cell_styles: tuple[_PlanCellStyle, ...],
+    *,
+    row_offset: int,
+    base_char_pr_id: str,
+) -> None:
+    """Paint the plan's per-cell colours over the table's default styling."""
+
+    for style in cell_styles:
+        cell = table.cell(row_offset + style.row, style.col)
+        if style.fill_color is not None:
+            cell.element.set(
+                "borderFillIDRef",
+                document.styles.ensure_border_fill(
+                    border_color=_TABLE_BORDER_COLOR,
+                    fill_color=style.fill_color,
+                ),
+            )
+        if style.text_color is not None:
+            char_pr_id = document.styles.ensure_run(
+                color=style.text_color,
+                base_char_pr_id=base_char_pr_id,
+            )
+            for paragraph in cell.paragraphs:
+                paragraph.char_pr_id_ref = char_pr_id
+    table.mark_dirty()
 
 
 def _flow_oversized_authored_table(table: Any) -> None:

@@ -1,6 +1,6 @@
 # MCP SDK patch re-audit procedure
 
-The server pins the MCP SDK exactly (`mcp==1.28.1` in `pyproject.toml`) and the
+The server pins the MCP SDK exactly (`mcp==1.30.0` in `pyproject.toml`) and the
 runtime admits exactly the audited set (`AUDITED_MCP_PATCHES` in
 `src/hwpx_automation/fastmcp_adapter.py`). These two are the same set by
 invariant — `tests/test_fastmcp_adapter.py::
