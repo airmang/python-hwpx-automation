@@ -36,7 +36,6 @@ EXIT_UNAVAILABLE = 3
 
 DEFAULT_PNG_DPI = 110
 _MAX_PNG_DPI = 1200
-_LOCK_POLL_SECONDS = 0.25
 _BACKENDS = ("auto", "mac", "windows")
 
 
@@ -212,29 +211,18 @@ def _shared_desktop(backend: str | None, wait_seconds: float) -> Iterator[None]:
     if backend != "mac" or sys.platform == "win32":
         yield
         return
-    import fcntl
+    from . import HancomBusy, hancom_desktop_lock
 
-    from .mac_session import _gui_lock_path
-
-    deadline = time.monotonic() + wait_seconds
-    with _gui_lock_path().open("a") as handle:
-        while True:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= deadline:
-                    raise _Failure(
-                        "hancom-busy",
-                        f"another render held the Hancom desktop for {wait_seconds:g}s.",
-                        EXIT_RENDER_FAILED,
-                        backend,
-                    ) from None
-                time.sleep(_LOCK_POLL_SECONDS)
-        try:
+    try:
+        with hancom_desktop_lock(wait=wait_seconds):
             yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+    except HancomBusy:
+        raise _Failure(
+            "hancom-busy",
+            f"another render held the Hancom desktop for {wait_seconds:g}s.",
+            EXIT_RENDER_FAILED,
+            backend,
+        ) from None
 
 
 def _render_on_desktop(

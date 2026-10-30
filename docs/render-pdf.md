@@ -97,3 +97,27 @@ stdout에 결과를, stderr에 오류를 씁니다. 종료 코드는 같습니�
 
 플러그인 캐시 안의 인터프리터 경로는 공개 표면이 아니며, 버전이나 설치 방식에
 따라 달라집니다. 그 경로를 찾아 쓰지 말고 이 명령을 쓰세요.
+
+## Python에서 같은 데스크톱 잠금 사용하기
+
+하류 도구가 Mac 한/글의 공유 데스크톱을 조작할 때는 공개 컨텍스트 관리자를
+사용합니다. CLI와 렌더 워커도 같은 사용자별 파일에 POSIX `flock`을 겁니다.
+
+```python
+from hwpx_automation.office.rendering import HancomBusy, hancom_desktop_lock
+
+try:
+    with hancom_desktop_lock(wait=10.0):
+        # 이 구간에서 도구가 소유한 한/글 작업을 수행합니다.
+        pass
+except HancomBusy:
+    # 지정한 시간 동안 다른 스레드나 프로세스가 데스크톱을 사용했습니다.
+    pass
+```
+
+`wait`는 유한한 0 이상의 초이며 기본값 0은 즉시 획득을 시도합니다.
+같은 스레드에서는 중첩할 수 있고, 예외로 구간을 나가도 잠금은 해제됩니다.
+Windows에서는 COM 렌더마다 별도 한/글 프로세스를 사용하므로 이 컨텍스트는
+아무 잠금 파일도 열지 않는 no-op입니다. 잠금은 문서를 열거나 한/글을 실행하지
+않습니다. 공개 모듈 원장의 기존 `office.rendering` 및 `.mac_session` 항목을
+통해 제공하며 MCP extra가 필요하지 않습니다.

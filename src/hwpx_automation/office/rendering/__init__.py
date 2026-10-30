@@ -16,6 +16,7 @@ from hwpx.quality import SavePipeline
 from hwpx.quality.rendering import EditMask, VisualReport
 
 if TYPE_CHECKING:
+    from .mac_session import HancomBusy, hancom_desktop_lock
     from .oracle import (
         MacHancomOracle,
         NullOracle,
@@ -49,15 +50,16 @@ def __getattr__(name: str) -> Any:
     Core's ``hwpx.visual`` used the same lazy hook for the same reason. The move
     to this owner dropped it, and the boundary test caught it.
     """
-    if name in _ORACLE_EXPORTS:
+    if name in _ORACLE_EXPORTS or name in {"HancomBusy", "hancom_desktop_lock"}:
         import importlib
 
-        return getattr(importlib.import_module(f"{__name__}.oracle"), name)
+        owner = "oracle" if name in _ORACLE_EXPORTS else "mac_session"
+        return getattr(importlib.import_module(f"{__name__}.{owner}"), name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def __dir__() -> list[str]:
-    return sorted({*globals(), *_ORACLE_EXPORTS})
+    return sorted({*globals(), *_ORACLE_EXPORTS, "HancomBusy", "hancom_desktop_lock"})
 
 
 def _runtime_export(name: str) -> Any:
@@ -131,6 +133,7 @@ def bind_document_rendering(document: Any) -> Iterator[None]:
 
 
 __all__ = [
+    "HancomBusy",
     "HancomRenderBackend",
     "MacHancomOracle",
     "NullOracle",
@@ -138,6 +141,7 @@ __all__ = [
     "RenderOracle",
     "WindowsComOracle",
     "bind_document_rendering",
+    "hancom_desktop_lock",
     "resolve_hancom_backend",
     "resolve_hancom_oracle",
     "resolve_oracle",
