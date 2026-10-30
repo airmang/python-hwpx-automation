@@ -2,8 +2,9 @@
 """Exact parity between the automation owner and frozen core 4.x policy copies.
 
 ``hwpx.tools.page_guard`` is not being removed (module-ownership ledger:
-"page-guard CLI retained") — it stays imported live and compared directly,
-unchanged below.
+"page-guard CLI retained") — it stays imported live and compared directly.
+Since #177 the automation module re-exports it, so the comparison below also
+checks that the two paths hand out the same objects.
 
 ``hwpx.tools.official_lint``, ``hwpx.tools.pii``, and ``hwpx.tools.table_compute``
 *are* all gone as of python-hwpx 5.0. Structural claims (exports, signatures,
@@ -85,6 +86,7 @@ def test_page_guard_public_exports_and_signatures_are_exact() -> None:
     for name in core_page_guard.__all__:
         core_value = getattr(core_page_guard, name)
         owner_value = getattr(page_guard, name)
+        assert owner_value is core_value, name
         assert type(owner_value).__name__ == type(core_value).__name__
         if callable(core_value):
             assert str(inspect.signature(owner_value)) == str(

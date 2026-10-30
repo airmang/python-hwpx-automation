@@ -44,7 +44,7 @@
  ],
  "resolvedProgramOwners": {
   "hwpx.tools.official_lint": "hwpx_automation.office.compliance.official_lint",
-  "hwpx.tools.page_guard": "hwpx_automation.office.quality.page_guard",
+  "hwpx.tools.page_guard": "hwpx.tools.page_guard (core-native; hwpx_automation.office.quality.page_guard re-exports it, #177)",
   "hwpx.visual application runtime": "hwpx_automation.office.rendering",
   "hwpx.tools.mail_merge.mail_merge": "hwpx_automation.office.document_ops.mail_merge.build_mail_merge"
  },

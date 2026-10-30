@@ -46,14 +46,34 @@ def test_owner_ledger_matches_the_frozen_source_and_package_plan() -> None:
 def test_canonical_policy_roots_use_only_declared_public_core_seams() -> None:
     assert OWNER["approvedCoreImports"] == {
         "compliance": ["hwpx.document"],
-        "quality": ["hwpx"],
+        "quality": ["hwpx.tools.page_guard"],
         "utilities": [],
     }
     assert CANONICAL_POLICY_ROOTS == {
         "src/hwpx_automation/office/compliance": ("hwpx.document",),
-        "src/hwpx_automation/office/quality": ("hwpx",),
+        "src/hwpx_automation/office/quality": ("hwpx.tools.page_guard",),
         "src/hwpx_automation/office/utilities": (),
     }
+    assert set(OWNER["forbiddenCoreCompatibilityImports"]) == set(FROZEN_CORE_POLICY_IMPORTS)
+    assert OWNER["coreDelegatedModules"]["hwpx_automation.office.quality.page_guard"][
+        "coreOwner"
+    ] == BOUNDARY["CORE_DELEGATED_MODULES"]["src/hwpx_automation/office/quality/page_guard.py"]
+    # #177: the metrics are core's, so quality takes exactly that seam and
+    # nothing else — not the package reader the copy used.
+    assert (
+        _policy_owner_import_violation(
+            "src/hwpx_automation/office/quality/page_guard.py",
+            "hwpx.tools.page_guard",
+        )
+        is None
+    )
+    assert (
+        _policy_owner_import_violation(
+            "src/hwpx_automation/office/quality/page_guard.py",
+            "hwpx",
+        )
+        is not None
+    )
 
     assert (
         _policy_owner_import_violation(

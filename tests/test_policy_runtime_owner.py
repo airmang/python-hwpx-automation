@@ -51,7 +51,8 @@ def test_canonical_policy_owner_inventory_is_complete() -> None:
     ).encode()
 
     assert len(rows) == canonical["pythonFiles"] == 7
-    assert sum(int(row["loc"]) for row in rows) == canonical["loc"] == 1684
+    # 1684 -> 1443: quality/page_guard.py re-exports core's metrics (#177).
+    assert sum(int(row["loc"]) for row in rows) == canonical["loc"] == 1443
     assert hashlib.sha256(payload).hexdigest() == canonical[
         "manifestSha256"
     ]
