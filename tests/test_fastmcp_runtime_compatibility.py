@@ -118,8 +118,8 @@ print(json.dumps(asyncio.run(probe()), ensure_ascii=False, sort_keys=True))
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout.strip().splitlines()[-1])
-    assert payload["sdkVersion"] == "1.28.1"
-    assert payload["auditedPatches"] == ["1.28.1"]
+    assert payload["sdkVersion"] == "1.30.0"
+    assert payload["auditedPatches"] == ["1.30.0"]
     assert payload["initializeVersion"] == payload["packageVersion"]
     assert payload["adapterVersion"] == payload["packageVersion"]
     assert payload["protocolOrderExact"] is True

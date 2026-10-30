@@ -28,8 +28,8 @@ from .execution_lock import PUBLIC_MUTATION_LOCK
 # The package resolver pin and this audited allowlist MUST admit the same
 # set: anything pip can install must also start. Admitting a new patch is an
 # explicit re-audit (docs/mcp-sdk-reaudit.md) that updates both together.
-SUPPORTED_MCP_RANGE = "==1.28.1"
-AUDITED_MCP_PATCHES = ("1.28.1",)
+SUPPORTED_MCP_RANGE = "==1.30.0"
+AUDITED_MCP_PATCHES = ("1.30.0",)
 
 
 class FastMcpAdapterError(RuntimeError):
@@ -97,7 +97,7 @@ def configure_runtime(
 ) -> None:
     """Set initialize version and the strict raw call handler atomically.
 
-    FastMCP 1.28.1 exposes neither operation through its public constructor or
+    FastMCP 1.30.0 exposes neither operation through its public constructor or
     decorators.  Shape and audited-patch checks happen before mutation; any
     failed write restores the prior runtime state and raises the adapter-owned
     error type.

@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: python-hwpx-automation
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       # Every version this job uses comes from identity.json through this one
@@ -170,7 +170,7 @@ jobs:
           python scripts/render_tool_contract.py --check --skip-skill
           python scripts/render_contract_delta.py --check
       - name: Set up minimum supported Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.10"
       - name: Gate minimum-Python clean wheel and optional boundaries
@@ -197,7 +197,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
@@ -288,7 +288,7 @@ jobs:
           CHECK
 
       - name: Publish canonical automation to PyPI
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:
           packages-dir: dist/canonical/
 
@@ -321,8 +321,23 @@ jobs:
 
       - name: Verify compatibility artifact resolves canonical remote
         run: |
-          python -m venv .compat-candidate
-          .compat-candidate/bin/python -m pip install dist/compat/*.whl
+          set -euo pipefail
+          # The canonical step above can see the new version on one PyPI index
+          # edge while this install lands on another that does not have it yet
+          # (v7.4.0 stopped here). Retry the same way, and never from pip's cache.
+          for attempt in 1 2 3 4 5 6; do
+            rm -rf .compat-candidate
+            python -m venv .compat-candidate
+            if .compat-candidate/bin/python -m pip install --no-cache-dir \
+              dist/compat/*.whl; then
+              break
+            fi
+            if [[ "${attempt}" == "6" ]]; then
+              echo "compatibility artifact did not resolve the canonical remote" >&2
+              exit 1
+            fi
+            sleep 10
+          done
           .compat-candidate/bin/python -m pip check
           .compat-candidate/bin/python - <<'PY'
           from importlib.metadata import version
@@ -332,7 +347,7 @@ jobs:
           PY
 
       - name: Publish compatibility shell to PyPI
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:
           packages-dir: dist/compat/
 

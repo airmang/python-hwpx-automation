@@ -23,7 +23,7 @@ import json
 import re
 from copy import deepcopy
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -130,16 +130,19 @@ def fill_placeholders(
 ) -> list[str]:
     """Replace ``{{role}}``/``{{role.slot}}`` text in place; return unfilled slots.
 
-    A placeholder inside one text piece keeps that piece's run (and its style).
-    One that Hancom split across runs is rebuilt in the paragraph's first piece.
+    The value goes into the piece where the placeholder starts, so it takes that
+    run's style. A placeholder Hancom split across runs (the character shape
+    changed inside it) loses only its own characters from the later pieces;
+    the rest of those runs, and their styles, stay. A value's line breaks and
+    tabs become the ``<hp:lineBreak/>``/``<hp:tab/>`` Hancom writes for them.
     Missing values become empty text so a placeholder never ships.
     """
 
     unfilled: list[str] = []
 
-    def replace(match: re.Match[str]) -> str:
+    def value_for(match: re.Match[str]) -> str | None:
         if match.group(1) != role:
-            return match.group(0)
+            return None
         slot = match.group(2) or ""
         if slot not in values:
             unfilled.append(slot)
@@ -148,18 +151,60 @@ def fill_placeholders(
 
     for root in paragraphs:
         for para in S.iter_local(root, "p"):
-            pieces = _direct_pieces(para)
-            for piece in pieces:
-                text = _get(piece)
-                if "{{" in text:
-                    _set(piece, PLACEHOLDER_RE.sub(replace, text))
-            joined = "".join(_get(p) for p in pieces)
-            if any(m.group(1) == role for m in PLACEHOLDER_RE.finditer(joined)):
-                _set(pieces[0], PLACEHOLDER_RE.sub(replace, joined))
-                for piece in pieces[1:]:
-                    _set(piece, "")
+            _replace_in_pieces(_direct_pieces(para), value_for)
         S.strip_lineseg(root)
     return list(dict.fromkeys(unfilled))
+
+
+def _replace_in_pieces(
+    pieces: list[tuple[etree._Element, str]],
+    value_for: Callable[[re.Match[str]], str | None],
+) -> None:
+    texts = [_get(p) for p in pieces]
+    starts: list[int] = []
+    offset = 0
+    for text in texts:
+        starts.append(offset)
+        offset += len(text)
+    touched: set[int] = set()
+    # Right to left, so an earlier match's offsets still hold.
+    for match in reversed(list(PLACEHOLDER_RE.finditer("".join(texts)))):
+        value = value_for(match)
+        if value is None:
+            continue
+        covered = [
+            i for i, start in enumerate(starts)
+            if start < match.end() and match.start() < start + len(texts[i])
+        ]
+        for index in reversed(covered):
+            lo = max(match.start(), starts[index]) - starts[index]
+            hi = min(match.end(), starts[index] + len(texts[index])) - starts[index]
+            insert = value if index == covered[0] else ""
+            texts[index] = texts[index][:lo] + insert + texts[index][hi:]
+            touched.add(index)
+    for index in sorted(touched, reverse=True):
+        _set_with_marks(pieces[index], texts[index])
+
+
+_TEXT_MARK_RE = re.compile(r"(\t|\r\n|\r|\n)")
+
+
+def _set_with_marks(piece: tuple[etree._Element, str], value: str) -> None:
+    """Set *piece* to *value*, each tab/line break as the element inside ``<hp:t>``."""
+
+    owner, attr = piece
+    parts = _TEXT_MARK_RE.split(value)
+    _set(piece, parts[0])
+    if attr == "text":
+        parent, at = owner, 0
+    else:
+        parent = owner.getparent()
+        at = parent.index(owner) + 1
+    for mark, segment in zip(parts[1::2], parts[2::2]):
+        element = parent.makeelement(S.hp(parent, "tab" if mark == "\t" else "lineBreak"), {})
+        element.tail = segment
+        parent.insert(at, element)
+        at += 1
 
 
 def _pick_marked_fragments(

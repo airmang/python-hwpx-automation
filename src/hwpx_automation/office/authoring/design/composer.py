@@ -211,6 +211,17 @@ def _marked_fragment_for(
         values[""] = block.text
     elif block.text and len(slots) == 1 and slots[0] not in values:
         values[slots[0]] = block.text
+    elif block.text:
+        values.setdefault("", block.text)  # nowhere to go: reported just below
+    unknown = [slot for slot in values if slot not in slots]
+    if unknown:
+        # The template has no placeholder for these; dropping them loses content.
+        _forbid_fallback(
+            production,
+            f"MARKED_VALUE_UNKNOWN: role {block.role!r} has slots {slots}, "
+            f"plan gave {unknown}",
+            warnings,
+        )
     paragraphs = fragment_paragraphs(prof.fragment(block.role))
     unfilled = fill_placeholders(paragraphs, block.role, values)
     if not values:
@@ -319,15 +330,45 @@ def _reassign_paragraph_ids(paragraphs: list[etree._Element]) -> None:
 _OBJECT_ID_BASE = 1_000_000_000
 
 
+# Drawing objects number their instance in "instid"; footnotes/endnotes spell it
+# "instId". A connector names the shape it joins by that value (subjectIDRef).
+_INSTANCE_ID_ATTRS = ("instid", "instId")
+
+
 def _reassign_object_ids(paragraphs: list[etree._Element]) -> None:
-    """Give every table/drawing object a unique id (fragments may repeat)."""
+    """Give every table/drawing object and click-here field a unique id.
+
+    Fragments may repeat, so each clone's ids are renumbered, and the local
+    references inside that clone follow: a ``fieldEnd@beginIDRef`` its own
+    ``fieldBegin@id``, a connector's ``subjectIDRef`` its shape's ``instid``.
+    ``fieldid`` names the field type (Hancom gives every click-here the same
+    one), so it stays.
+    """
 
     next_id = _OBJECT_ID_BASE
     for root in paragraphs:
+        object_map: dict[str, str] = {}
+        instance_map: dict[str, str] = {}
         for element in root.iter():
-            if S.ln(element.tag) in OBJECT_TAGS and element.get("id") is not None:
-                element.set("id", str(next_id))
+            name = S.ln(element.tag)
+            old = element.get("id")
+            if (name in OBJECT_TAGS or name == "fieldBegin") and old is not None:
+                object_map[old] = str(next_id)
+                element.set("id", object_map[old])
                 next_id += 1
+            for attr in _INSTANCE_ID_ATTRS:
+                old_instance = element.get(attr)
+                if old_instance:
+                    instance_map[old_instance] = str(next_id)
+                    element.set(attr, instance_map[old_instance])
+                    next_id += 1
+        for element in root.iter():
+            begin = element.get("beginIDRef")
+            if begin in object_map:
+                element.set("beginIDRef", object_map[begin])
+            subject = element.get("subjectIDRef")
+            if subject in instance_map:
+                element.set("subjectIDRef", instance_map[subject])
 
 
 __all__ = ["compose", "compose_bytes", "ComposeResult", "ProfileRequiredError"]

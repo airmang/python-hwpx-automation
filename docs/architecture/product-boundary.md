@@ -89,6 +89,17 @@ Moving released core workflows here is a compatibility project, not a copy
 project. Each move needs one owner, a primitive seam, a 4.x migration path, and
 an explicit later removal gate.
 
+The genre and policy logic python-hwpx still lists as `known-leak` follows its
+`docs/architecture/known-leak-migration.md` contract.
+[`core-known-leak-moves.json`](./core-known-leak-moves.json) is this side of
+it: the four groups, the owner here that will hold each policy, the core calls
+automation makes until the move, and their consumers.
+`tests/test_core_known_leak_moves.py` checks it against the core contract when
+the core checkout carries one. Nothing has moved yet. The owner chose option
+A for the core names: they keep working through 6.x, warn in the next major
+and are removed in the major after it, so every replacement here ships and
+every consumer switches during 6.x.
+
 `hwpx_automation.office.agent` is the canonical owner of the released semantic
 agent runtime. Automation production modules must not import the frozen core
 `hwpx.agent` compatibility copy. The canonical runtime may use only the

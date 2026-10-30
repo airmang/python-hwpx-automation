@@ -162,6 +162,21 @@ def test_cli_schema_only_prints_just_the_schema(tmp_path: Path, capsys: pytest.C
     assert json.loads(out) == template_analyzer.template_analysis_agent_schema()
 
 
+def test_cli_schema_only_also_writes_the_requested_schema_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _template(tmp_path, _table(TABLE, [_cell(0, "0", OWN)]))
+    schema_file = tmp_path / "output" / "schema.json"
+
+    status, out = _run_cli(
+        [str(path), "--schema-json", "--output-schema-json", str(schema_file)], capsys
+    )
+
+    assert status == 0
+    assert json.loads(out) == template_analyzer.template_analysis_agent_schema()
+    assert json.loads(schema_file.read_text(encoding="utf-8")) == json.loads(out)
+
+
 def test_cli_keeps_json_then_schema_then_extracted_order(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

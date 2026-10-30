@@ -136,8 +136,8 @@ def test_any_default_none_drops_redundant_null_union() -> None:
 
 
 def test_compatibility_range_and_audited_patch_are_explicit() -> None:
-    assert SUPPORTED_MCP_RANGE == "==1.28.1"
-    assert AUDITED_MCP_PATCHES == ("1.28.1",)
+    assert SUPPORTED_MCP_RANGE == "==1.30.0"
+    assert AUDITED_MCP_PATCHES == ("1.30.0",)
 
 
 def test_resolver_pin_and_audited_set_admit_the_same_versions() -> None:
@@ -185,7 +185,7 @@ def test_runtime_configuration_exposes_owned_version_api() -> None:
     assert runtime_server_version(mcp) == "9.8.7"
 
 
-@pytest.mark.parametrize("version", ["1.28.0", "1.28.2", "1.29.0", "2.0.0a1"])
+@pytest.mark.parametrize("version", ["1.28.1", "1.29.0", "1.30.1", "1.31.0", "2.0.0a1"])
 def test_unaudited_sdk_versions_fail_closed(
     monkeypatch: pytest.MonkeyPatch,
     version: str,
