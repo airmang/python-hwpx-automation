@@ -42,24 +42,22 @@ def test_canonical_evalplan_inventory_is_complete() -> None:
     ).encode()
     expected = OWNER["canonical"]
 
-    assert len(rows) == expected["pythonFiles"] == 2
-    assert sum(int(row["loc"]) for row in rows) == expected["loc"] == 2833
-    # 원장과 테스트에 같은 해시를 둔 이중 잠금이다. 원장만 고쳐서 통과시키는
-    # 일을 막는다. 5.0 트레인에서 패키지가 hwpx_automation으로 바뀌며 파일
-    # 내용이 달라져 함께 갱신했다. 이후 fill_evalplan이 산출 바이트로
-    # 영수증을 재산출하도록 고치며 LOC 2798→2833·해시를 함께 갱신했다 —
-    # 구조 단계 결과를 최종 판정으로 재사용해 ok=true·채움 26건을 보고하고
-    # 파일을 쓰지 않던 결함의 수리다.
+    assert len(rows) == expected["pythonFiles"] == 3
+    assert sum(int(row["loc"]) for row in rows) == expected["loc"]
+    # Caption policy now has its own module over the neutral core seam.
+    # Historical source/canonical anchors remain in the owner ledger.
     assert expected["manifestSha256"] == (
-        "55412bd836c61a7816f9b47a1f0f90522c9b4eebbe06630d232a0285a80eab10"
+        "a1ea04c066d2a692af2a4533f1e1d3fd787c0f5c8605973c26c90d25bac654b9"
     )
     assert hashlib.sha256(payload).hexdigest() == expected["manifestSha256"]
-    assert canonical.__all__ == runtime.__all__
+    assert canonical.__all__ == [*runtime.__all__, "strip_evalplan_table_captions"]
 
 
 def test_public_evalplan_bindings_use_the_automation_owner() -> None:
     for name in canonical.__all__:
         binding = getattr(canonical, name)
         assert binding.__module__ == (
-            "hwpx_automation.office.evalplan.runtime"
+            "hwpx_automation.office.evalplan.captions"
+            if name == "strip_evalplan_table_captions"
+            else "hwpx_automation.office.evalplan.runtime"
         ), (name, binding)

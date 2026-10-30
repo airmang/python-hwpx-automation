@@ -5,7 +5,7 @@ python-hwpx keeps docs/architecture/known-leak-migration.json: four groups of
 genre/policy logic still in core, each with the automation owner it moves to.
 docs/architecture/core-known-leak-moves.json is this repository's record of the
 same groups. These checks keep the two in step and keep the owners and
-consumers they name real. Nothing has moved yet; the owner chose option A
+consumers they name real. Candidate owners are implemented; the owner chose option A
 for retiring the core names, recorded here as a relative schedule.
 """
 from __future__ import annotations
@@ -59,11 +59,15 @@ def test_groups_owners_and_consumers_are_real() -> None:
         for consumer in group["consumers"]:
             _resolve(consumer)
         assert group["coreCallsUntilMoved"] and group["plannedEntryPoint"].strip()
+        assert callable(_resolve(group["replacementEntryPoint"]))
+        for seam in group["neutralCoreCalls"]:
+            assert callable(_resolve(seam))
+        assert group["status"] == "routed-in-candidate"
 
 
 def test_document_ops_ledger_marks_its_core_members_that_will_move() -> None:
     known = DOCUMENT_OPS["coreKnownLeakMembers"]
-    assert set(known) <= set(DOCUMENT_OPS["memberOwners"]["core"])
+    assert set(known) <= set(DOCUMENT_OPS["memberOwners"]["core"] + DOCUMENT_OPS["memberOwners"]["coreCompatibility"])
     by_group = {group["id"]: group for group in MOVES["groups"]}
     for member, entry in known.items():
         for group_id, owner in zip(entry["groups"], entry["plannedOwners"]):

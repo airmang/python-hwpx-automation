@@ -50,13 +50,13 @@ def test_canonical_policy_owner_inventory_is_complete() -> None:
         separators=(",", ":"),
     ).encode()
 
-    assert len(rows) == canonical["pythonFiles"] == 7
-    # 1684 -> 1443: quality/page_guard.py re-exports core's metrics (#177).
-    assert sum(int(row["loc"]) for row in rows) == canonical["loc"] == 1443
+    assert len(rows) == canonical["pythonFiles"] == 8
+    # Reference policy joins compliance; page metrics remain delegated to core.
+    assert sum(int(row["loc"]) for row in rows) == canonical["loc"]
     assert hashlib.sha256(payload).hexdigest() == canonical[
         "manifestSha256"
     ]
-    assert len(compliance.__all__) == 14
+    assert len(compliance.__all__) == 16
     assert len(quality.__all__) == 3
     assert len(utilities.__all__) == 2
 

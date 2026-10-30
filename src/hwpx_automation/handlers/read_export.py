@@ -678,8 +678,10 @@ def _ingest_local_document(filename: str):
     path = resolve_path(filename)
     ingestor = DocumentIngestor.default()
     ingestor.register_converter(MarkItDownAdapter(), priority=100.0)
+    from ..office.authoring.report_parser import detect_markdown_heading
+
     try:
-        return path, ingestor.convert(path)
+        return path, ingestor.convert(path, markdown_options={"heading_detector": detect_markdown_heading})
     except DocumentIngestError as exc:
         for attempt in getattr(exc, "attempts", []) or []:
             if getattr(attempt, "error_type", None) == "MissingMarkItDownDependency":

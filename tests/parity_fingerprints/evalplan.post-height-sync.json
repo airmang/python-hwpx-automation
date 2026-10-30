@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "evalplan-post-height-sync/v1",
+  "purpose": "Exact application-migration byte parity after the existing core structural-height synchronization; not a visual approval.",
+  "historicalGoldenSha256": "c90b93be200348cefb0e44a740e368272f8240216d804039058b1e4b09268ae7",
+  "historicalGolden": "evalplan.golden.json",
+  "automationBaseline": "00f79dbbc59b6e8b2d56c250f6267e57b88dac61",
+  "coreCorrection": "fe546d1c2e55abb339824a0849419eb09bd2ee9e",
+  "observedCoreHead": "cc59240067ae9d8146b6a132a4e316effa7207e6",
+  "observation": "Baseline and candidate automation have identical structural plans, fill reports and output bytes under the same core. Public core reproduces the historical golden. Disabling only the structural-height adapter restores it. Only section0 table sz height attributes change; all other XML and ZIP-member payloads remain identical. Some results clamp saved height to zero under existing object-model semantics; rendering is unverified.",
+  "cases": {
+    "structural:synthetic": {
+      "dataSha256": "e8e0c1648847080f3ab8c57f28154f5fa066a6f8ce34c420addca7ceaf54b222",
+      "dataLength": 106207,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ]
+      }
+    },
+    "all:synthetic": {
+      "dataSha256": "0b184f4d93fc308408ab5de64a8d3f0594d62cb43c11841836f527a0f4420a10",
+      "dataLength": 103136,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ],
+        "2082585581": [
+          13222,
+          0
+        ],
+        "2082585597": [
+          30463,
+          21363
+        ]
+      }
+    },
+    "clean:synthetic": {
+      "dataSha256": "316980347bbb09de414208161d9de26918e1e389a49dae2bdf6fdef4a1a608e7",
+      "dataLength": 97803,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ],
+        "2082585581": [
+          13222,
+          0
+        ],
+        "2082585597": [
+          30463,
+          21363
+        ]
+      }
+    },
+    "clean:detailed": {
+      "dataSha256": "fe1a990ad2e841d1f60a9a4cf6e633a032eb5cafaff94eaf491318ac8e4ec32a",
+      "dataLength": 97755,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ],
+        "2082585581": [
+          13222,
+          0
+        ],
+        "2083948084": [
+          5865,
+          0
+        ]
+      }
+    }
+  },
+  "objectModelCrossCheck": {
+    "publicCoreVersion": "6.10.0",
+    "operationsReplayed": 10,
+    "matchingBytePathHeights": 10,
+    "renderChecked": false,
+    "heightDeltas": [
+      {
+        "tableId": "2082585532",
+        "savedHeight": 33683,
+        "beforeRowModel": 53295,
+        "afterRowModel": 51586,
+        "resultHeight": 31974
+      },
+      {
+        "tableId": "2082585581",
+        "savedHeight": 13222,
+        "beforeRowModel": 28762,
+        "afterRowModel": 9001,
+        "resultHeight": 0
+      },
+      {
+        "tableId": "2082585597",
+        "savedHeight": 30463,
+        "beforeRowModel": 72375,
+        "afterRowModel": 63275,
+        "resultHeight": 21363
+      },
+      {
+        "tableId": "2083948084",
+        "savedHeight": 5865,
+        "beforeRowModel": 74356,
+        "afterRowModel": 59843,
+        "resultHeight": 0
+      }
+    ]
+  },
+  "input": {
+    "coreFixturePath": "tests/fixtures/m105_evalplan/blank_form_3hak.hwpx",
+    "sha256": "2288ef6e1501f3a88aabcfe6c4ac8af0001af68e909afba810d0be5e042580cc"
+  },
+  "changedMember": "Contents/section0.xml",
+  "preserved": "All other ZIP member payloads; all other XML node order, tags, text, tails and attributes; ZIP member names/order."
+}

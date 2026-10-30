@@ -20,8 +20,10 @@ The filled document's raw bytes (``result["_data"]``) can't live in JSON —
 the golden records their SHA-256 and length instead, the same tradeoff
 ``test_exam_runtime_parity.py`` made for its composed output.
 
-Every assertion the pre-freeze version of this file made is still made here;
-none needed dropping.
+The historical API, plan and report captures remain exact. Output bytes after
+core's structural-height synchronization (#539) have a separate, explicitly
+attributed capture; the historical golden file remains unchanged. This checks
+application migration parity and does not approve rendered layout.
 """
 
 from __future__ import annotations
@@ -153,7 +155,16 @@ MISSING_PATH = "__parity_fixture_missing__/missing-review.md"
 
 _FIXTURES = Path(__file__).parent / "parity_fingerprints"
 FROZEN = json.loads((_FIXTURES / "evalplan.json").read_text(encoding="utf-8"))["modules"]
-GOLDEN = json.loads((_FIXTURES / "evalplan.golden.json").read_text(encoding="utf-8"))["calls"]
+GOLDEN_BYTES = (_FIXTURES / "evalplan.golden.json").read_bytes()
+GOLDEN = json.loads(GOLDEN_BYTES)["calls"]
+POST_HEIGHT_SYNC = json.loads(
+    (_FIXTURES / "evalplan.post-height-sync.json").read_text(encoding="utf-8")
+)
+
+
+def test_post_height_sync_receipt_preserves_the_historical_golden() -> None:
+    assert hashlib.sha256(GOLDEN_BYTES).hexdigest() == POST_HEIGHT_SYNC["historicalGoldenSha256"]
+    assert set(POST_HEIGHT_SYNC["cases"]) == set(GOLDEN["fillCases"])
 
 
 def _jsonify(value: object) -> object:
@@ -209,7 +220,7 @@ def test_empty_and_partial_input_matches_frozen_core(label: str, markdown: str) 
         ("clean", "detailed", DETAILED_MD),
     ],
 )
-def test_plan_fill_and_cleanup_byte_matches_frozen_core(
+def test_plan_fill_and_cleanup_matches_frozen_reports_and_height_sync_bytes(
     phase: str, md_label: str, markdown: str
 ) -> None:
     expected = GOLDEN["fillCases"][f"{phase}:{md_label}"]
@@ -226,8 +237,12 @@ def test_plan_fill_and_cleanup_byte_matches_frozen_core(
     )
     data = canonical_result.pop("_data")
     assert _jsonify(canonical_result) == expected["fillResult"]
-    assert hashlib.sha256(data).hexdigest() == expected["dataSha256"]
-    assert len(data) == expected["dataLength"]
+    # Core's structural byte path now applies the existing object-model height
+    # delta (#539). Keep the old capture; record only those changed output bytes
+    # separately. Plans, reports, API fingerprints above stay historically exact.
+    output = POST_HEIGHT_SYNC["cases"][f"{phase}:{md_label}"]
+    assert hashlib.sha256(data).hexdigest() == output["dataSha256"]
+    assert len(data) == output["dataLength"]
 
 
 def test_missing_input_refusal_matches_frozen_core() -> None:

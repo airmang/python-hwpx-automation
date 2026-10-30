@@ -1,8 +1,8 @@
 {
  "schemaVersion": "python-hwpx-automation.core-known-leak-moves/v1",
- "status": "contract",
+ "status": "implemented-candidate",
  "coreContract": "python-hwpx docs/architecture/known-leak-migration.json",
- "note": "The automation side of python-hwpx's known-leak migration contract (python-hwpx #565). Each group names the automation owner that will hold the policy and the core names automation still calls until the move. Nothing has moved yet. The owner chose core compatibility option A (coreCompatibility); releases are named only relative to each other, so no version number or date is recorded here.",
+ "note": "Automation owners and consumer routing are implemented against additive core seams. Core compatibility definitions remain unchanged. This candidate must stay draft until the required core APIs are published and the declared floor plus candidate-core CI pins are updated to that observed publication. The relative owner-approved compatibility schedule is unchanged.",
  "coreCompatibility": {
   "decision": "A",
   "schedule": {
@@ -21,7 +21,11 @@
    ],
    "consumers": [
     "hwpx_automation.handlers.quality_render.inspect_reference_consistency"
-   ]
+   ],
+   "replacementEntryPoint": "hwpx_automation.office.compliance.inspect_reference_consistency",
+   "neutralCoreCalls": [],
+   "status": "routed-in-candidate",
+   "historicalCoreCallsNote": "coreCallsUntilMoved records the prior production dependency; compatibility definitions still exist in core."
   },
   {
    "id": "document-plan-input",
@@ -34,7 +38,14 @@
    "consumers": [
     "hwpx_automation.handlers.quality_render.inspect_reference_consistency",
     "hwpx_automation.office.document_ops.comparison.build_comparison_table_plan"
-   ]
+   ],
+   "replacementEntryPoint": "hwpx_automation.office.document_ops.paragraph_plan_to_paragraphs",
+   "neutralCoreCalls": [
+    "hwpx.tools.doc_diff.paragraph_texts",
+    "hwpx.tools.doc_diff.doc_diff"
+   ],
+   "status": "routed-in-candidate",
+   "historicalCoreCallsNote": "coreCallsUntilMoved records the prior production dependency; compatibility definitions still exist in core."
   },
   {
    "id": "report-heading-guess",
@@ -45,7 +56,13 @@
    ],
    "consumers": [
     "hwpx_automation.handlers.read_export._ingest_local_document"
-   ]
+   ],
+   "replacementEntryPoint": "hwpx_automation.office.authoring.report_parser.detect_markdown_heading",
+   "neutralCoreCalls": [
+    "hwpx.tools.markdown_export.export_markdown"
+   ],
+   "status": "routed-in-candidate",
+   "historicalCoreCallsNote": "coreCallsUntilMoved records the prior production dependency; compatibility definitions still exist in core."
   },
   {
    "id": "evalplan-caption-cleanup",
@@ -56,7 +73,26 @@
    ],
    "consumers": [
     "hwpx_automation.office.evalplan.runtime"
-   ]
+   ],
+   "replacementEntryPoint": "hwpx_automation.office.evalplan.strip_evalplan_table_captions",
+   "neutralCoreCalls": [
+    "hwpx.table_patch.strip_trailing_table_text"
+   ],
+   "status": "routed-in-candidate",
+   "historicalCoreCallsNote": "coreCallsUntilMoved records the prior production dependency; compatibility definitions still exist in core."
   }
- ]
+ ],
+ "publicationGate": {
+  "status": "pending-core-publication",
+  "requiredCoreAPIs": [
+   "hwpx.tools.doc_diff.paragraph_texts",
+   "hwpx.tools.markdown_export.export_markdown heading_detector keyword",
+   "hwpx.table_patch.strip_trailing_table_text"
+  ],
+  "requiredActions": [
+   "Observe a published core containing all required APIs.",
+   "Set the real minimum dependency and candidate-core pin to that publication.",
+   "Pass source-main and published-floor CI before making this PR ready."
+  ]
+ }
 }

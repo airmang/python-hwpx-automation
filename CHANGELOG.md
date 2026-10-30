@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Candidate for core issue #565: application reference policy, document-plan normalization, Markdown heading promotion and evaluation-plan caption selection have canonical automation owners. Consumers use additive public core seams; current core compatibility names and the MCP tool contract stay unchanged. This candidate requires a published core containing those seams and an observed dependency-floor/CI-pin update before merge or release; see `docs/architecture/known-leak-policy-owners.md`.
+
 - Mac `refresh_document` now shares the render path's owned-alert guard. A unique refusal absent before its open is dismissed and reported through `last_refusal`; existing or ambiguous alerts remain untouched. An error containing the letters `OK` no longer counts as refresh success (#145).
 
 - `hwpx_automation.office.rendering.hancom_desktop_lock(wait=...)` exposes the same per-user desktop lock as the Mac worker and CLI. It supports same-thread reentrancy, bounds thread/process contention and raises public `HancomBusy` on timeout. Windows COM renders use isolated processes, so the public context manager is explicitly a no-op there (#153).

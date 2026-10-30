@@ -28,11 +28,11 @@
   "manifestSha256": "d97db5cac702059ce4297f10ca108c6e2a162ba84b93bd5fe1a914a27877ad1f"
  },
  "canonical": {
-  "pythonFiles": 7,
-  "loc": 1443,
-  "manifestSha256": "1aace7e1e77146afd08522c05e0b8ffda51f8d7e97676e813cacfeda3699d733",
+  "pythonFiles": 8,
+  "loc": 1584,
+  "manifestSha256": "92811c96bdde1d5d17f1c3b7de15eb49d74f86601a78da8fa16c8903084d8daa",
   "packageFileCounts": {
-   "compliance": 3,
+   "compliance": 4,
    "quality": 2,
    "utilities": 2
   },
@@ -45,6 +45,12 @@
     "manifestSha256": "74112864e78e032e39bf0859f24a77b9aa519756f6c5700c85dd08c26ebf67c6",
     "reason": "패키지 이름을 hwpx_mcp_server에서 hwpx_automation으로 바꿨다. 동작 변화 없음."
    }
+  },
+  "policyMigrationRefrozenFrom": {
+   "pythonFiles": 7,
+   "loc": 1443,
+   "manifestSha256": "1aace7e1e77146afd08522c05e0b8ffda51f8d7e97676e813cacfeda3699d733",
+   "reason": "Known-leak policy owners and consumer routing added; historical source and contract receipts remain frozen."
   }
  },
  "approvedCoreImports": {
@@ -101,5 +107,8 @@
   "advanced": 130,
   "skillRequired": 29,
   "hash": "8c278ebd5becba08"
+ },
+ "policyMigrationOwners": {
+  "hwpx.tools.doc_diff.inspect_reference_consistency": "hwpx_automation.office.compliance.reference_consistency.inspect_reference_consistency"
  }
 }
