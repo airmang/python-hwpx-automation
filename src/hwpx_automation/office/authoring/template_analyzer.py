@@ -124,6 +124,17 @@ def _core_argv(args: argparse.Namespace) -> list[str]:
     return argv
 
 
+def _output_schema(args: argparse.Namespace) -> None:
+    if args.schema_json or args.output_schema_json:
+        schema_payload = json.dumps(template_analysis_agent_schema(), ensure_ascii=False, indent=2)
+        if args.schema_json:
+            print(schema_payload)
+        if args.output_schema_json:
+            schema_path = Path(args.output_schema_json)
+            schema_path.parent.mkdir(parents=True, exist_ok=True)
+            schema_path.write_text(schema_payload, encoding="utf-8")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Core's template-analysis CLI plus ``--schema-json`` / ``--output-schema-json``.
 
@@ -152,7 +163,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         except Exception as exc:
             print(f"ERROR: {exc}")
             return 1
-        print(json.dumps(template_analysis_agent_schema(), ensure_ascii=False, indent=2))
+        _output_schema(args)
         return 0
 
     captured = io.StringIO()
@@ -167,14 +178,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if status != 0:
         return status
 
-    if args.schema_json or args.output_schema_json:
-        schema_payload = json.dumps(template_analysis_agent_schema(), ensure_ascii=False, indent=2)
-        if args.schema_json:
-            print(schema_payload)
-        if args.output_schema_json:
-            schema_path = Path(args.output_schema_json)
-            schema_path.parent.mkdir(parents=True, exist_ok=True)
-            schema_path.write_text(schema_payload, encoding="utf-8")
+    _output_schema(args)
 
     for line in lines[extracted_from:]:
         print(line)
