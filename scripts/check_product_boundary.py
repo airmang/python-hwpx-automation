@@ -30,6 +30,7 @@ CANONICAL_RENDER_ROOT = "src/hwpx_automation/office/rendering"
 CANONICAL_RENDER_FILE_COUNT = 13
 CANONICAL_RENDER_RESOURCES = frozenset(
     {
+        "_hancom_alerts_mac.applescript",
         "_hancom_open_rate.ps1",
         "_refresh_hwpx_mac.applescript",
         "_render_hwpx.ps1",

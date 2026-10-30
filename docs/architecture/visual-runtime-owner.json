@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3681,
-    "manifestSha256": "df1607acdbc6bfdd43110606815bfb7f0fb6456ded73fc6dbcf212903641db20",
+    "loc": 3700,
+    "manifestSha256": "d8a35d5bf936607d372bc1e29045f78ce49f358cc78248c46d362b5435fb2322",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -69,6 +69,11 @@
       "loc": 3628,
       "manifestSha256": "ba38de1acc298549427b72ab2398fa867a49fd1343ed2c8122bd1b88eb5840af",
       "reason": "Public reentrant per-user desktop lock shared by CLI and worker; bounded thread/process contention, HancomBusy, explicit Windows no-op (#153). Historical core source receipt unchanged."
+    },
+    "refreshAlertGuardRefrozenFrom": {
+      "loc": 3681,
+      "manifestSha256": "df1607acdbc6bfdd43110606815bfb7f0fb6456ded73fc6dbcf212903641db20",
+      "reason": "Mac render and field-refresh assemble one shared AppleScript owned-alert guard resource; refresh reports HANCOM_REFUSED via last_refusal, only exact successful OK counts. Public desktop lock freeze remains recorded (#145). Historical core source receipt unchanged."
     }
   },
   "packageFiles": [
@@ -87,6 +92,7 @@
     "worker.py"
   ],
   "resourceFiles": [
+    "_hancom_alerts_mac.applescript",
     "_hancom_open_rate.ps1",
     "_refresh_hwpx_mac.applescript",
     "_render_hwpx.ps1",

@@ -14,7 +14,8 @@
 -- session afterwards.
 --
 -- Usage:  osascript _refresh_hwpx_mac.applescript <doc.hwpx> [timeoutSecs]
--- Output: "OK" on success; "ERR: <reason>" otherwise.
+-- Output: "OK" on success; "ERR: HANCOM_REFUSED: <alert>" for refusal, otherwise "ERR: <reason>".
+-- Only an unambiguous alert absent before this open may be dismissed.
 
 property procName : "Hancom Office HWP"
 property appName : "Hancom Office HWP"
@@ -33,16 +34,20 @@ on run argv
 	end if
 	set inputBase to do shell script "basename " & quoted form of inputPath
 
+	set beforeSigs to sigsOf(alertSnapshot())
 	try
 		do shell script "open -a " & quoted form of appName & " " & quoted form of inputPath
-		if not (waitForWindowNamed(inputBase, timeoutSecs)) then
-			return "ERR: document window did not open: " & inputBase
-		end if
+		set opened to waitForDocumentOrRefusal(inputBase, beforeSigs, timeoutSecs)
+		if opened is not "OK" then return opened
 		-- Let the dirty-field regeneration settle before saving.
 		delay 3
+		set refused to refusalResult(beforeSigs)
+		if refused is not "" then return refused
 
 		clickFileMenuItem(saveItemName, false)
 		delay 2
+		set refused to refusalResult(beforeSigs)
+		if refused is not "" then return refused
 		-- A compat/format sheet may appear on save: accept the default.
 		pressReturnOnAnySheet()
 		delay 1
@@ -53,6 +58,8 @@ on run argv
 		dismissDontSaveSheetIfPresent()
 		return "OK"
 	on error errMsg number errNum
+		set refused to refusalResult(beforeSigs)
+		if refused is not "" then return refused
 		try
 			clickFileMenuItem(closeDocPrefix, true)
 			dismissDontSaveSheetIfPresent()
@@ -106,13 +113,7 @@ on listContains(theList, theValue)
 	return false
 end listContains
 
-on waitForWindowNamed(winName, secs)
-	repeat (secs * 2) times
-		if listContains(windowNames(), winName) then return true
-		delay 0.5
-	end repeat
-	return false
-end waitForWindowNamed
+
 
 on pressReturnOnAnySheet()
 	repeat 4 times
