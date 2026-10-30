@@ -22,12 +22,6 @@ ROOT = Path(__file__).resolve().parents[1]
 BOUNDARY = runpy.run_path(str(ROOT / "scripts" / "check_product_boundary.py"))
 _HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
-pytestmark = pytest.mark.skipif(
-    not hasattr(HwpxDocument.new().styles, "ensure_style"),
-    reason="needs python-hwpx with doc.styles.ensure_style (python-hwpx PR #566)",
-)
-
-
 def _gate(tmp_path: Path, source: str, exceptions: dict | None = None) -> list[str]:
     path = tmp_path / "src" / "hwpx_automation" / "mod.py"
     path.parent.mkdir(parents=True, exist_ok=True)
