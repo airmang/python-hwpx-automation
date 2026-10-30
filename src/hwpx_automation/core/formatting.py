@@ -16,21 +16,18 @@ from ..upstream import (
     append_xml_child,
     char_style_matches,
     default_base_style_id,
-    document_styles_element,
     element_font_refs,
     element_style_flags,
     ensure_char_style,
     ensure_font_face_refs,
     iter_unique_styles,
-    next_numeric_style_id,
     normalize_font_size,
     normalize_hex_color,
+    primary_header,
     resolve_style_id as upstream_resolve_style_id,
     run_style_flags,
     run_style_font_refs,
     run_style_height,
-    style_element_by_id,
-    update_styles_item_count,
 )
 
 _FONT_REF_KEYS = (
@@ -291,18 +288,6 @@ def _paragraph_length(paragraph: HwpxOxmlParagraph) -> int:
     return sum(len(run.text or "") for run in paragraph.runs)
 
 
-def _style_element_by_id(styles_element: ET.Element, style_id: str) -> ET.Element | None:
-    return style_element_by_id(styles_element, style_id)
-
-
-def _next_style_id(styles_element: ET.Element) -> str:
-    return next_numeric_style_id(styles_element)
-
-
-def _update_styles_item_count(styles_element: ET.Element) -> None:
-    update_styles_item_count(styles_element)
-
-
 def _default_base_style_id(doc: HwpxDocument) -> str:
     return default_base_style_id(doc)
     for candidate in ("1", "본문", "Body", "0", "바탕글", "Normal"):
@@ -409,9 +394,6 @@ def create_style_in_doc(
     if not doc.parts.headers:
         raise RuntimeError("document does not contain any headers to host styles")
 
-    header = doc.parts.headers[0]
-    styles_element = document_styles_element(doc)
-
     for style in _iter_unique_styles(doc):
         if name not in {style.name, style.eng_name}:
             continue
@@ -431,10 +413,6 @@ def create_style_in_doc(
     if base_style is None:
         raise RuntimeError(f"failed to resolve base style id: {base_style_id}")
 
-    base_style_element = _style_element_by_id(styles_element, base_style_id)
-    if base_style_element is None:
-        raise RuntimeError(f"failed to locate base style element: {base_style_id}")
-
     base_char_ref = getattr(base_style, "char_pr_id_ref", None)
     char_ref: str | None
     if any(value is not None for value in (bold, italic, font_size, font_name, color)):
@@ -451,41 +429,45 @@ def create_style_in_doc(
     else:
         char_ref = None if base_char_ref is None else str(base_char_ref)
 
-    style_id = _next_style_id(styles_element)
-    new_style = deepcopy(base_style_element)
-    new_style.set("id", style_id)
-    new_style.set("name", name)
-    new_style.set("engName", name)
-    new_style.set("nextStyleIDRef", style_id)
-    if char_ref is not None:
-        new_style.set("charPrIDRef", char_ref)
-    styles_element.append(new_style)
-    _update_styles_item_count(styles_element)
-    header.mark_dirty()
+    para_ref = base_style.para_pr_id_ref
+    style_id = doc.styles.ensure_style(
+        name,
+        style_type=base_style.type,
+        eng_name=name,
+        para_pr_id_ref=para_ref,
+        char_pr_id_ref=char_ref,
+        lang_id=base_style.lang_id,
+        lock_form=base_style.lock_form,
+    )
+    doc.styles.ensure_style(name, next_style_id_ref=style_id)
 
     return {
         "style_id": style_id,
         "style_name": name,
         "created": True,
         "char_pr_id_ref": char_ref,
-        "para_pr_id_ref": new_style.get("paraPrIDRef"),
+        "para_pr_id_ref": None if para_ref is None else str(para_ref),
     }
 
 
 def list_styles_in_doc(doc: HwpxDocument) -> list[dict[str, str | None]]:
     """Return styles defined in the document."""
-    styles_element = document_styles_element(doc)
-
     styles: list[dict[str, str | None]] = []
-    for style_element in styles_element.findall(f"{HH_NS}style"):
+    seen: set[int] = set()
+    for style in primary_header(doc).styles.values():
+        # The header maps both the raw and the normalized id to one style.
+        if id(style) in seen:
+            continue
+        seen.add(id(style))
+        para_ref, char_ref = style.para_pr_id_ref, style.char_pr_id_ref
         styles.append(
             {
-                "id": style_element.get("id"),
-                "name": style_element.get("name"),
-                "eng_name": style_element.get("engName"),
-                "type": style_element.get("type"),
-                "para_pr_id_ref": style_element.get("paraPrIDRef"),
-                "char_pr_id_ref": style_element.get("charPrIDRef"),
+                "id": style.raw_id,
+                "name": style.name,
+                "eng_name": style.eng_name,
+                "type": style.type,
+                "para_pr_id_ref": None if para_ref is None else str(para_ref),
+                "char_pr_id_ref": None if char_ref is None else str(char_ref),
             }
         )
     return styles

@@ -154,12 +154,6 @@ CORE_PRIVATE_MEMBER_EXCEPTIONS: dict[tuple[str, str], dict[str, object]] = {
         "upstream": "doc.styles.ensure_border_fill accepting the full border spec the remapper copies",
         "removeWhen": "the remapper can express every copied border through the public verb",
     },
-    ("src/hwpx_automation/upstream.py", "_styles_element"): {
-        "count": 1,
-        "reason": "core/formatting.py edits hh:style records through the raw styles element",
-        "upstream": "doc.styles.ensure_style (python-hwpx PR #566)",
-        "removeWhen": "core/formatting.py creates and updates styles through doc.styles.ensure_style",
-    },
 }
 CANONICAL_POLICY_ROOTS = {
     "src/hwpx_automation/office/compliance": ("hwpx.document",),

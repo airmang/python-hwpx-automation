@@ -717,50 +717,6 @@ def repair_pathological_text_spacing(
     return remapped
 
 
-def document_styles_element(document: HwpxDocument) -> ET.Element:
-    """Return the raw ``<hh:styles>`` element for the primary header.
-
-    This currently relies on the private upstream helper ``_styles_element()``
-    because ``python-hwpx`` does not expose a public style-creation API yet.
-    """
-
-    header = primary_header(document)
-    styles_element = header._styles_element()
-    if styles_element is None:
-        raise RuntimeError("document header does not expose styles")
-    return styles_element
-
-
-def style_element_by_id(styles_element: ET.Element, style_id: str) -> ET.Element | None:
-    for style_element in styles_element.findall(f"{HH_NS}style"):
-        raw_id = style_element.get("id")
-        if raw_id == style_id:
-            return style_element
-        try:
-            if raw_id is not None and str(int(raw_id)) == style_id:
-                return style_element
-        except ValueError:
-            continue
-    return None
-
-
-def next_numeric_style_id(styles_element: ET.Element) -> str:
-    numeric_ids: list[int] = []
-    for style_element in styles_element.findall(f"{HH_NS}style"):
-        raw_id = style_element.get("id")
-        if raw_id is None:
-            continue
-        try:
-            numeric_ids.append(int(raw_id))
-        except ValueError:
-            continue
-    return "0" if not numeric_ids else str(max(numeric_ids) + 1)
-
-
-def update_styles_item_count(styles_element: ET.Element) -> None:
-    styles_element.set("itemCnt", str(len(styles_element.findall(f"{HH_NS}style"))))
-
-
 def default_base_style_id(document: HwpxDocument) -> str:
     for candidate in ("1", "본문", "Body", "0", "바탕글", "Normal"):
         try:
@@ -795,7 +751,6 @@ __all__ = [
     "create_text_extractor",
     "default_base_style_id",
     "default_cell_width",
-    "document_styles_element",
     "element_font_refs",
     "element_style_flags",
     "ensure_char_style",
@@ -812,9 +767,6 @@ __all__ = [
     "run_style_flags",
     "run_style_font_refs",
     "run_style_height",
-    "style_element_by_id",
     "style_identifier",
-    "update_styles_item_count",
     "validate_document_path",
-    "next_numeric_style_id",
 ]
