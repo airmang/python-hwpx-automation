@@ -112,6 +112,34 @@ def test_name_collisions_never_update_an_existing_style() -> None:
     assert original.get("name") == taken.name
 
 
+def test_a_present_empty_style_registry_accepts_its_first_style() -> None:
+    doc = HwpxDocument.new()
+    header = doc.oxml.headers[0]
+    styles = header.element.find(f"{_HH}refList/{_HH}styles")
+    styles.clear()
+    styles.set("itemCnt", "0")
+    header.mark_dirty()
+
+    created = create_paragraph_style(doc, {"name": "first"}, source_key="style:1")
+
+    assert len(doc.styles) == 1
+    assert styles.get("itemCnt") == "1"
+    assert HwpxDocument.open(doc.to_bytes()).styles.resolve("first").id == int(created["styleIDRef"])
+
+
+def test_a_missing_style_registry_is_refused_before_adding_a_paragraph_format() -> None:
+    doc = HwpxDocument.new()
+    header = doc.oxml.headers[0]
+    ref_list = header.element.find(f"{_HH}refList")
+    ref_list.remove(ref_list.find(f"{_HH}styles"))
+    before = len(doc.styles.paragraph_properties)
+
+    with pytest.raises(AgentContractError, match="target has no style registry"):
+        create_paragraph_style(doc, {"name": "first", "alignment": "CENTER"}, source_key="style:1")
+
+    assert len(doc.styles.paragraph_properties) == before
+
+
 def test_a_document_without_a_header_is_refused_before_anything_changes() -> None:
     doc = HwpxDocument.new()
     doc.oxml._headers.clear()  # test-only: what a package without header.xml leaves

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from hwpx.document import HwpxDocument
-from hwpx.oxml.namespaces import HP
+from hwpx.oxml.namespaces import HH, HP
 
 from ..commands import _add, _insert_direct_child, _insert_inline, _remove_inline_element, _table_caption
 from ..document import HwpxAgentDocument, NodeRecord
@@ -84,7 +84,7 @@ def create_paragraph_style(
 
     if not document.oxml.headers:
         raise AgentContractError("unsupported_content", "target has no style header", target=source_key)
-    if not len(document.styles):
+    if document.oxml.headers[0].element.find(f"{HH}refList/{HH}styles") is None:
         raise AgentContractError("unsupported_content", "target has no style registry", target=source_key)
     base_name = str(properties.get("name") or "Blueprint Style")[:200]
     target_name = _collision_free_style_name(document, base_name, source_key)
