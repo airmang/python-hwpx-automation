@@ -43,7 +43,8 @@ import sys
 import tempfile
 import time
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
 
@@ -56,6 +57,22 @@ _BACKEND_SCRIPT = "_render_hwpx.ps1"
 _OPEN_RATE_SCRIPT = "_hancom_open_rate.ps1"
 _MAC_BACKEND_SCRIPT = "_render_hwpx_mac.applescript"
 _MAC_REFRESH_SCRIPT = "_refresh_hwpx_mac.applescript"
+_MAC_ALERT_SCRIPT = "_hancom_alerts_mac.applescript"
+
+
+def _mac_script_source(name: str) -> str:
+    package = resources.files("hwpx_automation.office.rendering")
+    return package.joinpath(_MAC_ALERT_SCRIPT).read_text(encoding="utf-8") + "\n" + package.joinpath(name).read_text(encoding="utf-8")
+
+
+@contextmanager
+def _mac_script_file(name: str) -> Iterator[Path]:
+    with tempfile.TemporaryDirectory(prefix="hwpx-mac-script-") as folder:
+        script = Path(folder) / name
+        script.write_text(_mac_script_source(name), encoding="utf-8")
+        yield script
+
+
 _COM_REGISTRY_KEYS = (
     r"HWPFrame.HwpObject\CLSID",
     r"SOFTWARE\Classes\HWPFrame.HwpObject\CLSID",
@@ -918,9 +935,7 @@ class MacHancomOracle(RenderBackend):
             staged = Path(folder) / (name + ".hwpx")
             staged_pdf = staged.with_suffix(".pdf")
             shutil.copyfile(src, staged)
-            with resources.as_file(
-                resources.files("hwpx_automation.office.rendering").joinpath(_MAC_BACKEND_SCRIPT)
-            ) as script:
+            with _mac_script_file(_MAC_BACKEND_SCRIPT) as script:
                 cmd = [self._osascript, str(script), str(staged), str(staged_pdf), str(script_timeout)]
                 try:
                     proc = self._run_render_script(cmd, run_timeout)
@@ -977,8 +992,12 @@ class MacHancomOracle(RenderBackend):
         PDF from the same regenerating session crashes this Hancom build
         (deterministic truncated PDFs, then the process dies), so refresh and
         render are intentionally two separate sessions. Returns True when the
-        file was re-saved.
+        file was re-saved. A refusal returns False and records its wording in
+        ``last_refusal``. Only an unambiguous alert absent before this open
+        may be dismissed; an existing alert is never ours to acknowledge.
         """
+        self.last_refusal = None
+        self.last_hang = None
         if not self.available():
             return False
         deadline = _deadline_from(self.budget_seconds)
@@ -991,11 +1010,7 @@ class MacHancomOracle(RenderBackend):
             before = os.stat(src).st_mtime_ns
         except OSError:
             return False
-        with resources.as_file(
-            resources.files("hwpx_automation.office.rendering").joinpath(
-                _MAC_REFRESH_SCRIPT
-            )
-        ) as script:
+        with _mac_script_file(_MAC_REFRESH_SCRIPT) as script:
             cmd = [self._osascript, str(script), src, str(script_timeout)]
             try:
                 proc = subprocess.run(
@@ -1004,7 +1019,11 @@ class MacHancomOracle(RenderBackend):
                 )
             except (subprocess.TimeoutExpired, OSError):
                 return False
-        if "OK" not in (proc.stdout or ""):
+        answer = (proc.stdout or "").strip()
+        if answer.startswith(_MAC_REFUSED_PREFIX):
+            self.last_refusal = answer[len(_MAC_REFUSED_PREFIX):].strip()
+            return False
+        if proc.returncode != 0 or answer != "OK":
             return False
         try:
             return os.stat(src).st_mtime_ns != before

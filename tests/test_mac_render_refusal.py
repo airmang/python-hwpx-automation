@@ -190,7 +190,9 @@ def _alert(sig: str, text: str, buttons: tuple[str, ...] = ("확인",)) -> str:
 @pytest.fixture(scope="module")
 def compiled_script(tmp_path_factory: pytest.TempPathFactory) -> Path:
     target = tmp_path_factory.mktemp("applescript") / "render.scpt"
-    subprocess.run(["osacompile", "-o", str(target), str(SCRIPT)], check=True, timeout=60)
+    source = target.with_suffix(".applescript")
+    source.write_text(oracle._mac_script_source(SCRIPT.name), encoding="utf-8")
+    subprocess.run(["osacompile", "-o", str(target), str(source)], check=True, timeout=60)
     return target
 
 
@@ -254,7 +256,7 @@ def test_refusal_text_is_reported_on_one_line(compiled_script: Path, tmp_path: P
 # The flow: snapshot before the open, watch while opening and exporting
 # --------------------------------------------------------------------------- #
 def test_flow_snapshots_before_opening_and_watches_both_waits() -> None:
-    source = SCRIPT.read_text(encoding="utf-8")
+    source = oracle._mac_script_source(SCRIPT.name)
     run = source[source.index("on run argv") : source.index("end run")]
 
     snapshot = run.index("set beforeSigs to sigsOf(alertSnapshot())")
@@ -266,7 +268,7 @@ def test_flow_snapshots_before_opening_and_watches_both_waits() -> None:
 
 
 def test_dismissal_clicks_only_a_unique_match_and_only_its_ok_button() -> None:
-    source = SCRIPT.read_text(encoding="utf-8")
+    source = oracle._mac_script_source(SCRIPT.name)
     dismiss = source[source.index("on dismissAlert(") : source.index("end dismissAlert")]
 
     assert "click button dismissButton of target" in dismiss
@@ -279,7 +281,7 @@ def test_alert_entries_read_each_text_and_button_on_its_own() -> None:
     # one 확인 button) the bulk forms "value of static texts of w" and "name of
     # buttons of w" fail as a whole, so the wording and the button went unread and
     # no alert ever counted as a refusal (#143). Read element by element.
-    source = SCRIPT.read_text(encoding="utf-8")
+    source = oracle._mac_script_source(SCRIPT.name)
     entry = source[source.index("on alertEntryOf(") : source.index("end alertEntryOf")]
 
     assert "value of static texts of w" not in entry
@@ -292,7 +294,7 @@ def test_alert_entries_read_each_text_and_button_on_its_own() -> None:
 
 def test_python_side_parses_the_script_refusal_line() -> None:
     marker = "ERR: HANCOM_REFUSED: "
-    assert marker in SCRIPT.read_text(encoding="utf-8")
+    assert marker in oracle._mac_script_source(SCRIPT.name)
     assert marker.strip() in Path(oracle.__file__).read_text(encoding="utf-8")
 
 
@@ -339,7 +341,7 @@ def test_only_a_new_repair_prompt_counts(
 def test_repair_prompt_is_cancelled_and_never_restored() -> None:
     # 복원 would render a table Hancom rewrote, not the document given, so the
     # only button ever clicked on the prompt is 취소.
-    source = SCRIPT.read_text(encoding="utf-8")
+    source = oracle._mac_script_source(SCRIPT.name)
     cancel = source[source.index("on cancelRepairPrompt(") : source.index("end cancelRepairPrompt")]
 
     assert 'property repairCancelButton : "취소"' in source
@@ -359,7 +361,7 @@ def test_repair_prompt_is_cancelled_and_never_restored() -> None:
 
 
 def test_repair_prompt_ends_the_render_as_refused_and_clears_what_follows() -> None:
-    source = SCRIPT.read_text(encoding="utf-8")
+    source = oracle._mac_script_source(SCRIPT.name)
     result = source[source.index("on refusalResult(") : source.index("end refusalResult")]
 
     cancelled = result.index("cancelRepairPrompt(sig of item 1 of prompts)")

@@ -55,23 +55,40 @@ def _bool(value: object, default: bool = False) -> bool:
     return value if isinstance(value, bool) else default
 
 
+def _collision_free_style_name(document: HwpxDocument, base_name: str, source_key: str) -> str:
+    """The blueprint's name, or a suffixed one no style of the target uses yet.
+
+    Core's ``ensure_style`` treats an existing name as the same style and
+    updates it, so the name must be free before the style is created.
+    """
+
+    existing_names = {str(style.name) for style in document.styles.values() if style.name}
+    if base_name not in existing_names:
+        return base_name
+    candidate = f"{base_name}__bp_{source_key.rsplit(':', 1)[-1][:8]}"
+    counter = 2
+    while candidate in existing_names:
+        candidate = f"{base_name}__bp_{source_key.rsplit(':', 1)[-1][:8]}_{counter}"
+        counter += 1
+    return candidate
+
+
 def create_paragraph_style(
     document: HwpxDocument, properties: dict[str, Any], *, source_key: str
 ) -> dict[str, str]:
-    """Create one allow-listed paragraph style with a collision-free name."""
+    """Create one allow-listed paragraph style with a collision-free name.
 
-    if not document._root.headers:  # type: ignore[attr-defined]
+    The name policy is this module's; the style record, its id, ``itemCnt`` and
+    the paragraph format it points to are minted by core's ``doc.styles``.
+    """
+
+    if not document.oxml.headers:
         raise AgentContractError("unsupported_content", "target has no style header", target=source_key)
-    header = document._root.headers[0]  # type: ignore[attr-defined]
-    styles = header._styles_element()  # type: ignore[attr-defined]
-    if styles is None:
+    if document.oxml.headers[0].element.find(f"{HH}refList/{HH}styles") is None:
         raise AgentContractError("unsupported_content", "target has no style registry", target=source_key)
     base_name = str(properties.get("name") or "Blueprint Style")[:200]
-    existing_names = {str(style.name) for style in document.styles.values() if style.name}
-    target_name = base_name
-    if target_name in existing_names:
-        target_name = f"{base_name}__bp_{source_key.rsplit(':', 1)[-1][:8]}"
-    para_pr_id = header.ensure_paragraph_format(
+    target_name = _collision_free_style_name(document, base_name, source_key)
+    para_pr_id = document.styles.ensure_paragraph_format(
         base_para_pr_id="0",
         alignment=properties.get("alignment"),
         line_spacing_percent=properties.get("lineSpacingPercent"),
@@ -85,21 +102,16 @@ def create_paragraph_style(
         }
         or None,
     )
-    style_id = header._allocate_ref_id(styles, f"{HH}style")  # type: ignore[attr-defined]
-    attrs = {
-        "id": style_id,
-        "type": str(properties.get("type") or "PARA"),
-        "name": target_name,
-        "engName": str(properties.get("englishName") or target_name)[:200],
-        "paraPrIDRef": para_pr_id,
-        "charPrIDRef": "0",
-        "nextStyleIDRef": style_id,
-        "langID": "0",
-        "lockForm": "1" if properties.get("lockForm") else "0",
-    }
-    styles.append(styles.makeelement(f"{HH}style", attrs))
-    header._update_item_count(styles, f"{HH}style")  # type: ignore[attr-defined]
-    header.mark_dirty()
+    style_id = document.styles.ensure_style(
+        target_name,
+        style_type=str(properties.get("type") or "PARA"),
+        eng_name=str(properties.get("englishName") or target_name)[:200],
+        para_pr_id_ref=para_pr_id,
+        char_pr_id_ref="0",
+        lang_id=0,
+        lock_form=bool(properties.get("lockForm")),
+    )
+    document.styles.ensure_style(target_name, next_style_id_ref=style_id)
     return {"styleIDRef": style_id, "paraPrIDRef": para_pr_id, "name": target_name}
 
 
@@ -218,9 +230,9 @@ class TypedNativeBridge:
         if numbering is not None:
             definition = self.document.styles.paragraph_property(numbering["identity"]["paraPrIDRef"])
             heading = definition.heading if definition is not None else None
-            if heading is None or not self.document._root.headers:  # type: ignore[attr-defined]
+            if heading is None or not self.document.oxml.headers:
                 raise AgentContractError("invariant_violation", "mapped numbering has no heading")
-            paragraph.para_pr_id_ref = self.document._root.headers[0].ensure_paragraph_format(  # type: ignore[attr-defined]
+            paragraph.para_pr_id_ref = self.document.styles.ensure_paragraph_format(
                 base_para_pr_id=paragraph.para_pr_id_ref,
                 heading={"type": heading.type or "NONE", "idRef": heading.id_ref or 0, "level": heading.level or 0},
             )

@@ -52,7 +52,7 @@ def header_style_ids(doc: Any) -> dict[str, set[str]]:
     """Collect defined style ids from the document's header part(s)."""
 
     ids: dict[str, set[str]] = {"charPr": set(), "paraPr": set(), "style": set(), "borderFill": set()}
-    package = doc._package
+    package = doc.package
     try:
         header_paths = package.header_paths()
     except Exception:  # pragma: no cover - defensive

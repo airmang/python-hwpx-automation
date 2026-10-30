@@ -11,7 +11,7 @@
   "canonical": {
     "pythonFiles": 15,
     "loc": 5085,
-    "manifestSha256": "5b10be6b6f4e90d4f909dfaf9563e57c55337eb2192ccde559bcaaa9a3d6e226",
+    "manifestSha256": "380ef2d5e1173c10370116491fbdc95cd5b9122ceabd89a09627cca65ac1ff5d",
     "nomenclatureRefrozenFrom": {
       "loc": 5060,
       "manifestSha256": "9da1c81298ca242f05b81f17cfac3dbe3fc5235a1a74b14f0d00be726dda70f5",
@@ -22,6 +22,11 @@
       "loc": 5060,
       "manifestSha256": "abaee6e1379a31610700da754df9d484d7ed4385c83cca4cfe9f1da043b5e4f9",
       "reason": "wordbox.py asks PyMuPDF 2.0 for drawn-border tables only (use_layout=False) so bordered grids are found again (#175); ownership and file count unchanged."
+    },
+    "boundaryRefrozenFrom": {
+      "loc": 5085,
+      "manifestSha256": "5b10be6b6f4e90d4f909dfaf9563e57c55337eb2192ccde559bcaaa9a3d6e226",
+      "reason": "#178: fill_residue.py와 guidance.py가 doc._root.char_properties 대신 공개 doc.styles.char_properties를 읽는다. 같은 객체라 동작 변화 없음."
     }
   },
   "moduleMap": {

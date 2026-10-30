@@ -30,6 +30,7 @@ CANONICAL_RENDER_ROOT = "src/hwpx_automation/office/rendering"
 CANONICAL_RENDER_FILE_COUNT = 13
 CANONICAL_RENDER_RESOURCES = frozenset(
     {
+        "_hancom_alerts_mac.applescript",
         "_hancom_open_rate.ps1",
         "_refresh_hwpx_mac.applescript",
         "_render_hwpx.ps1",
@@ -121,6 +122,45 @@ DELEGATED_MODULE_FORBIDDEN_IMPORTS = (
     "hwpx.opc",
     "hwpx.oxml",
 )
+# #178: importing a public core module does not make every member of its
+# objects public. python-hwpx documents its contract as a member list
+# (docs/stable-api.md); a member outside it can change in a minor release.
+# Reaching a private member (a single leading underscore) of an object this
+# package did not define is how that coupling looks, so the gate counts each
+# use per file. Every remaining use is listed below with why it is still
+# needed, the core contract that would remove it and when the entry goes.
+# A new use, or one more of a listed use, fails; a lower count fails too, so
+# the entry is lowered or removed in the same change.
+#
+# lxml's element types are spelled with an underscore but are its public type
+# names, so they are not counted.
+FOREIGN_UNDERSCORE_NAMES = frozenset({"_Element", "_ElementTree"})
+CORE_PRIVATE_MEMBER_EXCEPTIONS: dict[tuple[str, str], dict[str, object]] = {
+    ("src/hwpx_automation/office/agent/commands.py", "_memo_group_element"): {
+        "count": 2,
+        "reason": "moving or copying a memo needs the section's hp:memogroup container",
+        "upstream": "a public section/memo accessor that returns (or creates) the memo group",
+        "removeWhen": "core exposes that accessor and the minimum supported core has it",
+    },
+    ("src/hwpx_automation/office/agent/document.py", "_iter_form_field_matches"): {
+        "count": 1,
+        "reason": "the agent node map reuses core's form-field matching so edits find the same fields",
+        "upstream": "a public iterator of form-field matches with section/paragraph positions",
+        "removeWhen": "core exposes that iterator and the minimum supported core has it",
+    },
+    ("src/hwpx_automation/ops_services/tables.py", "_allocate_border_fill_id"): {
+        "count": 1,
+        "reason": "table border remapping builds a hh:borderFill from an arbitrary spec",
+        "upstream": "doc.styles.ensure_border_fill accepting the full border spec the remapper copies",
+        "removeWhen": "the remapper can express every copied border through the public verb",
+    },
+    ("src/hwpx_automation/upstream.py", "_styles_element"): {
+        "count": 1,
+        "reason": "core/formatting.py edits hh:style records through the raw styles element",
+        "upstream": "doc.styles.ensure_style (python-hwpx PR #566)",
+        "removeWhen": "core/formatting.py creates and updates styles through doc.styles.ensure_style",
+    },
+}
 CANONICAL_POLICY_ROOTS = {
     "src/hwpx_automation/office/compliance": ("hwpx.document",),
     # #177: the structural layout-drift metrics are core-native; quality
@@ -224,6 +264,83 @@ def _imported_members(path: Path) -> list[tuple[str, str]]:
         if isinstance(node, ast.ImportFrom) and node.module:
             members.extend((node.module, alias.name) for alias in node.names)
     return members
+
+
+def _automation_defined_names(files: list[Path]) -> set[str]:
+    names: set[str] = set()
+    for path in files:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(node.name)
+            elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store):
+                names.add(node.attr)
+            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                names.add(node.id)
+            elif isinstance(node, ast.arg):
+                names.add(node.arg)
+            elif isinstance(node, ast.keyword) and node.arg:
+                names.add(node.arg)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                names.update((alias.asname or alias.name).split(".")[0] for alias in node.names)
+    return names
+
+
+def _foreign_private_member_uses(root: Path, files: list[Path]) -> dict[tuple[str, str], int]:
+    """Count ``obj._name`` uses whose ``_name`` this package never defines.
+
+    ``self``/``cls`` access and dunder names are skipped; so are names
+    automation defines anywhere (its own private helpers), which keeps the
+    count on members that can only come from another package's objects.
+    """
+
+    defined = _automation_defined_names(files)
+    uses: dict[tuple[str, str], int] = {}
+    for path in files:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Attribute):
+                continue
+            name = node.attr
+            if not name.startswith("_") or name.startswith("__"):
+                continue
+            if name in defined or name in FOREIGN_UNDERSCORE_NAMES:
+                continue
+            if isinstance(node.value, ast.Name) and node.value.id in {"self", "cls"}:
+                continue
+            key = (path.relative_to(root).as_posix(), name)
+            uses[key] = uses.get(key, 0) + 1
+    return uses
+
+
+def _private_member_violations(
+    root: Path,
+    files: list[Path],
+    exceptions: dict[tuple[str, str], dict[str, object]] = CORE_PRIVATE_MEMBER_EXCEPTIONS,
+) -> list[str]:
+    violations: list[str] = []
+    uses = _foreign_private_member_uses(root, files)
+    for (relative, name), count in sorted(uses.items()):
+        allowed = exceptions.get((relative, name))
+        if allowed is None:
+            violations.append(
+                "automation reaches a private member of a core object: "
+                f"{relative} -> .{name} (x{count}); use a public seam or add a "
+                "bounded exception with reason, upstream contract and removal condition"
+            )
+        elif count > int(allowed["count"]):  # type: ignore[call-overload]
+            violations.append(
+                f"private core member use grew past its exception: {relative} -> .{name} "
+                f"({count} > {allowed['count']})"
+            )
+    for (relative, name), allowed in sorted(exceptions.items()):
+        count = uses.get((relative, name), 0)
+        if count < int(allowed["count"]):  # type: ignore[call-overload]
+            violations.append(
+                f"private core member exception is stale: {relative} -> .{name} "
+                f"({count} < {allowed['count']}); lower or remove the entry"
+            )
+    return violations
 
 
 def _delegated_module_violations(
@@ -486,6 +603,7 @@ def evaluate(root: Path) -> dict[str, Any]:
         )
 
     violations.extend(_delegated_module_violations(root))
+    violations.extend(_private_member_violations(root, files))
 
     for path in files:
         relative = path.relative_to(root).as_posix()
@@ -648,6 +766,10 @@ def evaluate(root: Path) -> dict[str, Any]:
         "temporaryAuthoringCoreImports": list(TEMPORARY_AUTHORING_CORE_IMPORTS),
         "frozenCoreAuthoringImports": list(FROZEN_CORE_AUTHORING_IMPORTS),
         "coreDelegatedModules": dict(sorted(CORE_DELEGATED_MODULES.items())),
+        "corePrivateMemberExceptions": {
+            f"{relative}:{name}": entry
+            for (relative, name), entry in sorted(CORE_PRIVATE_MEMBER_EXCEPTIONS.items())
+        },
         "canonicalPolicyRoots": {
             root: list(imports) for root, imports in CANONICAL_POLICY_ROOTS.items()
         },

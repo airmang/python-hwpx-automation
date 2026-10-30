@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from hwpx.oxml.namespaces import OPF_NS
+
 from ..catalog import catalog_hash
 from ..document import HwpxAgentDocument, NodeRecord
 from ..model import AGENT_CATALOG_SCHEMA, NODE_KINDS, AgentContractError
@@ -124,14 +126,13 @@ def _numbering_properties(agent: HwpxAgentDocument, record: NodeRecord) -> dict[
         "level": heading.level,
     }
     ref = heading.id_ref
-    if ref is not None and agent.document._root.headers:  # type: ignore[attr-defined]
-        model = agent.document._root.headers[0].to_model()  # type: ignore[attr-defined]
-        ref_list = model.ref_list
-        definitions = []
-        if str(heading.type).upper() == "BULLET" and ref_list and ref_list.bullets:
-            definitions = list(ref_list.bullets.bullets)
-        elif ref_list and ref_list.numberings:
-            definitions = list(ref_list.numberings.numberings)
+    if ref is not None and agent.document.oxml.headers:
+        styles = agent.document.styles
+        definitions: list[Any] = []
+        if str(heading.type).upper() == "BULLET" and styles.bullets:
+            definitions = list(styles.bullets.values())
+        elif styles.numberings:
+            definitions = list(styles.numberings.values())
         for definition in definitions:
             raw_id = getattr(definition, "attributes", {}).get("id")
             if raw_id is not None and str(raw_id) == str(ref):
@@ -165,7 +166,7 @@ def _style_dependency(agent: HwpxAgentDocument, record: NodeRecord) -> dict[str,
 
 def _manifest_image_item(agent: HwpxAgentDocument, item_id: str) -> tuple[str, str] | None:
     matches: list[tuple[str, str]] = []
-    for item in agent.document._package._manifest_items():  # type: ignore[attr-defined]
+    for item in agent.document.package.manifest_tree().findall(f"./{{{OPF_NS}}}manifest/{{{OPF_NS}}}item"):
         if str(item.get("id") or "") == item_id:
             matches.append((str(item.get("href") or ""), str(item.get("media-type") or "")))
     if len(matches) > 1:
@@ -192,7 +193,7 @@ def _picture_resource_from_element(
     suffix = Path(package_name).suffix.casefold().lstrip(".")
     if suffix not in ALLOWED_MEDIA_TYPES[media_type]:
         return None
-    payload = agent.document._package.read(package_name)  # type: ignore[attr-defined]
+    payload = agent.document.package.read(package_name)
     digest = hashlib.sha256(payload).hexdigest()
     resource = {
         "key": f"resource:{digest}",

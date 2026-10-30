@@ -2,11 +2,16 @@
 """Owned, cancellable Mac GUI adapter for the existing serialized worker."""
 from __future__ import annotations
 
+import math
 import os
 import plistlib
 import subprocess
+import sys
 import tempfile
 import threading
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from .oracle import MacHancomOracle
@@ -16,6 +21,76 @@ def _gui_lock_path() -> Path:
     """The per-user lock serializing the shared Mac desktop across processes."""
 
     return Path(tempfile.gettempdir()) / f"hwpx-hancom-gui-{os.getuid()}.lock"
+
+
+class HancomBusy(TimeoutError):
+    """The shared Hancom desktop was not available within the requested wait."""
+
+    worker_reason = "MAC_GUI_BUSY"
+
+
+_DESKTOP_PID = os.getpid()
+_DESKTOP_THREADS = threading.RLock()
+_DESKTOP_LOCAL = threading.local()
+
+
+def _desktop_thread_state() -> tuple[threading.RLock, threading.local]:
+    # A fork must not inherit the parent's recursion depth or locked mutex.
+    global _DESKTOP_PID, _DESKTOP_THREADS, _DESKTOP_LOCAL
+    if _DESKTOP_PID != os.getpid():
+        _DESKTOP_PID = os.getpid()
+        _DESKTOP_THREADS = threading.RLock()
+        _DESKTOP_LOCAL = threading.local()
+    return _DESKTOP_THREADS, _DESKTOP_LOCAL
+
+
+@contextmanager
+def hancom_desktop_lock(wait: float = 0.0) -> Iterator[None]:
+    """Serialize use of the shared Mac desktop, reentrantly in one thread.
+
+    ``wait`` is a finite, non-negative number of seconds, including both
+    thread and cross-process contention. Timeout raises :class:`HancomBusy`.
+    The worker and CLI use this same per-user POSIX flock. On Windows this
+    is explicitly a no-op: COM renders own separate Hancom processes.
+    """
+    if not math.isfinite(wait) or wait < 0:
+        raise ValueError("wait must be finite and non-negative")
+    if sys.platform == "win32":
+        yield
+        return
+    import fcntl
+
+    deadline = time.monotonic() + wait
+    owner_pid = os.getpid()
+    mutex, local = _desktop_thread_state()
+    if not mutex.acquire(timeout=min(wait, threading.TIMEOUT_MAX)):
+        raise HancomBusy(f"MAC_GUI_BUSY: Hancom desktop remained busy for {wait:g}s")
+    try:
+        if getattr(local, "held", False):
+            yield
+            return
+        with _gui_lock_path().open("a") as handle:
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise HancomBusy(f"MAC_GUI_BUSY: Hancom desktop remained busy for {wait:g}s") from None
+                    time.sleep(min(0.05, remaining))
+            local.held = True
+            try:
+                yield
+            finally:
+                # A fork shares this open-file description. Explicit unlock
+                # in its child would release the parent's still-owned flock.
+                if os.getpid() == owner_pid:
+                    local.held = False
+                    fcntl.flock(handle, fcntl.LOCK_UN)
+    finally:
+        if os.getpid() == owner_pid:
+            mutex.release()
 
 
 class HancomRefusedError(RuntimeError):
@@ -101,22 +176,13 @@ class MacHancomSession:
         inspect_hwpx(source.read_bytes(), filename=source.name, principal_id="local-worker")
         # The Mac desktop is shared even across worker roots/processes. flock
         # lives until the rendering/owned cleanup exits, including watchdogs.
-        import fcntl
-        lock = _gui_lock_path()
-        with lock.open("a") as handle:
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise RuntimeError("MAC_GUI_BUSY") from None
-            try:
-                result = self.oracle.render_pdf(str(source), str(target))
-                if not result and self.oracle.last_refusal is not None:
-                    raise HancomRefusedError(self.oracle.last_refusal)
-                if not result and getattr(self.oracle, "last_hang", None) is not None:
-                    raise HancomHungError(self.oracle.last_hang)
-                return Path(result) if result else None
-            finally:
-                fcntl.flock(handle, fcntl.LOCK_UN)
+        with hancom_desktop_lock(wait=0):
+            result = self.oracle.render_pdf(str(source), str(target))
+            if not result and self.oracle.last_refusal is not None:
+                raise HancomRefusedError(self.oracle.last_refusal)
+            if not result and getattr(self.oracle, "last_hang", None) is not None:
+                raise HancomHungError(self.oracle.last_hang)
+            return Path(result) if result else None
 
     def abort(self) -> None:
         self.oracle.abort()

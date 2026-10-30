@@ -26,6 +26,7 @@ from pathlib import Path
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
 
 from hwpx.document import HwpxDocument
+from hwpx.oxml.namespaces import OPF_NS
 
 import hwpx_automation.office.authoring.design._support as S
 
@@ -212,8 +213,8 @@ def _drop_later_sections(doc) -> None:
     dropped = [section.part_name for section in doc.sections[1:]]
     for extra in reversed(doc.sections[1:]):
         doc.remove_section(extra)
-    package = doc._package
-    for item in list(package._manifest_items()):
+    package = doc.package
+    for item in list(package.manifest_tree().findall(f"./{{{OPF_NS}}}manifest/{{{OPF_NS}}}item")):
         href = item.get("href", "") or ""
         if any(name.endswith(href) for name in dropped if href) and item.get("id"):
             package.remove_manifest_item(item.get("id"))
@@ -230,14 +231,14 @@ def _strip_binaries(doc) -> list[str]:
     skeleton small and content-free while leaving every style in header.xml.
     """
 
-    package = doc._package
+    package = doc.package
     removed: list[str] = []
     # Image fills defined in header.xml (borderFill imgBrush) are styles, not
     # body content: dropping their binaries would leave dangling references.
     kept_ids = _header_binary_refs(package)
     kept_parts: set[str] = set()
 
-    for item in list(package._manifest_items()):
+    for item in list(package.manifest_tree().findall(f"./{{{OPF_NS}}}manifest/{{{OPF_NS}}}item")):
         href = item.get("href", "") or ""
         media = item.get("media-type", "") or ""
         base = href.rsplit("/", 1)[-1]
@@ -290,7 +291,7 @@ _SCRUB_META_NAMES = {
 def _scrub_metadata(doc) -> None:
     """Blank source-identifying OPF metadata in Contents/content.hpf (PII)."""
 
-    package = doc._package
+    package = doc.package
     try:
         tree = package.manifest_tree()
     except Exception:  # pragma: no cover - defensive

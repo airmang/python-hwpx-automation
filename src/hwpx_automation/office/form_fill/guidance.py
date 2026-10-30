@@ -674,7 +674,7 @@ def _scan_questions(
 def scan_form_guidance(source: str | Path | HwpxDocument) -> GuidanceReport:
     """양식을 정찰해 지울 것/수정할 것/placeholder/질문 후보 리포트를 만든다(비변형)."""
     doc, src_name = _scan_resolve_source(source)
-    chars = doc._root.char_properties
+    chars = doc.styles.char_properties
     paragraphs, tables_total = _scan_collect_paragraphs(doc, chars)
     inventory, colored_runs = _scan_color_inventory(paragraphs)
     legend = _parse_legend(paragraphs)

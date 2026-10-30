@@ -114,6 +114,7 @@ include = ["hwpx_automation*"]
 "hwpx_automation.office.house_style" = ["data/*.json"]
 "hwpx_automation.office.authoring.design" = ["profiles/*/*", "profiles/*/fragments/*"]
 "hwpx_automation.office.rendering" = [
+    "_hancom_alerts_mac.applescript",
     "_hancom_open_rate.ps1",
     "_refresh_hwpx_mac.applescript",
     "_render_hwpx.ps1",
