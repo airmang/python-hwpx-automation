@@ -10,19 +10,67 @@
   "cases": {
     "structural:synthetic": {
       "dataSha256": "e8e0c1648847080f3ab8c57f28154f5fa066a6f8ce34c420addca7ceaf54b222",
-      "dataLength": 106207
+      "dataLength": 106207,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ]
+      }
     },
     "all:synthetic": {
       "dataSha256": "0b184f4d93fc308408ab5de64a8d3f0594d62cb43c11841836f527a0f4420a10",
-      "dataLength": 103136
+      "dataLength": 103136,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ],
+        "2082585581": [
+          13222,
+          0
+        ],
+        "2082585597": [
+          30463,
+          21363
+        ]
+      }
     },
     "clean:synthetic": {
       "dataSha256": "316980347bbb09de414208161d9de26918e1e389a49dae2bdf6fdef4a1a608e7",
-      "dataLength": 97803
+      "dataLength": 97803,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ],
+        "2082585581": [
+          13222,
+          0
+        ],
+        "2082585597": [
+          30463,
+          21363
+        ]
+      }
     },
     "clean:detailed": {
       "dataSha256": "fe1a990ad2e841d1f60a9a4cf6e633a032eb5cafaff94eaf491318ac8e4ec32a",
-      "dataLength": 97755
+      "dataLength": 97755,
+      "heightChanges": {
+        "2082585532": [
+          33683,
+          31974
+        ],
+        "2082585581": [
+          13222,
+          0
+        ],
+        "2083948084": [
+          5865,
+          0
+        ]
+      }
     }
   },
   "objectModelCrossCheck": {
@@ -60,5 +108,11 @@
         "resultHeight": 0
       }
     ]
-  }
+  },
+  "input": {
+    "coreFixturePath": "tests/fixtures/m105_evalplan/blank_form_3hak.hwpx",
+    "sha256": "2288ef6e1501f3a88aabcfe6c4ac8af0001af68e909afba810d0be5e042580cc"
+  },
+  "changedMember": "Contents/section0.xml",
+  "preserved": "All other ZIP member payloads; all other XML node order, tags, text, tails and attributes; ZIP member names/order."
 }
