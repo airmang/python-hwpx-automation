@@ -2,6 +2,7 @@
 """Public desktop serialization uses the worker's lock without touching Hancom."""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import threading
@@ -62,6 +63,35 @@ def test_other_threads_time_out_and_an_exception_releases_the_lock(lock_path: Pa
             assert not thread.is_alive()
             assert len(caught) == 1
             raise RuntimeError("render failed")
+    assert _other_process(lock_path) == "acquired"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires a real POSIX fork")
+@pytest.mark.parametrize("child_reenters", [False, True])
+def test_forked_child_unwinding_the_inherited_context_does_not_unlock_parent(
+    lock_path: Path, child_reenters: bool
+) -> None:
+    child = False
+    child_completed = False
+    try:
+        with hancom_desktop_lock(wait=0):
+            pid = os.fork()
+            if pid == 0:
+                child = True
+                if child_reenters:
+                    with pytest.raises(HancomBusy):
+                        with hancom_desktop_lock(wait=0):
+                            pass
+            else:
+                _, status = os.waitpid(pid, 0)
+                assert os.waitstatus_to_exitcode(status) == 0
+                assert _other_process(lock_path) == "busy"
+        child_completed = True
+    finally:
+        # The child must unwind the inherited with before exiting, but must
+        # never continue into pytest's own test/fixture cleanup machinery.
+        if child:
+            os._exit(0 if child_completed else 1)
     assert _other_process(lock_path) == "acquired"
 
 

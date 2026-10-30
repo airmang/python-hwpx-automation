@@ -61,6 +61,7 @@ def hancom_desktop_lock(wait: float = 0.0) -> Iterator[None]:
     import fcntl
 
     deadline = time.monotonic() + wait
+    owner_pid = os.getpid()
     mutex, local = _desktop_thread_state()
     if not mutex.acquire(timeout=min(wait, threading.TIMEOUT_MAX)):
         raise HancomBusy(f"MAC_GUI_BUSY: Hancom desktop remained busy for {wait:g}s")
@@ -82,10 +83,14 @@ def hancom_desktop_lock(wait: float = 0.0) -> Iterator[None]:
             try:
                 yield
             finally:
-                local.held = False
-                fcntl.flock(handle, fcntl.LOCK_UN)
+                # A fork shares this open-file description. Explicit unlock
+                # in its child would release the parent's still-owned flock.
+                if os.getpid() == owner_pid:
+                    local.held = False
+                    fcntl.flock(handle, fcntl.LOCK_UN)
     finally:
-        mutex.release()
+        if os.getpid() == owner_pid:
+            mutex.release()
 
 
 class HancomRefusedError(RuntimeError):
