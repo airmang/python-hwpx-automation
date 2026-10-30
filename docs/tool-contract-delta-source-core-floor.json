@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "hwpx.tool-contract-delta/v1",
+  "releaseStatus": "unreleased-source",
+  "baseline": {
+    "release": "7.2.0",
+    "contractHash": "5e5c23651f92785a"
+  },
+  "target": {
+    "contractHash": "c3f17979a7b9a38d",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136,
+    "skillRequiredToolCount": 29
+  },
+  "floors": {
+    "minPythonHwpx": "6.10.0",
+    "minAutomationVersion": "7.2.0",
+    "minMcpVersion": "7.2.0",
+    "minSkillVersion": "2.0.0"
+  },
+  "note": "Source-only floor update for core-native analyzer delegation and public style APIs. Package versions, historical release receipts and currentPublic are unchanged. No tool callable, description, input or output schema changed."
+}

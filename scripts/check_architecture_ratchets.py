@@ -182,7 +182,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/authoring/presets/proposal.py", "create_proposal_document", 11),
     # 13 -> 11: the title block moved into _with_title_block (#137).
     ("src/hwpx_automation/office/authoring/report_parser.py", "parse_government_report_text", 11),
-    ("src/hwpx_automation/office/authoring/template_analyzer.py", "main", 11),
+    # Schema emission shared by both CLI paths: main no longer exceeds C901=10 (#176).
     ("src/hwpx_automation/office/compliance/official_lint.py", "_paragraphs_from_document_plan", 14),
     ("src/hwpx_automation/office/compliance/pii.py", "detect_pii", 13),
     ("src/hwpx_automation/office/compliance/pii.py", "mask_value", 14),
