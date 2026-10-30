@@ -261,10 +261,7 @@ def test_zip_replace_helpers_do_not_expose_open_safety_bypass() -> None:
 
     for helper in helpers:
         text = helper.read_text(encoding="utf-8")
-        # The helper delegates to python-hwpx (#62) and writes only through the
-        # gated _publish step shared with fix_namespaces.py.
-        assert "replace_package_text" in text
-        assert "_publish(" in text
+        assert "validate_open_safety" in text
         assert "verify_open_safety" not in text
 
 
