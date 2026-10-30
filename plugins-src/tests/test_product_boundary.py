@@ -56,3 +56,62 @@ def test_only_unmodified_vendored_engine_source_is_exempt(tmp_path) -> None:
     report = boundary.evaluate(tmp_path)
     assert not report["ok"]
     assert len(report["violations"]) == 2
+
+
+def _wrapper_tree(tmp_path, name: str, source: str):
+    script = tmp_path / "scripts" / name
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text(source, encoding="utf-8")
+    (tmp_path / "plugins").mkdir(exist_ok=True)
+    return boundary.evaluate(tmp_path)
+
+
+def test_core_wrapper_scripts_pass_as_shipped() -> None:
+    report = boundary.evaluate(ROOT)
+    assert report["coreWrapperScripts"] == {
+        "fix_namespaces.py": "normalize_package_namespaces",
+        "zip_replace_all.py": "replace_package_text",
+    }
+    # the two root scripts plus one copy of each per generated bundle
+    assert report["coreWrapperCopies"] == 2 + 2 * 4
+
+
+def test_a_wrapper_that_edits_the_zip_again_fails(tmp_path) -> None:
+    report = _wrapper_tree(
+        tmp_path,
+        "zip_replace_all.py",
+        "import zipfile\n"
+        "from hwpx.patch import replace_package_text\n"
+        "def run(src, dst):\n"
+        "    with zipfile.ZipFile(dst, 'w') as out:\n"
+        "        out.writestr('x', b'')\n",
+    )
+    assert not report["ok"]
+    joined = "\n".join(report["violations"])
+    assert "zipfile.ZipFile" in joined and "(writestr)" in joined
+
+
+def test_a_wrapper_that_reparses_xml_or_imports_core_privates_fails(tmp_path) -> None:
+    report = _wrapper_tree(
+        tmp_path,
+        "fix_namespaces.py",
+        "from lxml import etree\n"
+        "from hwpx.tools.repair import _normalize_hwpml_compat_root\n",
+    )
+    joined = "\n".join(report["violations"])
+    assert "imports lxml" in joined
+    assert "private hwpx name" in joined
+    assert "does not call python-hwpx normalize_package_namespaces" in joined
+
+
+def test_a_thin_wrapper_passes(tmp_path) -> None:
+    report = _wrapper_tree(
+        tmp_path,
+        "fix_namespaces.py",
+        "import zipfile\n"
+        "from hwpx.tools import repair\n"
+        "def run(path):\n"
+        "    assert zipfile.is_zipfile(path)\n"
+        "    return repair.normalize_package_namespaces(path)\n",
+    )
+    assert report["ok"], report["violations"]
