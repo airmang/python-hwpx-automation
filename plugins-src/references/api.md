@@ -143,8 +143,7 @@ with HwpxDocument.open("input.hwpx") as doc:
 
 - 빈 검색어는 허용되지 않는다.
 - `replace_text_in_runs()`는 런 단위로 동작한다.
-- 표 셀까지 보장되는 전역 치환이 필요하면 번들 스크립트 `scripts/zip_replace_all.py`를 사용한다. 이 스크립트는
-  python-hwpx `hwpx.patch.replace_package_text`(python-hwpx 6.10.0 이상)의 CLI 래퍼이고, 텍스트 노드만 바꾼다.
+- 표 셀까지 보장되는 전역 치환이 필요하면 번들 스크립트 `scripts/zip_replace_all.py`를 사용한다.
 
 ### 내보내기
 
@@ -644,14 +643,8 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 
 - 손상된 ZIP/OWPML 구조를 다룰 때는 `HwpxPackageError`, `HwpxStructureError`를 잡는다.
 - `.hwp`(HWP 5.0)는 `HwpxDocument.open`으로 연다(python-hwpx 6.6.0 이상). `HwpxPackage.open`은 HWPX 전용이라 `.hwp`를 `BadZipFile`로 거부한다. 저장 형식은 출력 경로의 확장자가 정한다(`.hwp` → HWP 5.0). 쓸 수 없는 내용은 `Hwp5Error`(`hwp5-write-unsupported`)로 저장 전에 거부되므로 `.hwpx`로 저장할지 사용자에게 묻는다. `doc.conversion_report`의 `unconverted`·`dropped`는 사용자에게 알린다.
-- 패키지 전체 자리표시자 치환은 `scripts/zip_replace_all.py`를 사용한다. python-hwpx `hwpx.patch.replace_package_text`의 CLI
-  래퍼다(python-hwpx 6.10.0 이상). `.xml`·`.hpf` part의 텍스트 노드만 찾고, 요소·속성 이름, 속성 값, 주석, CDATA는 찾지
-  않는다. 키·값은 일반 텍스트이며 `&`·`<`는 알아서 이스케이프된다. 두 런에 걸쳐 나뉜 키는 찾지 못하므로 그때는
-  `doc.replace_text_in_runs(...)`를 쓴다. 바뀐 part의 줄 캐시(`linesegarray`)는 지워지고, open-safety 검증을 통과한
-  경우에만 target을 교체한다.
-- namespace 정리만 필요하면 `scripts/fix_namespaces.py`를 사용한다. python-hwpx
-  `hwpx.tools.repair.normalize_package_namespaces`의 CLI 래퍼이고, open-safety 검증 실패 시 기존 target을 보존한다.
-  파이썬에서 직접 쓸 때는 두 core 함수를 부른다(스크립트 내부 함수를 import하지 않는다).
+- ZIP-level 문자열 치환은 `scripts/zip_replace_all.py`를 사용한다. 이 helper는 임시 파일을 만든 뒤 `validate_editor_open_safety()`를 통과한 경우에만 target을 교체한다.
+- namespace 정리만 필요하면 `scripts/fix_namespaces.py`를 사용한다. 이 helper도 open-safety 검증 실패 시 기존 target을 보존한다.
 - ZIP 자체가 열리지 않거나 `mimetype` 첫 엔트리/CRC 오류가 있으면 편집 전에 `repair_hwpx` 또는 `hwpx-repair`로 복구 복사본을 만든다.
 
 ## Document plan authoring

@@ -2,18 +2,6 @@
 
 ## [Unreleased]
 
-- `scripts/zip_replace_all.py`와 `scripts/fix_namespaces.py`가 ZIP·XML을 직접 고치지 않고 python-hwpx 공개 함수
-  `hwpx.patch.replace_package_text`·`hwpx.tools.repair.normalize_package_namespaces`의 CLI 래퍼가 됩니다(python-hwpx
-  6.10.0 이상 필요, 그 전 core에서는 필요한 버전을 말하고 멈춥니다). 인자·`--inplace`·`--backup`·`--auto-fix-ns`·종료 코드·
-  통계 줄과 `zip_replace_all()`/`fix_namespaces()` 함수 반환값은 그대로입니다. 바뀌는 범위:
-  - 치환은 `.xml`·`.hpf` part의 **텍스트 노드만** 찾습니다. 전에는 part 전체 문자열에 `str.replace`를 해서 속성 값(스타일·글꼴
-    이름 등)과 태그·주석·CDATA도 바뀌었습니다. 키·값은 일반 텍스트로 받아 `&`·`<`를 이스케이프합니다(전에는 `<`가 든 값이
-    패키지를 깨뜨렸습니다).
-  - 바뀐 구역·헤더 part를 다시 직렬화하지 않습니다. 텍스트만 바뀌어 namespace가 깨질 일이 없고, 다른 바이트는 그대로입니다.
-    바뀐 part의 줄 캐시는 전처럼 지웁니다.
-  - `--backup`은 검증을 통과한 뒤에만 `.bak`을 만듭니다. `fix_namespaces.normalize_hwpml_root_bytes()`는 없어졌습니다.
-  - 경계 검사가 두 스크립트와 생성 번들의 사본이 core 함수를 부르고 ZIP·XML 편집 코드를 다시 갖지 않는지 확인합니다(#62).
-
 - 스킬의 `.hwp` 안내를 automation 7.3.3에 맞춥니다. MCP 도구가 `.hwp`를 직접 열고 같은 형식으로 저장하며, 표·본문 바이트를 고치는
   도구가 `HWPX_PACKAGE_REQUIRED`를 돌려주면 `copy_document`로 `.hwpx` 사본을 거칩니다. 그 이전 서버에서는 Python 경로를 씁니다.
 

@@ -172,7 +172,6 @@ def _probe_installed_runtime(
     *,
     excluded_source_roots: list[Path],
     env: dict[str, str] | None = None,
-    expected_versions: dict[str, str] | None = None,
 ) -> dict[str, object]:
     completed = subprocess.run(
         [str(runtime_python), "-c", _RUNTIME_PROBE],
@@ -182,7 +181,7 @@ def _probe_installed_runtime(
         text=True,
     )
     payload = json.loads(completed.stdout)
-    expected_versions = dict(EXPECTED_STACK_VERSIONS if expected_versions is None else expected_versions)
+    expected_versions = dict(EXPECTED_STACK_VERSIONS)
     if payload.get("versions") != expected_versions:
         raise RuntimeError(
             f"installed candidate version mismatch: {payload.get('versions')}"
@@ -207,7 +206,6 @@ def _probe_editable_runtime(
     core_repo: Path,
     automation_repo: Path,
     workspace: Path,
-    expected_versions: dict[str, str] | None = None,
 ) -> dict[str, object]:
     """Prove the opt-in editable launcher and its declared extras are usable."""
 
@@ -250,7 +248,7 @@ def _probe_editable_runtime(
         text=True,
     )
     payload = json.loads(completed.stdout)
-    expected_versions = dict(EXPECTED_STACK_VERSIONS if expected_versions is None else expected_versions)
+    expected_versions = dict(EXPECTED_STACK_VERSIONS)
     if payload.get("versions") != expected_versions:
         raise RuntimeError(
             f"editable candidate version mismatch: {payload.get('versions')}"
@@ -313,18 +311,7 @@ def main() -> int:
     parser.add_argument("--skill-root", type=Path, default=ROOT)
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--report", type=Path)
-    parser.add_argument("--expected-core-version", help="Candidate core version; defaults to product identity")
-    parser.add_argument("--expected-server-version", help="Candidate automation version; defaults to product identity")
     args = parser.parse_args()
-    expected_versions = dict(EXPECTED_STACK_VERSIONS)
-    if args.expected_core_version is not None:
-        expected_versions["python-hwpx"] = args.expected_core_version
-    if args.expected_server_version is not None:
-        expected_versions["python-hwpx-automation"] = args.expected_server_version
-    expected_version_args = [
-        "--expected-core-version", expected_versions["python-hwpx"],
-        "--expected-server-version", expected_versions["python-hwpx-automation"],
-    ]
     core_repo = _candidate_repo(
         args.core_repo,
         env_name="PYTHON_HWPX_CANDIDATE_REPO",
@@ -384,7 +371,6 @@ def main() -> int:
             core_repo=core_copy,
             automation_repo=automation_copy,
             workspace=workspace,
-            expected_versions=expected_versions,
         )
         server_package = f"{automation_wheel}[mcp,oracle]"
         core_package = f"{core_wheel}[preview]"
@@ -426,7 +412,6 @@ def main() -> int:
             runtime_python,
             excluded_source_roots=[core_repo, automation_repo, core_copy, automation_copy],
             env=env,
-            expected_versions=expected_versions,
         )
         _run(
             [str(compatibility_launcher), "--help"],
@@ -478,7 +463,6 @@ def main() -> int:
         e2e_command = [
             args.python,
             str(skill_copy / "scripts" / "plugin_mcp_e2e.py"),
-            *expected_version_args,
             "--mcp-config",
             str(canonical_mcp_config),
             "--contract",
@@ -523,7 +507,6 @@ def main() -> int:
             [
                 args.python,
                 str(skill_copy / "scripts" / "plugin_mcp_e2e.py"),
-                *expected_version_args,
                 "--mcp-config",
                 str(legacy_mcp_config),
                 "--mcp-server-name",
