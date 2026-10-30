@@ -83,12 +83,34 @@ jobs:
       - name: Claude chat path (vendored engine, no MCP) simulation
         working-directory: hwpx-skill
         run: python scripts/claude_chat_sim.py --python python --fixtures ../python-hwpx/tests/fixtures
+      - name: Derive candidate runtime versions from checked-out metadata
+        id: runtime_versions
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, directory in (("core", "python-hwpx"), ("automation", "python-hwpx-automation")):
+                  with (Path(directory) / "pyproject.toml").open("rb") as source:
+                      version = tomllib.load(source)["project"]["version"]
+                  print(f"{key}={version}", file=output)
+          PY
       - name: Plugin launcher protocol E2E (editable stack)
         working-directory: hwpx-skill
-        run: python scripts/plugin_mcp_e2e.py --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
+        run: >-
+          python scripts/plugin_mcp_e2e.py
+          --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
+          --expected-core-version "${{ steps.runtime_versions.outputs.core }}"
+          --expected-server-version "${{ steps.runtime_versions.outputs.automation }}"
       - name: Clean wheel 3-stack smoke
         working-directory: hwpx-skill
-        run: python scripts/clean_install_smoke.py --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
+        run: >-
+          python scripts/clean_install_smoke.py
+          --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
+          --expected-core-version "${{ steps.runtime_versions.outputs.core }}"
+          --expected-server-version "${{ steps.runtime_versions.outputs.automation }}"
       - name: Generate tested-runtime SBOM
         run: |
           uv venv .sbom-runtime
