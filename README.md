@@ -12,6 +12,8 @@
   </p>
 </p>
 
+> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0` (source contract `c3f17979a7b9a38d`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
+
 <!-- release-state: release-approved -->
 > [!NOTE]
 > 발행이 승인된 7.4.1 후보 (release-approved; 원격 발행 대기): `python-hwpx 6.6.0 → python-hwpx-automation 7.4.1 → hwpx-plugin 2.4.0` (`5e5c23651f92785a`).

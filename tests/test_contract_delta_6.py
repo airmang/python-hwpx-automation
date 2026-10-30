@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 from pathlib import Path
 
 from hwpx_automation.tool_contract import (
     RELEASED_CONTRACT_HASH,
     contract_hash,
+    contract_payload,
 )
 
 
@@ -40,16 +43,14 @@ def test_7_1_0_contract_delta_remains_frozen() -> None:
     assert delta["floors"]["minSkillVersion"] == "2.0.0"
 
 
-def test_7_2_0_candidate_delta_matches_live_contract() -> None:
+def test_7_2_0_contract_delta_remains_frozen() -> None:
     delta = _load("tool-contract-delta-7.2.0.json")
-    contract = _load("tool-contract.generated.json")
     assert delta["baseline"]["contractHash"] == "ba0211fc854a0a97"
-    assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "5e5c23651f92785a"
+    assert delta["target"]["contractHash"] == "5e5c23651f92785a"
     assert delta["delta"]["changedInputSchemas"] == ["replace_picture"]
-    assert contract["minAutomationVersion"] == contract["minMcpVersion"] == "7.2.0"
-    assert contract["minPythonHwpx"] == "6.5.0"
-    assert contract["minSkillVersion"] == "2.0.0"
+    assert delta["floors"]["minAutomationVersion"] == delta["floors"]["minMcpVersion"] == "7.2.0"
+    assert delta["floors"]["minPythonHwpx"] == "6.5.0"
+    assert delta["floors"]["minSkillVersion"] == "2.0.0"
 
 
 def test_7_0_3_receipt_remains_frozen_and_chains_into_candidate() -> None:
@@ -183,3 +184,24 @@ def test_6_0_delta_receipt_chains_into_the_6_1_baseline() -> None:
         "advanced": delta["baseline"]["advancedToolCount"],
         "skillRequired": delta["baseline"]["skillRequiredToolCount"],
     }
+
+
+def test_source_core_floor_delta_matches_live_contract() -> None:
+    delta = _load("tool-contract-delta-source-core-floor.json")
+    contract = _load("tool-contract.generated.json")
+    assert delta["baseline"]["contractHash"] == "5e5c23651f92785a"
+    assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "c3f17979a7b9a38d"
+    assert contract["minPythonHwpx"] == "6.10.0"
+    assert delta["releaseStatus"] == "unreleased-source"
+
+
+def test_source_delta_changes_only_the_core_dependency_floor() -> None:
+    baseline = copy.deepcopy(contract_payload())
+    baseline["minPythonHwpx"] = "6.5.0"
+    for tool in baseline["tools"] + baseline["baselineClassification"]["tools"]:
+        requirement = tool["availabilityRequirement"]
+        if requirement is not None and requirement["dependency"] == "python-hwpx":
+            requirement["minimumVersion"] = "6.5.0"
+    raw = json.dumps(baseline, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    assert hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16] == "5e5c23651f92785a"

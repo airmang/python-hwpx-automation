@@ -38,6 +38,7 @@
   "hwpx.tools.package_validator",
   "hwpx.tools.report_utils",
   "hwpx.tools.table_cleanup",
+  "hwpx.tools.template_analyzer",
   "hwpx.tools.toc_author",
   "hwpx.tools.validator"
  ],
@@ -53,9 +54,20 @@
   "hwpx.design",
   "hwpx.presets",
   "hwpx.tools.advanced_generators",
-  "hwpx.tools.style_profile",
-  "hwpx.tools.template_analyzer"
+  "hwpx.tools.style_profile"
  ],
+ "coreDelegatedModules": {
+  "hwpx_automation.office.authoring.template_analyzer": {
+   "coreOwner": "hwpx.tools.template_analyzer",
+   "keptHere": [
+    "template_analysis_agent_schema",
+    "TEMPLATE_ANALYSIS_AGENT_SCHEMA_VERSION",
+    "main --schema-json/--output-schema-json"
+   ],
+   "reason": "core module-ownership.json classifies the template analyzer core-native; a second copy had already diverged on cell margins (hasMargin/inMargin) (#176)",
+   "requiresCore": "6.7.0 for effective cell margins, 6.6.0 for drawn page size"
+  }
+ },
  "compatibilityPolicy": {
   "coreLine": "4.x",
   "featureWork": "automation canonical owner only",

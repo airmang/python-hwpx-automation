@@ -99,7 +99,7 @@ def test_tool_surface_remains_exactly_frozen() -> None:
     assert len(expected_tool_names(advanced=False)) == 128
     assert len(expected_tool_names(advanced=True)) == 136
     assert len(skill_required_tool_names()) == 29
-    assert contract_hash() == "5e5c23651f92785a"
+    assert contract_hash() == "c3f17979a7b9a38d"  # source core-floor delta
 
 
 def test_real_product_tree_passes_rendering_owner_gate() -> None:

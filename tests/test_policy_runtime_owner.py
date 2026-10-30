@@ -14,7 +14,6 @@ from hwpx_automation.handlers import (
     specialized,
 )
 from hwpx_automation.office import authoring, compliance, quality, utilities
-from hwpx_automation.office.authoring import template_analyzer
 
 ROOT = Path(__file__).resolve().parents[1]
 OFFICE = ROOT / "src" / "hwpx_automation" / "office"
@@ -70,7 +69,6 @@ def test_all_policy_production_bindings_use_the_automation_owner() -> None:
         read_export.mask_pii,
         form_fill.mask_pii,
         content_edit.build_hwpx_table_compute,
-        template_analyzer.collect_metrics,
     )
     expected_prefixes = (
         "hwpx_automation.office.compliance",
@@ -80,7 +78,6 @@ def test_all_policy_production_bindings_use_the_automation_owner() -> None:
         "hwpx_automation.office.compliance",
         "hwpx_automation.office.compliance",
         "hwpx_automation.office.utilities",
-        "hwpx_automation.office.quality",
     )
     for binding, expected in zip(bindings, expected_prefixes):
         assert binding.__module__.startswith(expected), binding
