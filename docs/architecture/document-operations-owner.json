@@ -12,9 +12,9 @@
  },
  "canonical": {
   "status": "canonical",
-  "pythonFiles": 4,
-  "loc": 183,
-  "manifestSha256": "0211ca145d4d0c83dbbdb36f26e29009ec158ce29c6110d26b5d8bfa1ecb0da2",
+  "pythonFiles": 5,
+  "loc": 255,
+  "manifestSha256": "a94f477159a67b92f45c5a2176b484a09e7d7b83aab49563e585249398b6ec42",
   "nomenclatureRefrozenFrom": {
    "loc": 183,
    "manifestSha256": "504480de77ec0053f713725629ff675b46b4c35257ceb7644ee002e6d9743548",
@@ -24,13 +24,19 @@
    "loc": 183,
    "manifestSha256": "16fdc78fc1e13462809125a21bfbb54477d90ca84bd608361842926a0c99b62f",
    "reason": "패키지 이름을 hwpx_mcp_server에서 hwpx_automation으로 바꿨다. 동작 변화 없음."
+  },
+  "policyMigrationRefrozenFrom": {
+   "pythonFiles": 4,
+   "loc": 183,
+   "manifestSha256": "0211ca145d4d0c83dbbdb36f26e29009ec158ce29c6110d26b5d8bfa1ecb0da2",
+   "reason": "Known-leak policy owners and consumer routing added; historical source and contract receipts remain frozen."
   }
  },
  "memberOwners": {
   "core": [
    "hwpx.tools.doc_diff.diff_paragraphs",
    "hwpx.tools.doc_diff.doc_diff",
-   "hwpx.tools.doc_diff.inspect_reference_consistency",
+   "hwpx.tools.doc_diff.paragraph_texts",
    "hwpx.tools.mail_merge.inspect_mail_merge_placeholders",
    "hwpx.tools.mail_merge.load_mail_merge_rows",
    "hwpx.tools.mail_merge.merge_template_rows",
@@ -39,12 +45,16 @@
    "hwpx.tools.redline.verify_redline"
   ],
   "automationCanonical": [
+   "office.compliance.reference_consistency.inspect_reference_consistency",
    "office.document_ops.comparison.build_comparison_table_plan",
    "office.document_ops.mail_merge.build_mail_merge",
-   "office.document_ops.redline.verify_redline"
+   "office.document_ops.redline.verify_redline",
+   "office.document_ops.sources.paragraph_plan_to_paragraphs",
+   "office.document_ops.sources.source_paragraphs"
   ],
   "coreCompatibility": [
    "hwpx.tools.doc_diff.build_comparison_table_plan",
+   "hwpx.tools.doc_diff.inspect_reference_consistency",
    "hwpx.tools.mail_merge.mail_merge"
   ]
  },
@@ -58,7 +68,7 @@
     "hwpx_automation.office.compliance",
     "hwpx_automation.office.document_ops"
    ],
-   "status": "core member until python-hwpx's known-leak migration moves it; see core-known-leak-moves.json"
+   "status": "Compatibility definition remains in core; automation consumers use office.compliance.reference_consistency in this candidate."
   },
   "hwpx.tools.doc_diff.doc_diff": {
    "groups": [
@@ -67,7 +77,7 @@
    "plannedOwners": [
     "hwpx_automation.office.document_ops"
    ],
-   "status": "stays core for documents, text and paragraph sequences; only its document-plan input moves"
+   "status": "Generic diff remains core; automation normalizes plan inputs through office.document_ops.sources before calling it."
   }
  },
  "approvedCoreImports": [
@@ -80,10 +90,12 @@
  "forbiddenCoreCompatibilityCallables": {
   "hwpx": [
    "build_comparison_table_plan",
+   "inspect_reference_consistency",
    "mail_merge"
   ],
   "hwpx.tools.doc_diff": [
-   "build_comparison_table_plan"
+   "build_comparison_table_plan",
+   "inspect_reference_consistency"
   ],
   "hwpx.tools.mail_merge": [
    "mail_merge"

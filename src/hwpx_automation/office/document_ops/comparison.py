@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from hwpx.tools.doc_diff import doc_diff
+
+from .sources import paragraph_plan_to_paragraphs
 
 
 def build_comparison_table_plan(
@@ -17,7 +20,7 @@ def build_comparison_table_plan(
 ) -> dict[str, Any]:
     """Return a plan-v2 document containing an old/new comparison table."""
 
-    report = doc_diff(old_source, new_source)
+    report = doc_diff(_comparison_source(old_source), _comparison_source(new_source))
     rows = [
         [
             _change_label(change["tag"]),
@@ -48,6 +51,19 @@ def build_comparison_table_plan(
             }
         ],
     }
+
+
+def _comparison_source(source: Any) -> Any:
+    # Core's source types have distinct whitespace semantics. Convert only the
+    # application plan: converting text/documents to lists would trim twice.
+    if (
+        isinstance(source, Mapping)
+        and "sections" in source
+        and "paragraphs" not in source
+        and "text" not in source
+    ):
+        return paragraph_plan_to_paragraphs(source)
+    return source
 
 
 def _change_label(tag: str) -> str:

@@ -9,12 +9,18 @@
   "manifestSha256": "fb8a36922bb5b516dd84fec36bb9de079e651e1c87a5df78e1acd0a606c75b42"
  },
  "canonical": {
-  "pythonFiles": 17,
-  "loc": 7759,
-  "manifestSha256": "c4b5df99510eba8d90b9a19029eec2ee4775a82c110bf46c92ddca8276c20058",
+  "pythonFiles": 18,
+  "loc": 8258,
+  "manifestSha256": "53b76b2b2d8b77a10a8654f2c81a0b6176fbacee1d5caadf5c4f7b548177505c",
   "profileAssets": 23,
   "profileBytes": 77471,
-  "profileManifestSha256": "ed58b46112baae3436bd263058673ddf8bfcd6477811389e088a0d4222bcc6ec"
+  "profileManifestSha256": "ed58b46112baae3436bd263058673ddf8bfcd6477811389e088a0d4222bcc6ec",
+  "policyMigrationRefrozenFrom": {
+   "pythonFiles": 17,
+   "loc": 7759,
+   "manifestSha256": "c4b5df99510eba8d90b9a19029eec2ee4775a82c110bf46c92ddca8276c20058",
+   "reason": "Known-leak policy owners and consumer routing added; historical source and contract receipts remain frozen."
+  }
  },
  "productionConsumers": [
   "hwpx_automation.core.content",

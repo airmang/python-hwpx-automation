@@ -2562,7 +2562,8 @@ def finalize_evalplan(data: bytes, content: EvalPlanContent) -> tuple[bytes, dic
         recolor_runs_by_color,
         strip_runs_by_color,
     )
-    from hwpx.table_patch import fill_cells, strip_trailing_table_captions
+    from hwpx.table_patch import fill_cells
+    from .captions import strip_evalplan_table_captions
 
     from ..form_fill.classification import _tables
     from ..form_fill.guidance import is_form_instruction
@@ -2696,7 +2697,7 @@ def finalize_evalplan(data: bytes, content: EvalPlanContent) -> tuple[bytes, dic
     # ---- strip residual red, recolor filled blue->black, strip captions --------
     data = strip_runs_by_color(data, ["#FF0000"]).data
     data = recolor_runs_by_color(data, ["#0000FF"], "#000000").data
-    cap = strip_trailing_table_captions(data)
+    cap = strip_evalplan_table_captions(data)
     data = cap.data
     report["captions"] = len(cap.applied)
     return data, report

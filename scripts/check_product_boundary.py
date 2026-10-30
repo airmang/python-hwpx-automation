@@ -204,7 +204,7 @@ FROZEN_CORE_FORM_FILL_IMPORTS = (
     "hwpx.template_formfit",
 )
 CANONICAL_EVALPLAN_ROOT = "src/hwpx_automation/office/evalplan"
-CANONICAL_EVALPLAN_FILE_COUNT = 2
+CANONICAL_EVALPLAN_FILE_COUNT = 3  # caller-selected caption policy owner
 ALLOWED_EVALPLAN_CORE_IMPORTS = (
     "hwpx.body_patch",
     "hwpx.patch",
@@ -224,7 +224,7 @@ FROZEN_CORE_EXAM_IMPORTS = (
     *FROZEN_CORE_FORM_FIT_APPLICATION,
 )
 CANONICAL_DOCUMENT_OPS_ROOT = "src/hwpx_automation/office/document_ops"
-CANONICAL_DOCUMENT_OPS_FILE_COUNT = 4
+CANONICAL_DOCUMENT_OPS_FILE_COUNT = 5  # application plan normalization
 ALLOWED_DOCUMENT_OPS_CORE_IMPORTS = (
     "hwpx.document",
     "hwpx.quality.rendering",
@@ -240,8 +240,8 @@ ALLOWED_DOCUMENT_OPS_CORE_IMPORTS = (
 # second copy of the same judgement. build_comparison_table_plan and mail_merge
 # stay frozen: those still carry application policy.
 FROZEN_CORE_DOCUMENT_OPS_CALLABLES = {
-    "hwpx": frozenset({"build_comparison_table_plan", "mail_merge"}),
-    "hwpx.tools.doc_diff": frozenset({"build_comparison_table_plan"}),
+    "hwpx": frozenset({"build_comparison_table_plan", "mail_merge", "inspect_reference_consistency"}),
+    "hwpx.tools.doc_diff": frozenset({"build_comparison_table_plan", "inspect_reference_consistency"}),
     "hwpx.tools.mail_merge": frozenset({"mail_merge"}),
 }
 

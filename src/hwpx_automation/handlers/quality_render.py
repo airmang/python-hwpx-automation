@@ -14,9 +14,6 @@ import mcp.types as mcp_types
 from hwpx import (
     doc_diff as build_hwpx_doc_diff,
 )
-from hwpx import (
-    inspect_reference_consistency as inspect_hwpx_reference_consistency,
-)
 
 from ..configuration import env_float, env_value
 from ..identity import product_identity
@@ -29,6 +26,7 @@ from ..office.authoring.presets import (
 )
 from ..office.compliance import (
     inspect_official_document_style as inspect_hwpx_official_document_style,
+    inspect_reference_consistency as inspect_hwpx_reference_consistency,
 )
 from ..preview_output_models import RenderPreviewOutput
 from ..runtime_services import RUNTIME_SERVICES

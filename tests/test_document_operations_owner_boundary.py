@@ -32,7 +32,7 @@ RETAINED_CORE_SYMBOLS = {
     "hwpx.tools.doc_diff": (
         "diff_paragraphs",
         "doc_diff",
-        "inspect_reference_consistency",
+        "paragraph_texts",
     ),
     "hwpx.tools.mail_merge": (
         "inspect_mail_merge_placeholders",
@@ -108,7 +108,7 @@ def test_canonical_inventory_is_exact() -> None:
         separators=(",", ":"),
     ).encode()
 
-    assert len(rows) == OWNER["canonical"]["pythonFiles"] == 4
+    assert len(rows) == OWNER["canonical"]["pythonFiles"] == 5
     assert sum(int(row["loc"]) for row in rows) == OWNER["canonical"]["loc"]
     assert hashlib.sha256(payload).hexdigest() == OWNER["canonical"][
         "manifestSha256"
@@ -159,7 +159,7 @@ def test_real_product_tree_and_tool_surface_are_exact() -> None:
     report = BOUNDARY["evaluate"](ROOT)
 
     assert report["ok"], report["violations"]
-    assert report["canonicalDocumentOpsPythonFiles"] == 4
+    assert report["canonicalDocumentOpsPythonFiles"] == 5
     assert len(expected_tool_names(advanced=False)) == 128
     assert len(expected_tool_names(advanced=True)) == 136
     assert len(skill_required_tool_names()) == 29

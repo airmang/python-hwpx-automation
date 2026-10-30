@@ -10,9 +10,9 @@
   "manifestSha256": "3769acd8a4d599f20fe3658f212c83b384096bdf64014c8ca1892e52b6115089"
  },
  "canonical": {
-  "pythonFiles": 2,
-  "loc": 2833,
-  "manifestSha256": "55412bd836c61a7816f9b47a1f0f90522c9b4eebbe06630d232a0285a80eab10",
+  "pythonFiles": 3,
+  "loc": 2865,
+  "manifestSha256": "a1ea04c066d2a692af2a4533f1e1d3fd787c0f5c8605973c26c90d25bac654b9",
   "nomenclatureRefrozenFrom": {
    "loc": 2833,
    "manifestSha256": "ba65da4b137cc6b9737b3a44f9a84fbdd04787454f47fa7d8ab3a86533f75e3a",
@@ -22,10 +22,17 @@
    "loc": 2833,
    "manifestSha256": "f27c9d25e2dfd08545a00c530c034335dac8c3628896d38549d4bc38554824d5",
    "reason": "패키지 이름을 hwpx_mcp_server에서 hwpx_automation으로 바꿨다. 동작 변화 없음."
+  },
+  "policyMigrationRefrozenFrom": {
+   "pythonFiles": 2,
+   "loc": 2833,
+   "manifestSha256": "55412bd836c61a7816f9b47a1f0f90522c9b4eebbe06630d232a0285a80eab10",
+   "reason": "Known-leak policy owners and consumer routing added; historical source and contract receipts remain frozen."
   }
  },
  "packageFiles": [
   "__init__.py",
+  "captions.py",
   "runtime.py"
  ],
  "moduleMap": {

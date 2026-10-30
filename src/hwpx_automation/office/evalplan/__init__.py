@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Canonical automation owner for evaluation-plan application behavior."""
 
+from .captions import strip_evalplan_table_captions
 from .runtime import (
     EvalPlanContent,
     Rubric,
@@ -33,4 +34,5 @@ __all__ = [  # noqa: RUF022 - frozen 4.x public ordering
     "fill_rubrics",
     "fill_ratio",
     "fill_sections",
+    "strip_evalplan_table_captions",
 ]

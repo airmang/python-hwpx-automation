@@ -151,3 +151,17 @@ def _trim_empty_edge_cells(cells: list[str]) -> list[str]:
 
 def _is_markdown_table_separator(cells: list[str]) -> bool:
     return all(re.fullmatch(r":?-{3,}:?", cell or "") for cell in cells)
+
+
+# Frozen Markdown promotion policy; the pasted-report parser has broader rules.
+_MARKDOWN_ROMAN_HEAD = re.compile(r"^\s*[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\.\s*.+")
+_MARKDOWN_ARABIC_HEAD = re.compile(r"^\s*\d+\.\s+[가-힣A-Za-z].+")
+
+def detect_markdown_heading(text: str) -> str | None:
+    plain = re.sub(r"~~|\*\*|<[^>]+>|\*", "", text.strip())
+    plain = plain.replace("\\[", "[").replace("\\]", "]").replace("\\|", "|")
+    if _MARKDOWN_ROMAN_HEAD.match(plain):
+        return f"# {plain}"
+    if _MARKDOWN_ARABIC_HEAD.match(plain) and len(plain) < 40:
+        return f"## {plain}"
+    return None

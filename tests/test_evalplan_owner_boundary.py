@@ -55,4 +55,4 @@ def test_real_tree_declares_the_evalplan_boundary() -> None:
     assert report["canonicalEvalplanRoot"] == (
         "src/hwpx_automation/office/evalplan"
     )
-    assert report["canonicalEvalplanPythonFiles"] == 2
+    assert report["canonicalEvalplanPythonFiles"] == 3
