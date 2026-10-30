@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from importlib import import_module
+import inspect
 from pathlib import Path
 
 from lxml import etree
@@ -12,6 +13,34 @@ import pytest
 from hwpx.document import HwpxDocument
 
 core_diff = import_module("hwpx.tools.doc_diff")
+
+
+def _missing_core_seams() -> list[str]:
+    from hwpx import table_patch
+    from hwpx.tools import markdown_export
+
+    missing = []
+    if not hasattr(core_diff, "paragraph_texts"):
+        missing.append("hwpx.tools.doc_diff.paragraph_texts")
+    if "heading_detector" not in inspect.signature(
+        markdown_export.export_markdown
+    ).parameters:
+        missing.append("hwpx.tools.markdown_export.export_markdown(heading_detector=)")
+    if not hasattr(table_patch, "strip_trailing_table_text"):
+        missing.append("hwpx.table_patch.strip_trailing_table_text")
+    return missing
+
+
+_MISSING_CORE_SEAMS = _missing_core_seams()
+if _MISSING_CORE_SEAMS:
+    pytest.skip(
+        "installed python-hwpx predates the core #625 seams this policy owner "
+        "needs (" + ", ".join(_MISSING_CORE_SEAMS) + "); they ship with the "
+        "next core release",
+        allow_module_level=True,
+    )
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @pytest.mark.parametrize("kind", ["text", "path", "document", "mapping"])
@@ -226,12 +255,8 @@ def test_evalplan_caption_policy_keeps_legacy_plain_text_outputs(text):
 
 def test_external_document_reference_reports_match():
     from hwpx_automation.office.compliance import inspect_reference_consistency
-    import os
 
-    path = (
-        Path(os.environ["PYTHON_HWPX_REPO"])
-        / "tests/fixtures/m2_corpus/public_official_table.hwpx"
-    )
+    path = FIXTURES / "m2_corpus/public_official_table.hwpx"
     assert inspect_reference_consistency(
         path
     ) == core_diff.inspect_reference_consistency(path)
