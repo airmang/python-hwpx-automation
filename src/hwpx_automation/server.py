@@ -11,6 +11,7 @@ from .configuration import env_int, env_value
 from .handlers import _shared, authoring, quality_render, read_export, specialized
 from . import quality as _quality_contract
 from .hwpx_ops import HwpxOps
+from .minimal_profile import add_profile_argument, served_for_profile
 from . import runtime as _runtime
 from .runtime_services import RUNTIME_SERVICES
 from .storage import LocalDocumentStorage
@@ -209,6 +210,7 @@ def main(argv: list[str] | None = None) -> None:
         default=max(1, env_int("PORT", 8000)),
         help="TCP port for streamable HTTP transport",
     )
+    add_profile_argument(parser)
     parser.add_argument(
         "--workspace-root",
         action="append",
@@ -236,12 +238,13 @@ def main(argv: list[str] | None = None) -> None:
         )
     _replace_ops(HwpxOps(storage=storage))
 
+    served = served_for_profile(args.profile, mcp)
     selected_transport = args.transport
     if selected_transport == "http":
         selected_transport = "streamable-http"
 
     if selected_transport == "stdio":
-        mcp.run(transport="stdio")
+        served.run(transport="stdio")
         return
 
     # TODO: add pluggable auth middleware/headers for production HTTP deployments.
@@ -255,7 +258,7 @@ def main(argv: list[str] | None = None) -> None:
             "The default stdio transport needs no extra."
         ) from exc
 
-    app = mcp.streamable_http_app()
+    app = served.streamable_http_app()
     uvicorn.run(
         app,
         host=args.host,

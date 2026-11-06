@@ -27,6 +27,8 @@ EXPECTED_PACKAGE_CYCLES: tuple[tuple[str, ...], ...] = ()
 EXPECTED_SDK_IMPORTERS = (
     "hwpx_automation.fastmcp_adapter",
     "hwpx_automation.handlers.quality_render",
+    # The minimal profile (#198) builds its own FastMCP server and call handler.
+    "hwpx_automation.minimal_profile",
     "hwpx_automation.runtime",
     "hwpx_automation.runtime_services",
 )
@@ -76,7 +78,9 @@ EXPECTED_SERVICE_LINES = {
 EXPECTED_FACADE_LINES = {
     "hwpx_ops.py": 1526,
     # S-108: shared identity/config helpers replaced duplicated MCP-era parsing.
-    "server.py": 268,
+    # +3: --profile minimal (#198); the option and the server choice live in
+    # minimal_profile.py, the facade only wires them.
+    "server.py": 271,
 }
 
 PRIVATE_ATTRIBUTES = ("_mcp_server", "_tool_manager", "_tools")

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- `hwpx-automation-mcp --profile minimal` (or `HWPX_AUTOMATION_PROFILE=minimal`) serves six coarse tools for small local models instead of the canonical contract: `read_outline` (an id-tagged short list within a character budget, paged with `after`), `apply_text_changes` (`{id: new text}`, formatting kept, cells the new text may not fit reported as `overflow`), `replace_text`, `stage_text`, `create_from_markdown` and `validate_document`. Descriptions are short, results are compact JSON without the document body, and edits are saved to `<name>.edited.hwpx` unless an output is given. The canonical tool contract and its hash are unchanged; the profile has its own frozen tool list (#198).
+- A long Markdown body no longer has to travel in one tool argument, which made Ollama's qwen tool-call parser fail with `EOF`: `stage_text` stores text in chunks (pass the returned `draftId` back to append) and `create_from_markdown` takes that `draft_id`, a workspace `markdown_path`, or at most 2,000 inline characters. Drafts live in the server process, at most 64 of 200,000 characters each, and expire after six hours unused (#199).
+- The minimal profile needs python-hwpx with `doc.text.outline`/`apply_changes` and `hwpx.tools.markdown_import`; with an older core the tools that need them answer `DEPENDENCY_MISSING` instead of failing.
+
 - Mac `refresh_document` now shares the render path's owned-alert guard. A unique refusal absent before its open is dismissed and reported through `last_refusal`; existing or ambiguous alerts remain untouched. An error containing the letters `OK` no longer counts as refresh success (#145).
 
 - `hwpx_automation.office.rendering.hancom_desktop_lock(wait=...)` exposes the same per-user desktop lock as the Mac worker and CLI. It supports same-thread reentrancy, bounds thread/process contention and raises public `HancomBusy` on timeout. Windows COM renders use isolated processes, so the public context manager is explicitly a no-op there (#153).

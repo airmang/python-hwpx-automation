@@ -41,9 +41,9 @@ def test_public_module_manifest_freezes_the_complete_shipped_source_surface() ->
     assert base_modules == sorted(set(base_modules))
     assert adapter_modules == sorted(set(adapter_modules))
     assert set(base_modules).isdisjoint(adapter_modules)
-    assert manifest["basePublicModuleCount"] == len(base_modules) == 184
-    assert manifest["mcpAdapterModuleCount"] == len(adapter_modules) == 5
-    assert manifest["moduleCount"] == len(all_modules) == 189
+    assert manifest["basePublicModuleCount"] == len(base_modules) == 185
+    assert manifest["mcpAdapterModuleCount"] == len(adapter_modules) == 6
+    assert manifest["moduleCount"] == len(all_modules) == 191
     assert manifest["basePublicModuleSha256"] == _digest(base_modules)
     assert manifest["mcpAdapterModuleSha256"] == _digest(adapter_modules)
     assert manifest["moduleSha256"] == _digest(all_modules)
@@ -51,6 +51,7 @@ def test_public_module_manifest_freezes_the_complete_shipped_source_surface() ->
     assert adapter_modules == [
         "hwpx_automation.fastmcp_adapter",
         "hwpx_automation.handlers.quality_render",
+        "hwpx_automation.minimal_profile",
         "hwpx_automation.runtime",
         "hwpx_automation.server",
         "hwpx_automation.tool_bindings",
@@ -82,7 +83,7 @@ modules = manifest["basePublicModules"]
 digest = hashlib.sha256(
     ("\n".join(sorted(modules)) + "\n").encode()
 ).hexdigest()
-assert len(modules) == manifest["basePublicModuleCount"] == 184
+assert len(modules) == manifest["basePublicModuleCount"] == 185
 assert digest == manifest["basePublicModuleSha256"]
 for module in modules:
     importlib.import_module(module)
