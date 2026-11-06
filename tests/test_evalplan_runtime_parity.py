@@ -20,6 +20,14 @@ The filled document's raw bytes (``result["_data"]``) can't live in JSON —
 the golden records their SHA-256 and length instead, the same tradeoff
 ``test_exam_runtime_parity.py`` made for its composed output.
 
+Those bytes come from the live core's ``table_patch`` edits, so a deliberate core
+change to them moves the hash while the parsed plan and ``fillResult`` stay the
+frozen ones. The three filled cases were re-recorded once for core #659:
+``split_cell_vertical`` leaves its new cells as one empty paragraph instead of
+emptied copies of the original's paragraphs, and copied paragraphs get ids the
+document does not have, where the old output repeated ``id="7001"``. Re-record
+only for such a reviewed core change, never to quiet a regression.
+
 Every assertion the pre-freeze version of this file made is still made here;
 none needed dropping.
 """
