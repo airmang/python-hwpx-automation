@@ -476,3 +476,25 @@ def test_real_server_namespace_read_workflow_reaches_verified_completion(tmp_pat
     assert receipt["state"] == "completed"
     assert receipt["verificationStatus"] == "verified_read_only"
     assert receipt["stopReason"] == "VERIFIED_COMPLETION"
+
+
+@pytest.mark.parametrize("operation", ["text", "info", "outline", "map", "markdown", "json"])
+def test_real_server_read_workflow_completes_for_every_operation(tmp_path, monkeypatch, operation):
+    """Every documented read_extract operation reaches its tool with a local path (#197)."""
+
+    from hwpx_automation import server
+
+    monkeypatch.setenv("HWPX_WORKFLOW_STORE", str(tmp_path / f"read-{operation}.sqlite3"))
+    receipt = server.start_workflow(
+        family="read_extract",
+        idempotency_key=f"real-server-read-{operation}",
+        source_path=str(Path(__file__).with_name("sample.hwpx")),
+        parameters={"operation": operation},
+    )
+    for _ in range(8):
+        if receipt["terminal"]:
+            break
+        receipt = server.continue_workflow(receipt["workflowId"])
+
+    assert receipt["state"] == "completed", receipt
+    assert receipt["stopReason"] == "VERIFIED_COMPLETION"
