@@ -21,8 +21,8 @@ FAMILY_TOOL_ALLOWLISTS: dict[WorkFamily, frozenset[str]] = {
             "get_document_info",
             "get_document_outline",
             "get_document_map",
-            "hwpx_to_markdown",
-            "hwpx_extract_json",
+            "document_to_markdown",
+            "document_extract_json",
         }
     ),
     WorkFamily.TRANSACTIONAL_EDIT: frozenset(
