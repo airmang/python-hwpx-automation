@@ -20,13 +20,17 @@ The filled document's raw bytes (``result["_data"]``) can't live in JSON —
 the golden records their SHA-256 and length instead, the same tradeoff
 ``test_exam_runtime_parity.py`` made for its composed output.
 
-Those bytes come from the live core's ``table_patch`` edits, so a deliberate core
-change to them moves the hash while the parsed plan and ``fillResult`` stay the
-frozen ones. The three filled cases were re-recorded once for core #659:
-``split_cell_vertical`` leaves its new cells as one empty paragraph instead of
-emptied copies of the original's paragraphs, and copied paragraphs get ids the
-document does not have, where the old output repeated ``id="7001"``. Re-record
-only for such a reviewed core change, never to quiet a regression.
+Those bytes come from the installed core's ``table_patch`` edits, so a
+deliberate core change to them moves the hash while the parsed plan and
+``fillResult`` stay the frozen ones. The golden keeps the frozen bytes (core up
+to 6.10.0, the published candidate); ``CORE_659_BYTES`` adds the one reviewed
+change since, core #659: ``split_cell_vertical`` leaves its new cells as one
+empty paragraph instead of emptied copies of the original's paragraphs, and
+copied paragraphs get ids the document does not have, where the frozen output
+repeated ``id="7001"``. Both are accepted, so the suite holds on the candidate
+core and on core main. Core 6.11.0 matches neither: it set a page-split table's
+height to 0 (core #539, fixed in core #672). Add an entry only for such a
+reviewed core change, never to quiet a regression.
 
 Every assertion the pre-freeze version of this file made is still made here;
 none needed dropping.
@@ -163,6 +167,13 @@ _FIXTURES = Path(__file__).parent / "parity_fingerprints"
 FROZEN = json.loads((_FIXTURES / "evalplan.json").read_text(encoding="utf-8"))["modules"]
 GOLDEN = json.loads((_FIXTURES / "evalplan.golden.json").read_text(encoding="utf-8"))["calls"]
 
+# The filled bytes after core #659 (see the module docstring), as (SHA-256, length).
+CORE_659_BYTES = {
+    "all:synthetic": ("dc5056d405c4720aa6dfe717a2dd93142a9472b2c43ea93800c82f13e545ed6b", 103117),
+    "clean:synthetic": ("458d4ca787a6ed863aa626adb0182e82e95f01c0d61e92ac2505f49d8cd5de8b", 97783),
+    "clean:detailed": ("554fa719a1c8fee944955d35dc01860f0ec8f580ea25d9944805b7a35221d7a5", 97738),
+}
+
 
 def _jsonify(value: object) -> object:
     """Round-trip through JSON so tuples (``dataclasses.asdict`` keeps
@@ -234,8 +245,10 @@ def test_plan_fill_and_cleanup_byte_matches_frozen_core(
     )
     data = canonical_result.pop("_data")
     assert _jsonify(canonical_result) == expected["fillResult"]
-    assert hashlib.sha256(data).hexdigest() == expected["dataSha256"]
-    assert len(data) == expected["dataLength"]
+    accepted = {(expected["dataSha256"], expected["dataLength"])}
+    if (key := f"{phase}:{md_label}") in CORE_659_BYTES:
+        accepted.add(CORE_659_BYTES[key])
+    assert (hashlib.sha256(data).hexdigest(), len(data)) in accepted
 
 
 def test_missing_input_refusal_matches_frozen_core() -> None:
