@@ -66,8 +66,11 @@ class ReadExtractAdapter(WorkflowAdapter):
         "info": "get_document_info",
         "outline": "get_document_outline",
         "map": "get_document_map",
-        "markdown": "hwpx_to_markdown",
-        "json": "hwpx_extract_json",
+        # The workflow reads a local source path, so it needs the filename-based
+        # exporters. hwpx_to_markdown/hwpx_extract_json take a base64 payload or a
+        # URL and reject ``filename`` (issue #197).
+        "markdown": "document_to_markdown",
+        "json": "document_extract_json",
     }
 
     def recon_action(self, record: WorkflowRecord) -> ActionRequest:

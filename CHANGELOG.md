@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- The `read_extract` workflow's `markdown` and `json` operations work on a local source document. They were routed to `hwpx_to_markdown`/`hwpx_extract_json`, which take a base64 payload or a URL, and failed with `unexpected keyword argument 'filename'`; they now call `document_to_markdown`/`document_extract_json`. The other read operations are unchanged (#197).
+
 - Mac `refresh_document` now shares the render path's owned-alert guard. A unique refusal absent before its open is dismissed and reported through `last_refusal`; existing or ambiguous alerts remain untouched. An error containing the letters `OK` no longer counts as refresh success (#145).
 
 - `hwpx_automation.office.rendering.hancom_desktop_lock(wait=...)` exposes the same per-user desktop lock as the Mac worker and CLI. It supports same-thread reentrancy, bounds thread/process contention and raises public `HancomBusy` on timeout. Windows COM renders use isolated processes, so the public context manager is explicitly a no-op there (#153).
