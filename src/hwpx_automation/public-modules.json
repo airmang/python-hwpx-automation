@@ -1,10 +1,10 @@
 {
   "schemaVersion": "python-hwpx-automation.public-modules/v1",
-  "scope": "All Python modules shipped by the canonical 6.x distribution. Base-public modules must import without the optional MCP SDK; the five adapter modules require the mcp extra by design.",
-  "moduleCount": 189,
-  "moduleSha256": "0ac6e10965ac449c4bf349d70ca212cfa9e7f0d1f22385a2c88bcca54e5cfd9d",
-  "basePublicModuleCount": 184,
-  "basePublicModuleSha256": "36fa499222d3bb23c6abee3b98a6efc349f51db1ccf590399c2ecb3e9e891f82",
+  "scope": "All Python modules shipped by the canonical 6.x distribution. Base-public modules must import without the optional MCP SDK; the six adapter modules require the mcp extra by design.",
+  "moduleCount": 191,
+  "moduleSha256": "bfe822db8f83ba32dcfc4b7cbf11fac882170396a41aa701ef147065c33c57be",
+  "basePublicModuleCount": 185,
+  "basePublicModuleSha256": "2339441d8dd084feaac8161136fa1115b039116db951f4951f17ee42183c3a18",
   "basePublicModules": [
     "hwpx_automation",
     "hwpx_automation.__main__",
@@ -96,6 +96,7 @@
     "hwpx_automation.office.authoring.style_profile",
     "hwpx_automation.office.authoring.template_analyzer",
     "hwpx_automation.office.charting",
+    "hwpx_automation.office.compact",
     "hwpx_automation.office.compliance",
     "hwpx_automation.office.compliance.official_lint",
     "hwpx_automation.office.compliance.pii",
@@ -191,8 +192,8 @@
     "hwpx_automation.workflow.store",
     "hwpx_automation.workspace"
   ],
-  "mcpAdapterModuleCount": 5,
-  "mcpAdapterModuleSha256": "89fa1f67eebb1b370021c6285be567f1926155188f5e2df35a6a4a49b1cffb61",
+  "mcpAdapterModuleCount": 6,
+  "mcpAdapterModuleSha256": "e5bdf1f895f4a7169842405ec65f02d5751f467baa95c4f1da4a2055a4b88c45",
   "mcpAdapterModules": [
     {
       "module": "hwpx_automation.fastmcp_adapter",
@@ -201,6 +202,10 @@
     {
       "module": "hwpx_automation.handlers.quality_render",
       "reason": "Returns MCP protocol content blocks from adapter-facing quality handlers."
+    },
+    {
+      "module": "hwpx_automation.minimal_profile",
+      "reason": "Builds the optional minimal-profile FastMCP server and its protocol results."
     },
     {
       "module": "hwpx_automation.runtime",

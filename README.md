@@ -97,6 +97,16 @@ Gemini CLI는 `~/.gemini/settings.json`, Cursor·Windsurf는 각 에디터의 MC
 기존 `hwpx-mcp-server` 배포·import·콘솔·설정 키도 그대로 동작합니다 —
 전체 목록과 유지 규칙: [호환 표면](docs/compatibility-6x.md)
 
+### 작은 로컬 모델용 프로필
+
+Ollama·Open WebUI의 27B급 모델처럼 도구가 많으면 길을 잃는 환경에서는
+`hwpx-automation-mcp --profile minimal`(또는 `HWPX_AUTOMATION_PROFILE=minimal`)로
+굵은 도구 여섯 개만 띄웁니다: `read_outline`(id 붙은 짧은 목록) →
+`apply_text_changes`(`{id: 새 글}`, 서식 유지·칸 넘침 알림), `replace_text`,
+`stage_text` → `create_from_markdown`, `validate_document`. 긴 본문은 도구 인수에
+한 번에 싣지 않고 `stage_text`로 1,000자 안팎씩 나눠 보낸 뒤 `draft_id`로 넘깁니다.
+결과에는 문서 본문을 싣지 않고, 수정본은 기본으로 `<이름>.edited.hwpx`에 저장합니다.
+
 ## 한컴으로 PDF 렌더하기
 
 한컴(macOS 한컴오피스 한글 또는 Windows 한글 COM)이 있는 컴퓨터에서 문서 하나를
@@ -153,6 +163,7 @@ handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단�
 | `HWPX_AUTOMATION_MAX_CHARS` | 텍스트 반환 도구 기본 최대 길이 | `10000` |
 | `HWPX_AUTOMATION_AUTOBACKUP` | `1`이면 저장 전 `.bak` 백업 생성 | `1` |
 | `HWPX_AUTOMATION_ADVANCED` | `1`이면 고급 도구 활성화 | `0` |
+| `HWPX_AUTOMATION_PROFILE` | `minimal`이면 작은 로컬 모델용 도구 6개만 제공(`--profile`과 같음) | `full` |
 | `HWPX_AUTOMATION_FETCH_TIMEOUT_SECONDS` | URL 기반 HWPX fetch timeout | `20.0` |
 | `HWPX_AUTOMATION_ALLOW_PRIVATE_NETWORK` | `1`이면 신뢰된 사설/루프백 HTTPS 대상 허용. 링크로컬·metadata·예약 주소는 계속 차단 | `0` |
 | `HWPX_AUTOMATION_QUALITY` | 전역 기본 저장 게이트 정책(`transparent`/`strict`). 도구별 `quality`가 우선 | `transparent` |
