@@ -9,6 +9,12 @@ updates:
     groups:
       python-dependencies:
         patterns: ["*"]
+    ignore:
+      # mcp 2.x renames FastMCP to MCPServer and changes other APIs; the `mcp`
+      # extra pins one audited 1.x release (docs/mcp-sdk-reaudit.md). Moving to
+      # 2.x is a migration of its own, not a version bump.
+      - dependency-name: mcp
+        update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions
