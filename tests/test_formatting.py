@@ -140,6 +140,27 @@ def test_create_custom_style_creates_distinct_style_and_name_resolves_on_insert(
     assert char_style.attributes.get("height") == "1400"
 
 
+def test_create_custom_style_copies_base_attributes_and_points_at_itself(tmp_path: Path):
+    target = tmp_path / "custom_style_attrs.hwpx"
+    create_document(str(target))
+    created = create_custom_style(str(target), "PlainStyle")
+
+    hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+    with zipfile.ZipFile(target) as archive:
+        header = ET.fromstring(archive.read("Contents/header.xml"))
+    styles = header.find(f"{hh}refList/{hh}styles")
+    by_id = {style.get("id"): style for style in styles.findall(f"{hh}style")}
+    base = next(style for style in by_id.values() if style.get("name") in {"본문", "Body"})
+    new_style = by_id[created["style_id"]]
+
+    assert styles.get("itemCnt") == str(len(by_id))
+    assert new_style.get("name") == new_style.get("engName") == "PlainStyle"
+    assert new_style.get("nextStyleIDRef") == created["style_id"]
+    for attribute in ("type", "paraPrIDRef", "charPrIDRef", "langID"):
+        assert new_style.get(attribute) == base.get(attribute)
+    assert created["para_pr_id_ref"] == base.get("paraPrIDRef")
+
+
 def test_create_custom_style_reuses_existing_name(tmp_path: Path):
     target = tmp_path / "style_reuse.hwpx"
     create_document(str(target))
