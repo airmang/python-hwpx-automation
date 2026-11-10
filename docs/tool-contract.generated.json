@@ -475,10 +475,11 @@
       "skillRequired": true,
       "callableName": "dump_document_blueprint",
       "schemaBinding": "python-signature",
-      "mutates": false,
+      "mutates": true,
       "tags": [
         "agent_document",
         "public",
+        "mutation",
         "skill-required"
       ],
       "description": "Dump one revision-bound HWPX document/subtree into a validated typed .hwpxbp; returns bounded manifest/fidelity evidence and never exposes raw XML. Shared blueprint catalog sha256:cd8fa6ef9240ed7f1452789feeea7732ddd36dfeed785ddb592b43fb60e6730d.\n\nHWPX typed blueprint v1\n  dump: revision-bound document/subtree -> deterministic .hwpxbp\n  replay: source-bound|portable -> one atomic SavePipeline commit\n  fidelity: exact, mapped; strict replay rejects degraded/unsupported\n  limits: nodes=10000, assets=128, manifest=16777216 bytes\n  raw XML, package parts, resident sessions, watch, and OfficeCLI are unavailable",
@@ -14262,11 +14263,10 @@
       "skillRequired": true,
       "callableName": "table_compute",
       "schemaBinding": "python-signature",
-      "mutates": true,
+      "mutates": false,
       "tags": [
         "tables",
         "public",
-        "mutation",
         "skill-required"
       ],
       "description": "일반 표에 합계·평균·소계 행/열을 추가하고 계산 근거를 반환합니다.",
@@ -15010,11 +15010,10 @@
       "skillRequired": false,
       "callableName": "apply_style_profile_to_plan",
       "schemaBinding": "python-signature",
-      "mutates": true,
+      "mutates": false,
       "tags": [
         "styles",
-        "public",
-        "mutation"
+        "public"
       ],
       "description": "style_profile 또는 reference HWPX 서식을 document_plan v2에 적용합니다.",
       "signature": "(document_plan: 'dict', style_profile: 'dict' = None, reference_filename: 'str' = None, overwrite: 'bool' = True) -> 'dict'",
@@ -15816,10 +15815,11 @@
       "skillRequired": false,
       "callableName": "verify_toc",
       "schemaBinding": "python-signature",
-      "mutates": false,
+      "mutates": true,
       "tags": [
         "toc_xref",
-        "public"
+        "public",
+        "mutation"
       ],
       "description": "네이티브 차례/상호참조의 캐시 쪽번호를 검증합니다.\n\nverify_render=True면 실제 한컴 렌더로 캐시 vs 실제 페이지를 대조해\ntoc_correctness_ratio를 산출합니다(오라클 없으면 정직하게 unverified).\nrefresh=True면 검증 전에 한컴을 열어 dirty 필드를 재계산·저장합니다\n(macOS GUI 오라클 필요; dirty 재생성 직후 같은 세션 렌더는 이 한컴\n빌드가 크래시하므로 refresh와 render는 별도 세션으로 수행됩니다).",
       "signature": "(filename: 'str', refresh: 'bool' = False, verify_render: 'bool' = False) -> 'dict'",
@@ -16566,11 +16566,10 @@
       "skillRequired": false,
       "callableName": "build_image_grid",
       "schemaBinding": "python-signature",
-      "mutates": true,
+      "mutates": false,
       "tags": [
         "generators",
-        "public",
-        "mutation"
+        "public"
       ],
       "description": "사진 목록을 plan v2 image_grid block과 생성 가능한 document_plan으로 변환합니다.",
       "signature": "(images: 'list', columns: 'int' = 2, image_width_mm: 'float' = None, title: 'str' = '사진대지') -> 'dict'",
@@ -16631,11 +16630,10 @@
       "skillRequired": false,
       "callableName": "build_meeting_nameplates",
       "schemaBinding": "python-signature",
-      "mutates": true,
+      "mutates": false,
       "tags": [
         "generators",
-        "public",
-        "mutation"
+        "public"
       ],
       "description": "참석자 명단을 회의 명패 table block과 document_plan으로 변환합니다.",
       "signature": "(names: 'list[str]', size: 'str' = '150x70', columns: 'int' = 2, title: 'str' = '회의 명패') -> 'dict'",
@@ -16698,11 +16696,10 @@
       "skillRequired": false,
       "callableName": "build_organization_chart",
       "schemaBinding": "python-signature",
-      "mutates": true,
+      "mutates": false,
       "tags": [
         "generators",
-        "public",
-        "mutation"
+        "public"
       ],
       "description": "2~3단 계층 데이터를 표 기반 조직도 block과 document_plan으로 변환합니다.",
       "signature": "(hierarchy: 'dict | list', max_depth: 'int' = 3, title: 'str' = '조직도') -> 'dict'",
@@ -18638,10 +18635,11 @@
         "skillRequired": true,
         "callableName": "dump_document_blueprint",
         "schemaBinding": "python-signature",
-        "mutates": false,
+        "mutates": true,
         "tags": [
           "agent_document",
           "public",
+          "mutation",
           "skill-required"
         ]
       },
@@ -21001,11 +20999,10 @@
         "skillRequired": true,
         "callableName": "table_compute",
         "schemaBinding": "python-signature",
-        "mutates": true,
+        "mutates": false,
         "tags": [
           "tables",
           "public",
-          "mutation",
           "skill-required"
         ]
       },
@@ -21190,11 +21187,10 @@
         "skillRequired": false,
         "callableName": "apply_style_profile_to_plan",
         "schemaBinding": "python-signature",
-        "mutates": true,
+        "mutates": false,
         "tags": [
           "styles",
-          "public",
-          "mutation"
+          "public"
         ]
       },
       {
@@ -21404,10 +21400,11 @@
         "skillRequired": false,
         "callableName": "verify_toc",
         "schemaBinding": "python-signature",
-        "mutates": false,
+        "mutates": true,
         "tags": [
           "toc_xref",
-          "public"
+          "public",
+          "mutation"
         ]
       },
       {
@@ -21645,11 +21642,10 @@
         "skillRequired": false,
         "callableName": "build_image_grid",
         "schemaBinding": "python-signature",
-        "mutates": true,
+        "mutates": false,
         "tags": [
           "generators",
-          "public",
-          "mutation"
+          "public"
         ]
       },
       {
@@ -21672,11 +21668,10 @@
         "skillRequired": false,
         "callableName": "build_meeting_nameplates",
         "schemaBinding": "python-signature",
-        "mutates": true,
+        "mutates": false,
         "tags": [
           "generators",
-          "public",
-          "mutation"
+          "public"
         ]
       },
       {
@@ -21699,11 +21694,10 @@
         "skillRequired": false,
         "callableName": "build_organization_chart",
         "schemaBinding": "python-signature",
-        "mutates": true,
+        "mutates": false,
         "tags": [
           "generators",
-          "public",
-          "mutation"
+          "public"
         ]
       },
       {
@@ -22390,7 +22384,7 @@
       }
     ]
   },
-  "contractHash": "e30bb72f2b858362",
+  "contractHash": "71622c28a07913d1",
   "defaultToolCount": 128,
   "advancedToolCount": 136,
   "baselineToolCount": 140,

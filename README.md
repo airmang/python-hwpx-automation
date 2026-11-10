@@ -12,7 +12,7 @@
   </p>
 </p>
 
-> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0` (source contract `e30bb72f2b858362`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
+> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0` (source contract `71622c28a07913d1`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
 
 <!-- release-state: release-approved -->
 > [!NOTE]

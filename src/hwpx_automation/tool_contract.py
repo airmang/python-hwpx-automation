@@ -34,7 +34,7 @@ MIN_SKILL_VERSION = "2.0.0"
 # recomputes and verifies the bound callable/schema contract through
 # ``contract_hash()``; this constant prevents those services from importing the
 # runtime composer merely to stamp the approved release receipt.
-RELEASED_CONTRACT_HASH = "e30bb72f2b858362"
+RELEASED_CONTRACT_HASH = "71622c28a07913d1"
 
 
 def describe_callables(entries: Any, **live: Any) -> Any:
@@ -296,8 +296,16 @@ _SKILL_REQUIRED_TOOLS = {
 }
 
 
+# A tool is listed here when a call can write a file or change stored state.
+# The adapter serializes every listed tool behind the process-wide mutation
+# lock and ``describe_capabilities`` reports the flag, so a wrong entry either
+# makes a pure computation wait for writers or lets a writer run unserialized.
+# tests/test_audit_mutating_tools.py checks the entries the 2026-11 audit found
+# wrong (ARC-06) against what the handlers actually do.
 _MUTATING_TOOLS = {
     "apply_document_commands", "replay_document_blueprint",
+    # Writes the blueprint JSON to ``output`` when that argument is given.
+    "dump_document_blueprint",
     # These render tools can materialize queue or preview artifacts when their
     # optional output arguments are supplied, so classify them conservatively
     # as writers for process-wide serialization.
@@ -315,15 +323,22 @@ _MUTATING_TOOLS = {
     "replace_by_anchor", "replace_in_paragraph", "search_and_replace", "batch_replace",
     "byte_preserving_patch", "insert_picture", "replace_picture",
     "add_table", "set_table_cell_text", "merge_table_cells", "split_table_cell",
-    "format_table", "table_compute",
+    "format_table",
     "create_custom_style", "set_paragraph_format", "set_list_format", "format_text",
-    "apply_style_profile_to_plan", "set_page_setup", "set_header_footer",
+    "set_page_setup", "set_header_footer",
     "set_page_number", "add_toc", "add_cross_reference", "add_tracked_edit",
-    "compose_exam", "place_seal", "mail_merge", "build_image_grid",
-    "build_meeting_nameplates", "build_organization_chart", "add_memo",
+    # refresh=True opens the document in Hancom, recalculates dirty fields and
+    # saves it back, so the tool is a writer whenever that flag is used.
+    "verify_toc",
+    "compose_exam", "place_seal", "mail_merge",
+    "add_memo",
     "add_memo_by_anchor", "remove_memo", "repair_hwpx",
     "add_boxed_org_chart",
 }
+# Deliberately NOT listed (they were, wrongly): build_image_grid,
+# build_meeting_nameplates, build_organization_chart, table_compute and
+# apply_style_profile_to_plan only compute and return a plan/table; they take
+# no document path and write nothing.
 
 
 BASELINE_DOMAIN_SPECS: tuple[DomainSpec, ...] = (

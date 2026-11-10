@@ -205,7 +205,7 @@ def test_source_audit_delta_matches_live_contract() -> None:
     assert delta["releaseStatus"] == "unreleased-source"
     assert delta["baseline"]["contractHash"] == SOURCE_CORE_FLOOR_HASH
     assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "e30bb72f2b858362"
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "71622c28a07913d1"
     assert contract["minPythonHwpx"] == "6.10.0"
     assert delta["target"]["defaultToolCount"] == 128
     assert delta["target"]["advancedToolCount"] == 136

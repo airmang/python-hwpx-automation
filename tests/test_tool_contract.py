@@ -170,8 +170,8 @@ def test_release_contract_versions_counts_and_hash_are_exact() -> None:
     assert len(expected_tool_names(advanced=False)) == 128
     assert len(expected_tool_names(advanced=True)) == 136
     assert len(skill_required_tool_names()) == 29
-    assert RELEASED_CONTRACT_HASH == "e30bb72f2b858362"
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "e30bb72f2b858362"
+    assert RELEASED_CONTRACT_HASH == "71622c28a07913d1"
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "71622c28a07913d1"
     assert REMOVED_PRACTICE_TOOLS.isdisjoint(expected_tool_names(advanced=True))
 
 

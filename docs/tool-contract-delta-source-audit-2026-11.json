@@ -6,7 +6,7 @@
     "contractHash": "c3f17979a7b9a38d"
   },
   "target": {
-    "contractHash": "e30bb72f2b858362",
+    "contractHash": "71622c28a07913d1",
     "defaultToolCount": 128,
     "advancedToolCount": 136,
     "skillRequiredToolCount": 29
@@ -18,13 +18,35 @@
     "minSkillVersion": "2.0.0"
   },
   "changedTools": [
-    "get_table_map"
+    "apply_style_profile_to_plan",
+    "build_image_grid",
+    "build_meeting_nameplates",
+    "build_organization_chart",
+    "dump_document_blueprint",
+    "get_table_map",
+    "table_compute",
+    "verify_toc"
   ],
   "changes": {
-    "get_table_map": "EFF-16: new optional arguments detail (default \"compact\"), table_index, text_preview_chars, max_chars; detail=\"full\" returns the previous response shape."
+    "apply_style_profile_to_plan": "ARC-06: mutates true -> false (returns a restyled plan; writes no file).",
+    "build_image_grid": "ARC-06: mutates true -> false (returns a plan block; writes no file).",
+    "build_meeting_nameplates": "ARC-06: mutates true -> false (returns a plan block; writes no file).",
+    "build_organization_chart": "ARC-06: mutates true -> false (returns a plan block; writes no file).",
+    "dump_document_blueprint": "ARC-06: mutates false -> true (writes the blueprint to `output` when given).",
+    "get_table_map": "EFF-16: new optional arguments detail (default \"compact\"), table_index, text_preview_chars, max_chars; detail=\"full\" returns the previous response shape.",
+    "table_compute": "ARC-06: mutates true -> false (computes on the table passed in; writes no file).",
+    "verify_toc": "ARC-06: mutates false -> true (refresh=True lets Hancom recalculate fields and save the document)."
   },
   "previous": {
     "tools": {
+      "dump_document_blueprint": {
+        "mutates": false,
+        "tags": [
+          "agent_document",
+          "public",
+          "skill-required"
+        ]
+      },
       "get_table_map": {
         "description": "문서 내 표 위치, 크기, 문맥 요약을 조회합니다.",
         "inputSchema": {
@@ -42,9 +64,114 @@
           "type": "object"
         },
         "signature": "(filename: 'str') -> 'dict'"
+      },
+      "table_compute": {
+        "mutates": true,
+        "tags": [
+          "tables",
+          "public",
+          "mutation",
+          "skill-required"
+        ]
+      },
+      "apply_style_profile_to_plan": {
+        "mutates": true,
+        "tags": [
+          "styles",
+          "public",
+          "mutation"
+        ]
+      },
+      "verify_toc": {
+        "mutates": false,
+        "tags": [
+          "toc_xref",
+          "public"
+        ]
+      },
+      "build_image_grid": {
+        "mutates": true,
+        "tags": [
+          "generators",
+          "public",
+          "mutation"
+        ]
+      },
+      "build_meeting_nameplates": {
+        "mutates": true,
+        "tags": [
+          "generators",
+          "public",
+          "mutation"
+        ]
+      },
+      "build_organization_chart": {
+        "mutates": true,
+        "tags": [
+          "generators",
+          "public",
+          "mutation"
+        ]
       }
     },
-    "baselineClassification": {}
+    "baselineClassification": {
+      "dump_document_blueprint": {
+        "mutates": false,
+        "tags": [
+          "agent_document",
+          "public",
+          "skill-required"
+        ]
+      },
+      "table_compute": {
+        "mutates": true,
+        "tags": [
+          "tables",
+          "public",
+          "mutation",
+          "skill-required"
+        ]
+      },
+      "apply_style_profile_to_plan": {
+        "mutates": true,
+        "tags": [
+          "styles",
+          "public",
+          "mutation"
+        ]
+      },
+      "verify_toc": {
+        "mutates": false,
+        "tags": [
+          "toc_xref",
+          "public"
+        ]
+      },
+      "build_image_grid": {
+        "mutates": true,
+        "tags": [
+          "generators",
+          "public",
+          "mutation"
+        ]
+      },
+      "build_meeting_nameplates": {
+        "mutates": true,
+        "tags": [
+          "generators",
+          "public",
+          "mutation"
+        ]
+      },
+      "build_organization_chart": {
+        "mutates": true,
+        "tags": [
+          "generators",
+          "public",
+          "mutation"
+        ]
+      }
+    }
   },
   "note": "Source-only changes from the 2026-11 audit. Package versions, historical release receipts and currentPublic are unchanged. No tool was added or removed; `previous` holds, per changed tool, the fields as they were in the baseline contract so the delta can be undone and re-hashed (tests/test_contract_delta_6.py)."
 }
