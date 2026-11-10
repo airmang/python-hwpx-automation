@@ -34,7 +34,7 @@ MIN_SKILL_VERSION = "2.0.0"
 # recomputes and verifies the bound callable/schema contract through
 # ``contract_hash()``; this constant prevents those services from importing the
 # runtime composer merely to stamp the approved release receipt.
-RELEASED_CONTRACT_HASH = "c3f17979a7b9a38d"
+RELEASED_CONTRACT_HASH = "e30bb72f2b858362"
 
 
 def describe_callables(entries: Any, **live: Any) -> Any:

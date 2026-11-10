@@ -11,7 +11,7 @@
       "compatibilityDistribution": "hwpx-mcp-server",
       "compatibility": "7.4.1",
       "plugin": "2.4.0",
-      "contractHash": "c3f17979a7b9a38d"
+      "contractHash": "e30bb72f2b858362"
     },
     "currentPublic": {
       "pythonHwpx": "6.6.0",

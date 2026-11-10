@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "hwpx.tool-contract-delta/v1",
+  "releaseStatus": "unreleased-source",
+  "baseline": {
+    "source": "tool-contract-delta-source-core-floor.json",
+    "contractHash": "c3f17979a7b9a38d"
+  },
+  "target": {
+    "contractHash": "e30bb72f2b858362",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136,
+    "skillRequiredToolCount": 29
+  },
+  "floors": {
+    "minPythonHwpx": "6.10.0",
+    "minAutomationVersion": "7.2.0",
+    "minMcpVersion": "7.2.0",
+    "minSkillVersion": "2.0.0"
+  },
+  "changedTools": [
+    "get_table_map"
+  ],
+  "changes": {
+    "get_table_map": "EFF-16: new optional arguments detail (default \"compact\"), table_index, text_preview_chars, max_chars; detail=\"full\" returns the previous response shape."
+  },
+  "previous": {
+    "tools": {
+      "get_table_map": {
+        "description": "문서 내 표 위치, 크기, 문맥 요약을 조회합니다.",
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {
+            "filename": {
+              "title": "Filename",
+              "type": "string"
+            }
+          },
+          "required": [
+            "filename"
+          ],
+          "title": "get_table_mapArguments",
+          "type": "object"
+        },
+        "signature": "(filename: 'str') -> 'dict'"
+      }
+    },
+    "baselineClassification": {}
+  },
+  "note": "Source-only changes from the 2026-11 audit. Package versions, historical release receipts and currentPublic are unchanged. No tool was added or removed; `previous` holds, per changed tool, the fields as they were in the baseline contract so the delta can be undone and re-hashed (tests/test_contract_delta_6.py)."
+}

@@ -1212,11 +1212,37 @@ def get_table_text(filename: str, table_index: int = 0) -> dict:
     )
 
 
-def get_table_map(filename: str) -> dict:
-    """문서 내 표 위치, 크기, 문맥 요약을 조회합니다."""
+def get_table_map(
+    filename: str,
+    detail: str = "compact",
+    table_index: int = None,
+    text_preview_chars: int = 80,
+    max_chars: int = 60000,
+) -> dict:
+    """문서 내 표 위치, 크기, 칸 요약을 조회합니다.
+
+    기본(detail="compact")은 실제 칸만 한 번씩 싣습니다. 병합 칸은 시작 자리
+    (row, col)에 row_span/col_span 숫자로 적고, 칸 글은 text_preview_chars자까지만
+    싣습니다(잘리면 text_length에 전체 길이). 칸·칸 문단의 location은 응답의
+    cell_location·cell_paragraph_location 틀에 table_index, row, col을 넣어
+    만듭니다. 응답 전체가
+    max_chars자를 넘으면 남은 칸을 빼고 cells_omitted·truncated로 알리니,
+    table_index로 표 하나만 다시 조회하세요.
+
+    detail="full"은 이전 형태입니다: 논리 격자의 모든 자리마다 칸 글·문단·위치를
+    싣습니다(병합 칸은 덮는 자리 수만큼 되풀이되어 응답이 매우 커질 수 있음)."""
     path = resolve_path(filename)
     doc = open_doc(path)
-    return _with_document_state(get_table_map_in_doc(doc), path)
+    return _with_document_state(
+        get_table_map_in_doc(
+            doc,
+            detail=detail,
+            table_index=table_index,
+            text_preview_chars=text_preview_chars,
+            max_chars=max_chars,
+        ),
+        path,
+    )
 
 
 def list_available_documents(directory: str = ".") -> dict:

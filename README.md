@@ -12,7 +12,7 @@
   </p>
 </p>
 
-> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0` (source contract `c3f17979a7b9a38d`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
+> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0` (source contract `e30bb72f2b858362`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
 
 <!-- release-state: release-approved -->
 > [!NOTE]
@@ -153,7 +153,9 @@ handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단�
 
 > **위치 계약** — `paragraph_index`는 본문 직속 문단의 0-based 인덱스입니다. 표 안 문단은 여기 섞지 않고
 > `{"kind":"table_cell_paragraph","table_index":0,"row":0,"col":1,"cell_paragraph_index":0}` 같은 `location`
-> 객체로 지정하며, `get_table_map`/`find_text`가 반환한 값을 그대로 넘길 수 있습니다.
+> 객체로 지정하며, `find_text`가 반환한 값을 그대로 넘길 수 있습니다. `get_table_map`은 기본(`detail="compact"`)으로
+> 실제 칸만 한 번씩 싣고(병합은 `row_span`/`col_span`) 위치는 응답의 `cell_paragraph_location` 틀에 `table_index`·`row`·`col`을
+> 넣어 만듭니다. 칸마다 `location`이 든 이전 형태는 `detail="full"`로 받습니다.
 
 ## 환경 변수
 
