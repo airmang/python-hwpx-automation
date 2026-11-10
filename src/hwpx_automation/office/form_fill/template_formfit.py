@@ -110,8 +110,11 @@ def apply_template_formfit(
             destination=destination,
         )
 
-    source_path = Path(str(source or plan.get("source", {}).get("path") or ""))
-    destination_value = destination or plan.get("destination", {}).get("path")
+    source_value = source or _plan_path(plan, "source")
+    if not source_value:
+        raise ValueError("source is required")
+    source_path = Path(str(source_value))
+    destination_value = destination or _plan_path(plan, "destination")
     if not destination_value:
         raise ValueError("destination is required")
     destination_path = Path(str(destination_value))
@@ -122,6 +125,16 @@ def apply_template_formfit(
             "reason": "source-in-place edit refused",
             "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
             "destination": {"path": str(destination_path)},
+        }
+
+    if os.path.lexists(destination_path):
+        # Copy-only contract: an existing file is never replaced.
+        return {
+            "handoff_status": "blocked",
+            "reason": "destination already exists",
+            "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
+            "destination": {"path": str(destination_path)},
+            "persisted": False,
         }
 
     unresolved = list(plan.get("unresolved") or [])
@@ -170,7 +183,7 @@ def apply_template_formfit(
             plan.get("residual_marker_policy") or {},
         )
         destination_hash = _sha256_file(tmp_path)
-        os.replace(tmp_path, destination_path)
+        _publish_new_file(tmp_path, destination_path)
     except BaseException:
         tmp_path.unlink(missing_ok=True)
         raise
@@ -210,6 +223,36 @@ def apply_template_formfit(
         "visual_review_regions": list(plan.get("visual_review_regions") or []),
         "persisted": True,
     }
+
+
+def _plan_path(plan: Mapping[str, Any], key: str) -> str | None:
+    entry = plan.get(key)
+    if entry is None:
+        return None
+    if not isinstance(entry, Mapping):
+        raise ValueError(f"analysis.{key} must be an object with a path")
+    value = entry.get("path")
+    if value is None:
+        return None
+    if not isinstance(value, (str, os.PathLike)) or not str(value).strip():
+        raise ValueError(f"analysis.{key}.path must be a non-empty path")
+    return str(value)
+
+
+def _publish_new_file(tmp_path: Path, destination_path: Path) -> None:
+    """Move the finished copy into place without replacing an existing file."""
+
+    try:
+        os.link(tmp_path, destination_path)
+    except FileExistsError:
+        raise
+    except OSError:
+        # No hard links on this filesystem: fall back to a checked rename.
+        if os.path.lexists(destination_path):
+            raise FileExistsError(str(destination_path)) from None
+        os.replace(tmp_path, destination_path)
+        return
+    tmp_path.unlink(missing_ok=True)
 
 
 def _load_baseline(baseline: Mapping[str, Any] | str | Path) -> dict[str, Any]:
