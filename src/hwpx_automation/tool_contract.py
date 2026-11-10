@@ -37,12 +37,12 @@ MIN_SKILL_VERSION = "2.0.0"
 RELEASED_CONTRACT_HASH = "c3f17979a7b9a38d"
 
 
-def describe_callables(entries: Any) -> Any:
+def describe_callables(entries: Any, **live: Any) -> Any:
     """Load the optional FastMCP schema adapter only for explicit binding."""
 
     from .fastmcp_adapter import describe_callables as implementation
 
-    return implementation(entries)
+    return implementation(entries, **live)
 
 
 def register_canonical_tool(*args: Any, **kwargs: Any) -> Any:
@@ -755,12 +755,20 @@ def bind_tool_specs(
     namespace: Mapping[str, Any],
     *,
     advanced: bool | None = None,
+    live_server: Any = None,
+    live_advanced: bool = False,
 ) -> RegisteredToolRegistry:
     """Resolve callable identity and normalized schemas before registration.
 
     Every missing/non-callable binding and every schema-signature failure is
     reported together, so import/programming errors cannot produce a silently
     degraded partial registry.
+
+    With *live_server*, the tools of the ``live_advanced`` profile are
+    registered on that server while their schemas are derived, in contract
+    order, instead of being registered a second time afterwards. Callable
+    resolution still completes for every spec first, so a missing binding
+    fails before anything reaches the live server.
     """
 
     # Keep the static ToolSpec/classification contract importable in the base
@@ -793,8 +801,22 @@ def bind_tool_specs(
     if errors:
         raise RuntimeError("ToolSpec binding failed:\n- " + "\n- ".join(errors))
 
+    live: dict[str, Any] = {}
+    if live_server is not None:
+        live_specs = active_tool_specs(advanced=live_advanced)
+        functions = {spec.name: function for spec, function, _signature in resolved}
+        live = {
+            "live_server": live_server,
+            "live_names": frozenset(spec.name for spec in live_specs),
+            "live_callables": {
+                spec.name: _deprecated_wrapper(spec, functions[spec.name])
+                for spec in live_specs
+                if spec.classification is ToolClassification.DEPRECATED
+                and spec.name in functions
+            },
+        }
     try:
-        snapshots = describe_callables(schema_entries)
+        snapshots = describe_callables(schema_entries, **live)
     except Exception as exc:
         raise RuntimeError(f"ToolSpec schema binding failed: {exc}") from exc
 
@@ -826,9 +848,8 @@ def bind_tool_specs(
     return RegisteredToolRegistry(tuple(bound))
 
 
-def _deprecated_wrapper(item: BoundToolSpec) -> Callable[..., Any]:
-    replacement_tools = item.spec.replacement_tools
-    function = item.function
+def _deprecated_wrapper(spec: ToolSpec, function: Callable[..., Any]) -> Callable[..., Any]:
+    replacement_tools = spec.replacement_tools
 
     @functools.wraps(function)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
@@ -839,7 +860,7 @@ def _deprecated_wrapper(item: BoundToolSpec) -> Callable[..., Any]:
                 "deprecation",
                 {
                     "status": "deprecated",
-                    "tool": item.spec.name,
+                    "tool": spec.name,
                     "replacementTools": list(replacement_tools),
                     "message": "This tool is retained for one transition release.",
                 },
@@ -857,33 +878,26 @@ def register_fastmcp_tools(
     *,
     advanced: bool,
 ) -> RegisteredToolRegistry:
-    """Bind the full contract, then register the selected deterministic profile."""
+    """Bind the full contract and register the selected deterministic profile.
+
+    Binding and registration are one pass: each active tool is registered on
+    *mcp* once and the same registration provides its contract schema (see
+    :func:`bind_tool_specs`). The live registry is then compared with the
+    canonical registry -- names, order, callable identity, descriptions and
+    both schemas -- before the server may start. The equivalence of this
+    single-pass result with an independent throwaway-server derivation is
+    asserted by ``tests/test_audit_startup_registration.py``.
+    """
 
     global _BOUND_TOOL_REGISTRY
-    canonical = bind_tool_specs(namespace, advanced=None)
+    canonical = bind_tool_specs(
+        namespace, advanced=None, live_server=mcp, live_advanced=advanced
+    )
     _BOUND_TOOL_REGISTRY = canonical
     canonical_by_name = canonical.by_name()
     active = RegisteredToolRegistry(
         tuple(canonical_by_name[spec.name] for spec in active_tool_specs(advanced=advanced))
     )
-    for item in active.tools:
-        function = (
-            _deprecated_wrapper(item)
-            if item.spec.classification is ToolClassification.DEPRECATED
-            else item.function
-        )
-        register_canonical_tool(
-            mcp,
-            name=item.spec.name,
-            func=function,
-            description=item.description,
-            meta={
-                "hwpxLifecycle": item.spec.classification.value,
-                "hwpxProfile": item.spec.profile.value,
-                "hwpxMutates": item.spec.mutates,
-                "hwpxReplacementTools": list(item.spec.replacement_tools),
-            },
-        )
     report = validate_registered_tools(mcp, active)
     if not report["ok"]:
         raise RuntimeError(f"FastMCP registry validation failed: {report!r}")

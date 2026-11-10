@@ -49,11 +49,26 @@ class FastMcpToolSnapshot:
 StrictCallHandler = Callable[[mcp_types.CallToolRequest], Awaitable[Any]]
 
 
+# The installed SDK version cannot change inside one process. Looking it up
+# through importlib.metadata costs about a millisecond and every registration
+# step asks three times: 795 lookups, roughly a second, per server start
+# (audit EFF-03). The answer is remembered together with the lookup function it
+# came from, so a test that swaps ``distribution_version`` still gets a fresh
+# read, and every caller still passes through the audited-patch check below.
+_MCP_VERSION_MEMO: tuple[Any, str] | None = None
+
+
 def _installed_mcp_version() -> str:
+    global _MCP_VERSION_MEMO
+    memo = _MCP_VERSION_MEMO
+    if memo is not None and memo[0] is distribution_version:
+        return memo[1]
     try:
-        return distribution_version("mcp")
+        installed = distribution_version("mcp")
     except PackageNotFoundError as exc:  # pragma: no cover - required dependency
         raise FastMcpAdapterError("the MCP SDK distribution is unavailable") from exc
+    _MCP_VERSION_MEMO = (distribution_version, installed)
+    return installed
 
 
 def _require_audited_mcp_patch() -> str:
@@ -587,12 +602,41 @@ def _register(
 
 def describe_callables(
     entries: list[tuple[str, Callable[..., Any], str, Mapping[str, Any]]],
+    *,
+    live_server: Any = None,
+    live_names: frozenset[str] = frozenset(),
+    live_callables: Mapping[str, Callable[..., Any]] | None = None,
 ) -> dict[str, FastMcpToolSnapshot]:
-    """Build schemas for every public callable, including inactive advanced tools."""
+    """Build schemas for every public callable, including inactive advanced tools.
+
+    Without *live_server* every callable is registered on a throwaway FastMCP
+    and only its schema snapshot is kept (the independent derivation the tests
+    compare the running server against).
+
+    With *live_server*, a callable named in *live_names* is registered once, on
+    the real server, and that one registration also yields its snapshot: the
+    128 active tools are no longer registered twice per start (audit EFF-03).
+    Entries keep their order, so the live registry is filled in contract order.
+    A name in *live_callables* is served through that wrapper instead of the
+    plain callable; its schema still comes from the plain callable on the
+    throwaway server, exactly as before.
+    """
 
     schema_server = FastMCP("hwpx-tool-contract-schema")
+    wrappers = live_callables or {}
     snapshots: dict[str, FastMcpToolSnapshot] = {}
     for name, func, description, meta in entries:
+        goes_live = live_server is not None and name in live_names
+        wrapper = wrappers.get(name) if goes_live else None
+        if goes_live and wrapper is None:
+            snapshots[name] = _register(
+                live_server,
+                name=name,
+                func=func,
+                description=description,
+                meta=meta,
+            )
+            continue
         snapshots[name] = _register(
             schema_server,
             name=name,
@@ -600,6 +644,15 @@ def describe_callables(
             description=description,
             meta=meta,
         )
+        if goes_live:
+            assert wrapper is not None
+            _register(
+                live_server,
+                name=name,
+                func=wrapper,
+                description=description,
+                meta=meta,
+            )
     return snapshots
 
 
