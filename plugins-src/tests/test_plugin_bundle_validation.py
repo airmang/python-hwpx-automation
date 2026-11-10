@@ -118,7 +118,13 @@ def test_packaging_carries_identity_changelog_and_toc_but_not_qa_fixture_routes(
         for path in (ROOT / "examples").iterdir()
         if path.is_file() and path.suffix in {".py", ".md"}
     }
-    assert user_examples <= assets
+    # The task-eval replay walkthrough documents a maintainer tool that no bundle ships.
+    maintainer_only = {"examples/12_task_eval_replay.md"}
+    assert maintainer_only <= user_examples
+    assert user_examples - maintainer_only <= assets
+    assert not maintainer_only & assets
+    assert "scripts/task_eval_harness.py" not in assets
+    assert "references/tool-contract.generated.json" not in assets
     assert "references/workflows-visual-fixture-qa.md" not in assets
     assert "references/workflows-fixture-benchmark.md" not in assets
     assert "scripts/plugin_fixture_qa_e2e.py" not in assets
@@ -322,44 +328,38 @@ def test_api_reference_requires_current_open_safety_stack() -> None:
         assert "2.5.0" not in text
 
 
-def test_task_eval_harness_assets_are_bundled() -> None:
+def test_developer_replay_kit_stays_in_the_repository_not_in_bundles() -> None:
+    """No runtime or skill text reads these; they made up over half of three bundles (audit EFF-11)."""
     bundles = sorted((ROOT / "plugins").glob("*/hwpx*"))
-    assert bundles
+    assert len(bundles) == 4
 
     for bundle in bundles:
         skill_root = bundle / "skills" / "hwpx"
         if not skill_root.exists():
             skill_root = bundle
-        if bundle.parent.name == "claude":
-            # The Claude bundle carries the vendored engine and must stay under the
-            # directory's 512-file limit, so the developer replay kit stays out of it.
-            assert not (skill_root / "scripts" / "task_eval_harness.py").exists()
-            assert not (skill_root / "examples" / "eval_tasks").exists()
-            continue
-        assert (skill_root / "scripts" / "task_eval_harness.py").exists()
-        assert (skill_root / "examples" / "12_task_eval_replay.md").exists()
-        assert (skill_root / "examples" / "eval_tasks" / "tasks.json").exists()
-        assert (
-            skill_root
-            / "examples"
-            / "eval_tasks"
-            / "profiles"
-            / "current-1.0.0.json"
-        ).exists()
-        assert (
-            skill_root
-            / "examples"
-            / "eval_tasks"
-            / "profiles"
-            / "current-1.1.0.json"
-        ).exists()
-        assert (
-            skill_root
-            / "examples"
-            / "eval_tasks"
-            / "profiles"
-            / "current-0.1.6.json"
-        ).exists()
+        assert not (skill_root / "scripts" / "task_eval_harness.py").exists(), bundle
+        assert not (skill_root / "examples" / "12_task_eval_replay.md").exists(), bundle
+        assert not (skill_root / "examples" / "eval_tasks").exists(), bundle
+        assert not (skill_root / "references" / "tool-contract.generated.json").exists(), bundle
+        assert (skill_root / "references" / "tool-contract.generated.md").is_file(), bundle
+        for doc in skill_root.rglob("*.md"):
+            if "engine" in doc.relative_to(skill_root).parts or doc.name == "CHANGELOG.md":
+                continue
+            text = doc.read_text(encoding="utf-8")
+            assert "tool-contract.generated.json" not in text, doc
+            assert "task_eval_harness" not in text, doc
+
+    # The kit itself is still in the repository for maintainers.
+    assert (ROOT / "scripts" / "task_eval_harness.py").is_file()
+    assert (ROOT / "examples" / "eval_tasks" / "tasks.json").is_file()
+    assert (ROOT / "references" / "tool-contract.generated.json").is_file()
+
+
+def test_claude_bundle_keeps_headroom_under_the_directory_file_limit() -> None:
+    bundle = ROOT / "plugins" / "claude" / "hwpx-plugin"
+    files = [path for path in bundle.rglob("*") if path.is_file() and "__pycache__" not in path.parts]
+    assert len(files) <= 500, len(files)
+    assert not list((bundle / "skills" / "hwpx" / "references").glob("release-2026-*.md"))
 
 
 def test_generated_bundles_carry_toc_changelog_identity_and_exclude_internal_qa() -> None:
@@ -396,9 +396,9 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
         assert release.get("publicationEvidence") is None
     assert identity["currentPublicStack"]["plugin"]["version"] == release["currentPublic"]["plugin"]
     assert components["core"]["currentVersion"] == release["candidate"]["pythonHwpx"]
-    assert components["core"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text())["minPythonHwpx"]
+    assert components["core"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text(encoding="utf-8"))["minPythonHwpx"]
     assert components["automation"]["currentVersion"] == identity["releaseState"]["candidate"]["canonicalAutomation"]
-    assert components["automation"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text())["minAutomationVersion"]
+    assert components["automation"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text(encoding="utf-8"))["minAutomationVersion"]
     assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
     assert components["automation"]["hostConfigKey"] == "hwpx"
     assert components["automation"]["hostConfigKeyKind"] == "local-alias"
@@ -464,9 +464,9 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
     readme_path = checkout / "README.md"
     api_path = checkout / "references" / "api.md"
     cross_readme_path = checkout / "packaging" / "s080-cross-repo-readme-wording.md"
-    readme = readme_path.read_text().replace(previous_status, status)
-    api = api_path.read_text().replace(previous_status, status)
-    cross_readme = cross_readme_path.read_text().replace(previous_status, status)
+    readme = readme_path.read_text(encoding="utf-8").replace(previous_status, status)
+    api = api_path.read_text(encoding="utf-8").replace(previous_status, status)
+    cross_readme = cross_readme_path.read_text(encoding="utf-8").replace(previous_status, status)
     if status != "released":
         public = identity["releaseState"]["currentPublic"]
         # A released source checkout no longer describes the previous train.
@@ -789,7 +789,7 @@ def test_released_state_requires_observed_publication_evidence():
     identity = _identity()
     identity["releaseState"]["status"] = "released"
     identity["releaseState"]["publicationEvidence"] = None
-    config = json.loads((ROOT / "packaging/hosts.json").read_text())
+    config = json.loads((ROOT / "packaging/hosts.json").read_text(encoding="utf-8"))
     with pytest.raises(SystemExit, match="publicationEvidence"):
         validator.validate_product_identity(config, identity)
 
@@ -909,7 +909,8 @@ def test_host_install_guides_register_the_current_skill_version(template: str) -
     validator = _validator_module()
     version = _identity()["components"]["plugin"]["currentVersion"]
     path = ROOT / "packaging" / "templates" / template
-    text = path.read_text(encoding="utf-8")
+    # The template takes its coordinates from product-identity.json at build time.
+    text = validator._bundle_builder().render_install_guide(path.read_text(encoding="utf-8"), _identity())
     validator.validate_host_install_skill_version(text, path, version)
 
     stale = re.sub(

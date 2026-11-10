@@ -10,3 +10,24 @@ updates:
       github-actions:
         patterns: ["*"]
     open-pull-requests-limit: 5
+  # Transitive dependencies of the Claude bundle's locked runtime (pillow, certifi,
+  # mcp's own dependencies, ...). The two engine pins move only through
+  # scripts/refresh_claude_runtime.py, which also re-vendors the skill's engine copy.
+  # A pull request from here changes the template lock only: run
+  # scripts/build_hwpx_plugins.py on it so plugins/claude/hwpx-plugin/server/uv.lock follows.
+  - package-ecosystem: uv
+    directory: /packaging/templates/claude-runtime
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Seoul
+    allow:
+      - dependency-type: all
+    ignore:
+      - dependency-name: python-hwpx
+      - dependency-name: python-hwpx-automation
+      - dependency-name: tomli
+    groups:
+      claude-runtime-transitive:
+        patterns: ["*"]
+    open-pull-requests-limit: 3

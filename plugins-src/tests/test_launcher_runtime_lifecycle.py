@@ -39,7 +39,7 @@ LAUNCH_COMMAND = ["bash", str(TEMPLATE)]
 @pytest.fixture(params=["canonical", "codex"], autouse=True)
 def launcher_host(request, monkeypatch):
     if request.param == "codex":
-        config = json.loads((ROOT / "plugins/codex/hwpx-plugin/.mcp.json").read_text())["mcpServers"]["hwpx"]
+        config = json.loads((ROOT / "plugins/codex/hwpx-plugin/.mcp.json").read_text(encoding="utf-8"))["mcpServers"]["hwpx"]
         monkeypatch.setattr(sys.modules[__name__], "LAUNCH_COMMAND", [config["command"], *config["args"]])
 
 
@@ -80,7 +80,7 @@ def _state(env_dir: Path) -> dict:
 
 def _uv_calls(env: dict[str, str]) -> list[list[str]]:
     path = Path(env["FAKE_UV_CALLS"])
-    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
 
 
 def _no_leftovers(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ def test_cold_start_builds_one_generation_and_points_current(tmp_path: Path) -> 
     assert result.stdout.startswith("usage: hwpx-automation-mcp")
     env_dir = _env_dir(tmp_path)
     assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
-    assert (env_dir / "current").read_text().strip() == f"gen-{CORE}-{AUTOMATION}"
+    assert (env_dir / "current").read_text(encoding="utf-8").strip() == f"gen-{CORE}-{AUTOMATION}"
     assert (env_dir / "last-check").exists()
     state = _state(env_dir)
     assert state["schemaVersion"] == "hwpx.stack-update-state.v1"
@@ -187,7 +187,7 @@ def test_refresh_installs_a_newer_generation_and_repoints_current(tmp_path: Path
     assert _refresh(env).returncode == 0
     env_dir = _env_dir(tmp_path)
     assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}", f"gen-{CORE_PATCH_1}-{AUTOMATION}"]
-    assert (env_dir / "current").read_text().strip() == f"gen-{CORE_PATCH_1}-{AUTOMATION}"
+    assert (env_dir / "current").read_text(encoding="utf-8").strip() == f"gen-{CORE_PATCH_1}-{AUTOMATION}"
     assert _state(env_dir)["runtime"]["installed"]["python-hwpx"] == CORE_PATCH_1
     served = _launch(env, "x")
     assert served.stdout.startswith(f"FAKE-SERVER core={CORE_PATCH_1} automation={AUTOMATION} ")
@@ -201,7 +201,7 @@ def test_refresh_keeps_current_when_the_candidate_fails_the_self_check(tmp_path:
     assert _refresh(env).returncode == 0
     env_dir = _env_dir(tmp_path)
     assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
-    assert (env_dir / "current").read_text().strip() == f"gen-{CORE}-{AUTOMATION}"
+    assert (env_dir / "current").read_text(encoding="utf-8").strip() == f"gen-{CORE}-{AUTOMATION}"
     state = _state(env_dir)
     assert state["runtime"]["latestAvailable"]["python-hwpx"] == CORE_PATCH_1
     assert "self-check" in state["lastError"]
@@ -228,7 +228,7 @@ def test_refresh_preserves_all_generations_for_running_servers(tmp_path: Path) -
         assert _refresh(env).returncode == 0
     env_dir = _env_dir(tmp_path)
     assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}", f"gen-{CORE_PATCH_1}-{AUTOMATION}", f"gen-{CORE_PATCH_2}-{AUTOMATION}"]
-    assert (env_dir / "current").read_text().strip() == f"gen-{CORE_PATCH_2}-{AUTOMATION}"
+    assert (env_dir / "current").read_text(encoding="utf-8").strip() == f"gen-{CORE_PATCH_2}-{AUTOMATION}"
 
 
 def test_refresh_is_not_spawned_when_auto_update_is_off_or_request_is_exact(tmp_path: Path) -> None:
@@ -255,15 +255,15 @@ def test_detached_refresh_never_delays_server_start(tmp_path: Path) -> None:
     assert elapsed < 3.0, f"start blocked on the refresh job: {elapsed:.1f}s"
     env_dir = _env_dir(tmp_path)
     deadline = time.monotonic() + 30
-    while time.monotonic() < deadline and (env_dir / "current").read_text().strip() != f"gen-{CORE_PATCH_1}-{AUTOMATION}":
+    while time.monotonic() < deadline and (env_dir / "current").read_text(encoding="utf-8").strip() != f"gen-{CORE_PATCH_1}-{AUTOMATION}":
         time.sleep(0.5)
-    assert (env_dir / "current").read_text().strip() == f"gen-{CORE_PATCH_1}-{AUTOMATION}"
+    assert (env_dir / "current").read_text(encoding="utf-8").strip() == f"gen-{CORE_PATCH_1}-{AUTOMATION}"
     assert (env_dir / "refresh.log").exists()
 
 
 def test_refresh_records_the_latest_plugin_bundle_from_identity(tmp_path: Path) -> None:
     identity = tmp_path / "identity.json"
-    identity.write_text(json.dumps({"components": {"plugin": {"currentVersion": "10.0.0"}}, "releaseState": {"currentPublic": {"plugin": "9.9.9"}}}))
+    identity.write_text(json.dumps({"components": {"plugin": {"currentVersion": "10.0.0"}}, "releaseState": {"currentPublic": {"plugin": "9.9.9"}}}), encoding="utf-8")
     env = _env(tmp_path, HWPX_STACK_IDENTITY_URL=identity.as_uri())
     assert _launch(env, "--help").returncode == 0
     assert _refresh(env).returncode == 0
@@ -280,7 +280,7 @@ def test_cold_start_repairs_into_a_new_slot_when_console_is_missing(tmp_path: Pa
     result = _launch(env, "--help")
     assert result.returncode == 0, result.stderr
     assert not (gen / "bin" / "hwpx-automation-mcp").exists()
-    repaired = env_dir / (env_dir / "current").read_text().strip()
+    repaired = env_dir / (env_dir / "current").read_text(encoding="utf-8").strip()
     assert repaired != gen and (repaired / "bin/hwpx-automation-mcp").is_file()
     assert len(_generations(env_dir)) == 2
     assert not list(env_dir.glob("gen-*.broken.*"))
@@ -291,10 +291,10 @@ def test_cold_start_repairs_into_a_new_slot_when_console_is_missing(tmp_path: Pa
 def test_candidate_console_failure_never_replaces_current(tmp_path: Path, failure: str) -> None:
     env = _env(tmp_path)
     assert _launch(env, "--help").returncode == 0
-    original = (_env_dir(tmp_path) / "current").read_text()
+    original = (_env_dir(tmp_path) / "current").read_text(encoding="utf-8")
     env.update(FAKE_UV_INDEX=json.dumps(INDEX_V2), FAKE_UV_CONSOLE_FAIL=failure)
     assert _refresh(env).returncode == 0
-    assert (_env_dir(tmp_path) / "current").read_text() == original
+    assert (_env_dir(tmp_path) / "current").read_text(encoding="utf-8") == original
     assert _state(_env_dir(tmp_path))["lastError"]
     assert _launch(env, "--transport", "stdio").returncode == 0
     _no_leftovers(tmp_path)
@@ -316,14 +316,14 @@ def test_same_version_slot_requires_full_validation_before_reuse(tmp_path: Path)
     env = _env(tmp_path)
     assert _launch(env, "--help").returncode == 0
     env_dir = _env_dir(tmp_path)
-    old = env_dir / (env_dir / "current").read_text().strip()
+    old = env_dir / (env_dir / "current").read_text(encoding="utf-8").strip()
     bad = env_dir / f"gen-{CORE_PATCH_1}-{AUTOMATION}"
     shutil.copytree(old, bad, symlinks=True)
     package = next(bad.glob("lib/python*/site-packages/hwpx/__init__.py"))
-    package.write_text('raise ImportError("old broken slot")\n')
+    package.write_text('raise ImportError("old broken slot")\n', encoding="utf-8")
     env["FAKE_UV_INDEX"] = json.dumps(INDEX_V2)
     assert _refresh(env).returncode == 0
-    current = env_dir / (env_dir / "current").read_text().strip()
+    current = env_dir / (env_dir / "current").read_text(encoding="utf-8").strip()
     assert current.name.startswith(f"gen-{CORE_PATCH_1}-{AUTOMATION}-repair-")
     assert bad.exists() and old.exists()
     assert _state(env_dir)["lastError"] is None

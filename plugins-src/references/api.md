@@ -15,7 +15,7 @@
 | 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=6.6.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.3.1,<8` |
 
 - import 이름은 `hwpx`다.
-- 코어의 공개 성숙도는 `Development Status :: 3 - Alpha`이고 MCP/플러그인의 성숙도는
+- 코어의 공개 성숙도는 검증 좌표 6.6.0 기준 `Development Status :: 3 - Alpha`(6.10.0부터 `4 - Beta`)이고 MCP/플러그인의 성숙도는
   아직 선언하지 않았다. 공개 릴리스나 호환성 숫자를 성숙도 주장으로 바꾸지 않는다.
 - 최종 산출물을 만들 때는 `validate_editor_open_safety(path).ok == True` 또는 MCP 응답의 `openSafety.ok == true` / `verification.openSafety.ok == true`를 handoff evidence로 남긴다.
 
@@ -143,7 +143,9 @@ with HwpxDocument.open("input.hwpx") as doc:
 
 - 빈 검색어는 허용되지 않는다.
 - `replace_text_in_runs()`는 런 단위로 동작한다.
-- 표 셀까지 보장되는 전역 치환이 필요하면 번들 스크립트 `scripts/zip_replace_all.py`를 사용한다.
+- 표 셀까지 보장되는 전역 치환이 필요하면 번들 스크립트 `scripts/zip_replace_all.py`를 사용한다. 글(텍스트 노드)만 바꾸고
+  속성 값(글꼴 이름·크기·ID)은 건드리지 않는다. 값의 `&`·`<`는 이스케이프하고 줄바꿈은 `hp:lineBreak`로 넣는다.
+  한 낱말이 두 run에 걸쳐 있으면 찾지 못하고, 맞는 글이 없으면 경고를 낸다.
 
 ### 내보내기
 
@@ -353,7 +355,7 @@ from hwpx_automation.office.document_ops import build_mail_merge
 placeholders = inspect_mail_merge_placeholders("template.hwpx")
 assert "student" in placeholders["keys"]
 
-report = mail_merge(
+report = build_mail_merge(
     "template.hwpx",
     [{"student": "김하나", "class_name": "1-1", "teacher": "이교사"}],
     output_dir="out/notices",
@@ -593,7 +595,7 @@ MCP 응답에서 확인할 필드:
 6.7.1 후보 `python-hwpx-automation`의 트랜잭션·서식·그림·비교·생성기·문서 지도 도구 요약이다.
 사용 절차는 `workflows-agent-document.md` / `workflows-editing.md` /
 `workflows-bulk-compare.md`를 본다. 지원 인자와 응답 증거는 도구별로 다르며 아래 표와
-`tool-contract.generated.json`의 실제 스키마를 따른다.
+MCP 서버가 알려 주는 도구 스키마를 따른다(도구 목록·프로필은 [`tool-contract.generated.md`](tool-contract.generated.md)).
 
 | 도구 | 시그니처 (주요 인자) | 핵심 응답 키 |
 |---|---|---|
@@ -643,7 +645,7 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 
 - 손상된 ZIP/OWPML 구조를 다룰 때는 `HwpxPackageError`, `HwpxStructureError`를 잡는다.
 - `.hwp`(HWP 5.0)는 `HwpxDocument.open`으로 연다(python-hwpx 6.6.0 이상). `HwpxPackage.open`은 HWPX 전용이라 `.hwp`를 `BadZipFile`로 거부한다. 저장 형식은 출력 경로의 확장자가 정한다(`.hwp` → HWP 5.0). 쓸 수 없는 내용은 `Hwp5Error`(`hwp5-write-unsupported`)로 저장 전에 거부되므로 `.hwpx`로 저장할지 사용자에게 묻는다. `doc.conversion_report`의 `unconverted`·`dropped`는 사용자에게 알린다.
-- ZIP-level 문자열 치환은 `scripts/zip_replace_all.py`를 사용한다. 이 helper는 임시 파일을 만든 뒤 `validate_editor_open_safety()`를 통과한 경우에만 target을 교체한다.
+- 패키지 전체의 글 치환은 `scripts/zip_replace_all.py`를 사용한다(XML 원문이 아니라 텍스트 노드만 바꾼다). 이 helper는 임시 파일을 만든 뒤 `validate_editor_open_safety()`를 통과한 경우에만 target을 교체한다.
 - namespace 정리만 필요하면 `scripts/fix_namespaces.py`를 사용한다. 이 helper도 open-safety 검증 실패 시 기존 target을 보존한다.
 - ZIP 자체가 열리지 않거나 `mimetype` 첫 엔트리/CRC 오류가 있으면 편집 전에 `repair_hwpx` 또는 `hwpx-repair`로 복구 복사본을 만든다.
 

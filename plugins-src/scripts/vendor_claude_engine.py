@@ -139,7 +139,7 @@ def vendor() -> dict:
         "coreDocs": docs,
         "files": {rel: sha256_bytes(data) for rel, data in sorted(files.items())},
     }
-    MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
     return manifest
 
 

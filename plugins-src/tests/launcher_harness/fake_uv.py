@@ -82,7 +82,7 @@ def _site_packages(python: Path) -> Path:
 
 def _installed(python: Path) -> dict[str, str]:
     marker = _site_packages(python) / "fake-installed.json"
-    return json.loads(marker.read_text()) if marker.exists() else {}
+    return json.loads(marker.read_text(encoding="utf-8")) if marker.exists() else {}
 
 
 def _write_stub(python: Path, name: str, version: str) -> None:
@@ -91,14 +91,15 @@ def _write_stub(python: Path, name: str, version: str) -> None:
     module = site / MODULE_FOR[name]
     module.mkdir(exist_ok=True)
     if name == "python-hwpx" and os.environ.get("FAKE_UV_BROKEN_VERSION") == version:
-        (module / "__init__.py").write_text('raise ImportError("fake broken python-hwpx build")\n')
+        (module / "__init__.py").write_text('raise ImportError("fake broken python-hwpx build")\n', encoding="utf-8")
     else:
-        (module / "__init__.py").write_text(f'__version__ = "{version}"\n')
+        (module / "__init__.py").write_text(f'__version__ = "{version}"\n', encoding="utf-8")
     if name == "python-hwpx-automation":
         ok = os.environ.get("FAKE_UV_CAPABILITY_OK", "1") == "1"
         (module / "quality.py").write_text(
             "def capability_state():\n"
-            f"    return {{'ok': {ok}, 'skew': {[] if ok else ['stub skew']!r}}}\n"
+            f"    return {{'ok': {ok}, 'skew': {[] if ok else ['stub skew']!r}}}\n",
+            encoding="utf-8",
         )
     for stale in site.glob(f"{DIST_FOR[name]}-*.dist-info"):
         for child in stale.iterdir():
@@ -106,10 +107,10 @@ def _write_stub(python: Path, name: str, version: str) -> None:
         stale.rmdir()
     dist = site / f"{DIST_FOR[name]}-{version}.dist-info"
     dist.mkdir()
-    (dist / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
+    (dist / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n", encoding="utf-8")
     installed = _installed(python)
     installed[name] = version
-    (site / "fake-installed.json").write_text(json.dumps(installed))
+    (site / "fake-installed.json").write_text(json.dumps(installed), encoding="utf-8")
     console = python.parent / "hwpx-automation-mcp"
     console.write_text(
         "#!/usr/bin/env bash\n"
@@ -123,7 +124,8 @@ def _write_stub(python: Path, name: str, version: str) -> None:
         'PY="$(cd "$(dirname "$0")" && pwd)/python"\n'
         'echo "FAKE-SERVER core=$("$PY" -c "from importlib.metadata import version; print(version(\'python-hwpx\'))") '
         'automation=$("$PY" -c "from importlib.metadata import version; print(version(\'python-hwpx-automation\'))") '
-        'state=${HWPX_STACK_UPDATE_STATE:-} args=$*"\n'
+        'state=${HWPX_STACK_UPDATE_STATE:-} args=$*"\n',
+        encoding="utf-8",
     )
     console.chmod(0o755)
 
@@ -139,7 +141,7 @@ def cmd_venv(args: list[str]) -> int:
         raise SystemExit("fake uv venv: exactly one directory expected")
     venv.EnvBuilder(with_pip=False, symlinks=True).create(target[0])
     # Stamp the venv so installs can prove the fake created it (see _site_packages).
-    (Path(target[0]) / FAKE_VENV_MARKER).write_text("created by tests/launcher_harness/fake_uv.py\n")
+    (Path(target[0]) / FAKE_VENV_MARKER).write_text("created by tests/launcher_harness/fake_uv.py\n", encoding="utf-8")
     return 0
 
 

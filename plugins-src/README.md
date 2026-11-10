@@ -50,10 +50,12 @@ codex plugin marketplace add airmang/hwpx-plugins
 codex plugin add hwpx-plugin@hwpx
 ```
 
-Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 고정한 검증 좌표로
-`uv run --frozen`으로 실행합니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 새 엔진은 CI 봇이 검증한 뒤 플러그인 업데이트로 전달합니다.
+Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 잠긴 정확한 버전으로
+`uv run --frozen`으로 실행합니다. 잠긴 버전은 아래 표의 검증 좌표가 아니라 설치 제약 창 안에서 갱신 절차가 마지막으로 올린 조합이며,
+값은 번들의 `server/pyproject.toml`에 적혀 있습니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 새 엔진은 CI 봇이 검증해 PR로 올리고, 유지보수자가 승인한 뒤 플러그인 업데이트로 전달합니다.
 Codex에서는 설치 뒤 번들 런처가 런타임을 하루 1회 같은 메이저 안의 최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
-`HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
+`HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. Codex 번들의 MCP 서버는 `bash`로 런처를 실행하므로,
+**Windows에서는 `bash`(Git for Windows의 Git Bash 또는 WSL)가 `PATH`에 있어야** 시작됩니다. `bash`가 없으면 서버가 뜨지 않습니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
 Claude Code는 `/plugin` → Marketplaces → `hwpx`에서 자동 업데이트를 켜거나
 `claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx`, Codex는
 `codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`를 실행합니다.
@@ -79,8 +81,9 @@ MCP 서버와 채팅 경로는 항상 같은 엔진 버전으로 함께 바뀝�
 첫 MCP 실행은 Python 3.12와 패키지를 내려받느라 오래 걸려 호스트의 시작 시간 제한에 걸릴 수 있습니다. 그때는 호스트를 다시
 시작하면 설치를 이어서 끝내고, Claude Code에서는 `MCP_TIMEOUT`(밀리초) 환경 변수로 제한을 늘릴 수 있습니다.
 
-Cursor는 canonical skill 파일을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.cursor/skills/hwpx/`)에 복사하고
-`.cursor/rules/hwpx.mdc` 트리거 룰을 둡니다. OpenClaw·Hermes는 각 호스트 번들(`plugins/openclaw/hwpx-plugin`,
+Cursor용 번들과 규칙 파일(`.mdc`)은 이 저장소에 없습니다. Cursor에서 쓰려면 canonical skill 파일(`SKILL.md`,
+`references/`, `scripts/`, `examples/`)을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.cursor/skills/hwpx/`)에 직접 복사합니다.
+이 경로는 CI가 검증하지 않습니다. OpenClaw·Hermes는 각 호스트 번들(`plugins/openclaw/hwpx-plugin`,
 `plugins/hermes/hwpx`)에 MCP 배선 안내가 함께 들어 있습니다. 저장소 이름 `hwpx-plugins`와 설치되는
 skill 이름 `hwpx`를 혼동하지 마세요.
 
@@ -105,7 +108,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 - **에이전트 온보딩 스킬** — `SKILL.md` 의사결정 트리로 요청 성격에 맞는 스크립트·MCP 도구를 스스로 선택
 - **문서 능력 한 벌** — 읽기·양식 채움·생성·편집·공문서·신구대조표·mail merge
 - **MCP 서버 동봉 배선** — 호스트별 MCP 설정과 런처가 포함되어 스킬과 도구가 한 번에 로드
-- **호스트별 번들** — Claude Code·Codex·Cursor·OpenClaw·Hermes 진입점을 한 canonical 소스에서 빌드
+- **호스트별 번들** — Claude Code·Codex·OpenClaw·Hermes 진입점을 한 canonical 소스에서 빌드
 - **신뢰 루프** — `render_preview` 페이지 PNG 자기검증, package/schema/text 검증, 시각 검토 기록
 
 자세한 내용: [SKILL.md](SKILL.md) · [references/](references/)
@@ -117,9 +120,10 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` |
 | 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 6.5.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` |
-| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 검증 좌표를 `uv.lock`으로 고정 | `python-hwpx[preview]>=6.6.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.3.1,<8` |
+| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 이 창 안의 한 조합을 `uv.lock`으로 고정(검증 좌표와 다를 수 있음. 값은 번들 `server/pyproject.toml`) | `python-hwpx[preview]>=6.6.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.3.1,<8` |
 
-- 코어 성숙도: `Development Status :: 3 - Alpha`. Python 기준은 3.10 이상입니다.
+- 코어 성숙도: 검증 좌표 `python-hwpx 6.6.0`의 패키지 분류는 `Development Status :: 3 - Alpha`이고, 6.10.0부터는
+  `Development Status :: 4 - Beta`입니다(설치 제약 창 안에서 새로 설치하면 Beta 분류 판을 받습니다). Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
 
 산출물이 실제 한컴오피스에서 열리는지는 코어가 동결 코퍼스 전수로 측정해 그대로
@@ -129,7 +133,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 
 Codex는 관리 런처를 실행합니다. Claude Code는 관리 런처 대신 `server/uv.lock`으로 잠긴 런타임을
 플러그인 폴더의 `server/.venv`에 설치합니다. 창 안의 새 엔진은 저장소의 CI 봇이 매일 확인해 전체 테스트를
-통과한 조합만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 됩니다.
+통과한 조합을 PR로 올리고, 유지보수자가 검토·승인한 것만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 됩니다.
 Codex 런처는 시작할 때 마지막 점검에서
 24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
 다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나

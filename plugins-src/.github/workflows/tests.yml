@@ -23,6 +23,13 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request replaces its running Tests run. Pushes to main and
+# dispatched runs (the Claude runtime refresh waits on one) each get their own
+# group, so they are never queued behind or cancelled by another run.
+concurrency:
+  group: tests-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   plugin-contract:
     runs-on: ubuntu-latest
@@ -136,6 +143,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.10", "3.12"]
+        exclude:
+          # plugin-contract already runs this simulation on Linux with 3.12.
+          - os: ubuntu-latest
+            python: "3.12"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

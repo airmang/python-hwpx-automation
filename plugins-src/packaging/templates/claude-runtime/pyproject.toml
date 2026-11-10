@@ -1,6 +1,8 @@
 # Locked runtime for the Claude Code plugin's MCP server.
-# Pins follow packaging/product-identity.json (currentVersion); regenerate
-# uv.lock with `uv lock --project packaging/templates/claude-runtime` after a bump.
+# Pins are exact versions inside the install window of packaging/product-identity.json
+# (>= currentVersion, < next major). scripts/refresh_claude_runtime.py moves them, so they
+# can be newer than the verified coordinates (currentVersion). Regenerate uv.lock with
+# `uv lock --project packaging/templates/claude-runtime` after a bump.
 [project]
 name = "hwpx-plugin-claude-runtime"
 version = "0"

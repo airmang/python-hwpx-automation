@@ -98,7 +98,7 @@ def test_calls_are_recorded(tmp_path: Path) -> None:
     calls = tmp_path / "calls.jsonl"
     env = _env(tmp_path, FAKE_UV_CALLS=str(calls))
     _uv(["python", "find"], env)
-    assert json.loads(calls.read_text().splitlines()[0]) == ["python", "find"]
+    assert json.loads(calls.read_text(encoding="utf-8").splitlines()[0]) == ["python", "find"]
 
 
 def test_install_refuses_interpreters_the_fake_did_not_create(tmp_path: Path) -> None:

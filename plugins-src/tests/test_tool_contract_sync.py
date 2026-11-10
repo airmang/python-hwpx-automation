@@ -81,15 +81,15 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert contract["advancedToolCount"] == len(contract["tools"])
 
 
-def test_every_host_bundle_carries_the_canonical_contract() -> None:
-    canonical = CONTRACT_PATH.read_bytes()
-    bundled = sorted((ROOT / "plugins").glob("**/tool-contract.generated.json"))
+def test_every_host_bundle_carries_the_canonical_markdown_contract_only() -> None:
+    canonical = CONTRACT_PATH.with_suffix(".md").read_bytes()
+    bundled = sorted((ROOT / "plugins").glob("**/tool-contract.generated.md"))
 
-    # The Claude bundle ships only the Markdown contract: the JSON is larger than the
-    # Claude plugin directory reads (256 KiB per file).
-    assert len(bundled) == 3
-    assert not (ROOT / "plugins" / "claude" / "hwpx-plugin" / "skills" / "hwpx" / "references" / "tool-contract.generated.json").exists()
+    # Bundles ship the Markdown contract. The JSON (694 KB) is read by no runtime
+    # or skill text, and is larger than the Claude plugin directory reads per file.
+    assert len(bundled) == 4
     assert all(path.read_bytes() == canonical for path in bundled)
+    assert not sorted((ROOT / "plugins").glob("**/tool-contract.generated.json"))
 
 
 def test_launcher_and_manifests_match_contract_minimums() -> None:

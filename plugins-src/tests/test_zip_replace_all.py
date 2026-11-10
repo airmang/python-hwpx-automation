@@ -28,7 +28,9 @@ def test_zip_replace_all_removes_layout_cache_from_changed_xml(tmp_path: Path) -
         archive.writestr("Contents/section0.xml", xml)
         archive.writestr("Contents/unchanged.xml", "<root><hp:lineSegArray xmlns:hp='x'/></root>")
 
-    stats = zip_replace_all_module._zip_replace_all_unchecked(
+    # The built-in replacer (engines without hwpx.patch.replace_package_text) also
+    # normalizes the section root; the engine API path keeps the root bytes.
+    stats = zip_replace_all_module._builtin_zip_replace_all(
         source,
         target,
         {"OLD": "NEW TEXT"},

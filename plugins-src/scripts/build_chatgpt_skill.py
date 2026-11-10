@@ -103,7 +103,7 @@ def refresh_lock() -> dict:
         "wheels": wheels,
         "coreDocs": docs,
     }
-    LOCK.write_text(json.dumps(lock, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    LOCK.write_text(json.dumps(lock, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"[OK] refreshed {LOCK.relative_to(ROOT)}")
     return lock
 
@@ -166,7 +166,7 @@ def copy_source_tree(src_root: Path, out: Path, lock: dict) -> None:
         dest = out / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         if src.suffix in TEMPLATE_SUFFIXES:
-            dest.write_text(render_template(src.read_text(encoding="utf-8"), lock), encoding="utf-8")
+            dest.write_text(render_template(src.read_text(encoding="utf-8"), lock), encoding="utf-8", newline="\n")
         else:
             shutil.copyfile(src, dest)
 
@@ -204,13 +204,14 @@ def assemble(lock: dict) -> Path:
         sums.append(f"{wheel['sha256']}  {wheel['filename']}")
         license_expr, url = wheel_license(data)
         notices.append(f"| {wheel['distribution']} | {wheel['version']} | {license_expr} | {url} |")
-    (wheel_dir / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
+    (wheel_dir / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8", newline="\n")
     (out / "THIRD_PARTY_NOTICES.md").write_text(
         "# Bundled software\n\n"
         "The wheels in `wheels/` are unmodified releases downloaded from PyPI and verified by sha256.\n"
         "Each wheel carries its full license text under `*.dist-info/licenses/`.\n\n"
         "| Distribution | Version | License | Source |\n|---|---|---|---|\n" + "\n".join(notices) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
     for doc in lock["coreDocs"]:
@@ -225,7 +226,7 @@ def assemble(lock: dict) -> Path:
         "automation": lock["versions"]["automation"],
         "wheels": [{"filename": w["filename"], "sha256": w["sha256"]} for w in lock["wheels"]],
     }
-    (out / "skill-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (out / "skill-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     return out
 
 

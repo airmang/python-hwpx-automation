@@ -1,7 +1,7 @@
 # 편집 워크플로 (트랜잭션·서식·그림·패치·프리뷰)
 
-기존 HWPX를 수정하는 주요 경로의 상세 계약. 정확한 후보 시그니처와 응답 키는
-`tool-contract.generated.json`을 정본으로 삼는다. 이전 공개 릴리스의 이름이나
+기존 HWPX를 수정하는 주요 경로의 상세 계약. 도구 이름·프로필·수명주기는
+[`tool-contract.generated.md`](tool-contract.generated.md)가 정본이고, 정확한 인자 스키마는 MCP 서버가 알려 주는 도구 스키마를 따른다. 이전 공개 릴리스의 이름이나
 버전을 이 문서의 현재 계약으로 사용하지 않는다.
 
 ## 1. 호환 트랜잭션 편집 루프 (`apply_edits`, compatibility facade)
@@ -296,6 +296,6 @@ run_edit_plan(plan, dry_run=False)
   `doc.save_to_path(path)`. 시그니처는 [`api.md`](api.md).
 - 런 수준 치환: `doc.replace_text_in_runs(...)`. 표 셀 포함 전역 치환:
   `python3 scripts/zip_replace_all.py input.hwpx output.hwpx --replace "키=값" [--auto-fix-ns]`
-  (open-safety 통과 시에만 대상 교체).
+  (텍스트 노드만 치환, 속성 값·글꼴 이름은 그대로. open-safety 통과 시에만 대상 교체).
 - ZIP-level 수정 후 네임스페이스 정리: `python3 scripts/fix_namespaces.py input.hwpx --inplace --backup`.
 - 저장 후에는 항상 `validate_editor_open_safety(path).ok == True`를 확인한다.

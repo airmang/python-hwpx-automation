@@ -124,7 +124,7 @@ def test_clean_install_smoke_exercises_the_derivation() -> None:
 
 
 def test_protocol_smoke_does_not_override_launcher_version_expectations():
-    text = (ROOT / "scripts/plugin_mcp_e2e.py").read_text()
+    text = (ROOT / "scripts/plugin_mcp_e2e.py").read_text(encoding="utf-8")
     assert "HWPX_PYTHON_HWPX_VERSION" not in text
     assert "HWPX_AUTOMATION_VERSION" not in text
 

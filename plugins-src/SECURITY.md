@@ -22,7 +22,9 @@ details and ask the maintainer for a private reporting channel.
 
 ## Supply-chain controls
 
-GitHub Actions are pinned to full commit SHAs, Dependabot monitors action updates,
+GitHub Actions are pinned to full commit SHAs, Dependabot monitors action updates and
+the Claude bundle's locked runtime (`packaging/templates/claude-runtime/uv.lock`), the
+Claude runtime refresh bot opens a pull request for maintainer review instead of writing to `main`,
 pull requests receive dependency review, and CodeQL scans the Python launchers and
 automation scripts. CI publishes a CycloneDX JSON SBOM for the tested runtime
 environment. Generated host bundles must match their canonical templates.

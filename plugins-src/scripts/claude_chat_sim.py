@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import chatgpt_sandbox_sim as chatgpt  # noqa: E402  (shared cases and block helpers)
 
 BUNDLE = ROOT / "plugins" / "claude" / "hwpx-plugin"
-ALLOWED_IMPORTS = chatgpt.ALLOWED_IMPORTS | {"glob"}
+ALLOWED_IMPORTS = chatgpt.ALLOWED_IMPORTS | {"glob", "tempfile"}
 
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:

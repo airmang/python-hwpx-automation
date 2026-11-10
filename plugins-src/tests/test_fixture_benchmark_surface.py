@@ -29,8 +29,8 @@ def _built_fixture(tmp_path: Path) -> tuple[object, Path]:
 def test_frozen_fixture_has_six_families_three_profiles_and_abstentions(tmp_path: Path) -> None:
     module, root = _built_fixture(tmp_path)
     report = module.validate(root)
-    manifest = json.loads((root / "manifest.json").read_text())
-    orders = json.loads((root / "work-orders.json").read_text())["orders"]
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    orders = json.loads((root / "work-orders.json").read_text(encoding="utf-8"))["orders"]
 
     assert report == {
         "ok": True,
@@ -45,8 +45,8 @@ def test_frozen_fixture_has_six_families_three_profiles_and_abstentions(tmp_path
 
 def test_fixture_never_claims_human_real_agent_hancom_or_replacement(tmp_path: Path) -> None:
     _, root = _built_fixture(tmp_path)
-    manifest = json.loads((root / "manifest.json").read_text())
-    result = json.loads((root / "result-manifest.json").read_text())
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    result = json.loads((root / "result-manifest.json").read_text(encoding="utf-8"))
     for value in (manifest, result):
         assert value["humanLabels"] is False
         assert value["humanControls"] is False
@@ -69,34 +69,34 @@ def test_committed_seed_matches_generated_inputs_and_has_blank_judges(tmp_path: 
     for relative in relatives:
         assert (FIXTURE / relative).read_bytes() == (root / relative).read_bytes()
 
-    passes = [json.loads(path.read_text()) for path in sorted((root / "judge-templates").glob("*.json"))]
+    passes = [json.loads(path.read_text(encoding="utf-8")) for path in sorted((root / "judge-templates").glob("*.json"))]
     assert [value["passId"] for value in passes] == ["judge-a", "judge-b"]
     assert all(value["judgeType"] == "agent_judge" for value in passes)
     assert all(value["independentInvocationRequired"] is True for value in passes)
     assert all(value["status"] == "unscored_template" and value["judgments"] == [] for value in passes)
     assert all(value["humanLabels"] is False for value in passes)
     for relative in (Path("judge-templates/judge-a.json"), Path("judge-templates/judge-b.json")):
-        committed = json.loads((FIXTURE / relative).read_text())
+        committed = json.loads((FIXTURE / relative).read_text(encoding="utf-8"))
         assert committed["status"] == "unscored_template"
         assert committed["judgments"] == []
 
 
 def test_hash_tamper_and_projection_drift_fail_closed(tmp_path: Path) -> None:
     module, copied = _built_fixture(tmp_path)
-    manifest = json.loads((copied / "manifest.json").read_text())
+    manifest = json.loads((copied / "manifest.json").read_text(encoding="utf-8"))
     manifest["workOrderCount"] = 71
-    (copied / "manifest.json").write_text(json.dumps(manifest))
+    (copied / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(ValueError, match="hash mismatch"):
         module.validate(copied)
 
-    (copied / "public/fixture-report.md").write_text("hand edited")
+    (copied / "public/fixture-report.md").write_text("hand edited", encoding="utf-8")
     with pytest.raises(ValueError, match="projection drift"):
         module.check_drift(copied / "result-manifest.json", copied / "public")
 
 
 def test_fixture_benchmark_tools_remain_repository_internal() -> None:
-    skill = (ROOT / "SKILL.md").read_text()
-    runner = (ROOT / "scripts/plugin_fixture_benchmark_e2e.py").read_text()
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    runner = (ROOT / "scripts/plugin_fixture_benchmark_e2e.py").read_text(encoding="utf-8")
     assert "`run_fixture_benchmark`" not in skill
     assert "`export_fixture_benchmark`" not in skill
     assert '"run_fixture_benchmark"' in runner

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shlex
 import shutil
 from pathlib import Path
@@ -49,6 +50,61 @@ def render_mcp_config(template: str, launcher: str) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
 
+INSTALL_GUIDE_TOKEN = "{{HWPX_"
+
+
+def install_guide_values(identity: dict) -> dict[str, str]:
+    """Coordinates the direct-host install guides print, all from product-identity.json."""
+    constraint = identity["installConstraint"]
+    public = identity["currentPublicStack"]
+    components = identity["components"]
+    public_stack = (
+        f"`{public['core']['distribution']} {public['core']['version']}` / "
+        f"`{public['application']['distribution']} {public['application']['version']}` / "
+        f"`{public['plugin']['installedPluginId']} {public['plugin']['version']}`"
+    )
+    status = identity["releaseState"]["status"]
+    if status == "released":
+        release_note = (
+            f"The coordinates below belong to the current public release: {public_stack}. "
+            "The install window follows newer engine releases inside the same major."
+        )
+    else:
+        candidate = (
+            f"`{components['core']['distribution']} {components['core']['currentVersion']}` / "
+            f"`{components['automation']['distribution']} {components['automation']['currentVersion']}` / "
+            f"`{components['plugin']['installedPluginId']} {components['plugin']['currentVersion']}`"
+        )
+        release_note = (
+            f"Release state `{status}`: the coordinates below ({candidate}) are carried for "
+            f"pre-release verification and are not yet the public release. The current public release is {public_stack}."
+        )
+    return {
+        "{{HWPX_CORE_CONSTRAINT}}": constraint["core"],
+        "{{HWPX_AUTOMATION_CONSTRAINT}}": constraint["automation"],
+        "{{HWPX_CORE_RANGE}}": constraint["core"].split("]", 1)[1],
+        "{{HWPX_AUTOMATION_RANGE}}": constraint["automation"].split("]", 1)[1],
+        "{{HWPX_PLUGIN_VERSION}}": components["plugin"]["currentVersion"],
+        "{{HWPX_RELEASE_NOTE}}": release_note,
+    }
+
+
+def render_install_guide(template: str, identity: dict) -> str:
+    """Fill a direct-host INSTALL-mcp.md template from product-identity.json.
+
+    The guides used to carry hand-typed coordinates and a release sentence that
+    nobody advanced: they still said "unpublished candidate" and named a public
+    stack three trains old after the release (audit ARC-11).
+    """
+    text = template
+    for token, value in install_guide_values(identity).items():
+        text = text.replace(token, value)
+    if INSTALL_GUIDE_TOKEN in text:
+        leftover = sorted(set(re.findall(r"\{\{HWPX_[A-Za-z_]*", text)))
+        raise SystemExit(f"install guide template has unknown tokens: {leftover}")
+    return text
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -57,7 +113,14 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def render_skill_md(canonical_text: str, extra_frontmatter: str) -> str:
+def render_skill_md(canonical_text: str, extra_frontmatter: str, notice: str = "") -> str:
+    """Host SKILL.md: canonical body, host frontmatter, and an optional host-only notice.
+
+    *notice* (``skillNotice`` in hosts.json) is placed right under the first
+    heading. It carries guidance that holds for one host bundle only, such as a
+    limitation of the engine version that bundle pins, so removing the notice
+    file and its hosts.json key is all it takes to retire it.
+    """
     if not canonical_text.startswith("---\n"):
         raise SystemExit("canonical SKILL.md is missing YAML frontmatter")
     fence = canonical_text.index("\n---\n", 4)
@@ -65,7 +128,25 @@ def render_skill_md(canonical_text: str, extra_frontmatter: str) -> str:
     body = canonical_text[fence + len("\n---\n"):]
     if extra_frontmatter.strip():
         frontmatter = frontmatter.rstrip("\n") + "\n" + extra_frontmatter.rstrip("\n")
+    if notice.strip():
+        lines = body.split("\n")
+        heading = next((index for index, line in enumerate(lines) if line.startswith("# ")), None)
+        if heading is None:
+            raise SystemExit("canonical SKILL.md has no top-level heading to place the host notice under")
+        lines[heading + 1:heading + 1] = ["", *notice.strip("\n").split("\n")]
+        body = "\n".join(lines)
     return "---\n" + frontmatter + "\n---\n" + body
+
+
+def host_skill_notice(host: dict) -> tuple[Path | None, str]:
+    """The host-only SKILL.md notice template and its text, if the host declares one."""
+    template = host.get("skillNotice")
+    if not template:
+        return None, ""
+    path = PACKAGING / template
+    if not path.is_file():
+        raise SystemExit(f"missing skill notice template: {template}")
+    return path, path.read_text(encoding="utf-8")
 
 
 CHAT_ENGINE_REWRITES = [
@@ -195,14 +276,19 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
 
     canonical = ROOT / config["canonicalSkill"]
     skill_md = skill_dir / "SKILL.md"
+    notice_path, notice = host_skill_notice(host)
     skill_md.write_text(
         render_skill_md(
             canonical.read_text(encoding="utf-8"),
             host_frontmatter(host, identity),
+            notice,
         ),
         encoding="utf-8",
+        newline="\n",
     )
     records.append(record(config["canonicalSkill"], canonical, skill_md, transformed=True))
+    if notice_path is not None:
+        records.append(record(notice_path.relative_to(ROOT).as_posix(), notice_path, skill_md, transformed=True))
 
     excluded = set(host.get("excludeSharedAssets", []))
     for rel in config["sharedAssets"]:
@@ -232,7 +318,7 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
                 raise SystemExit(f"missing generated-reference source: {src.relative_to(ROOT)}")
         dest = skill_dir / generated["dest"]
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(render_chat_engine(*(src.read_text(encoding="utf-8") for src in sources)), encoding="utf-8")
+        dest.write_text(render_chat_engine(*(src.read_text(encoding="utf-8") for src in sources)), encoding="utf-8", newline="\n")
         for src in sources:
             records.append(record(src.relative_to(ROOT).as_posix(), src, dest, transformed=True))
 
@@ -261,10 +347,24 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
         mcp_dest.write_text(render_mcp_config(
             mcp_src.read_text(encoding="utf-8"),
             (PACKAGING / config["launcherTemplate"]).read_text(encoding="utf-8"),
-        ), encoding="utf-8")
+        ), encoding="utf-8", newline="\n")
+    elif mcp.get("strategy") == "config-doc":
+        mcp_dest.parent.mkdir(parents=True, exist_ok=True)
+        mcp_dest.write_text(
+            render_install_guide(mcp_src.read_text(encoding="utf-8"), identity),
+            encoding="utf-8",
+            newline="\n",
+        )
     else:
         copy_file(mcp_src, mcp_dest)
-    records.append(record(f"packaging/{mcp['template']}", mcp_src, mcp_dest, transformed=host["id"] == "codex"))
+    records.append(
+        record(
+            f"packaging/{mcp['template']}",
+            mcp_src,
+            mcp_dest,
+            transformed=host["id"] == "codex" or mcp.get("strategy") == "config-doc",
+        )
+    )
 
     if host.get("bundleLauncher"):
         launcher_src = PACKAGING / config["launcherTemplate"]
@@ -304,6 +404,7 @@ def build_host(host: dict, config: dict, identity: dict) -> None:
         )
         + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 

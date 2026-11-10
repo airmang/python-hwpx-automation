@@ -6,9 +6,11 @@ self-update on the user's machine the way the managed launcher does. Instead
 this script runs in CI (``claude-runtime-refresh`` workflow): it picks the
 newest stable, non-yanked ``python-hwpx`` and ``python-hwpx-automation`` on PyPI
 inside the window from ``packaging/product-identity.json`` (>= currentVersion,
-< next major), rewrites the pins, re-locks ``uv.lock``, re-vendors the skill's
-engine copy from the new lock and changes the Claude plugin's version string so
-Claude Code sees an update.
+< next major), rewrites the pins, re-locks ``uv.lock`` with every transitive
+dependency moved to its newest allowed release (``uv lock --upgrade``), re-vendors
+the skill's engine copy from the new lock and changes the Claude plugin's version
+string so Claude Code sees an update. The workflow never writes to main: it opens
+a pull request that a maintainer reviews.
 
 Usage::
 
@@ -82,6 +84,17 @@ def pypi_releases(distribution: str) -> dict:
         return json.loads(response.read())["releases"]
 
 
+def lock_command() -> list[str]:
+    """Re-lock the runtime and move every transitive dependency forward.
+
+    Plain ``uv lock`` keeps each already-locked version that still satisfies the
+    new pins, so pillow, certifi and the like stayed where the first lock put
+    them and their security fixes never arrived (audit SEC-17). The two engine
+    pins and tomli are exact in pyproject.toml, so ``--upgrade`` cannot move them.
+    """
+    return ["uv", "lock", "--upgrade", "--project", str(RUNTIME)]
+
+
 def write_outputs(values: dict) -> None:
     path = os.environ.get("GITHUB_OUTPUT")
     if path:
@@ -117,8 +130,8 @@ def main(argv: list[str] | None = None) -> int:
 
     text = PYPROJECT.read_text(encoding="utf-8")
     text = PIN_RE.sub(lambda m: f'"{m.group("dist")}[{m.group("extras")}]=={target[m.group("dist")]}"', text)
-    PYPROJECT.write_text(text, encoding="utf-8")
-    lock = subprocess.run(["uv", "lock", "--project", str(RUNTIME)], capture_output=True, text=True)
+    PYPROJECT.write_text(text, encoding="utf-8", newline="\n")
+    lock = subprocess.run(lock_command(), capture_output=True, text=True)
     if lock.returncode != 0:
         subprocess.run(["git", "checkout", "--", str(PYPROJECT)], cwd=ROOT, check=False)
         raise SystemExit(f"uv lock failed for {target}; pins restored:\n{lock.stderr[-2000:]}")
@@ -131,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     manifest["version"] = version
-    MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     write_outputs(summary)
     return 0
 

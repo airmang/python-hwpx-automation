@@ -83,10 +83,38 @@ def test_validator_rejects_a_pin_outside_the_window(tmp_path: Path) -> None:
         validator.validate_claude_locked_runtime(bundle, IDENTITY)
 
 
-def test_refresh_workflow_only_fast_forwards_after_the_tests_run_passes() -> None:
+def test_refresh_workflow_opens_a_pull_request_after_the_tests_run_passes() -> None:
     text = (ROOT / ".github" / "workflows" / "claude-runtime-refresh.yml").read_text(encoding="utf-8")
     assert "gh run watch" in text and "--exit-status" in text
     tests_step = text.index("Run the Tests workflow on the candidate branch")
-    push_step = text.index("git push origin HEAD:main")
-    assert tests_step < push_step
+    pr_step = text.index("gh pr create --base main")
+    assert tests_step < pr_step
     assert "merge-base --is-ancestor origin/main HEAD" in text
+    assert "pull-requests: write" in text
+
+
+def test_refresh_workflow_never_writes_to_main_itself() -> None:
+    """Passing tests must not ship freshly published PyPI code without a human (audit SEC-16)."""
+    text = (ROOT / ".github" / "workflows" / "claude-runtime-refresh.yml").read_text(encoding="utf-8")
+    commands = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    assert "HEAD:main" not in commands
+    assert re.search(r"git push[^\n]*\bmain\b", commands) is None
+    assert "gh pr merge" not in commands and "--auto" not in commands
+    # The only pushes are the candidate branch and its removal.
+    pushes = re.findall(r"git push origin ([^\n]+)", commands)
+    assert pushes and all(push.strip() in {'"${branch}"', '--delete "${BRANCH}"'} for push in pushes), pushes
+
+
+def test_relock_moves_transitive_dependencies_forward() -> None:
+    """Plain `uv lock` keeps old transitive versions forever (audit SEC-17)."""
+    command = refresh.lock_command()
+    assert command[:2] == ["uv", "lock"] and "--upgrade" in command
+    assert str(refresh.RUNTIME) in command
+
+
+def test_dependabot_watches_the_locked_runtime_but_not_the_engine_pins() -> None:
+    text = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+    block = text[text.index("package-ecosystem: uv"):]
+    assert "directory: /packaging/templates/claude-runtime" in block
+    for pinned in ("python-hwpx", "python-hwpx-automation", "tomli"):
+        assert f"- dependency-name: {pinned}\n" in block

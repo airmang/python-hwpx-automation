@@ -34,7 +34,3 @@ format contract이고, Hancom-bound verify/orchestration은 MCP
 ## 게이트 근거 (measure-first)
 
 합성 변경추적이 한컴에 수용됨을 실증: 실 Windows 한컴 COM `IsTrackChange=1`·opens-clean·roundtrip + 검토 리본 **수락→반영·거부→취소** 확인 → "유효 XML≠한컴 수용" 위험 REFUTED.
-
-## 데모
-
-`demo/M4-redline/` — 공문에 삽입·치환 + 코멘트 2개를 이 표면으로 저작해 한컴 render_checked 확인(증거 PNG + verify-receipt).

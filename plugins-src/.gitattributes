@@ -1,0 +1,10 @@
+# Every text file is LF in the repository and in every checkout, Windows included.
+# Generated bundles record sha256 of file bytes (plugin-sync.json, engine/VENDOR.json),
+# so a CRLF checkout makes the validators and bundle-sync tests fail.
+* text=auto eol=lf
+
+*.hwpx binary
+*.hwp binary
+*.png binary
+*.zip binary
+*.whl binary

@@ -41,7 +41,16 @@ MISSING = [name for name in ("lxml", "pydantic", "cryptography") if importlib.ut
 if "lxml" in MISSING:
     raise SystemExit(f"이 Python({sys.executable})에 lxml이 없어 엔진을 쓸 수 없다. 없는 패키지: {MISSING}. "
                      "chat-engine.md의 '필요한 패키지가 없을 때'를 따른다.")
-sys.dont_write_bytecode = True  # 스킬 폴더는 읽기 전용일 수 있다
+try:  # 스킬 폴더는 읽기 전용일 수 있다: 바이트코드는 이 사용자만 쓰는 임시 폴더에 둬 다음 실행부터 엔진을 빨리 불러온다
+    import tempfile
+    UID = os.getuid() if hasattr(os, "getuid") else None
+    PYCACHE = os.path.join(tempfile.gettempdir(), f"hwpx-pyc-{'user' if UID is None else UID}")
+    os.makedirs(PYCACHE, mode=0o700, exist_ok=True)
+    if UID is not None and (os.stat(PYCACHE).st_uid != UID or os.stat(PYCACHE).st_mode & 0o022):
+        raise OSError("다른 사용자가 쓸 수 있는 폴더")
+    sys.pycache_prefix = PYCACHE
+except OSError:
+    sys.dont_write_bytecode = True
 if ENGINE not in sys.path:
     sys.path.insert(0, ENGINE)
 

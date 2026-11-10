@@ -2,6 +2,44 @@
 
 ## [Unreleased]
 
+- CI: 채팅 경로 시뮬레이션 행렬에서 `plugin-contract` 잡과 겹치는 ubuntu×3.12를 빼고, PR에 `concurrency`를 걸어 새 푸시가
+  앞선 실행을 대체합니다.
+
+- MCP 없는 채팅 경로(`chat-engine.md`)의 시작 블록이 바이트코드를 끄지 않고 `sys.pycache_prefix`를 사용자 전용 임시 폴더로
+  잡습니다. 스킬 폴더에는 쓰지 않으면서 둘째 실행부터 엔진을 다시 컴파일하지 않습니다. 임시 폴더를 만들 수 없거나 다른
+  사용자가 쓸 수 있으면 전처럼 바이트코드를 끕니다.
+
+- Codex·OpenClaw·Hermes 번들에서도 런타임과 스킬이 읽지 않는 개발용 파일을 뺍니다: `references/tool-contract.generated.json`
+  (694 KB), `scripts/task_eval_harness.py`, `examples/eval_tasks/`, `examples/12_task_eval_replay.md`. 참조 문서는 그 JSON 대신
+  `tool-contract.generated.md`와 MCP 서버의 도구 스키마를 가리킵니다. 이 파일들은 저장소에는 그대로 있습니다.
+  Claude 번들에서는 어디서도 가리키지 않는 지난 릴리스 영수증 넷(`references/release-2026-*.md`)도 빼 파일 수가 499에서 495가 됩니다(한도 512).
+
+- Claude 런타임 갱신 봇이 테스트 통과만으로 `main`에 밀어 넣지 않고 PR을 열어 유지보수자 승인을 기다립니다.
+  갱신 때 `uv lock --upgrade`로 전이 의존성(pillow, certifi 등)도 올리고, Dependabot이 Claude 런타임 잠금 파일을 봅니다.
+  잠금 파일 자체는 이번에 다시 만들지 않았습니다.
+
+- README와 Claude 런타임 `pyproject.toml` 주석이 "Claude는 검증 좌표를 고정한다"고 적던 것을 사실에 맞춥니다. 잠긴 값은
+  설치 제약 창 안에서 갱신 절차가 올린 조합이며 검증 좌표와 다를 수 있습니다(좌표는 바꾸지 않았습니다).
+
+- OpenClaw·Hermes 설치 안내(`INSTALL-mcp.md`)의 좌표와 릴리스 문구를 `packaging/product-identity.json`에서 채웁니다.
+  전에는 손으로 적은 "unpublished candidate"와 세 트레인 전 공개 좌표(4.2.0/5.1.0/0.8.0)가 그대로 실려 나갔습니다.
+  검증기가 템플릿의 손으로 적은 버전과 낡은 문구를 거부합니다.
+- 문서 오류를 고칩니다: README의 없는 Cursor 규칙 파일(`.cursor/rules/hwpx.mdc`) 안내, `references/api.md` 메일머지 예제의
+  없는 함수 호출(`mail_merge` → `build_mail_merge`), 없는 `demo/` 디렉터리 참조 넷, 코어 분류 문구(6.10.0부터 Beta).
+
+- Claude 번들의 `SKILL.md`에 중첩 표 안내를 넣습니다. 이 번들의 엔진(python-hwpx 6.8.0)은 표 안에 표가 있는 문서에서 요청한
+  칸이 아닌 칸을 채울 수 있어, 칸 채움 결과를 다시 읽어 확인하고 다르면 쓰지 않도록 안내합니다. 안내문은
+  `packaging/templates/claude-skill-notice.md` 한 곳에 있고, 엔진이 6.11.0 이상으로 올라가면 뺍니다.
+
+- `scripts/zip_replace_all.py`가 XML 원문 전체가 아니라 글(텍스트 노드)만 바꿉니다. 전에는 `100=999` 같은 키가 글자 크기
+  `height="1000"`을, `바탕=기반`이 글꼴 이름 `함초롬바탕`을 바꿨습니다. 값의 `&`·`<`·`>`는 이스케이프하고, 값의 줄바꿈은
+  문단 글(`hp:t`) 안에서 `hp:lineBreak`가 됩니다. 설치된 python-hwpx에 `hwpx.patch.replace_package_text`(6.10.0 이상)가
+  있으면 그것에 맡기고, 없으면(Claude 번들의 6.8.0) 스크립트 안의 같은 방식 구현을 씁니다. 맞는 글이 없으면 경고합니다.
+
+- 저장소에 `.gitattributes`(`* text=auto eol=lf`)를 두고 빌드 스크립트가 생성 파일을 LF로 씁니다. Windows 체크아웃에서도
+  번들 해시(`plugin-sync.json`, `engine/VENDOR.json`)가 맞습니다. README에 Codex 번들이 Windows에서 `bash`를 요구한다는
+  조건을 적었습니다.
+
 - 스킬의 `.hwp` 안내를 automation 7.3.3에 맞춥니다. MCP 도구가 `.hwp`를 직접 열고 같은 형식으로 저장하며, 표·본문 바이트를 고치는
   도구가 `HWPX_PACKAGE_REQUIRED`를 돌려주면 `copy_document`로 `.hwpx` 사본을 거칩니다. 그 이전 서버에서는 Python 경로를 씁니다.
 

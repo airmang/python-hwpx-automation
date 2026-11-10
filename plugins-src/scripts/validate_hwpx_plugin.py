@@ -569,11 +569,18 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         PACKAGING / "templates" / "hermes.mcp-install.md",
     ):
         text = path.read_text(encoding="utf-8")
+        if path.name not in {"claude.mcp.json", "codex.mcp.json"}:
+            # Install guides are filled from product-identity.json at build time
+            # (audit ARC-11): check the template for hand-typed or stale text,
+            # then check everything else on the rendered guide.
+            validate_install_guide_template(text, path, identity)
+            text = _bundle_builder().render_install_guide(text, identity)
         require(
             plugin["currentVersion"] in text,
             f"{path}: skill version differs from product identity",
         )
         if path.name not in {"claude.mcp.json", "codex.mcp.json"}:
+            validate_install_guide_release_text(text, path, identity)
             require(
                 constraints["automation"] in text and constraints["core"] in text,
                 f"{path}: install constraints differ from product identity",
@@ -767,6 +774,67 @@ def validate_host_install_skill_version(text: str, path: Path, plugin_version: s
     )
 
 
+def _bundle_builder():
+    module_spec = importlib.util.spec_from_file_location("hwpx_bundle_builder", ROOT / "scripts/build_hwpx_plugins.py")
+    builder = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(builder)
+    return builder
+
+
+# Text that described an earlier release state or an earlier public train. A
+# released install guide must not carry any of it, in the template or rendered.
+STALE_RELEASE_TEXT = (
+    "미발행 후보",
+    "unpublished candidate",
+    "not the current public",
+    "`python-hwpx 4.2.0`",
+    "`hwpx-mcp-server 5.1.0`",
+    "`hwpx-plugin 0.8.0`",
+    "`python-hwpx 5.0.1`",
+    "`hwpx-plugin 1.0.0`",
+)
+INSTALL_GUIDE_REQUIRED_TOKENS = (
+    "{{HWPX_RELEASE_NOTE}}",
+    "{{HWPX_CORE_CONSTRAINT}}",
+    "{{HWPX_AUTOMATION_CONSTRAINT}}",
+    "{{HWPX_PLUGIN_VERSION}}",
+)
+HAND_TYPED_COORDINATE_RE = re.compile(r"(?<![\w.])\d+\.\d+\.\d+(?![\w.])")
+
+
+def validate_install_guide_template(text: str, path: Path, identity: dict) -> None:
+    """A direct-host install guide template takes its coordinates from product-identity.json."""
+    for token in INSTALL_GUIDE_REQUIRED_TOKENS:
+        require(token in text, f"{path}: install guide template must take {token} from product identity")
+    # "2.0.2 이하 템플릿" names a historical template generation, not a coordinate.
+    typed = sorted(set(HAND_TYPED_COORDINATE_RE.findall(text)) - {"2.0.2"})
+    require(
+        not typed,
+        f"{path}: install guide template carries hand-typed versions {', '.join(typed)}; use the product-identity tokens",
+    )
+    lowered = text.lower()
+    for stale in STALE_RELEASE_TEXT:
+        require(stale.lower() not in lowered, f"{path}: install guide template retains stale release text: {stale}")
+
+
+def validate_install_guide_release_text(text: str, path: Path, identity: dict) -> None:
+    """The rendered guide states the release coordinates that product-identity.json holds."""
+    public = identity["currentPublicStack"]
+    for fragment in (
+        f"`{public['core']['distribution']} {public['core']['version']}`",
+        f"`{public['application']['distribution']} {public['application']['version']}`",
+        f"`{public['plugin']['installedPluginId']} {public['plugin']['version']}`",
+    ):
+        require(fragment in text, f"{path}: rendered install guide does not name the public release {fragment}")
+    if identity["releaseState"]["status"] == "released":
+        lowered = text.lower()
+        for stale in STALE_RELEASE_TEXT:
+            require(
+                stale.lower() not in lowered,
+                f"{path}: released install guide retains stale release text: {stale}",
+            )
+
+
 def expected_transformed_sources(host: dict, config: dict) -> set[str]:
     """Sources the builder rewrites instead of copying byte-for-byte.
 
@@ -776,9 +844,11 @@ def expected_transformed_sources(host: dict, config: dict) -> set[str]:
     byte-identity invariant by flipping the flag (hwpx-plugins #21).
     """
     expected = {config["canonicalSkill"]}
+    if host.get("skillNotice"):
+        expected.add(f"packaging/{host['skillNotice']}")
     for generated in host.get("generatedReferences", []):
         expected.update(f"packaging/{generated[key]}" for key in ("template", "workflows", "automationApi"))
-    if host["id"] == "codex":
+    if host["id"] == "codex" or host["mcp"].get("strategy") == "config-doc":
         expected.add(f"packaging/{host['mcp']['template']}")
     return expected
 
@@ -1152,6 +1222,14 @@ def validate_host(host: dict, config: dict, identity: dict) -> None:
         )
     else:
         text = mcp_path.read_text(encoding="utf-8")
+        expected_guide = _bundle_builder().render_install_guide(
+            (PACKAGING / mcp_config["template"]).read_text(encoding="utf-8"), identity
+        )
+        require(
+            mcp_path.read_bytes() == expected_guide.encode("utf-8"),
+            f"{host['id']}: INSTALL-mcp.md differs from the template rendered with product identity; rebuild required",
+        )
+        validate_install_guide_release_text(text, mcp_path, identity)
         require(
             "mcp_servers" in text or automation["hostConfigKey"] in text,
             f"{host['id']}: INSTALL-mcp.md missing MCP guidance",
