@@ -16,6 +16,8 @@ from importlib import resources
 from pathlib import Path
 from typing import Callable, Protocol
 
+from hwpx_automation.configuration import windows_powershell
+
 
 WORKER_SCHEMA_VERSION = "hwpx.hancom-worker.v1"
 
@@ -85,7 +87,7 @@ class PowerShellHancomSession:
         if not hancom_build:
             raise ValueError("hancom_build is required for real-Hancom provenance")
         self.hancom_build = hancom_build
-        self.powershell = powershell
+        self.powershell = windows_powershell(powershell)
         self._process: subprocess.Popen[bytes] | None = None
         self._guard = threading.Lock()
 

@@ -7,13 +7,12 @@ import json
 import logging
 import math
 import re
-import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
-from ..configuration import env_value
+from ..configuration import absolute_executable, env_value, find_executable
 from ..hwp_converter import HwpConversionError, convert_hwp_to_hwpx
 from ..upstream import (
     export_document,
@@ -72,15 +71,16 @@ def _preview_slug(path: Path) -> str:
 
 
 def _chrome_executable() -> str | None:
-    env_path = env_value("CHROME_PATH")
-    if env_path and Path(env_path).exists():
+    # Only absolute locations are eligible: the working directory is usually
+    # the document workspace and must never supply the browser binary.
+    env_path = absolute_executable(env_value("CHROME_PATH"))
+    if env_path:
         return env_path
     for candidate in _CHROME_CANDIDATES:
         if candidate.startswith("/"):
-            if Path(candidate).exists():
-                return candidate
-            continue
-        resolved = shutil.which(candidate)
+            resolved = absolute_executable(candidate)
+        else:
+            resolved = find_executable(candidate)
         if resolved:
             return resolved
     return None
