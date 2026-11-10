@@ -425,10 +425,14 @@ def _load_canonical_input(
         payload = _canonical_input_from_docx(resolve_path(input_docx))
     elif isinstance(input_json, str):
         stripped = input_json.strip()
-        possible_path = Path(stripped).expanduser()
-        if possible_path.suffix.lower() == ".json" and possible_path.exists():
-            payload = json.loads(possible_path.read_text(encoding="utf-8"))
-        else:
+        payload = None
+        if stripped[:1] not in {"{", "["} and stripped.lower().endswith(".json"):
+            # A path form of the argument obeys the same workspace boundary
+            # as input_json_path; the boundary is checked before any file access.
+            possible_path = Path(resolve_path(stripped))
+            if possible_path.is_file():
+                payload = json.loads(possible_path.read_text(encoding="utf-8"))
+        if payload is None:
             payload = json.loads(stripped)
     elif isinstance(input_json, dict):
         payload = copy.deepcopy(input_json)
