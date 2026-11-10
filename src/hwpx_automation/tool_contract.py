@@ -737,10 +737,37 @@ def contract_hash() -> str:
     # Non-MCP automation services use the frozen release receipt without
     # importing or constructing FastMCP. Once the optional adapter binds the
     # canonical registry, recompute from live schemas and fail tests on drift.
-    if _BOUND_TOOL_REGISTRY is None:
+    global _CONTRACT_HASH_MEMO
+    registry = _BOUND_TOOL_REGISTRY
+    if registry is None:
         return RELEASED_CONTRACT_HASH
+    # Serializing and hashing the whole contract (385 KB of JSON) took ~8 ms and
+    # every write did it twice (audit EFF-15). The payload is a function of the
+    # bound registry object, the spec tuple and the floor constants, so the hash
+    # is recomputed only when one of those is a different object or value.
+    stamp = (
+        registry,
+        TOOL_SPECS,
+        MIN_PYTHON_HWPX,
+        MIN_AUTOMATION_VERSION,
+        MIN_MCP_VERSION,
+        MIN_SKILL_VERSION,
+    )
+    memo = _CONTRACT_HASH_MEMO
+    if (
+        memo is not None
+        and memo[0][0] is registry
+        and memo[0][1] is TOOL_SPECS
+        and memo[0][2:] == stamp[2:]
+    ):
+        return memo[1]
     raw = json.dumps(contract_payload(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    _CONTRACT_HASH_MEMO = (stamp, digest)
+    return digest
+
+
+_CONTRACT_HASH_MEMO: tuple[tuple[Any, ...], str] | None = None
 
 
 def _annotation_name(annotation: Any) -> str:
