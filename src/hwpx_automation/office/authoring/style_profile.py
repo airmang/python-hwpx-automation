@@ -385,7 +385,12 @@ def _page_margins(profile: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _registry_path(path: str | Path | None) -> Path:
     if path is None:
-        return Path.home() / ".hwpx" / "template_registry.json"
+        # The registry is workspace state: it is kept under the primary
+        # workspace root, never in the user's home folder.
+        from ...workspace import WorkspaceResolver
+
+        root = WorkspaceResolver.from_environment().primary_root
+        return root / ".hwpx" / "template_registry.json"
     return Path(path).expanduser()
 
 
