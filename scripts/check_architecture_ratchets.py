@@ -71,7 +71,7 @@ EXPECTED_SERVICE_LINES = {
     # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
     # hasattr fallback (equivalent direct itemCnt computation) is now the only
     # branch, so the dead private call went away.
-    "tables.py": 536,
+    "tables.py": 539,
     "transactions.py": 617,
 }
 

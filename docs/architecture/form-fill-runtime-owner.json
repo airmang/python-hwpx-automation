@@ -10,8 +10,8 @@
   },
   "canonical": {
     "pythonFiles": 15,
-    "loc": 5085,
-    "manifestSha256": "380ef2d5e1173c10370116491fbdc95cd5b9122ceabd89a09627cca65ac1ff5d",
+    "loc": 5122,
+    "manifestSha256": "fa3cbf6cafb6378d4accd04be7ba80aff903c30bd21d253398242683f1b0bc89",
     "nomenclatureRefrozenFrom": {
       "loc": 5060,
       "manifestSha256": "9da1c81298ca242f05b81f17cfac3dbe3fc5235a1a74b14f0d00be726dda70f5",
@@ -19,9 +19,9 @@
     },
     "refrozenNote": "WP-F (core 6.0 namespace adaptation): seal.py's document.add_image(...) call and template_formfit.py's doc.export_text() call moved to document.media.add_image(...)/doc.text.plain() (design §2.6). Same line counts, no behavior change.",
     "refrozenFrom": {
-      "loc": 5060,
-      "manifestSha256": "abaee6e1379a31610700da754df9d484d7ed4385c83cca4cfe9f1da043b5e4f9",
-      "reason": "wordbox.py asks PyMuPDF 2.0 for drawn-border tables only (use_layout=False) so bordered grids are found again (#175); ownership and file count unchanged."
+      "loc": 5085,
+      "manifestSha256": "380ef2d5e1173c10370116491fbdc95cd5b9122ceabd89a09627cca65ac1ff5d",
+      "reason": "audit ENG-19: split_run writes tabs/line breaks as elements and drops control characters"
     },
     "boundaryRefrozenFrom": {
       "loc": 5085,
