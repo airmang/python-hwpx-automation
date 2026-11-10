@@ -4,14 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import hmac
+import ipaddress
 import json
 import os
+from typing import Any
 
 from .configuration import env_int, env_value
 from .handlers import _shared, authoring, quality_render, read_export, specialized
 from . import quality as _quality_contract
 from .hwpx_ops import HwpxOps
-from .minimal_profile import add_profile_argument, served_for_profile
+from .minimal_profile import PROFILE_CHOICES, add_profile_argument, served_for_profile
 from . import runtime as _runtime
 from .runtime_services import RUNTIME_SERVICES
 from .storage import LocalDocumentStorage
@@ -191,11 +194,64 @@ def _replace_ops(ops: HwpxOps) -> None:
     _OPS = ops
 
 
+_TRANSPORT_CHOICES = ("stdio", "streamable-http", "http")
+_HTTP_TOKEN_ENV = "HTTP_TOKEN"
+_ALLOW_UNAUTHENTICATED_HTTP_ENV = "ALLOW_UNAUTHENTICATED_HTTP"
+_MIN_HTTP_TOKEN_LENGTH = 32
+
+
+def _is_loopback_host(host: str) -> bool:
+    """True only for a bind address that is reachable from this machine alone."""
+
+    value = (host or "").strip().strip("[]").lower()
+    if value == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
+
+
+class _BearerTokenGate:
+    """ASGI wrapper that answers 401 unless the request carries the token."""
+
+    def __init__(self, app: Any, token: str) -> None:
+        self._app = app
+        self._expected = f"Bearer {token}".encode("utf-8")
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") not in {"http", "websocket"}:
+            await self._app(scope, receive, send)
+            return
+        supplied = b""
+        for name, value in scope.get("headers") or ():
+            if name.lower() == b"authorization":
+                supplied = value
+                break
+        if hmac.compare_digest(supplied, self._expected):
+            await self._app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"www-authenticate", b"Bearer"),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": b'{"error":"unauthorized"}'})
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="hwpx-automation-mcp")
     parser.add_argument(
         "--transport",
-        choices=("stdio", "streamable-http", "http"),
+        choices=_TRANSPORT_CHOICES,
         default=env_value("TRANSPORT", "stdio"),
         help="MCP transport to use",
     )
@@ -212,6 +268,17 @@ def main(argv: list[str] | None = None) -> None:
     )
     add_profile_argument(parser)
     parser.add_argument(
+        "--allow-unauthenticated-http",
+        action="store_true",
+        default=(env_value(_ALLOW_UNAUTHENTICATED_HTTP_ENV, "") or "").strip().lower()
+        in {"1", "true", "yes"},
+        help=(
+            "Serve HTTP on a non-loopback address without a token. Only for a "
+            "network that is already trusted. Equivalent to "
+            "HWPX_AUTOMATION_ALLOW_UNAUTHENTICATED_HTTP=1."
+        ),
+    )
+    parser.add_argument(
         "--workspace-root",
         action="append",
         default=None,
@@ -221,6 +288,36 @@ def main(argv: list[str] | None = None) -> None:
         ),
     )
     args = parser.parse_args(argv)
+
+    # argparse validates values typed on the command line but not defaults read
+    # from the environment, so both are checked again here.
+    if args.profile not in PROFILE_CHOICES:
+        parser.error(
+            f"unknown profile {args.profile!r}; expected one of: {', '.join(PROFILE_CHOICES)}"
+        )
+    if args.transport not in _TRANSPORT_CHOICES:
+        parser.error(
+            f"unknown transport {args.transport!r}; expected one of: "
+            f"{', '.join(_TRANSPORT_CHOICES)}"
+        )
+    http_token = env_value(_HTTP_TOKEN_ENV)
+    if args.transport != "stdio":
+        if http_token is not None and len(http_token) < _MIN_HTTP_TOKEN_LENGTH:
+            parser.error(
+                f"HWPX_AUTOMATION_{_HTTP_TOKEN_ENV} must be at least "
+                f"{_MIN_HTTP_TOKEN_LENGTH} characters"
+            )
+        if (
+            not _is_loopback_host(args.host)
+            and not http_token
+            and not args.allow_unauthenticated_http
+        ):
+            parser.error(
+                f"refusing to serve HTTP on {args.host!r} without authentication. "
+                f"Bind to 127.0.0.1, set HWPX_AUTOMATION_{_HTTP_TOKEN_ENV} to a "
+                "long random secret (clients then send 'Authorization: Bearer "
+                "<token>'), or pass --allow-unauthenticated-http on a trusted network."
+            )
 
     if args.workspace_root:
         os.environ[WORKSPACE_ROOTS_ENV] = json.dumps(args.workspace_root)
@@ -247,7 +344,6 @@ def main(argv: list[str] | None = None) -> None:
         served.run(transport="stdio")
         return
 
-    # TODO: add pluggable auth middleware/headers for production HTTP deployments.
     try:  # HTTP transport is an optional [http] extra
         import uvicorn
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
@@ -259,6 +355,8 @@ def main(argv: list[str] | None = None) -> None:
         ) from exc
 
     app = served.streamable_http_app()
+    if http_token:
+        app = _BearerTokenGate(app, http_token)
     uvicorn.run(
         app,
         host=args.host,

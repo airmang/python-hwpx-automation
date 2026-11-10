@@ -4,9 +4,9 @@ FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    HWPX_AUTOMATION_PROFILE=playmcp \
+    HWPX_AUTOMATION_PROFILE=full \
     HWPX_AUTOMATION_TRANSPORT=streamable-http \
-    HWPX_AUTOMATION_HOST=0.0.0.0 \
+    HWPX_AUTOMATION_HOST=127.0.0.1 \
     HWPX_AUTOMATION_PORT=8000 \
     HWPX_AUTOMATION_WORKSPACE_ROOTS='["/tmp/hwpx-playmcp"]'
 
@@ -26,4 +26,8 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["hwpx-automation-mcp", "--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]
+# The server only listens inside the container by default. To publish the port,
+# run with -e HWPX_AUTOMATION_HOST=0.0.0.0 and -e HWPX_AUTOMATION_HTTP_TOKEN=<long
+# random secret>; clients then send "Authorization: Bearer <token>". Without a
+# token the server refuses a non-loopback bind.
+CMD ["hwpx-automation-mcp"]

@@ -26,10 +26,14 @@ from .office import compact
 __all__ = [
     "MINIMAL_INSTRUCTIONS",
     "MINIMAL_TOOL_NAMES",
+    "PROFILE_CHOICES",
     "add_profile_argument",
     "build_minimal_server",
     "served_for_profile",
 ]
+
+#: Every profile the server can run. Anything else is refused at startup.
+PROFILE_CHOICES = ("full", "minimal")
 
 #: The profile's frozen contract, in registration order.
 MINIMAL_TOOL_NAMES = (
@@ -131,7 +135,7 @@ def add_profile_argument(parser: Any) -> None:
 
     parser.add_argument(
         "--profile",
-        choices=("full", "minimal"),
+        choices=PROFILE_CHOICES,
         default=env_value("PROFILE", "full"),
         help=(
             "Tool surface: 'full' (the canonical tool contract) or 'minimal' "
@@ -144,6 +148,12 @@ def add_profile_argument(parser: Any) -> None:
 def served_for_profile(profile: str, full: FastMCP) -> FastMCP:
     """The server to run for *profile*: *full* itself, or a new minimal server."""
 
+    if profile not in PROFILE_CHOICES:
+        # argparse does not check a default taken from the environment, so an
+        # unknown name must not fall through to the full tool surface.
+        raise ValueError(
+            f"unknown profile {profile!r}; expected one of: {', '.join(PROFILE_CHOICES)}"
+        )
     if profile != "minimal":
         return full
     from . import __version__
