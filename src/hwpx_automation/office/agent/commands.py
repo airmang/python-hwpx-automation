@@ -521,69 +521,39 @@ def _set_shape_comment(element: Any, value: str) -> None:
     comment.text = value
 
 
-def _next_numeric_identity(document: HwpxDocument) -> str:
-    maximum = 0
-    for section in document.sections:
-        for node in section.element.iter():
-            for name in ("id", "instid", "instId"):
-                value = node.get(name)
-                if value and value.isdigit():
-                    maximum = max(maximum, int(value))
-    return str(maximum + 1)
-
-
 def _table_caption(table: Any, value: str) -> None:
-    element = table.element
-    caption = next((child for child in element if _local_name(child) == "caption"), None)
+    """Set a table's caption text through python-hwpx's own text setters.
+
+    A missing caption is created by ``table.set_caption``. An existing one keeps
+    its paragraph, run and controls (the ``표 1`` auto number): the first run
+    that holds text takes the value through ``HwpxOxmlRun.text`` and every other
+    text run is emptied. Those setters write a line break as ``hp:lineBreak``
+    and a tab as ``hp:tab``, strip characters XML cannot carry, and drop the
+    caption paragraph's line layout cache (audit ENG-08) -- a cache measured
+    for the old caption makes Hancom squeeze the new text into the old lines.
+    """
+
+    caption = table.caption
     if caption is None:
-        caption = element.makeelement(
-            _tag_like(element, "caption"),
-            {"side": "TOP", "fullSz": "0", "width": "0", "gap": "850", "lastWidth": "0"},
-        )
-        sublist = caption.makeelement(
-            _tag_like(caption, "subList"),
-            {
-                "id": "",
-                "textDirection": "HORIZONTAL",
-                "lineWrap": "BREAK",
-                "vertAlign": "TOP",
-                "linkListIDRef": "0",
-                "linkListNextIDRef": "0",
-                "textWidth": "0",
-                "textHeight": "0",
-                "hasTextRef": "0",
-                "hasNumRef": "0",
-            },
-        )
-        paragraph = sublist.makeelement(
-            _tag_like(sublist, "p"),
-            {
-                "id": _next_numeric_identity(table.paragraph.section.document),
-                "paraPrIDRef": "0",
-                "styleIDRef": "0",
-                "pageBreak": "0",
-                "columnBreak": "0",
-                "merged": "0",
-            },
-        )
-        run = paragraph.makeelement(_tag_like(paragraph, "run"), {"charPrIDRef": "0"})
-        text = run.makeelement(_tag_like(run, "t"), {})
-        run.append(text)
-        paragraph.append(run)
-        sublist.append(paragraph)
-        caption.append(sublist)
-        children = list(element)
-        position_index = next(
-            (index + 1 for index, child in enumerate(children) if _local_name(child) == "pos"),
-            min(2, len(children)),
-        )
-        element.insert(position_index, caption)
-    text_nodes = [node for node in caption.iter() if _local_name(node) == "t"]
-    if not text_nodes:
+        table.set_caption(value)
+        table.mark_dirty()
+        return
+    text_runs = [
+        run
+        for paragraph in caption.paragraphs
+        for run in paragraph.runs
+        if any(_local_name(child) == "t" for child in run.element)
+    ]
+    if not text_runs:
         raise AgentContractError("unsupported_content", "table caption has no editable text node")
-    text_nodes[0].text = value
-    for node in text_nodes[1:]:
-        node.text = ""
+    text_runs[0].text = value
+    for run in text_runs[1:]:
+        if run.text:
+            run.text = ""
+    for paragraph in caption.paragraphs:
+        # The setters clear the cache only when the text changed; a caption is
+        # rewritten here on request, so never leave a cache behind it.
+        _drop_layout_cache(paragraph.element)
     table.mark_dirty()
 
 
@@ -1042,6 +1012,9 @@ def _move(
         else:
             container.insert(list(container).index(siblings[anchor_index]), detached)
         if source.kind == "paragraph":
+            # The paragraph may now sit in a column or cell of another width;
+            # its cached lines were measured where it came from.
+            _drop_layout_cache(detached)
             parent.native.mark_dirty()
         elif source.kind == "run":
             _drop_layout_cache(parent.native.element)
@@ -1198,6 +1171,7 @@ def _copy_node(
     if source.kind in {"paragraph", "run", "row"}:
         _insert_direct_child(view, parent, source.kind, clone, position)
         if source.kind == "paragraph":
+            _drop_layout_cache(clone)  # a copy never carries the source's cached lines
             parent.native.mark_dirty()
         elif source.kind == "run":
             _drop_layout_cache(parent.native.element)
