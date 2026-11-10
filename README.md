@@ -12,11 +12,11 @@
   </p>
 </p>
 
-> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0` (source contract `71622c28a07913d1`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
+> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0`; the 2026-11 audit fixes changed `get_table_map` and seven `mutates` flags (source contract `71622c28a07913d1`, delta in `docs/tool-contract-delta-source-audit-2026-11.json`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
 
 <!-- release-state: release-approved -->
 > [!NOTE]
-> 발행이 승인된 7.4.1 후보 (release-approved; 원격 발행 대기): `python-hwpx 6.6.0 → python-hwpx-automation 7.4.1 → hwpx-plugin 2.4.0` (`5e5c23651f92785a`).
+> 발행이 승인된 7.4.1 후보 (release-approved; 원격 발행 대기): `python-hwpx 6.10.0 → python-hwpx-automation 7.4.1 → hwpx-plugin 2.4.0` (`71622c28a07913d1`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`와 같아야 합니다(`tests/test_audit_identity_docs.py`).
 > 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`.
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.

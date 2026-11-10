@@ -135,9 +135,9 @@
     "removalGate": "public observation followed by separately approved core major"
   },
   "toolContract": {
-    "default": 122,
-    "advanced": 130,
+    "default": 128,
+    "advanced": 136,
     "skillRequired": 29,
-    "hash": "8c278ebd5becba08"
+    "hash": "71622c28a07913d1"
   }
 }

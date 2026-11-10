@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import runpy
 from pathlib import Path
+from sync_owner_tool_contract import current_tool_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDARY = runpy.run_path(str(ROOT / "scripts" / "check_product_boundary.py"))
@@ -30,7 +31,8 @@ def test_owner_ledger_matches_frozen_source_and_contract() -> None:
         tuple(OWNER["forbiddenCoreCompatibilityImports"])
         == BOUNDARY["FROZEN_CORE_EXAM_IMPORTS"]
     )
-    assert OWNER["toolContract"]["hash"] == "8c278ebd5becba08"
+    contract = {key: OWNER["toolContract"][key] for key in current_tool_contract()}
+    assert contract == current_tool_contract()  # values come from tool_contract
 
 
 def test_canonical_owner_rejects_frozen_and_unapproved_core_seams() -> None:

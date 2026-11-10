@@ -14,6 +14,7 @@ from hwpx_automation.tool_contract import (
     expected_tool_names,
     skill_required_tool_names,
 )
+from sync_owner_tool_contract import current_tool_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDARY = runpy.run_path(str(ROOT / "scripts" / "check_product_boundary.py"))
@@ -42,12 +43,9 @@ def test_owner_ledger_matches_frozen_source_and_contract() -> None:
     assert tuple(OWNER["forbiddenCoreCompatibilityImports"]) == (
         BOUNDARY["FROZEN_CORE_VISUAL_RUNTIME_IMPORTS"]
     )
-    assert OWNER["toolContract"] == {
-        "default": 122,
-        "advanced": 130,
-        "skillRequired": 29,
-        "hash": "8c278ebd5becba08",
-    }
+    # The ledger records the current contract; the values come from
+    # tool_contract (scripts/sync_owner_tool_contract.py), never a literal here.
+    assert OWNER["toolContract"] == current_tool_contract()
 
 
 def test_rendering_owner_gate_rejects_runtime_and_private_core_seams() -> None:
