@@ -47,12 +47,20 @@ from .core.document import open_doc
 from .core.formatting import list_styles_in_doc
 from .storage import build_hwpx_open_safety_report
 from .upstream import repair_pathological_text_spacing, validate_document_path
-from .utils.helpers import resolve_path
+from .utils.helpers import BoundedExpiringStore, resolve_path
 
 _FORM_FILL_SCHEMA_VERSION = "hwpx.formfill.v1"
 _DOCX_W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _TABLE_DIRECTIONS = {"right", "down"}
-_FORM_FILL_PLANS: dict[str, dict[str, Any]] = {}
+# An analysis carries the whole table map of its document (megabytes for a
+# real form), so only the most recent plans are kept and only for a while. A
+# plan that has aged out is reported as unknown and is simply analyzed again.
+_FORM_FILL_PLAN_LIMIT = 32
+_FORM_FILL_PLAN_TTL_SECONDS = 60 * 60
+_FORM_FILL_PLANS: BoundedExpiringStore = BoundedExpiringStore(
+    max_entries=_FORM_FILL_PLAN_LIMIT,
+    ttl_seconds=_FORM_FILL_PLAN_TTL_SECONDS,
+)
 _CONFIDENCE_LABEL_EXACT = "label-exact"
 _CONFIDENCE_LABEL_FUZZY = "label-fuzzy"
 _CONFIDENCE_POSITION_GUESS = "position-guess"
@@ -987,7 +995,10 @@ def _resolve_analysis(
     try:
         return copy.deepcopy(_FORM_FILL_PLANS[plan_id])
     except KeyError as exc:
-        raise ValueError(f"unknown form-fill plan_id: {plan_id}") from exc
+        raise ValueError(
+            f"unknown or expired form-fill plan_id: {plan_id}; "
+            "run analyze_form_fill again or pass the analysis object"
+        ) from exc
 
 
 def _source_path_from_plan(plan: dict[str, Any], override: str | None) -> str:

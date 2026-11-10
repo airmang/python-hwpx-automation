@@ -42,7 +42,7 @@ from .execution_lock import PUBLIC_MUTATION_LOCK
 from .office.agent._batch_publication import GuardedSavePipeline
 from .office.rendering import resolve_hancom_backend
 from .storage import build_hwpx_open_safety_report, require_hwpx_package
-from .utils.helpers import resolve_path
+from .utils.helpers import BoundedExpiringStore, resolve_path
 from .workspace import (
     WorkspaceMissingParentGuard,
     WorkspaceOutputGuard,
@@ -467,7 +467,12 @@ MixedFormApplyInput: TypeAlias = Annotated[
 
 _PUBLIC_PLAN_ADAPTER = TypeAdapter(MixedFormPlanInput)
 _APPLY_PLAN_ADAPTER = TypeAdapter(MixedFormApplyInput)
-_IDEMPOTENCY_STORE: dict[str, Any] = {}
+# Replay results are kept for a bounded number of recent keys and for a day;
+# the same limit the runtime idempotency cache uses.
+_IDEMPOTENCY_STORE: BoundedExpiringStore = BoundedExpiringStore(
+    max_entries=512,
+    ttl_seconds=24 * 60 * 60,
+)
 _IDEMPOTENCY_LOCK = PUBLIC_MUTATION_LOCK
 # Test-only failure seam.  It is intentionally absent from every MCP model.
 _fault_injector_for_tests: Any = None
