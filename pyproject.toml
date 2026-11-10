@@ -152,6 +152,16 @@ filterwarnings = [
     "ignore:builtin type \\w+ has no __module__ attribute:DeprecationWarning",
 ]
 
+[tool.coverage.run]
+source = ["hwpx_automation"]
+
+[tool.coverage.report]
+# Line-coverage floor enforced by the Tests workflow (`pytest --cov`). The
+# 2026-11 audit measured 79.73% (Windows, Python 3.12); the floor sits a little
+# below so platform-only branches do not flap it. Raise it as coverage grows;
+# never lower it to make a change pass.
+fail_under = 77
+
 [tool.mypy]
 python_version = "3.10"
 # Type-check the product surface against the declared 3.10 language level,

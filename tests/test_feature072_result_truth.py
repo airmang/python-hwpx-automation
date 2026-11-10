@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-import pymupdf
 import pytest
 from test_document_plan_mcp_e2e import _plan
 from test_workflow_render_contract_v2 import HASH_A, v2_success
@@ -21,6 +20,10 @@ from hwpx_automation.workflow.evidence_lineage import (
 
 @pytest.mark.parametrize("pdf_kind", ["one_line", "image_only"])
 def test_render_does_not_claim_visual_completion(tmp_path: Path, monkeypatch, pdf_kind: str) -> None:
+    # Only the two render tests need PyMuPDF (the [oracle] extra). Importing it
+    # at module level made the whole file a collection error without it, which
+    # also hid the three tests below that never touch a PDF (audit ARC-12).
+    pymupdf = pytest.importorskip("pymupdf")
     source = tmp_path / "source.hwpx"
     assert server.create_document_from_plan(str(source), _plan())["created"]
 
@@ -73,6 +76,8 @@ def test_source_replacement_during_render_invalidates_result(tmp_path: Path, mon
     changed_plan["title"] = "A different document"
     assert server.create_document_from_plan(str(other), changed_plan)["created"]
     original = source.read_bytes()
+
+    pymupdf = pytest.importorskip("pymupdf")
 
     class Oracle:
         def available(self) -> bool:
