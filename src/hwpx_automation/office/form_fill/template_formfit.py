@@ -110,42 +110,12 @@ def apply_template_formfit(
             destination=destination,
         )
 
-    source_value = source or _plan_path(plan, "source")
-    if not source_value:
-        raise ValueError("source is required")
-    source_path = Path(str(source_value))
-    destination_value = destination or _plan_path(plan, "destination")
-    if not destination_value:
-        raise ValueError("destination is required")
-    destination_path = Path(str(destination_value))
+    source_path = _required_path(plan, "source", source)
+    destination_path = _required_path(plan, "destination", destination)
 
-    if source_path.resolve(strict=False) == destination_path.resolve(strict=False):
-        return {
-            "handoff_status": "blocked",
-            "reason": "source-in-place edit refused",
-            "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
-            "destination": {"path": str(destination_path)},
-        }
-
-    if os.path.lexists(destination_path):
-        # Copy-only contract: an existing file is never replaced.
-        return {
-            "handoff_status": "blocked",
-            "reason": "destination already exists",
-            "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
-            "destination": {"path": str(destination_path)},
-            "persisted": False,
-        }
-
-    unresolved = list(plan.get("unresolved") or [])
-    if unresolved:
-        return {
-            "handoff_status": "blocked",
-            "reason": "unresolved template targets remain",
-            "unresolved": unresolved,
-            "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
-            "destination": {"path": str(destination_path)},
-        }
+    blocked = _blocked_before_copy(plan, source_path, destination_path)
+    if blocked is not None:
+        return blocked
 
     source_before_hash = _sha256_file(source_path)
     source_before_mtime = source_path.stat().st_mtime_ns
@@ -238,6 +208,43 @@ def apply_template_formfit(
         "visual_review_regions": list(plan.get("visual_review_regions") or []),
         "persisted": True,
     }
+
+
+def _blocked_before_copy(
+    plan: Mapping[str, Any], source_path: Path, destination_path: Path
+) -> dict[str, Any] | None:
+    """The refusal to return before anything is copied, or None to proceed."""
+
+    reason: str | None = None
+    extra: dict[str, Any] = {}
+    unresolved = list(plan.get("unresolved") or [])
+    if source_path.resolve(strict=False) == destination_path.resolve(strict=False):
+        reason = "source-in-place edit refused"
+    elif os.path.lexists(destination_path):
+        # Copy-only contract: an existing file is never replaced.
+        reason = "destination already exists"
+        extra["persisted"] = False
+    elif unresolved:
+        reason = "unresolved template targets remain"
+        extra["unresolved"] = unresolved
+    if reason is None:
+        return None
+    return {
+        "handoff_status": "blocked",
+        "reason": reason,
+        **extra,
+        "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
+        "destination": {"path": str(destination_path)},
+    }
+
+
+def _required_path(
+    plan: Mapping[str, Any], key: str, override: str | Path | None
+) -> Path:
+    value = override or _plan_path(plan, key)
+    if not value:
+        raise ValueError(f"{key} is required")
+    return Path(str(value))
 
 
 def _plan_path(plan: Mapping[str, Any], key: str) -> str | None:
@@ -660,37 +667,40 @@ def _verify_applied(path: Path, applied: list[dict[str, Any]]) -> dict[str, Any]
 def _verify_record(sections: list[list[Any]], record: Mapping[str, Any]) -> str | None:
     if not record.get("applied"):
         return str(record.get("reason") or "target was not applied")
-    kind = record.get("kind")
-    anchor = str(record.get("anchor") or "")
-    if kind == "scalar-line":
+    if record.get("kind") == "scalar-line":
         expected = str(record.get("after_text") or "")
         for paragraphs in sections:
             if any((paragraph.text or "") == expected for paragraph in paragraphs):
                 return None
         return "scalar text not found after save"
+    anchor = str(record.get("anchor") or "")
     for paragraphs in sections:
         for index, paragraph in enumerate(paragraphs):
-            if anchor not in (paragraph.text or ""):
-                continue
-            following = paragraphs[index + 1 :]
-            if kind == "section-region":
-                expected_texts = [str(text) for text in record.get("inserted_texts") or []]
-                window = following[: len(expected_texts)]
-                if (
-                    expected_texts
-                    and [_element_text(item.element) for item in window] == expected_texts
-                    and all(_is_plain_text_paragraph(item.element) for item in window)
-                ):
-                    return None
-            elif kind == "table-region" and following:
-                expected_cells = [
-                    str(cell)
-                    for row in record.get("inserted_cells") or []
-                    for cell in row
-                ]
-                if expected_cells and _cell_texts(following[0].element) == expected_cells:
-                    return None
+            if anchor in (paragraph.text or "") and _region_follows(
+                record, paragraphs[index + 1 :]
+            ):
+                return None
     return "inserted content not found after its anchor"
+
+
+def _region_follows(record: Mapping[str, Any], following: list[Any]) -> bool:
+    """True when the paragraphs after an anchor hold the record's content."""
+
+    kind = record.get("kind")
+    if kind == "section-region":
+        expected_texts = [str(text) for text in record.get("inserted_texts") or []]
+        window = following[: len(expected_texts)]
+        return (
+            bool(expected_texts)
+            and [_element_text(item.element) for item in window] == expected_texts
+            and all(_is_plain_text_paragraph(item.element) for item in window)
+        )
+    if kind == "table-region" and following:
+        expected_cells = [
+            str(cell) for row in record.get("inserted_cells") or [] for cell in row
+        ]
+        return bool(expected_cells) and _cell_texts(following[0].element) == expected_cells
+    return False
 
 
 def _local_name(tag: Any) -> str:

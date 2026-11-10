@@ -10,8 +10,8 @@
   },
   "canonical": {
     "pythonFiles": 15,
-    "loc": 5232,
-    "manifestSha256": "ee5d618a1ec69f4941406f25ca94a2ed95d8ddfe2f2afd5f48b96a34672c9a53",
+    "loc": 5242,
+    "manifestSha256": "bce2aa44044257c8b15ab9b12dd9379783ec66854e4720997bd36905b33974b9",
     "nomenclatureRefrozenFrom": {
       "loc": 5060,
       "manifestSha256": "9da1c81298ca242f05b81f17cfac3dbe3fc5235a1a74b14f0d00be726dda70f5",
@@ -21,7 +21,7 @@
     "refrozenFrom": {
       "loc": 5085,
       "manifestSha256": "380ef2d5e1173c10370116491fbdc95cd5b9122ceabd89a09627cca65ac1ff5d",
-      "reason": "audit security fixes (SEC-1, SEC-4, SEC-5, SEC-6, ENG-16)"
+      "reason": "audit security fixes (SEC-1, SEC-5, ENG-16)"
     },
     "boundaryRefrozenFrom": {
       "loc": 5085,
