@@ -28,6 +28,8 @@ class Block:
     rows: list[list[str]] = field(default_factory=list)
     #: Slot values for a marked-template role (``{{role.slot}}`` → value).
     values: dict[str, str] = field(default_factory=dict)
+    #: Start this block on a new page (``pageBreak="1"`` on its first paragraph).
+    page_break_before: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Block":
@@ -38,6 +40,7 @@ class Block:
             columns=[str(c) for c in data.get("columns", [])],
             rows=[[str(c) for c in row] for row in data.get("rows", [])],
             values={str(k): str(v) for k, v in (data.get("values") or {}).items()},
+            page_break_before=bool(data.get("page_break_before", False)),
         )
 
 

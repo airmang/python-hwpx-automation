@@ -8,7 +8,7 @@ import re
 from ast import literal_eval as _literal
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Mapping, cast, overload
+from typing import Any, Literal, Mapping, Sequence, cast, overload
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HP as _HP
@@ -1083,13 +1083,32 @@ def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
     and bullet items -> ``body``; tables -> an ``info`` table block. 결문 메타
     fields are appended as trailing ``body`` blocks in canonical order (P0 proved
     these survive a Hancom render).
+
+    Every supported block type is carried (audit ENG-18): ``page_break`` makes
+    the next block start a new page, and ``memo`` keeps its body text as a
+    ``body`` paragraph; the memo itself is attached after composition (see
+    :func:`_attach_profile_memos`). A block type this path cannot place raises
+    instead of disappearing from a document reported as created.
+
+    Returns ``(design_plan, memos)`` where *memos* is the ordered list of
+    ``(anchor text, memo text)`` pairs still to attach.
     """
 
     from .design.plan import Block as _Block
     from .design.plan import DocumentPlan as _DesignPlan
 
     blocks: list = []
-    for raw in plan.get("blocks") or []:
+    memos: list[tuple[str, str]] = []
+    pending_break = False
+
+    def emit(block: Any) -> None:
+        nonlocal pending_break
+        if pending_break:
+            block.page_break_before = True
+            pending_break = False
+        blocks.append(block)
+
+    for index, raw in enumerate(plan.get("blocks") or []):
         if not isinstance(raw, Mapping):
             continue
         block_type = str(raw.get("type") or "paragraph")
@@ -1098,36 +1117,119 @@ def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
             role: Literal["heading", "subheading"] = (
                 "heading" if level <= 1 else "subheading"
             )
-            blocks.append(_Block(type="paragraph", role=role, text=str(raw.get("text") or "")))
+            emit(_Block(type="paragraph", role=role, text=str(raw.get("text") or "")))
         elif block_type == "paragraph":
-            blocks.append(_Block(type="paragraph", role="body", text=str(raw.get("text") or "")))
+            emit(_Block(type="paragraph", role="body", text=str(raw.get("text") or "")))
         elif block_type == "bullets":
             for item in raw.get("items") or []:
-                blocks.append(_Block(type="paragraph", role="body", text=str(item)))
+                emit(_Block(type="paragraph", role="body", text=str(item)))
         elif block_type == "table":
-            raw_cols = list(raw.get("columns") or raw.get("header") or [])
-            if raw_cols and isinstance(raw_cols[0], Mapping):
-                # document_plan schema: columns=[{key,label}], rows=[{key: value}]
-                keys = [str(c.get("key") or c.get("label") or "") for c in raw_cols]
-                columns = [str(c.get("label") or c.get("key") or "") for c in raw_cols]
-                rows = []
-                for row in raw.get("rows") or []:
-                    if isinstance(row, Mapping):
-                        rows.append([str(row.get(k, "")) for k in keys])
-                    elif isinstance(row, (list, tuple)):
-                        rows.append([str(c) for c in row])
-            else:
-                columns = [str(c) for c in raw_cols]
-                rows = [[str(c) for c in row] for row in (raw.get("rows") or [])]
-            blocks.append(_Block(type="table", role="info", columns=columns, rows=rows))
-        # page_break / memo: no design role -> skipped
+            emit(_bridge_table_block(raw, _Block))
+        elif block_type == "page_break":
+            pending_break = True
+        elif block_type == "memo":
+            text = str(raw.get("text") or "")
+            emit(_Block(type="paragraph", role="body", text=text))
+            memos.append((text, str(raw.get("memo") or "")))
+        else:
+            raise ValueError(
+                f"profile {profile_id!r} cannot place blocks[{index}] of type "
+                f"{block_type!r}; remove metadata.document_type to use the general layout"
+            )
+    for line in _gyeolmun_lines(plan):
+        emit(_Block(type="paragraph", role="body", text=line))
+    if pending_break:
+        # A trailing page break still opens a new (empty) page, as in the general layout.
+        emit(_Block(type="paragraph", role="body", text=""))
+    design_plan = _DesignPlan(profile=profile_id, title=str(plan.get("title") or ""), blocks=blocks)
+    return design_plan, memos
+
+
+def _gyeolmun_lines(plan: Mapping[str, Any]) -> list[str]:
     gyeolmun = plan.get("gyeolmun")
-    if isinstance(gyeolmun, Mapping):
-        for key, label in _GYEOLMUN_FIELDS:
-            value = gyeolmun.get(key)
-            if value:
-                blocks.append(_Block(type="paragraph", role="body", text=f"{label}  {value}"))
-    return _DesignPlan(profile=profile_id, title=str(plan.get("title") or ""), blocks=blocks)
+    if not isinstance(gyeolmun, Mapping):
+        return []
+    return [
+        f"{label}  {gyeolmun[key]}" for key, label in _GYEOLMUN_FIELDS if gyeolmun.get(key)
+    ]
+
+
+def _bridge_table_block(raw: Mapping[str, Any], block_type: Any) -> Any:
+    raw_cols = list(raw.get("columns") or raw.get("header") or [])
+    if raw_cols and isinstance(raw_cols[0], Mapping):
+        # document_plan schema: columns=[{key,label}], rows=[{key: value}]
+        keys = [str(c.get("key") or c.get("label") or "") for c in raw_cols]
+        columns = [str(c.get("label") or c.get("key") or "") for c in raw_cols]
+        rows = []
+        for row in raw.get("rows") or []:
+            if isinstance(row, Mapping):
+                rows.append([str(row.get(k, "")) for k in keys])
+            elif isinstance(row, (list, tuple)):
+                rows.append([str(c) for c in row])
+    else:
+        columns = [str(c) for c in raw_cols]
+        rows = [[str(c) for c in row] for row in (raw.get("rows") or [])]
+    return block_type(type="table", role="info", columns=columns, rows=rows)
+
+
+def _attach_profile_memos(document: HwpxDocument, memos: Sequence[tuple[str, str]]) -> None:
+    """Attach each plan memo to the composed paragraph that holds its text.
+
+    Paragraphs are matched in document order, so two memo blocks with the same
+    text anchor to two different paragraphs. A memo whose paragraph cannot be
+    found fails the creation: a plan block must not vanish silently.
+    """
+
+    if not memos:
+        return
+    paragraphs = list(document.paragraphs)
+    cursor = 0
+    for anchor_text, memo_text in memos:
+        wanted = "".join(anchor_text.split())
+        found = next(
+            (
+                position
+                for position in range(cursor, len(paragraphs))
+                if "".join((paragraphs[position].text or "").split()) == wanted
+            ),
+            None,
+        )
+        if found is None:
+            raise ValueError(
+                "profile compose could not place a memo block: no paragraph holds "
+                f"its text {anchor_text[:40]!r}"
+            )
+        document.notes.add_memo(memo_text, anchor=paragraphs[found])
+        cursor = found + 1
+
+
+def _plan_carry_gaps(
+    normalized_plan: "DocumentPlan | None", document: HwpxDocument, *, page_break_count: int
+) -> list[str]:
+    """Plan blocks that left no trace in the document, as quality gaps.
+
+    The response of ``create_document_from_plan`` reports these in
+    ``quality.gaps`` so a page break or memo that a layout path failed to carry
+    can never again read as ``pass: true`` (audit ENG-18).
+    """
+
+    if normalized_plan is None:
+        return []
+    counts = _block_counts(normalized_plan)
+    gaps: list[str] = []
+    expected_breaks = int(counts.get("page_break", 0) or 0)
+    if page_break_count < expected_breaks:
+        gaps.append(
+            f"plan blocks not carried: page_break (plan {expected_breaks}, document {page_break_count})"
+        )
+    expected_memos = int(counts.get("memo", 0) or 0)
+    if expected_memos:
+        actual_memos = len(list(document.notes.memos))
+        if actual_memos < expected_memos:
+            gaps.append(
+                f"plan blocks not carried: memo (plan {expected_memos}, document {actual_memos})"
+            )
+    return gaps
 
 
 def _korean_proofing_status(plan: Any, normalized_plan: "DocumentPlan | None") -> str:
@@ -1163,13 +1265,19 @@ def create_document_from_plan(
         if profile_id is not None:
             from .design import compose_bytes
 
-            design_plan = _bridge_to_design_plan(plan, profile_id)
+            design_plan, memos = _bridge_to_design_plan(plan, profile_id)
             data, result = compose_bytes(design_plan, production=True)
             if not result.ok:
                 raise ValueError(
                     f"profile compose failed for {profile_id!r}: {result.errors}"
                 )
-            return HwpxDocument.open(data)
+            document = HwpxDocument.open(data)
+            try:
+                _attach_profile_memos(document, memos)
+            except Exception:
+                document.close()
+                raise
+            return document
 
     normalized = normalize_document_plan(plan)
     if normalized.builder_document is not None:
@@ -1348,6 +1456,9 @@ def inspect_document_authoring_quality(
         ]
         if plan_validation is not None and not plan_validation["ok"]:
             gaps.append("document plan validation failed")
+        gaps.extend(
+            _plan_carry_gaps(normalized_plan, document, page_break_count=page_break_count)
+        )
         style_usage = _style_usage(document)
         package_issues = _report_issue_dicts(package_report, kind="package")
         document_issues = _report_issue_dicts(document_report, kind="schema")
