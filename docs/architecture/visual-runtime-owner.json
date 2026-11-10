@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3705,
-    "manifestSha256": "bcd0b994d11c44fc0f5c3cce79691bcc2d5f1123a3b5136ebc496e200866cd7f",
+    "loc": 3708,
+    "manifestSha256": "d290304c3b2530a411bc64a791a1df9f06af9b04de5e7a92dd8bc42caeea28c8",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -26,9 +26,9 @@
       "reason": "Owned Mac session adapter; cancellation and hash-bound immutable artifacts; complete PDF and exact owned-document cleanup. See docs/architecture/owned-render-recovery.md. Historical core source receipts unchanged."
     },
     "refrozenFrom": {
-      "loc": 2834,
-      "manifestSha256": "c9b434b02300e5c4ba49d53b25a532314c953283c0cae514b1025d635cf608cf",
-      "reason": "render-pdf command: isolated Hancom render entry point (rendering/cli.py, rendering/__main__.py) for callers that cannot install [oracle] beside their own core pin; mac_session exposes the shared desktop lock path it already used. Historical core source receipts unchanged."
+      "loc": 3705,
+      "manifestSha256": "bcd0b994d11c44fc0f5c3cce79691bcc2d5f1123a3b5136ebc496e200866cd7f",
+      "reason": "audit security fixes (SEC-1, SEC-4, SEC-5, SEC-6, ENG-16)"
     },
     "renderPdfRefrozenFrom": {
       "loc": 3190,
