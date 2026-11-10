@@ -9,6 +9,7 @@ from inspect import signature
 from os import PathLike
 from pathlib import Path
 from typing import Any, ClassVar, Mapping, Sequence, cast
+import zlib
 
 from hwpx.document import HwpxDocument
 from hwpx.tools.id_integrity import check_id_integrity
@@ -609,6 +610,59 @@ def _spreadsheet_column_name(index: int) -> str:
     return "".join(reversed(letters))
 
 
+#: Largest image a document accepts from a file or from inline bytes.
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
+
+
+def validate_image_bytes(
+    data: bytes, image_format: str, *, label: str = "image"
+) -> None:
+    """Require *data* to be a complete PNG, JPEG or GIF matching *image_format*."""
+
+    fmt = image_format.casefold().lstrip(".")
+    if fmt == "png":
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ValueError(f"{label} content does not match image_format")
+        offset = 8
+        chunks: list[bytes] = []
+        while offset + 12 <= len(data):
+            length = int.from_bytes(data[offset:offset + 4], "big")
+            end = offset + 12 + length
+            if end > len(data):
+                break
+            kind = data[offset + 4:offset + 8]
+            payload = data[offset + 8:offset + 8 + length]
+            crc = int.from_bytes(data[end - 4:end], "big")
+            if zlib.crc32(kind + payload) != crc:
+                break
+            chunks.append(kind)
+            offset = end
+            if kind == b"IEND":
+                if length == 0 and offset == len(data) and chunks[0] == b"IHDR" and b"IDAT" in chunks:
+                    return
+                break
+    elif fmt in {"jpg", "jpeg"} and data.startswith(b"\xff\xd8\xff") and data.endswith(b"\xff\xd9"):
+        return
+    elif fmt == "gif" and data.startswith((b"GIF87a", b"GIF89a")) and data.endswith(b";"):
+        return
+    raise ValueError(f"{label} content does not match image_format or is incomplete")
+
+
+def read_workspace_image(
+    path: str | PathLike[str], image_format: str | None = None
+) -> tuple[bytes, str]:
+    """Read an image file that lies inside the workspace, bounded in size."""
+
+    from ....workspace import WorkspaceResolver
+
+    image_path = WorkspaceResolver.from_environment().resolve(path, must_exist=True)
+    with image_path.open("rb") as image_file:
+        data = image_file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ValueError("image must be at most 20 MiB")
+    return data, image_format or image_path.suffix.lstrip(".") or "png"
+
+
 @dataclass(frozen=True)
 class Image:
     path: str | PathLike[str] | bytes
@@ -627,10 +681,13 @@ class Image:
         if isinstance(self.path, bytes):
             image_data = self.path
             image_format = self.image_format or "png"
+            if len(image_data) > MAX_IMAGE_BYTES:
+                raise ValueError("image must be at most 20 MiB")
         else:
-            image_path = Path(self.path)
-            image_data = image_path.read_bytes()
-            image_format = self.image_format or image_path.suffix.lstrip(".") or "png"
+            image_data, image_format = read_workspace_image(
+                self.path, self.image_format
+            )
+        validate_image_bytes(image_data, image_format)
         document.add_picture(
             image_data,
             image_format,
