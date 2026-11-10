@@ -113,6 +113,17 @@ class WorkflowPolicy(BaseModel):
         return value
 
 
+def confined_workflow_path(value: str | None) -> str | None:
+    """Normalize a workflow path and require it to be inside the workspace."""
+
+    if not value:
+        return None
+    from ..workspace import WorkspaceResolver
+
+    resolver = WorkspaceResolver.from_environment()
+    return str(resolver.resolve(value, must_exist=False))
+
+
 class WorkOrder(BaseModel):
     """Typed, restartable request accepted by the workflow engine.
 
