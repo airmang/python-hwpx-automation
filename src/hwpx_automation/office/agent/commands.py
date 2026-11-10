@@ -1369,6 +1369,28 @@ def _finalize_command_result(
     return result_path, result_parent, result_stable_id
 
 
+def _text_only_batch_keeps_projection(text_scope: TextScope) -> bool:
+    """Whether one projection can serve every command of the batch.
+
+    Re-projecting the whole document after each command made a 50-cell form
+    fill project the document 51 times (audit EFF-17). The projection is only
+    reused for the narrow case that is provably unaffected by the commands
+    themselves: every command is a text-only ``set`` on an existing paragraph,
+    run or cell, and :class:`TextScope` has already refused targets that
+    contain one another. Such an edit changes text inside its own target; the
+    paths, identities and native bindings of every *other* target stay exactly
+    as projected, and a repeated target keeps its element. Form fields and
+    header stories (which add mirror controls) and every structural command
+    still re-project after each command. ``TextScope.verify`` afterwards
+    compares the whole candidate against the input outside those targets.
+    """
+
+    targets = text_scope.targets
+    return targets is not None and all(
+        target.kind in {"paragraph", "run", "cell"} for target in targets
+    )
+
+
 def apply_document_commands(
     batch: Mapping[str, Any],
     *,
@@ -1423,6 +1445,7 @@ def apply_document_commands(
         with HwpxDocument.open(input_data) as document:
             view = HwpxAgentDocument.from_document(document, revision=input_revision)
             text_scope = TextScope.bind(view, normalized["commands"])
+            keep_view = _text_only_batch_keeps_projection(text_scope)
             for index, command in enumerate(normalized["commands"]):
                 _call_fault(fault_injector, "before_command", index)
                 command_id = command["commandId"]
@@ -1433,7 +1456,8 @@ def apply_document_commands(
                 identity_changes.extend(generated)
 
                 _call_fault(fault_injector, "after_command", index)
-                view = HwpxAgentDocument.from_document(document, revision=input_revision)
+                if not keep_view:
+                    view = HwpxAgentDocument.from_document(document, revision=input_revision)
                 result_path, result_parent, result_stable_id = _finalize_command_result(
                     view,
                     command,
