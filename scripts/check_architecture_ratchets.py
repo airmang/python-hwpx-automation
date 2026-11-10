@@ -57,7 +57,7 @@ EXPECTED_SERVICE_LINES = {
     # WP-F: add_memo/fill now create the host paragraph explicitly before
     # calling notes.add_memo(anchor=...), which has no auto-create fallback
     # (unlike 5.x's add_memo_with_anchor(paragraph=None)).
-    "memo_style.py": 489,
+    "memo_style.py": 367,
     "package_validation.py": 164,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
@@ -214,7 +214,6 @@ EXPECTED_C901 = (
     # page_guard's collect_metrics (13) and compare_metrics (16) left with the
     # copy: the module re-exports core's hwpx.tools.page_guard (#177).
     ("src/hwpx_automation/ops_services/form_fields.py", "apply_evalplan_fill", 12),
-    ("src/hwpx_automation/ops_services/memo_style.py", "_split_run", 12),
     ("src/hwpx_automation/ops_services/preview_export.py", "render_preview", 16),
     ("src/hwpx_automation/ops_services/read_query.py", "analyze_template_structure", 13),
     ("src/hwpx_automation/ops_services/read_query.py", "find", 20),
