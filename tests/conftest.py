@@ -90,9 +90,10 @@ def _clear_path_sandbox_for_inprocess_tests(
     may replace this value with a narrower root.
 
     The default suite is also structurally isolated from live GUI automation.
-    Real Hancom tests opt in explicitly with ``HWPX_MAC_ORACLE_SMOKE``; without
-    that signal, any incidental renderer resolution must degrade without
-    launching ``osascript``.
+    Real Hancom tests opt in explicitly with ``HWPX_MAC_ORACLE_SMOKE`` (macOS)
+    or ``HWPX_WINDOWS_ORACLE_SMOKE`` (Windows; that smoke lifts the switch for
+    itself only); without that signal, any incidental renderer resolution must
+    degrade without launching ``osascript`` or Hancom COM.
     """
 
     monkeypatch.delenv("HWPX_MCP_SANDBOX_ROOT", raising=False)
