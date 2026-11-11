@@ -14,6 +14,8 @@ or its hash. The operations are :mod:`hwpx_automation.office.compact`.
 
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import json
 from typing import Annotated, Any, cast
 
@@ -26,10 +28,18 @@ from .office import compact
 __all__ = [
     "MINIMAL_INSTRUCTIONS",
     "MINIMAL_TOOL_NAMES",
+    "PROFILE_CHOICES",
+    "TRANSPORT_CHOICES",
+    "add_http_guard_argument",
     "add_profile_argument",
     "build_minimal_server",
+    "checked_startup",
+    "guarded_http_app",
     "served_for_profile",
 ]
+
+#: Every profile the server can run. Anything else is refused at startup.
+PROFILE_CHOICES = ("full", "minimal")
 
 #: The profile's frozen contract, in registration order.
 MINIMAL_TOOL_NAMES = (
@@ -131,7 +141,7 @@ def add_profile_argument(parser: Any) -> None:
 
     parser.add_argument(
         "--profile",
-        choices=("full", "minimal"),
+        choices=PROFILE_CHOICES,
         default=env_value("PROFILE", "full"),
         help=(
             "Tool surface: 'full' (the canonical tool contract) or 'minimal' "
@@ -144,8 +154,134 @@ def add_profile_argument(parser: Any) -> None:
 def served_for_profile(profile: str, full: FastMCP) -> FastMCP:
     """The server to run for *profile*: *full* itself, or a new minimal server."""
 
+    if profile not in PROFILE_CHOICES:
+        # argparse does not check a default taken from the environment, so an
+        # unknown name must not fall through to the full tool surface.
+        raise ValueError(
+            f"unknown profile {profile!r}; expected one of: {', '.join(PROFILE_CHOICES)}"
+        )
     if profile != "minimal":
         return full
     from . import __version__
 
     return build_minimal_server(__version__)
+
+
+# --- Server start-up guards -------------------------------------------------
+
+#: Every transport the server can run.
+TRANSPORT_CHOICES = ("stdio", "streamable-http", "http")
+_HTTP_TOKEN_ENV = "HTTP_TOKEN"
+_ALLOW_UNAUTHENTICATED_HTTP_ENV = "ALLOW_UNAUTHENTICATED_HTTP"
+_MIN_HTTP_TOKEN_LENGTH = 32
+
+
+def _is_loopback_host(host: str) -> bool:
+    """True only for a bind address that is reachable from this machine alone."""
+
+    value = (host or "").strip().strip("[]").lower()
+    if value == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(value).is_loopback
+    except ValueError:
+        return False
+
+
+class _BearerTokenGate:
+    """ASGI wrapper that answers 401 unless the request carries the token."""
+
+    def __init__(self, app: Any, token: str) -> None:
+        self._app = app
+        self._expected = f"Bearer {token}".encode("utf-8")
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") not in {"http", "websocket"}:
+            await self._app(scope, receive, send)
+            return
+        supplied = b""
+        for name, value in scope.get("headers") or ():
+            if name.lower() == b"authorization":
+                supplied = value
+                break
+        if hmac.compare_digest(supplied, self._expected):
+            await self._app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"www-authenticate", b"Bearer"),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": b'{"error":"unauthorized"}'})
+
+
+def add_http_guard_argument(parser: Any) -> None:
+    """The explicit opt-in for unauthenticated HTTP on a non-loopback address."""
+
+    from .configuration import env_value
+
+    parser.add_argument(
+        "--allow-unauthenticated-http",
+        action="store_true",
+        default=(env_value(_ALLOW_UNAUTHENTICATED_HTTP_ENV, "") or "").strip().lower()
+        in {"1", "true", "yes"},
+        help=(
+            "Serve HTTP on a non-loopback address without a token. Only for a "
+            "network that is already trusted. Equivalent to "
+            "HWPX_AUTOMATION_ALLOW_UNAUTHENTICATED_HTTP=1."
+        ),
+    )
+
+
+def checked_startup(parser: Any, args: Any) -> str | None:
+    """Validate the parsed start-up options; return the HTTP token, if any.
+
+    argparse validates values typed on the command line but not defaults read
+    from the environment, so profile and transport are checked again here.
+    """
+
+    from .configuration import env_value
+
+    if args.profile not in PROFILE_CHOICES:
+        parser.error(
+            f"unknown profile {args.profile!r}; expected one of: {', '.join(PROFILE_CHOICES)}"
+        )
+    if args.transport not in TRANSPORT_CHOICES:
+        parser.error(
+            f"unknown transport {args.transport!r}; expected one of: "
+            f"{', '.join(TRANSPORT_CHOICES)}"
+        )
+    if args.transport == "stdio":
+        return None
+    token = env_value(_HTTP_TOKEN_ENV)
+    if token is not None and len(token) < _MIN_HTTP_TOKEN_LENGTH:
+        parser.error(
+            f"HWPX_AUTOMATION_{_HTTP_TOKEN_ENV} must be at least "
+            f"{_MIN_HTTP_TOKEN_LENGTH} characters"
+        )
+    if (
+        not _is_loopback_host(args.host)
+        and not token
+        and not args.allow_unauthenticated_http
+    ):
+        parser.error(
+            f"refusing to serve HTTP on {args.host!r} without authentication. "
+            f"Bind to 127.0.0.1, set HWPX_AUTOMATION_{_HTTP_TOKEN_ENV} to a "
+            "long random secret (clients then send 'Authorization: Bearer "
+            "<token>'), or pass --allow-unauthenticated-http on a trusted network."
+        )
+    return token or None
+
+
+def guarded_http_app(app: Any, token: str | None) -> Any:
+    """Wrap *app* so every request must carry *token*; unchanged without one."""
+
+    return _BearerTokenGate(app, token) if token else app

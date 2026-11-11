@@ -174,6 +174,16 @@ CORE_659_BYTES = {
     "clean:detailed": ("554fa719a1c8fee944955d35dc01860f0ec8f580ea25d9944805b7a35221d7a5", 97738),
 }
 
+# The filled bytes after core #677, as (SHA-256, length). The cleanup phase strips guidance runs by
+# colour; before #677 a target-colour run that held a table also lost the text of the table's first
+# cell (form labels such as "성취율(원점수)" and the numbers beside them). Core now clears only the
+# text the target run holds itself and drops the line cache of the paragraphs it changed, so the
+# cleaned document keeps those cells. Only the "clean" phase output moved.
+CORE_677_BYTES = {
+    "clean:synthetic": ("09e642d2760f80b2cf7f2c6f96dc16c242ab38152c3143aa98dda4e017a5b41d", 97782),
+    "clean:detailed": ("8272e38fc4fe59f42fa69982ae3982379ef770e93ec7f2d2407faf1415f98846", 97741),
+}
+
 
 def _jsonify(value: object) -> object:
     """Round-trip through JSON so tuples (``dataclasses.asdict`` keeps
@@ -248,6 +258,8 @@ def test_plan_fill_and_cleanup_byte_matches_frozen_core(
     accepted = {(expected["dataSha256"], expected["dataLength"])}
     if (key := f"{phase}:{md_label}") in CORE_659_BYTES:
         accepted.add(CORE_659_BYTES[key])
+    if key in CORE_677_BYTES:
+        accepted.add(CORE_677_BYTES[key])
     assert (hashlib.sha256(data).hexdigest(), len(data)) in accepted
 
 

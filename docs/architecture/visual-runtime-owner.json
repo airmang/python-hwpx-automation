@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3713,
-    "manifestSha256": "99d45bf95dd57d241d4dcf3fcd5d27414c8cea19cbcf5cadda369a2c13256930",
+    "loc": 3716,
+    "manifestSha256": "f04919f0f1eae4ba54117325c866be7c6801c39ef377ba4c23de485fbe8efc38",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -26,9 +26,9 @@
       "reason": "Owned Mac session adapter; cancellation and hash-bound immutable artifacts; complete PDF and exact owned-document cleanup. See docs/architecture/owned-render-recovery.md. Historical core source receipts unchanged."
     },
     "refrozenFrom": {
-      "loc": 3705,
-      "manifestSha256": "bcd0b994d11c44fc0f5c3cce79691bcc2d5f1123a3b5136ebc496e200866cd7f",
-      "reason": "audit ARC-03: WindowsComOracle.available() honours HWPX_ORACLE_STRUCTURAL_ONLY (rendering/oracle.py)"
+      "loc": 3713,
+      "manifestSha256": "99d45bf95dd57d241d4dcf3fcd5d27414c8cea19cbcf5cadda369a2c13256930",
+      "reason": "security fixes merged with main after #211"
     },
     "renderPdfRefrozenFrom": {
       "loc": 3190,

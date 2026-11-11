@@ -80,7 +80,9 @@ EXPECTED_FACADE_LINES = {
     # S-108: shared identity/config helpers replaced duplicated MCP-era parsing.
     # +3: --profile minimal (#198); the option and the server choice live in
     # minimal_profile.py, the facade only wires them.
-    "server.py": 271,
+    # +9: start-up guard wiring (unknown profile/transport, unauthenticated
+    # non-loopback HTTP); the guards themselves live in minimal_profile.py.
+    "server.py": 280,
 }
 
 PRIVATE_ATTRIBUTES = ("_mcp_server", "_tool_manager", "_tools")
