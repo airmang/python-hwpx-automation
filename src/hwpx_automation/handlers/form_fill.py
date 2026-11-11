@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import copy
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import Field
 
@@ -90,6 +92,30 @@ def _template_formfit_baseline_arg(baseline: dict | str) -> dict | str:
     return text
 
 
+def _confined_formfit_analysis(analysis: Any) -> dict | None:
+    """Re-validate the paths carried inside a caller-supplied analysis."""
+
+    if analysis is None:
+        return None
+    if not isinstance(analysis, Mapping):
+        raise ValueError("analysis must be an object")
+    plan = copy.deepcopy(dict(analysis))
+    for key in ("source", "destination"):
+        entry = plan.get(key)
+        if entry is None:
+            continue
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"analysis.{key} must be an object with a path")
+        entry = dict(entry)
+        path = entry.get("path")
+        if path is not None:
+            if not isinstance(path, str) or not path.strip():
+                raise ValueError(f"analysis.{key}.path must be a non-empty path")
+            entry["path"] = resolve_path(path)
+        plan[key] = entry
+    return plan
+
+
 def analyze_template_formfit(
     source_filename: str,
     baseline: dict | str,
@@ -123,7 +149,7 @@ def apply_template_formfit(
     if apply_hwpx_template_formfit is None:
         raise RuntimeError("installed python-hwpx does not provide template form-fit")
     return apply_hwpx_template_formfit(
-        analysis=analysis,
+        analysis=_confined_formfit_analysis(analysis),
         source=resolve_path(source_filename) if source_filename else None,
         baseline=_template_formfit_baseline_arg(baseline)
         if baseline is not None

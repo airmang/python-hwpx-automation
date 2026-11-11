@@ -262,6 +262,43 @@ def _remove_linesegarray(paragraph: etree._Element) -> None:
             parent.remove(element)
 
 
+# Characters XML 1.0 cannot carry in a text node. A value holding one used to
+# abort the whole fill with ``ValueError: All strings must be XML compatible``
+# (audit ENG-19); python-hwpx's own setters drop them, and so does this path.
+_ILLEGAL_TEXT_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+_TEXT_MARK_SPLIT = re.compile("(\t|\r\n|\r|\n)")
+
+
+def _write_replacement(
+    text_element: etree._Element, before: str, replacement: str, after: str
+) -> None:
+    """Write ``before + replacement + after`` as the leading text of one ``hp:t``.
+
+    A tab in *replacement* becomes ``<hp:tab/>`` and a line break
+    ``<hp:lineBreak/>``, inserted ahead of whatever inline children the element
+    already has; a raw LF inside ``hp:t`` is not a line break to Hancom.
+    Placeholders are filled from the end of a paragraph backwards, so text
+    before this placeholder stays in ``.text`` where later replacements look.
+    """
+
+    parts = _TEXT_MARK_SPLIT.split(_ILLEGAL_TEXT_CHARS.sub("", replacement))
+    if len(parts) == 1:
+        text_element.text = before + parts[0] + after
+        return
+    namespace = text_element.tag.rsplit("}", 1)[0] + "}" if "}" in text_element.tag else ""
+    text_element.text = before + parts[0]
+    position = 0
+    last: etree._Element | None = None
+    for mark, segment in zip(parts[1::2], parts[2::2]):
+        child = text_element.makeelement(namespace + ("tab" if mark == "\t" else "lineBreak"), {})
+        child.tail = segment
+        text_element.insert(position, child)
+        position += 1
+        last = child
+    assert last is not None
+    last.tail = (last.tail or "") + after
+
+
 def _replace_match_in_nodes(
     nodes: Sequence[_TextNode],
     placeholder: Placeholder,
@@ -285,10 +322,10 @@ def _replace_match_in_nodes(
     first = touched[0]
     insert_at = placeholder.start - first.start
     first_text = updated[first]
-    updated[first] = first_text[:insert_at] + replacement + first_text[insert_at:]
-
     for node, text in updated.items():
-        node.element.text = text
+        if node is not first:
+            node.element.text = text
+    _write_replacement(first.element, first_text[:insert_at], replacement, first_text[insert_at:])
 
 
 def fill_section_bytes(

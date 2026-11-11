@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-import zlib
 
 from .. import quality as quality_contract
 from ..core.content import (
@@ -28,6 +27,7 @@ from ..mutation_models import (
     EditOperation,
     operation_payloads,
 )
+from ..office.authoring.builder.core import validate_image_bytes
 from ..office.utilities import table_compute as build_hwpx_table_compute
 from ..runtime_services import RUNTIME_SERVICES
 from ..upstream import (
@@ -809,33 +809,7 @@ def insert_picture(
 
 def _validate_workspace_image(data: bytes, image_format: str) -> None:
     """Check bounded file input before inserting its bytes into a package."""
-    fmt = image_format.casefold().lstrip(".")
-    if fmt == "png":
-        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
-            raise ValueError("image_filename content does not match image_format")
-        offset = 8
-        chunks: list[bytes] = []
-        while offset + 12 <= len(data):
-            length = int.from_bytes(data[offset:offset + 4], "big")
-            end = offset + 12 + length
-            if end > len(data):
-                break
-            kind = data[offset + 4:offset + 8]
-            payload = data[offset + 8:offset + 8 + length]
-            crc = int.from_bytes(data[end - 4:end], "big")
-            if zlib.crc32(kind + payload) != crc:
-                break
-            chunks.append(kind)
-            offset = end
-            if kind == b"IEND":
-                if length == 0 and offset == len(data) and chunks[0] == b"IHDR" and b"IDAT" in chunks:
-                    return
-                break
-    elif fmt in {"jpg", "jpeg"} and data.startswith(b"\xff\xd8\xff") and data.endswith(b"\xff\xd9"):
-        return
-    elif fmt == "gif" and data.startswith((b"GIF87a", b"GIF89a")) and data.endswith(b";"):
-        return
-    raise ValueError("image_filename content does not match image_format or is incomplete")
+    validate_image_bytes(data, image_format, label="image_filename")
 
 
 def replace_picture(

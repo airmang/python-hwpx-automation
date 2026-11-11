@@ -110,29 +110,12 @@ def apply_template_formfit(
             destination=destination,
         )
 
-    source_path = Path(str(source or plan.get("source", {}).get("path") or ""))
-    destination_value = destination or plan.get("destination", {}).get("path")
-    if not destination_value:
-        raise ValueError("destination is required")
-    destination_path = Path(str(destination_value))
+    source_path = _required_path(plan, "source", source)
+    destination_path = _required_path(plan, "destination", destination)
 
-    if source_path.resolve(strict=False) == destination_path.resolve(strict=False):
-        return {
-            "handoff_status": "blocked",
-            "reason": "source-in-place edit refused",
-            "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
-            "destination": {"path": str(destination_path)},
-        }
-
-    unresolved = list(plan.get("unresolved") or [])
-    if unresolved:
-        return {
-            "handoff_status": "blocked",
-            "reason": "unresolved template targets remain",
-            "unresolved": unresolved,
-            "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
-            "destination": {"path": str(destination_path)},
-        }
+    blocked = _blocked_before_copy(plan, source_path, destination_path)
+    if blocked is not None:
+        return blocked
 
     source_before_hash = _sha256_file(source_path)
     source_before_mtime = source_path.stat().st_mtime_ns
@@ -159,6 +142,20 @@ def apply_template_formfit(
         finally:
             doc.close()
 
+        verification = _verify_applied(tmp_path, applied)
+        if not verification["ok"]:
+            # Nothing is published unless every inserted value reads back.
+            tmp_path.unlink(missing_ok=True)
+            return {
+                "handoff_status": "blocked",
+                "reason": "applied content could not be read back from the copy",
+                "source": {"path": str(source_path), "sha256": source_before_hash},
+                "destination": {"path": str(destination_path)},
+                "applied": applied,
+                "verification": verification,
+                "persisted": False,
+            }
+
         validation = _runtime_validation(tmp_path)
         if not validation["openSafety"]["ok"]:
             raise ValueError(
@@ -170,7 +167,7 @@ def apply_template_formfit(
             plan.get("residual_marker_policy") or {},
         )
         destination_hash = _sha256_file(tmp_path)
-        os.replace(tmp_path, destination_path)
+        _publish_new_file(tmp_path, destination_path)
     except BaseException:
         tmp_path.unlink(missing_ok=True)
         raise
@@ -203,6 +200,7 @@ def apply_template_formfit(
             "changed": copied_hash != destination_hash,
         },
         "applied": applied,
+        "verification": verification,
         "validation": validation,
         "visual_complete": visual_complete.to_dict(),
         "residual_markers": residual_markers,
@@ -210,6 +208,73 @@ def apply_template_formfit(
         "visual_review_regions": list(plan.get("visual_review_regions") or []),
         "persisted": True,
     }
+
+
+def _blocked_before_copy(
+    plan: Mapping[str, Any], source_path: Path, destination_path: Path
+) -> dict[str, Any] | None:
+    """The refusal to return before anything is copied, or None to proceed."""
+
+    reason: str | None = None
+    extra: dict[str, Any] = {}
+    unresolved = list(plan.get("unresolved") or [])
+    if source_path.resolve(strict=False) == destination_path.resolve(strict=False):
+        reason = "source-in-place edit refused"
+    elif os.path.lexists(destination_path):
+        # Copy-only contract: an existing file is never replaced.
+        reason = "destination already exists"
+        extra["persisted"] = False
+    elif unresolved:
+        reason = "unresolved template targets remain"
+        extra["unresolved"] = unresolved
+    if reason is None:
+        return None
+    return {
+        "handoff_status": "blocked",
+        "reason": reason,
+        **extra,
+        "source": {"path": str(source_path), "sha256": _sha256_file(source_path)},
+        "destination": {"path": str(destination_path)},
+    }
+
+
+def _required_path(
+    plan: Mapping[str, Any], key: str, override: str | Path | None
+) -> Path:
+    value = override or _plan_path(plan, key)
+    if not value:
+        raise ValueError(f"{key} is required")
+    return Path(str(value))
+
+
+def _plan_path(plan: Mapping[str, Any], key: str) -> str | None:
+    entry = plan.get(key)
+    if entry is None:
+        return None
+    if not isinstance(entry, Mapping):
+        raise ValueError(f"analysis.{key} must be an object with a path")
+    value = entry.get("path")
+    if value is None:
+        return None
+    if not isinstance(value, (str, os.PathLike)) or not str(value).strip():
+        raise ValueError(f"analysis.{key}.path must be a non-empty path")
+    return str(value)
+
+
+def _publish_new_file(tmp_path: Path, destination_path: Path) -> None:
+    """Move the finished copy into place without replacing an existing file."""
+
+    try:
+        os.link(tmp_path, destination_path)
+    except FileExistsError:
+        raise
+    except OSError:
+        # No hard links on this filesystem: fall back to a checked rename.
+        if os.path.lexists(destination_path):
+            raise FileExistsError(str(destination_path)) from None
+        os.replace(tmp_path, destination_path)
+        return
+    tmp_path.unlink(missing_ok=True)
 
 
 def _load_baseline(baseline: Mapping[str, Any] | str | Path) -> dict[str, Any]:
@@ -415,6 +480,7 @@ def _apply_section_region(
         **dict(target),
         "applied": True,
         "inserted_paragraphs": len(new_elements),
+        "inserted_texts": list(paragraphs),
         "removed_placeholders": len(removed),
     }
 
@@ -430,11 +496,16 @@ def _apply_table_region(doc: HwpxDocument, target: Mapping[str, Any]) -> dict[st
         columns = list(rows[0].keys())
     generated = _build_table_paragraph(doc, columns, rows)
     section.insert_paragraphs(anchor_index + 1, [generated])
+    header = columns or ["내용"]
     return {
         **dict(target),
         "applied": True,
         "inserted_tables": 1,
         "inserted_rows": len(rows),
+        "inserted_cells": [
+            list(header),
+            *[[row.get(column, "") for column in header] for row in rows],
+        ],
         "removed_placeholders": len(removed),
     }
 
@@ -495,6 +566,10 @@ def _remove_placeholder_paragraphs(section: Any, start_index: int) -> list[Any]:
         text = (paragraph.text or "").strip()
         if not _looks_like_placeholder(text):
             break
+        if not _is_plain_text_paragraph(paragraph.element):
+            # Its own text is empty, but it carries a table, picture or
+            # section settings: that is content, not a placeholder.
+            break
         removed.append(copy.deepcopy(paragraph.element))
         section.remove_paragraph(start_index)
     return removed
@@ -506,44 +581,126 @@ def _looks_like_placeholder(text: str) -> bool:
     return any(marker in text for marker in _DEFAULT_RESIDUAL_MARKERS)
 
 
+def _is_plain_text_paragraph(element: Any) -> bool:
+    """True when the paragraph holds nothing but text runs."""
+
+    for child in element:
+        name = _local_name(child.tag)
+        if name == "linesegarray":
+            continue
+        if name != "run":
+            return False
+        for item in child:
+            if _local_name(item.tag) != "t":
+                return False
+    return True
+
+
 def _paragraph_clone_with_text(template: Any, text: str) -> Any:
+    """A new paragraph with the template formatting and exactly *text*.
+
+    Only the paragraph and run attributes are taken from the template. Its
+    children are rebuilt, so a template without a text slot still receives the
+    text and a template that carries objects does not get them duplicated.
+    """
+
     cloned = copy.deepcopy(template)
-    paragraph = _ParagraphElementAdapter(cloned)
-    paragraph.text = text
+    runs = [child for child in cloned if _local_name(child.tag) == "run"]
+    styled_run = next(
+        (run for run in runs if any(_local_name(item.tag) == "t" for item in run)),
+        runs[0] if runs else None,
+    )
+    run_attributes = (
+        dict(styled_run.attrib) if styled_run is not None else {"charPrIDRef": "0"}
+    )
+    for child in list(cloned):
+        cloned.remove(child)
+    for attribute in ("pageBreak", "columnBreak"):
+        if attribute in cloned.attrib:
+            cloned.set(attribute, "0")
+    namespace = str(cloned.tag)[: -len(_local_name(cloned.tag))]
+    run = cloned.makeelement(f"{namespace}run", run_attributes)
+    text_node = run.makeelement(f"{namespace}t", {})
+    text_node.text = text
+    run.append(text_node)
+    cloned.append(run)
     return cloned
 
 
-def _remove_layout_cache(element: Any) -> None:
-    for child in list(element):
-        if _local_name(child.tag).lower() == "linesegarray":
-            element.remove(child)
-        else:
-            _remove_layout_cache(child)
+def _element_text(element: Any) -> str:
+    return "".join(
+        node.text or "" for node in element.iter() if _local_name(node.tag) == "t"
+    )
 
 
-class _ParagraphElementAdapter:
-    def __init__(self, element: Any):
-        self.element = element
+def _cell_texts(element: Any) -> list[str]:
+    return [
+        _element_text(node)
+        for node in element.iter()
+        if _local_name(node.tag) == "tc"
+    ]
 
-    @property
-    def text(self) -> str:
-        texts = [
-            node.text or ""
-            for node in self.element.iter()
-            if _local_name(node.tag) == "t"
+
+def _verify_applied(path: Path, applied: list[dict[str, Any]]) -> dict[str, Any]:
+    """Re-open the saved copy and confirm each applied value is present."""
+
+    failures: list[dict[str, Any]] = []
+    doc = HwpxDocument.open(path)
+    try:
+        sections = [list(section.paragraphs) for section in doc.sections]
+        for record in applied:
+            reason = _verify_record(sections, record)
+            if reason is not None:
+                failures.append(
+                    {
+                        "id": record.get("id"),
+                        "kind": record.get("kind"),
+                        "anchor": record.get("anchor"),
+                        "reason": reason,
+                    }
+                )
+    finally:
+        doc.close()
+    return {"ok": not failures, "checked": len(applied), "failures": failures}
+
+
+def _verify_record(sections: list[list[Any]], record: Mapping[str, Any]) -> str | None:
+    if not record.get("applied"):
+        return str(record.get("reason") or "target was not applied")
+    if record.get("kind") == "scalar-line":
+        expected = str(record.get("after_text") or "")
+        for paragraphs in sections:
+            if any((paragraph.text or "") == expected for paragraph in paragraphs):
+                return None
+        return "scalar text not found after save"
+    anchor = str(record.get("anchor") or "")
+    for paragraphs in sections:
+        for index, paragraph in enumerate(paragraphs):
+            if anchor in (paragraph.text or "") and _region_follows(
+                record, paragraphs[index + 1 :]
+            ):
+                return None
+    return "inserted content not found after its anchor"
+
+
+def _region_follows(record: Mapping[str, Any], following: list[Any]) -> bool:
+    """True when the paragraphs after an anchor hold the record's content."""
+
+    kind = record.get("kind")
+    if kind == "section-region":
+        expected_texts = [str(text) for text in record.get("inserted_texts") or []]
+        window = following[: len(expected_texts)]
+        return (
+            bool(expected_texts)
+            and [_element_text(item.element) for item in window] == expected_texts
+            and all(_is_plain_text_paragraph(item.element) for item in window)
+        )
+    if kind == "table-region" and following:
+        expected_cells = [
+            str(cell) for row in record.get("inserted_cells") or [] for cell in row
         ]
-        return "".join(texts)
-
-    @text.setter
-    def text(self, value: str) -> None:
-        text_nodes = [
-            node for node in self.element.iter() if _local_name(node.tag) == "t"
-        ]
-        if text_nodes:
-            text_nodes[0].text = value
-            for node in text_nodes[1:]:
-                node.text = ""
-        _remove_layout_cache(self.element)
+        return bool(expected_cells) and _cell_texts(following[0].element) == expected_cells
+    return False
 
 
 def _local_name(tag: Any) -> str:

@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 
+import os
+import threading
+import time
+
 from ..workflow.service import WorkflowService
 from ..runtime_services import RUNTIME_SERVICES
 from ..tool_contract import contract_hash
@@ -11,18 +15,72 @@ from ._shared import (
     _render_client,
 )
 
+# The health check compares every registered tool schema against the contract.
+# Its answer only changes when the runtime is recomposed, so workflow tools
+# reuse it for a short while instead of recomputing it on every call.
+_TOOL_SURFACE_MEMO_SECONDS = 30.0
+_tool_surface_memo: tuple[tuple[object, ...], float, tuple[bool, str]] | None = None
+_tool_surface_lock = threading.Lock()
+_clock = time.monotonic
+
+
+def _probe_tool_surface() -> tuple[bool, str]:
+    capability = RUNTIME_SERVICES.require_tool_bindings()["mcp_server_health"]()[
+        "capability"
+    ]
+    return bool(capability["ok"]), contract_hash()
+
+
+def _tool_surface_identity() -> tuple[object, ...]:
+    return (
+        RUNTIME_SERVICES.require_tool_bindings(),
+        RUNTIME_SERVICES.mcp,
+        RUNTIME_SERVICES.tool_registry,
+        RUNTIME_SERVICES.active_advanced,
+        os.environ.get("HWPX_SKILL_VERSION"),
+    )
+
+
+def _same_identity(left: tuple[object, ...], right: tuple[object, ...]) -> bool:
+    return len(left) == len(right) and all(
+        a is b or (isinstance(a, (bool, str)) and a == b)
+        for a, b in zip(left, right)
+    )
+
+
+def _tool_surface_state() -> tuple[bool, str]:
+    global _tool_surface_memo
+    identity = _tool_surface_identity()
+    now = _clock()
+    with _tool_surface_lock:
+        memo = _tool_surface_memo
+        if (
+            memo is not None
+            and _same_identity(memo[0], identity)
+            and 0 <= now - memo[1] < _TOOL_SURFACE_MEMO_SECONDS
+        ):
+            return memo[2]
+    state = _probe_tool_surface()
+    with _tool_surface_lock:
+        _tool_surface_memo = (identity, now, state)
+    return state
+
+
+def _reset_tool_surface_memo() -> None:
+    global _tool_surface_memo
+    with _tool_surface_lock:
+        _tool_surface_memo = None
+
 
 def _workflow_service() -> WorkflowService:
     """Build a request-scoped service over the durable configured store."""
 
-    capability = RUNTIME_SERVICES.require_tool_bindings()["mcp_server_health"]()[
-        "capability"
-    ]
+    capability_ok, tool_spec_hash = _tool_surface_state()
     return WorkflowService(
         RUNTIME_SERVICES.require_tool_bindings(),
-        capability_ok=bool(capability["ok"]),
+        capability_ok=capability_ok,
         render_client=_render_client(),
-        tool_spec_hash=contract_hash(),
+        tool_spec_hash=tool_spec_hash,
     )
 
 

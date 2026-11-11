@@ -51,6 +51,7 @@ from pathlib import Path
 import hwpx_automation.office.rendering.detectors as detectors
 import hwpx_automation.office.rendering.diff as diff
 from hwpx.quality.rendering import EditMask, VisualReport
+from hwpx_automation.configuration import windows_powershell
 from .block_splits import Block, BlockSplit, detect_block_splits
 
 _BACKEND_SCRIPT = "_render_hwpx.ps1"
@@ -368,7 +369,7 @@ class WindowsComOracle(RenderBackend):
         dpi: int = 150,
         budget_seconds: float | None = None,
     ) -> None:
-        self._powershell = powershell or "powershell"
+        self._powershell = windows_powershell(powershell)
         self.timeout = timeout
         self.dpi = dpi
         # Single externally-propagated deadline: every subprocess timeout in
@@ -376,8 +377,16 @@ class WindowsComOracle(RenderBackend):
         self.budget_seconds = budget_seconds
 
     def available(self) -> bool:
-        """True only on Windows with the ``HWPFrame.HwpObject`` COM class registered."""
+        """True only on Windows with the ``HWPFrame.HwpObject`` COM class registered.
 
+        ``HWPX_ORACLE_STRUCTURAL_ONLY`` forces ``False`` (the same contract as the
+        Mac backend) so no caller can start Hancom through COM in structural-only
+        operation -- including a direct ``WindowsComOracle()`` that bypasses
+        :func:`resolve_oracle`.
+        """
+
+        if structural_only():
+            return False
         if sys.platform != "win32":
             return False
         try:

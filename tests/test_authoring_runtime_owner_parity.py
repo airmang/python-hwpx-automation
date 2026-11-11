@@ -155,7 +155,8 @@ POST_FREEZE_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     },
     # Slot values a block passes to a placeholder-marked template role.
     "hwpx.design": {
-        "Block": ("values",),
+        # page_break_before: a plan page_break carried onto the profile route (ENG-18).
+        "Block": ("values", "page_break_before"),
     },
 }
 

@@ -1,6 +1,33 @@
 # Changelog
 
-## [Unreleased]
+## [7.5.0] - 2026-11-11
+
+2026-11 전체 점검에서 나온 수정을 모은 릴리스입니다. 기본 동작이 바뀌는 것이 넷 있습니다.
+
+- `get_table_map`은 실제 칸만 싣는 압축 형태가 기본입니다. 이전 형태는 `detail="full"`로 받습니다. 도구 계약 해시가
+  `71622c28a07913d1`로 바뀝니다.
+- 기본 서식 레지스트리가 `~/.hwpx`에서 작업공간 루트의 `.hwpx`로 옮겨집니다. 홈에 등록해 둔 서식은 옮겨 주지 않습니다.
+- 루프백이 아닌 주소의 HTTP 전송은 `HWPX_AUTOMATION_HTTP_TOKEN`(32자 이상)이나 `--allow-unauthenticated-http` 없이는
+  시작하지 않습니다. 알 수 없는 프로필·전송 방식도 시작 때 거부합니다. Dockerfile의 기본값은 프로필 `full`,
+  바인드 `127.0.0.1`입니다.
+- python-hwpx 6.12.0과 함께 쓰면 평가계획 정리 단계가 안내 글 조각이 품은 표의 첫 칸 글을 지우지 않습니다.
+
+python-hwpx 최소 버전은 6.10.0 그대로입니다. 저장 성공만으로 시각 품질을 보증하지 않습니다.
+
+- 2026-11 audit, boundaries. Helper programs (the preview browser, Windows PowerShell) are found only on absolute `PATH` entries and never in the working directory, which is commonly the document workspace. `apply_template_formfit` re-validates the paths carried inside a caller-supplied `analysis`; the path form of `input_json`, workflow source and output paths, and image files named by a document plan are checked against the workspace before any file is touched. Plan images must be complete PNG, JPEG or GIF files of at most 20 MiB.
+- The default template registry lives under the primary workspace root (`.hwpx/template_registry.json`) instead of the user's home folder.
+- Server start refuses an unknown `--profile`/`HWPX_AUTOMATION_PROFILE` or transport instead of falling through to the full tool surface, and refuses to serve HTTP on a non-loopback address without `HWPX_AUTOMATION_HTTP_TOKEN` (clients send `Authorization: Bearer <token>`) or the explicit `--allow-unauthenticated-http`. The Docker image binds `127.0.0.1` and uses the `full` profile by default.
+- Template form-fit no longer loses or misplaces inserted text (ENG-16). Form-fill analysis plans and mixed-form replay results are kept in bounded, expiring stores, and workflow tools reuse the tool-surface check for 30 seconds instead of recomputing it on every call.
+- 2026-11 audit, correctness. `format_text` and memo styling no longer copy a whole run to restyle part of it: only text moves to the new run, so `hp:secPr`, `hp:ctrl` (column definitions, form-field begin/end) and the `hp:tab`/`hp:lineBreak` inside `hp:t` stay single. Formatting the first two characters of a new document's first paragraph used to leave three section definitions (ENG-15).
+- `apply_document_commands`: setting a table caption goes through python-hwpx's caption and run text setters, so the caption paragraph's line layout cache is dropped and `"
+"` is written as `hp:lineBreak`; a copied or moved paragraph no longer carries its source's cache (ENG-08). Paragraph text with a tab or a line break is written as `hp:tab`/`hp:lineBreak` and now passes verification; before, a tab made every such edit roll back with `verification_failed` (ENG-19).
+- `create_document_from_plan` with `metadata.document_type` (공문·보고서·가정통신문) carries `page_break` and `memo` blocks instead of dropping them, writes `"
+"` as `hp:lineBreak`, and refuses a block type the profile cannot place. `quality.gaps` reports `plan blocks not carried: …` when a plan's page breaks or memos are missing from the document (ENG-18).
+- `set_table_cell_text` keeps a tab (as `hp:tab`) instead of deleting it; `{{placeholder}}` fills and profile text drop control characters XML cannot carry instead of failing with `All strings must be XML compatible` (ENG-19).
+- `get_table_map` returns each real cell once (`detail="compact"`, the new default): merged cells as `row_span`/`col_span` at their anchor, text previews of `text_preview_chars` (80) characters with `text_length` when cut, and at most about `max_chars` (60,000) characters with `cells_omitted`/`truncated` when more remain; `table_index` selects one table. Cell locations are built from the response's `cell_location`/`cell_paragraph_location` templates. `detail="full"` returns the previous shape. A 131 KB form's response went from 3.1 MB to 38 KB (EFF-16).
+- Tool flags: `build_image_grid`, `build_meeting_nameplates`, `build_organization_chart`, `table_compute` and `apply_style_profile_to_plan` are no longer marked `mutates` (they write nothing and no longer wait for the write lock); `dump_document_blueprint` and `verify_toc` are (ARC-06). With the `get_table_map` change the source contract hash is `71622c28a07913d1`; `docs/tool-contract-delta-source-audit-2026-11.json` records the delta.
+- Speed. Server start registers each active tool once and reads the MCP SDK version once (tool registration 3.5 s → 0.6 s on the measuring PC, EFF-03). A write validates each distinct document content once and copies the `.bak` once (`add_paragraph` on a 131 KB form 2.7 s → 1.5 s, EFF-15). A text-only `apply_document_commands` batch projects the document once instead of once per command, and a projection looks each style up once (20 commands 27 s → 1.5 s, EFF-17).
+- On Windows with Hancom installed, `WindowsComOracle.available()` now honours `HWPX_ORACLE_STRUCTURAL_ONLY`, and the live COM smoke test runs only with `HWPX_WINDOWS_ORACLE_SMOKE=1`; a plain `pytest` no longer starts Hancom (ARC-03). The Tests workflow enforces a line-coverage floor of 77% and the repository has a `.gitattributes` keeping text files LF (ARC-12). Owner ledgers, README and the hardening guide state the current contract coordinates (ARC-13).
 
 - `hwpx-automation-mcp --profile minimal` (or `HWPX_AUTOMATION_PROFILE=minimal`) serves six coarse tools for small local models instead of the canonical contract: `read_outline` (an id-tagged short list within a character budget, paged with `after`), `apply_text_changes` (`{id: new text}`, formatting kept, cells the new text may not fit reported as `overflow`), `replace_text`, `stage_text`, `create_from_markdown` and `validate_document`. Descriptions are short, results are compact JSON without the document body, and edits are saved to `<name>.edited.hwpx` unless an output is given. The canonical tool contract and its hash are unchanged; the profile has its own frozen tool list (#198).
 - A long Markdown body no longer has to travel in one tool argument, which made Ollama's qwen tool-call parser fail with `EOF`: `stage_text` stores text in chunks (pass the returned `draftId` back to append) and `create_from_markdown` takes that `draft_id`, a workspace `markdown_path`, or at most 2,000 inline characters. Drafts live in the server process, at most 64 of 200,000 characters each, and expire after six hours unused (#199).

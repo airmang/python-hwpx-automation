@@ -1399,7 +1399,8 @@ def test_get_table_map_returns_stable_json_shape(tmp_path: Path):
     target = tmp_path / "form.hwpx"
     _create_form_document(target)
 
-    result = get_table_map(str(target))
+    # The previous response shape stays available as detail="full" (EFF-16).
+    result = get_table_map(str(target), detail="full")
 
     assert {"tables", "count", "document_revision", "documentWarnings"}.issubset(result)
     assert result["count"] == 1
@@ -1443,9 +1444,9 @@ def test_table_map_location_can_drive_text_lookup_and_memo(tmp_path: Path):
     target = tmp_path / "form.hwpx"
     _create_form_document(target)
 
-    cell_location = get_table_map(str(target))["tables"][0]["cells"][0]["paragraphs"][
-        0
-    ]["location"]
+    cell_location = get_table_map(str(target), detail="full")["tables"][0]["cells"][0][
+        "paragraphs"
+    ][0]["location"]
     text_result = get_paragraph_text(str(target), location=cell_location)
     memo_result = add_memo(str(target), text="라벨 확인", location=cell_location)
 
@@ -1461,9 +1462,9 @@ def test_replace_in_paragraph_uses_location_and_preserves_run_char_pr(tmp_path: 
     create_document(str(target))
     add_table(str(target), 1, 1, [["REQUIRED_DATA_FILES = []"]])
 
-    cell_location = get_table_map(str(target))["tables"][0]["cells"][0]["paragraphs"][
-        0
-    ]["location"]
+    cell_location = get_table_map(str(target), detail="full")["tables"][0]["cells"][0][
+        "paragraphs"
+    ][0]["location"]
     doc = open_doc(str(target))
     run = doc.paragraphs[1].tables[0].cell(0, 0).paragraphs[0].runs[0]
     run.char_pr_id_ref = "31"

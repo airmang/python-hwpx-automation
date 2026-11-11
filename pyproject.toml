@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx-automation"
-version = "7.4.1"
+version = "7.5.0"
 description = "Task-oriented HWPX document automation for Python, with an optional MCP adapter."
 readme = "README.md"
 authors = [{ name = "Kohkyuhyun" }]
@@ -24,20 +24,18 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # 6.0 is the floor, not a preference: this package declares the `hwpx` console
-    # name that core used to own, and core only stops declaring it at 5.0. Pinning
-    # the bounded major here is what makes "no valid install has two declarers"
-    # true rather than hopeful, and prevents the next core major from silently
-    # breaking an already-published automation line. WP-F (engine surface 6.0):
-    # this line adapted to the new namespace surface (design §9 WP-F) — the dev0
-    # pre-release qualifier tracks core's own not-yet-tagged 6.0 identity.
+    # 6.10.0 is the floor, not a preference: the delegated template analyzer and
+    # the public style APIs this package calls first shipped there. The lower
+    # bound has been at or above 6.0 since this package took over the `hwpx`
+    # console name (core stopped declaring it at 5.0), which is what makes "no
+    # valid install has two declarers" true rather than hopeful. The bounded
+    # major (<7) keeps the next core major from silently breaking an
+    # already-published automation line.
     "python-hwpx>=6.10.0,<7", # HWPX object model, OXML/OPC, format-native primitives
 
     "pydantic>=2.11,<3",
     "cryptography>=42.0",
     "anyio>=4.0",
-    # Annotated CallToolResult validation landed in 1.28; the audited private
-    # FastMCP seam is intentionally pinned to this minor line and compatibility-tested.
     "tomli>=2.0; python_version < '3.11'",
 ]
 
@@ -45,6 +43,10 @@ dependencies = [
 # MCP는 이 제품의 어댑터 하나지 본체가 아니다. office/·workflow/·
 # ops_services/·core/ 122개 파일 중 mcp를 import하는 것은 0개다. 파이썬으로
 # 문서 자동화만 하는 사용자가 MCP SDK를 강제로 깔 이유가 없다.
+# Annotated CallToolResult validation landed in 1.28. The audited private FastMCP
+# seam is pinned to one exact patch (1.30.0, the first 1.x with the
+# GHSA-84m7-p3x7-pcfv fix) and re-audited per docs/mcp-sdk-reaudit.md before
+# the pin moves.
 mcp = ["mcp==1.30.0"]
 
 # Legacy .hwp (HWP5/OLE2) reading. Lazy-imported; clear error if missing.
@@ -151,6 +153,16 @@ filterwarnings = [
     # third-party artifact, never an hwpx-sourced warning.
     "ignore:builtin type \\w+ has no __module__ attribute:DeprecationWarning",
 ]
+
+[tool.coverage.run]
+source = ["hwpx_automation"]
+
+[tool.coverage.report]
+# Line-coverage floor enforced by the Tests workflow (`pytest --cov`). The
+# 2026-11 audit measured 79.73% (Windows, Python 3.12); the floor sits a little
+# below so platform-only branches do not flap it. Raise it as coverage grows;
+# never lower it to make a change pass.
+fail_under = 77
 
 [tool.mypy]
 python_version = "3.10"

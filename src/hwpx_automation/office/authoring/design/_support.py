@@ -8,6 +8,7 @@ replacement, and lineseg-cache stripping.
 """
 from __future__ import annotations
 
+import re
 from copy import deepcopy
 from typing import Iterable
 
@@ -60,19 +61,49 @@ def strip_lineseg(element: etree._Element) -> None:
             parent.remove(cache)
 
 
+# Characters XML 1.0 cannot carry in a text node (tab and the line breaks are
+# handled separately: they become hp:tab / hp:lineBreak elements).
+_ILLEGAL_TEXT_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
+_TEXT_MARK_SPLIT = re.compile("(\t|\r\n|\r|\n)")
+
+
+def clean_text(value: str) -> str:
+    """*value* without the control characters an XML text node refuses."""
+
+    return _ILLEGAL_TEXT_CHARS.sub("", value)
+
+
+def fill_text_element(text_element: etree._Element, value: str) -> None:
+    """Make *value* the whole content of one ``hp:t`` the way Hancom writes it.
+
+    A tab becomes ``<hp:tab/>`` and a line break (LF, CRLF or CR) becomes
+    ``<hp:lineBreak/>`` inside the ``hp:t``; a raw LF in ``hp:t`` is not a line
+    break to Hancom (audit ENG-18). Control characters XML cannot carry are
+    dropped instead of raising ``ValueError`` (audit ENG-19). Whatever the
+    element held before (text and inline children) is replaced.
+    """
+
+    for child in list(text_element):
+        text_element.remove(child)
+    parts = _TEXT_MARK_SPLIT.split(value or "")
+    text_element.text = clean_text(parts[0])
+    for mark, segment in zip(parts[1::2], parts[2::2]):
+        name = "tab" if mark == "\t" else "lineBreak"
+        child = etree.SubElement(text_element, hp(text_element, name))
+        child.tail = clean_text(segment) or None
+
+
 def set_paragraph_text(paragraph: etree._Element, text: str) -> None:
     """Put *text* in the paragraph's first ``<hp:t>``, clear the rest, drop cache.
 
     Preserves the run's ``charPrIDRef`` (the harvested style) — only the text
-    content changes.
+    content changes. Line breaks and tabs are written as ``hp:lineBreak`` /
+    ``hp:tab`` (see :func:`fill_text_element`).
     """
 
     t_nodes = [t for t in iter_local(paragraph, "t") if not _under_table(paragraph, t)]
     if t_nodes:
-        primary = t_nodes[0]
-        primary.text = text
-        for child in list(primary):  # drop inline children that held fragments
-            primary.remove(child)
+        fill_text_element(t_nodes[0], text)
         for node in t_nodes[1:]:
             node.text = ""
             for child in list(node):
@@ -81,7 +112,7 @@ def set_paragraph_text(paragraph: etree._Element, text: str) -> None:
         run = first_run(paragraph)
         if run is not None:
             t = etree.SubElement(run, hp(paragraph, "t"))
-            t.text = text
+            fill_text_element(t, text)
     strip_lineseg(paragraph)
 
 

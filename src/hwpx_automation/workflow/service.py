@@ -24,6 +24,7 @@ from .models import (
     WorkflowState,
     WorkOrder,
     canonical_json,
+    confined_workflow_path,
 )
 from .policy import ActionRequest, PolicyViolation, WorkflowPolicyEngine
 from .rendering import NullRenderClientV2, RenderClientV2, RenderJobV2, RenderStatus
@@ -84,6 +85,9 @@ class WorkflowService:
             typed_family = WorkFamily(family)
         except ValueError:
             return self._abstention_receipt(family, "UNSUPPORTED_INTENT")
+        # Paths are confined before any file is touched or hashed.
+        source_path = confined_workflow_path(source_path)
+        output_path = confined_workflow_path(output_path)
         if expected_revision is None and source_path:
             expected_revision = document_revision(source_path)
         values: dict[str, Any] = {
@@ -148,6 +152,7 @@ class WorkflowService:
         record = self.store.get(workflow_id)
         if record.terminal or record.state == WorkflowState.DECISION:
             return self.receipt(record)
+        self._require_confined(record)
         adapter = ADAPTERS[record.work_order.family]
         try:
             if record.state == WorkflowState.INTAKE:
@@ -375,6 +380,7 @@ class WorkflowService:
         record = self.store.get(workflow_id)
         if record.state != WorkflowState.DECISION:
             raise PolicyViolation("DECISION_STATE_REQUIRED", "workflow is not waiting for a decision")
+        self._require_confined(record)
         action = ADAPTERS[record.work_order.family].execution_action(record)
         if action is None:
             raise PolicyViolation("DECISION_ACTION_MISSING", "workflow has no decision action")
@@ -718,9 +724,26 @@ class WorkflowService:
         )
 
     @staticmethod
-    def _output_hash(record: WorkflowRecord) -> str | None:
+    def _require_confined(record: WorkflowRecord) -> None:
+        """A stored work order is only acted on while its paths are in the workspace."""
+
+        confined_workflow_path(record.work_order.source_path)
+        confined_workflow_path(record.work_order.output_path)
+
+    @staticmethod
+    def _readable_file(path: str | None) -> bool:
+        if not path:
+            return False
+        try:
+            confined_workflow_path(path)
+        except (OSError, RuntimeError):
+            return False
+        return Path(path).is_file()
+
+    @classmethod
+    def _output_hash(cls, record: WorkflowRecord) -> str | None:
         output = record.work_order.output_path
-        return document_revision(output) if output and Path(output).is_file() else None
+        return document_revision(output) if output and cls._readable_file(output) else None
 
     def _artifacts(self, record: WorkflowRecord) -> list[dict[str, Any]]:
         artifacts = []
@@ -730,7 +753,7 @@ class WorkflowService:
                     {
                         "role": role,
                         "path": path,
-                        "contentHash": document_revision(path) if Path(path).is_file() else None,
+                        "contentHash": document_revision(path) if self._readable_file(path) else None,
                     }
                 )
         return artifacts

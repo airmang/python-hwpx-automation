@@ -11,6 +11,7 @@ from hwpx_automation.handlers import specialized
 from hwpx_automation.office import rendering
 from hwpx_automation.office.rendering import page_qa, worker
 from hwpx_automation.tool_contract import (
+    RELEASED_CONTRACT_HASH,
     contract_hash,
     expected_tool_names,
     skill_required_tool_names,
@@ -80,4 +81,4 @@ def test_tool_contract_is_exactly_unchanged() -> None:
     assert len(expected_tool_names(advanced=False)) == 128
     assert len(expected_tool_names(advanced=True)) == 136
     assert len(skill_required_tool_names()) == 29
-    assert contract_hash() == "c3f17979a7b9a38d"  # source core-floor delta
+    assert contract_hash() == RELEASED_CONTRACT_HASH  # the one literal pin lives in test_tool_contract.py

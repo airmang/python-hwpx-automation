@@ -1,6 +1,6 @@
 # python-hwpx-automation 하드닝 가이드
 
-> 릴리스 상태: `release-approved` — 7.4.1 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
+> 릴리스 상태: `release-approved` — 7.5.0 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
 
 > 릴리스 상태: `released` — 7.3.1 공개 발행과 6.6.0/7.3.1/2.4.0 marketplace 설치를 관찰했습니다.
 
@@ -16,10 +16,14 @@
 ## 공개 계약과 프로필
 
 - 도구 등록, 입력·출력 스키마, health/capability 표면과 생성 문서는 하나의
-  `ToolSpec` 레지스트리에서 만들어집니다. `python-hwpx-automation` 6.0.4는
-  기본 119개, 고급 모드 포함 127개 도구와 28개 skill-required 도구를 유지하며
-  계약 해시는 `0ce938371f0b55a6`입니다. 최소 좌표는 core `5.0.0`,
-  automation `6.0.0`, skill `1.0.0`입니다.
+  `ToolSpec` 레지스트리에서 만들어집니다. 현재 소스(`python-hwpx-automation`
+  7.5.0 후보)는 기본 128개, 고급 모드 포함 136개 도구와 29개 skill-required
+  도구를 유지하며 계약 해시는 `71622c28a07913d1`입니다. 최소 좌표는 core `6.10.0`,
+  automation `7.2.0`, skill `2.0.0`입니다. 이 줄의 숫자는
+  `hwpx_automation.tool_contract`의 값과 같아야 하며
+  `tests/test_audit_identity_docs.py`가 대조합니다.
+- 6.0.4의 `0ce938371f0b55a6`(기본 119·고급 127·skill-required 28, 최소 core
+  `5.0.0`)는 역사적 계약입니다.
 - 4.0.0의 `f46ec677231b3a20`, 4.1.0의 `c127914cc3f4480e`, 4.2.1의 `fff2c9093ca4677b`,
   4.3.0의 `f82caecbcfc742e9`, 4.4.x의 `c89cbc5f98eb5367`는 역사적 계약입니다. 최소
   버전 좌표도 canonical payload에 포함되므로 도구 이름·순서·스키마가 같더라도 다른
