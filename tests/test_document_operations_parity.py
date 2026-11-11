@@ -129,11 +129,19 @@ def test_mail_merge_policy_and_receipts_match_frozen_core(tmp_path: Path) -> Non
         output_dir=tmp_path / "canonical",
     )
 
-    assert _mail_merge_projection(canonical) == DOCUMENT_OPS_GOLDEN["mailMerge"]["projection"]
+    # The frozen core masked the phone number it wrote into the document. The automation
+    # owner now writes each value as given, which is the one intended difference.
+    golden = DOCUMENT_OPS_GOLDEN["mailMerge"]
+    assert golden["projection"]["row"]["maskedFields"] == ["phone"]
+    assert golden["exportText"] == "name=홍길동 / phone=010-****-****"
+    expected = {
+        **golden["projection"],
+        "row": {**golden["projection"]["row"], "maskedFields": []},
+    }
+    assert _mail_merge_projection(canonical) == expected
     canonical_doc = HwpxDocument.open(canonical["rows"][0]["filename"])
     try:
-        assert canonical_doc.text.plain() == DOCUMENT_OPS_GOLDEN["mailMerge"]["exportText"]
-        assert "010-****-****" in canonical_doc.text.plain()
+        assert canonical_doc.text.plain() == "name=홍길동 / phone=010-1234-5678"
     finally:
         canonical_doc.close()
 

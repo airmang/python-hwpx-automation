@@ -11,7 +11,7 @@ from hwpx_automation.handlers import specialized
 from hwpx_automation.office.compliance import DEFAULT_POLICY, mask_pii
 
 
-def test_mail_merge_injects_the_canonical_mcp_policy(
+def test_mail_merge_passes_no_value_masker_to_the_core(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -32,9 +32,8 @@ def test_mail_merge_injects_the_canonical_mcp_policy(
     report = mail_merge_owner.build_mail_merge(template, [])
 
     assert report["createdCount"] == 0
-    sanitizer = captured["kwargs"]["value_sanitizer"]
-    value = "010-1234-5678"
-    assert sanitizer(value) == mask_pii(value, DEFAULT_POLICY)
+    # Generated documents must hold the row values as given, so no masker is injected.
+    assert "value_sanitizer" not in captured["kwargs"]
 
 
 def test_mail_merge_handler_routes_to_the_document_ops_owner(

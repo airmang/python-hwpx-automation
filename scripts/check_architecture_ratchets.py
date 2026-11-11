@@ -150,7 +150,6 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/fastmcp_adapter.py", "normalize_schema", 12),
     ("src/hwpx_automation/form_fill.py", "_build_mapping_analysis", 12),
     ("src/hwpx_automation/form_fill.py", "_canonical_input_from_docx", 13),
-    ("src/hwpx_automation/form_fill.py", "apply_form_fill_workflow", 12),
     ("src/hwpx_automation/handlers/content_edit.py", "_apply_edit_operation", 20),
     ("src/hwpx_automation/handlers/content_edit.py", "replace_in_paragraph", 14),
     ("src/hwpx_automation/handlers/read_export.py", "_build_read_model", 15),
