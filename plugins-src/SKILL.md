@@ -9,15 +9,17 @@ description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한�
 > `chat-engine.md`가 있으면 그 문서를 먼저 읽고 그 절차대로 한다. 스킬에 든 python-hwpx 엔진을
 > 불러와 Python으로 작업하며, 엔진을 따로 설치하거나 인터넷에서 받지 않는다.
 
-`.hwpx`는 ZIP 기반 OWPML 문서이고, `.hwp`는 HWP 5.0 바이너리 문서다. python-hwpx 6.6.0부터
-`HwpxDocument.open`이 `.hwp`도 같은 문서 모델로 열고 `save_to_path("x.hwp")`로 HWP 5.0을 다시 쓴다.
-따라서 `.hwp`라는 이유만으로 거절하거나 한/글에서 `.hwpx`로 바꿔 오라고 하지 않는다. 결과는 원본과 같은 형식으로
-저장하고, 옮기지 못한 내용(`doc.conversion_report`의 `unconverted`·`dropped`)이나
-`Hwp5Error`(`hwp5-write-unsupported`, 암호·배포용·DRM)는 그대로 보고한다. automation 7.3.3부터 MCP 도구가
-`.hwp`를 직접 열고 같은 형식으로 저장한다(`get_document_info`의 `format: "hwp"`, `hwpConversion`). 표·본문 바이트를 직접
-고치는 도구(`apply_table_ops`, `apply_body_ops`, `byte_preserving_patch`, `apply_document_commands`, 양식 채움 계획 등)가
-`HWPX_PACKAGE_REQUIRED`를 돌려주면 `copy_document`로 `.hwpx` 사본을 만들어 편집한 뒤 다시 `.hwp`로 복사한다. 그보다 오래된
-서버가 `READ_ONLY_HWP_DOCUMENT`로 거부하면 같은 작업을 아래 local Python 경로로 한다.
+`.hwpx`는 ZIP 기반 OWPML 문서이고, `.hwp`는 HWP 5.0 바이너리 문서다. `.hwp`는 입력 형식이다: 읽어서 `.hwpx`로
+바꿔 작업한다. `.hwp`라는 이유만으로 거절하거나 한/글에서 `.hwpx`로 바꿔 오라고 하지 않는다.
+
+- 읽기·추출은 `.hwp`를 그대로 연다(`get_document_info`의 `format: "hwp"`, `hwpConversion`).
+- 고칠 때는 먼저 `copy_document`로 `.hwpx` 사본을 만들고 그 사본을 고친다. 원본 `.hwp`는 건드리지 않고, 결과는
+  `.hwpx`로 낸다. 원본 경로를 편집 도구의 대상으로 주지 않는다.
+- 옮기지 못한 내용(`hwpConversion`, `doc.conversion_report`의 `unconverted`·`dropped`)과
+  `Hwp5Error`(암호·배포용·DRM)는 그대로 보고한다.
+- 사용자가 결과를 꼭 `.hwp`로 달라고 하면, `.hwp`로 다시 쓰는 기능은 실험 단계라 원본에 있던 내용 일부가 빠질 수 있다고
+  알린 뒤 다른 이름의 `.hwp`로 `copy_document`한다. 원본 `.hwp`를 덮어쓰지 않으며, 옮기지 못한 내용이 있는 문서는
+  `.hwp`로 쓰지 않는다. 한/글에서 열어 확인하도록 안내한다.
 
 모든 작업은
 `python-hwpx-automation`의 MCP 도구를 1차 경로로 사용한다. 새 설정은 정식

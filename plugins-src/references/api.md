@@ -644,7 +644,7 @@ from hwpx.opc.package import HwpxPackageError, HwpxStructureError
 ```
 
 - 손상된 ZIP/OWPML 구조를 다룰 때는 `HwpxPackageError`, `HwpxStructureError`를 잡는다.
-- `.hwp`(HWP 5.0)는 `HwpxDocument.open`으로 연다(python-hwpx 6.6.0 이상). `HwpxPackage.open`은 HWPX 전용이라 `.hwp`를 `BadZipFile`로 거부한다. 저장 형식은 출력 경로의 확장자가 정한다(`.hwp` → HWP 5.0). 쓸 수 없는 내용은 `Hwp5Error`(`hwp5-write-unsupported`)로 저장 전에 거부되므로 `.hwpx`로 저장할지 사용자에게 묻는다. `doc.conversion_report`의 `unconverted`·`dropped`는 사용자에게 알린다.
+- `.hwp`(HWP 5.0)는 `HwpxDocument.open`으로 연다(python-hwpx 6.6.0 이상). `HwpxPackage.open`은 HWPX 전용이라 `.hwp`를 `BadZipFile`로 거부한다. 결과는 `.hwpx`로 저장한다. `.hwp`로 다시 쓰는 기능(출력 경로의 확장자가 `.hwp`)은 실험 단계라, 사용자가 꼭 원할 때만 원본과 다른 이름으로 쓰고 원본 `.hwp`는 덮어쓰지 않는다. 쓸 수 없는 내용은 `Hwp5Error`(`hwp5-write-unsupported`)로 저장 전에 거부된다. `doc.conversion_report`의 `unconverted`·`dropped`는 사용자에게 알린다.
 - 패키지 전체의 글 치환은 `scripts/zip_replace_all.py`를 사용한다(XML 원문이 아니라 텍스트 노드만 바꾼다). 이 helper는 임시 파일을 만든 뒤 `validate_editor_open_safety()`를 통과한 경우에만 target을 교체한다.
 - namespace 정리만 필요하면 `scripts/fix_namespaces.py`를 사용한다. 이 helper도 open-safety 검증 실패 시 기존 target을 보존한다.
 - ZIP 자체가 열리지 않거나 `mimetype` 첫 엔트리/CRC 오류가 있으면 편집 전에 `repair_hwpx` 또는 `hwpx-repair`로 복구 복사본을 만든다.

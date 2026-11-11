@@ -8,7 +8,7 @@ name = "hwpx-plugin-claude-runtime"
 version = "0"
 requires-python = "==3.12.*"
 dependencies = [
-    "python-hwpx-automation[mcp,oracle]==7.5.0",
+    "python-hwpx-automation[mcp]==7.5.0",
     "python-hwpx[preview]==6.12.0",
 ]
 
@@ -17,6 +17,11 @@ dependencies = [
 # the skill's engine for Python 3.10 hosts, where python-hwpx-automation needs tomli.
 [dependency-groups]
 chat-engine = ["tomli==2.4.1"]
+# The imaging stack (pymupdf, pillow, numpy) that reads a PDF rendered by Hancom Office.
+# Only the real-Hancom render checks use it, so it is locked here but left out of the
+# default install: `uv sync --frozen --inexact --group render --project <plugin>/server`
+# adds it, sha256-pinned, to the environment the MCP server already runs in.
+render = ["python-hwpx-automation[oracle]==7.5.0"]
 
 [tool.uv]
 package = false

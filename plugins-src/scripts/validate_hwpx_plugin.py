@@ -970,10 +970,20 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
         set(pins) == {automation["distribution"], core["distribution"]},
         "claude: server/pyproject.toml must pin exactly python-hwpx and python-hwpx-automation",
     )
+    # The imaging stack behind the ``oracle`` extra only reads PDFs rendered by Hancom Office,
+    # so the Claude runtime installs the other extras by default and locks ``oracle`` in the
+    # ``render`` dependency group, which a user adds on demand.
+    default_extras = [extra for extra in automation["pluginInstallExtras"] if extra != "oracle"]
     require(
-        pins[automation["distribution"]][0] == ",".join(automation["pluginInstallExtras"])
+        pins[automation["distribution"]][0] == ",".join(default_extras)
         and pins[core["distribution"]][0] == "preview",
-        "claude: server/pyproject.toml extras differ from the plugin install extras",
+        "claude: server/pyproject.toml extras differ from the plugin install extras without oracle",
+    )
+    groups = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get("dependency-groups", {})
+    require(
+        groups.get("render")
+        == [f"{automation['distribution']}[oracle]=={pins[automation['distribution']][1]}"],
+        "claude: server/pyproject.toml must lock the oracle extra in the render group at the pinned version",
     )
     for component in (core, automation):
         pinned = refresh.parse(pins[component["distribution"]][1])

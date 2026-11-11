@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- `.hwp`를 입력 형식으로 안내합니다. 스킬과 참고 문서가 "결과는 원본과 같은 형식으로 저장"하라고 하던 것을, `.hwpx`
+  사본을 만들어 고치고 결과를 `.hwpx`로 내도록 바꿨습니다. `.hwp`로 다시 쓰는 기능은 실험 단계로 적고, 원본 `.hwp`를
+  덮어쓰지 않게 했습니다. 한/글이 저장한 `.hwp`를 같은 경로에 다시 저장하면 경고 없이 내용이 빠질 수 있었습니다.
+
+- Claude 번들의 MCP 서버 기본 설치에서 이미징 패키지(pymupdf·pillow·numpy와 딸린 패키지)를 뺍니다. 한/글이 만든 PDF를
+  읽는 실한컴 렌더 검증에만 쓰는 패키지입니다. 설치 크기는 이 저장소의 잠금 파일로 Windows에서 잰 값으로 272 MB에서
+  62 MB가 됩니다. 필요한 사용자는 `uv sync --frozen --inexact --group render --project <plugin>/server`로 더합니다.
+  잠금 파일에는 `render` 그룹으로 sha256과 함께 남습니다.
+
 - Claude 번들의 엔진을 python-hwpx 6.12.0과 python-hwpx-automation 7.5.0으로 올립니다(6.8.0·7.3.4에서). 6.9.0부터 엔진
   배포판에 256 KiB를 넘는 파일이 있어 올리지 못하던 것이 6.12.0에서 풀렸습니다. 표 안에 표가 있는 문서의 칸 채움이
   고쳐졌으므로 Claude SKILL.md의 임시 안내문(`packaging/templates/claude-skill-notice.md`)을 뺍니다. 엔진을 실을 때

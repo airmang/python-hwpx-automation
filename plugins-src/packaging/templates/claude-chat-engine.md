@@ -104,10 +104,11 @@ print("결과 폴더:", OUT_DIR)
   새 이름으로 저장하고, 저장한 파일을 사용자가 받을 수 있게 내놓는다.
 - 아래 W 블록의 `P`에 적힌 `/mnt/user-data/uploads/…`·`/mnt/user-data/outputs/…`는 예시다.
   시작 블록이 출력한 `IN_DIR`·`OUT_DIR`과 실제 파일 이름으로 바꾼다.
-- `.hwp`(HWP 5.0)도 `HwpxDocument.open`으로 연다. 결과는 **원본과 같은 형식**으로 저장한다
-  (`.hwp` → `.hwp`, `.hwpx` → `.hwpx`). 사용자가 원하면 출력 경로의 확장자만 바꿔 다른 형식으로 저장한다.
+- `.hwp`(HWP 5.0)도 `HwpxDocument.open`으로 연다. 결과는 **`.hwpx`로** 저장한다. `.hwp`는 입력 형식이고,
+  `.hwp`로 다시 쓰는 기능은 실험 단계다. 사용자가 꼭 `.hwp`를 원하면 내용 일부가 빠질 수 있다고 알린 뒤 원본과 다른
+  이름의 `.hwp`로 저장한다. 원본 `.hwp`를 덮어쓰지 않는다.
 - `.hwp`를 열면 `doc.conversion_report`를 본다. `unconverted`나 `dropped`에 개수가 있으면 옮기지 못한 내용이
-  있다는 뜻이므로 사용자에게 알린다.
+  있다는 뜻이므로 사용자에게 알린다. 그런 문서는 `.hwp`로 쓰지 않는다.
 - `.hwp`로 쓸 수 없는 내용이면 저장 전에 `Hwp5Error`(`hwp5-write-unsupported`)가 난다. 이때는 `.hwpx`로
   저장할지 사용자에게 묻는다. 암호·배포용·DRM 문서는 열리지 않는다(`Hwp5Error`). 그대로 알린다.
 

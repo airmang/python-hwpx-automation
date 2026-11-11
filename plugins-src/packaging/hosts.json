@@ -80,6 +80,7 @@
   "hosts": [
     {
       "id": "claude",
+      "skillNotice": "templates/claude-render-notice.md",
       "outputDir": "plugins/claude/hwpx-plugin",
       "skillSubdir": "skills/hwpx",
       "frontmatterExtra": "",
