@@ -5,11 +5,11 @@
   "releaseState": {
     "status": "release-approved",
     "candidate": {
-      "pythonHwpx": "6.10.0",
+      "pythonHwpx": "6.12.0",
       "canonicalDistribution": "python-hwpx-automation",
-      "canonicalAutomation": "7.4.1",
+      "canonicalAutomation": "7.5.0",
       "compatibilityDistribution": "hwpx-mcp-server",
-      "compatibility": "7.4.1",
+      "compatibility": "7.5.0",
       "plugin": "2.4.0",
       "contractHash": "71622c28a07913d1"
     },
