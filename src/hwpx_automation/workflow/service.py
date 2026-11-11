@@ -743,7 +743,7 @@ class WorkflowService:
     @classmethod
     def _output_hash(cls, record: WorkflowRecord) -> str | None:
         output = record.work_order.output_path
-        return document_revision(output) if cls._readable_file(output) else None
+        return document_revision(output) if output and cls._readable_file(output) else None
 
     def _artifacts(self, record: WorkflowRecord) -> list[dict[str, Any]]:
         artifacts = []
