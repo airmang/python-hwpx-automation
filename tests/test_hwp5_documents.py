@@ -72,28 +72,54 @@ def test_mcp_tools_read_hwp_text_tables_and_conversion_report(hwp_path: Path) ->
 
 
 @native
-def test_hwp_edits_are_saved_back_as_hwp(hwp_path: Path) -> None:
-    replaced = server.search_and_replace(str(hwp_path), "ABC", "XYZ")
-    assert replaced["replaced_count"] == 1
-    assert replaced["verificationReport"]["format"] == "hwp"
-    assert replaced["openSafety"]["ok"] is True
+def test_an_hwp_original_is_not_overwritten_and_is_edited_through_an_hwpx_copy(
+    hwp_path: Path, tmp_path: Path
+) -> None:
+    before = hwp_path.read_bytes()
+    for edit in (
+        lambda: server.search_and_replace(str(hwp_path), "ABC", "XYZ"),
+        lambda: server.search_and_replace(str(hwp_path), "ABC", "XYZ", dry_run=True),
+        lambda: server.set_table_cell_text(str(hwp_path), 0, 0, 0, "채움"),
+    ):
+        refused = _refusal(edit)
+        assert refused["code"] == "HWP_SOURCE_OVERWRITE"
+        assert "copy_document" in refused["suggestion"]
+    assert hwp_path.read_bytes() == before
 
-    filled = server.set_table_cell_text(str(hwp_path), 0, 0, 0, "채움")
+    copy = tmp_path / "form.hwpx"
+    server.copy_document(str(hwp_path), str(copy))
+    replaced = server.search_and_replace(str(copy), "ABC", "XYZ")
+    assert replaced["replaced_count"] == 1
+    assert replaced["openSafety"]["ok"] is True
+    filled = server.set_table_cell_text(str(copy), 0, 0, 0, "채움")
     assert filled["verificationReport"]["ok"] is True
 
-    assert hwp_path.read_bytes()[:8] == OLE2_MAGIC
-    texts = _reopen_texts(hwp_path)
+    texts = _reopen_texts(copy)
     assert any("가나다라 XYZ abc" in text for text in texts)
     assert "채움" in texts
+    assert hwp_path.read_bytes() == before
 
 
 @native
-def test_hwp_dry_run_writes_nothing(hwp_path: Path) -> None:
-    before = hwp_path.read_bytes()
-    result = server.search_and_replace(str(hwp_path), "ABC", "XYZ", dry_run=True)
-    assert result["wouldSave"] is True
-    assert result["verificationReport"]["format"] == "hwp"
-    assert hwp_path.read_bytes() == before
+def test_an_hwp_that_opened_with_content_left_out_is_not_written_as_hwp(
+    hwp_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        storage_module,
+        "hwp5_conversion_report",
+        lambda document: {"unconverted": {"control-gso": 1}, "dropped": {}},
+    )
+    refused = _refusal(lambda: server.copy_document(str(hwp_path.with_suffix(".hwpx")), str(tmp_path / "out.hwp")))
+    assert refused["code"] != "HWP_WRITE_LOSSY_SOURCE"  # the source does not exist; nothing was opened
+
+    as_hwpx = tmp_path / "form.hwpx"
+    server.copy_document(str(hwp_path), str(as_hwpx))
+    assert as_hwpx.read_bytes()[:2] == b"PK"
+
+    refused = _refusal(lambda: server.copy_document(str(as_hwpx), str(tmp_path / "out.hwp")))
+    assert refused["code"] == "HWP_WRITE_LOSSY_SOURCE"
+    assert refused["details"]["hwpConversion"]["unconverted"] == {"control-gso": 1}
+    assert not (tmp_path / "out.hwp").exists()
 
 
 @native
@@ -119,9 +145,11 @@ def test_operations_service_reads_and_edits_hwp(hwp_path: Path) -> None:
     assert TEXT in ops.read_text(hwp_path.name)["textChunk"]
     assert ops.find(hwp_path.name, "ABC")["matches"][0]["paragraphIndex"] == 1
 
-    assert ops.replace_text_in_runs(hwp_path.name, "ABC", "XYZ")["replacedCount"] == 1
-    assert hwp_path.read_bytes()[:8] == OLE2_MAGIC
-    assert ops.find(hwp_path.name, "XYZ")["matches"]
+    before = hwp_path.read_bytes()
+    with pytest.raises(Exception) as refused:
+        ops.replace_text_in_runs(hwp_path.name, "ABC", "XYZ")
+    assert _classified_error_payload(refused.value)["code"] == "HWP_SOURCE_OVERWRITE"
+    assert hwp_path.read_bytes() == before
 
 
 @native

@@ -263,6 +263,7 @@ class LocalDocumentStorage:
         quality_contract.assert_write_capability()
         if is_hwp5_target(target):
             require_native_hwp5()
+            refuse_lossy_hwp5_write(document, target)
         guard = self.capture_output_guard(target)
         self.maybe_backup(target)
         pre_save_snapshot = build_hwpx_presave_snapshot(target)
@@ -335,6 +336,34 @@ def require_native_hwp5() -> None:
         raise HwpDocumentError(
             "설치된 python-hwpx는 HWP 5.0(.hwp) 문서를 열거나 저장하지 못합니다.",
             code="READ_ONLY_HWP_DOCUMENT",
+        )
+
+
+def refuse_lossy_hwp5_write(document: HwpxDocument, target: Path | str) -> None:
+    """Refuse an ``.hwp`` save that would lose content of an ``.hwp`` original.
+
+    ``.hwp`` is an input format here: it is read into the HWPX document model, and
+    the HWP 5.0 writer rebuilds a file from that model. Two saves are refused. One
+    writes over an existing ``.hwp`` from a document that was itself opened from
+    ``.hwp``; that is the edit-in-place case, where the rebuilt file would replace
+    the only original. The other writes ``.hwp`` from a document whose conversion
+    left content out, which would pass that loss on as if complete.
+    """
+
+    conversion = hwp5_conversion_report(document)
+    if conversion is None:
+        return
+    if conversion["unconverted"] or conversion["dropped"]:
+        raise HwpDocumentError(
+            "원본 .hwp에서 옮기지 못한 내용이 있어 .hwp로 저장하지 않습니다.",
+            code="HWP_WRITE_LOSSY_SOURCE",
+            details={"hwpConversion": conversion},
+        )
+    if Path(target).exists():
+        raise HwpDocumentError(
+            ".hwp 문서를 제자리에서 고쳐 .hwp로 덮어쓰지 않습니다.",
+            code="HWP_SOURCE_OVERWRITE",
+            details={"path": str(target)},
         )
 
 

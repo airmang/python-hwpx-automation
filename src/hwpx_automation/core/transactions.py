@@ -15,6 +15,7 @@ from .. import quality as quality_contract
 from ..storage import (
     build_hwpx_verification_report,
     require_hwpx_editor_open_safe,
+    refuse_lossy_hwp5_write,
     require_native_hwp5,
 )
 from ..upstream import HwpxDocument, hwp5_document_bytes, is_hwp5_target, open_document
@@ -348,6 +349,8 @@ def save_dry_run(
     hwp_target = is_hwp5_target(target_path)
     if hwp_target:
         require_native_hwp5()
+        # A dry run refuses what the real save would refuse.
+        refuse_lossy_hwp5_write(document, target_path)
     # The gate checks HWPX parts, so an .hwp target is staged as HWPX.
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{target_path.stem}.dry-run.",
