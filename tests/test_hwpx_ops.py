@@ -456,7 +456,9 @@ def test_add_table_custom_border_fill_reuses_definition(ops_with_sample):
     assert refreshed_tables[second["tableIndex"]].element.get("borderFillIDRef") == border_id
 
 
-def test_set_table_cell_text_sanitizes_tab_character(ops_with_sample):
+def test_set_table_cell_text_keeps_tab_as_hp_tab(ops_with_sample):
+    """Audit ENG-19: a tab is written as ``hp:tab``, not deleted with ``ok: True``."""
+
     ops, path = ops_with_sample
 
     result = ops.set_table_cell_text(
@@ -464,7 +466,7 @@ def test_set_table_cell_text_sanitizes_tab_character(ops_with_sample):
         table_index=0,
         row=0,
         col=0,
-        text="hello\tworld",
+        text="hello	world!",
     )
 
     assert result == {"ok": True}
@@ -473,7 +475,10 @@ def test_set_table_cell_text_sanitizes_tab_character(ops_with_sample):
     refreshed_tables: list = []
     for paragraph in refreshed.paragraphs:
         refreshed_tables.extend(paragraph.tables)
-    assert refreshed_tables[0].cell(0, 0).text == "helloworld"
+    cell = refreshed_tables[0].cell(0, 0)
+    assert cell.text == "hello	world!"  # the control character alone is dropped
+    tabs = [node for node in cell.element.iter() if node.tag == f"{HP_NS}tab"]
+    assert len(tabs) == 1
 
 
 def test_set_table_cell_text_strips_cr_keeps_lf(ops_with_sample):
@@ -519,7 +524,7 @@ def test_set_table_cell_text_keeps_normal_text_unchanged(ops_with_sample):
 
 def test_set_table_cell_text_logs_warning_when_sanitised(ops_with_sample, caplog):
     ops, path = ops_with_sample
-    value = "bad\ttext"
+    value = "bad\x02text"
     expected_message = "cell text contained illegal characters and was sanitised"
 
     with caplog.at_level(logging.WARNING, logger=ops_module.logger.name):

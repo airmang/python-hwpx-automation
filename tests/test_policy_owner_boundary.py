@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import runpy
 from pathlib import Path
+from sync_owner_tool_contract import current_tool_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDARY = runpy.run_path(
@@ -35,12 +36,9 @@ def test_owner_ledger_matches_the_frozen_source_and_package_plan() -> None:
         ),
     }
     assert set(OWNER["canonicalOwners"]) == set(FROZEN_CORE_POLICY_IMPORTS)
-    assert OWNER["toolContract"] == {
-        "default": 122,
-        "advanced": 130,
-        "skillRequired": 29,
-        "hash": "8c278ebd5becba08",
-    }
+    # The ledger records the current contract; the values come from
+    # tool_contract (scripts/sync_owner_tool_contract.py), never a literal here.
+    assert OWNER["toolContract"] == current_tool_contract()
 
 
 def test_canonical_policy_roots_use_only_declared_public_core_seams() -> None:

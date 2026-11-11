@@ -125,6 +125,16 @@ class HwpxAgentDocument:
         self._form_control_positions: set[tuple[int, int, int, int]] = set()
         self._id_counts: Counter[tuple[str, str]] = Counter()
         self._field_name_counts: Counter[str] = Counter()
+        # Style lookups answered during THIS projection. python-hwpx resolves a
+        # style, a paragraph property or a run style by re-reading the header
+        # each time; a form has hundreds of paragraphs but a handful of distinct
+        # ids, and those lookups were 87% of a one-second projection (audit
+        # EFF-17). The document is not edited while it is being projected, so
+        # one answer per id is exact. The memos die with this view: a later
+        # projection (after a command changed styles) looks everything up again.
+        self._style_memo: dict[Any, tuple[Any, Any]] = {}
+        self._para_pr_memo: dict[Any, dict[str, Any]] = {}
+        self._run_style_memo: dict[Any, dict[str, Any]] = {}
         self._collect_identities()
         self._collect_form_fields()
         self._project()
@@ -321,27 +331,76 @@ class HwpxAgentDocument:
             }
         )
 
-    def _paragraph_summary(self, paragraph: Any) -> tuple[dict[str, Any], dict[str, str]]:
-        style_ref = paragraph.element.get("styleIDRef")
+    def _style_name_and_type(self, style_ref: Any) -> tuple[Any, Any]:
+        """``(display name, type)`` of a paragraph style id, looked up once per projection."""
+
+        try:
+            return self._style_memo[style_ref]
+        except KeyError:
+            pass
         style = self.document.styles.get(style_ref)
         style_name = style.name if style is not None and style.name else style_ref
-        para_pr = self.document.styles.paragraph_property(paragraph.element.get("paraPrIDRef"))
-        summary: dict[str, Any] = {"text": _bounded_text(paragraph.text), "style": style_name}
+        style_type = style.type if style is not None and style.type else "paragraph"
+        self._style_memo[style_ref] = (style_name, style_type)
+        return style_name, style_type
+
+    def _paragraph_property_summary(self, para_pr_ref: Any) -> dict[str, Any]:
+        """The paragraph-format part of a paragraph summary, once per ``paraPrIDRef``."""
+
+        try:
+            return self._para_pr_memo[para_pr_ref]
+        except KeyError:
+            pass
+        para_pr = self.document.styles.paragraph_property(para_pr_ref)
+        values: dict[str, Any] = {}
         if para_pr is not None:
-            summary["alignment"] = para_pr.align.horizontal if para_pr.align is not None else None
-            summary["breakBefore"] = (
+            values["alignment"] = para_pr.align.horizontal if para_pr.align is not None else None
+            values["breakBefore"] = (
                 para_pr.break_setting.page_break_before if para_pr.break_setting is not None else None
             )
-            summary["keepWithNext"] = (
+            values["keepWithNext"] = (
                 para_pr.break_setting.keep_with_next if para_pr.break_setting is not None else None
             )
-            summary["lineSpacingPercent"] = (
+            values["lineSpacingPercent"] = (
                 para_pr.line_spacing.value if para_pr.line_spacing is not None else None
             )
+        self._para_pr_memo[para_pr_ref] = values
+        return values
+
+    def _run_style_summary(self, run: Any) -> dict[str, Any]:
+        """The style part of a run summary, once per ``charPrIDRef``."""
+
+        ref = run.element.get("charPrIDRef")
+        try:
+            return self._run_style_memo[ref]
+        except KeyError:
+            pass
+        style = run.style
+        child_attrs = style.child_attributes if style is not None else {}
+        values = {
+            "bold": "bold" in child_attrs,
+            "italic": "italic" in child_attrs,
+            "underline": child_attrs.get("underline", {}).get("type", "NONE").upper() != "NONE",
+            "fontSizePt": (
+                round(int(style.attributes["height"]) / 100, 2)
+                if style is not None and str(style.attributes.get("height", "")).isdigit()
+                else None
+            ),
+            "color": style.text_color() if style is not None else None,
+        }
+        self._run_style_memo[ref] = values
+        return values
+
+    def _paragraph_summary(self, paragraph: Any) -> tuple[dict[str, Any], dict[str, str]]:
+        style_ref = paragraph.element.get("styleIDRef")
+        style_name, style_type = self._style_name_and_type(style_ref)
+        summary: dict[str, Any] = {"text": _bounded_text(paragraph.text), "style": style_name}
+        # A fresh dict per record: summaries are handed out and may be edited by callers.
+        summary.update(self._paragraph_property_summary(paragraph.element.get("paraPrIDRef")))
         attributes = {
             "id": paragraph.element.get("id", ""),
             "style": style_name or "",
-            "type": style.type if style is not None and style.type else "paragraph",
+            "type": style_type,
         }
         return summary, attributes
 
@@ -383,20 +442,7 @@ class HwpxAgentDocument:
         object_indexes: Counter[str] = Counter()
         for run_index, run in enumerate(paragraph.runs, start=1):
             run_path = path.child(indexed_segment("run", run_index))
-            style = run.style
-            child_attrs = style.child_attributes if style is not None else {}
-            run_summary = {
-                "text": _bounded_text(run.text),
-                "bold": "bold" in child_attrs,
-                "italic": "italic" in child_attrs,
-                "underline": child_attrs.get("underline", {}).get("type", "NONE").upper() != "NONE",
-                "fontSizePt": (
-                    round(int(style.attributes["height"]) / 100, 2)
-                    if style is not None and str(style.attributes.get("height", "")).isdigit()
-                    else None
-                ),
-                "color": style.text_color() if style is not None else None,
-            }
+            run_summary = {"text": _bounded_text(run.text), **self._run_style_summary(run)}
             self._add_record(
                 NodeRecord(
                     kind="run",

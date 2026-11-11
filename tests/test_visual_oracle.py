@@ -7,7 +7,8 @@ Two tiers, matching the assurance model:
   pixel detectors on synthetic images. These never need Hancom; the detector
   tests skip only if the imaging stack (numpy/Pillow) is absent.
 * **Oracle smoke** (Windows + Hancom + imaging stack): a real COM render of a
-  built doc against itself. Skipped automatically off-oracle.
+  built doc against itself. Opt-in only: set ``HWPX_WINDOWS_ORACLE_SMOKE=1``
+  (it starts Hancom). The default run never queries the COM registry.
 
 The full corpus-verdict and overflow acceptance run against genuine Hancom-saved
 documents (which can't be committed) and are verified out-of-tree on the Windows
@@ -147,18 +148,31 @@ def test_overlap_score_flags_collapsed_band() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Oracle smoke (Windows + Hancom + imaging stack only)
+# Oracle smoke (Windows + Hancom + imaging stack; opt-in -- starts Hancom)
 # --------------------------------------------------------------------------- #
-def _oracle_ready() -> bool:
-    return (
+_WINDOWS_ORACLE_SMOKE_ENV = "HWPX_WINDOWS_ORACLE_SMOKE"
+
+
+def _windows_oracle_smoke_requested() -> bool:
+    """Collection-time gate: reads the environment only, never the registry."""
+
+    return bool(os.environ.get(_WINDOWS_ORACLE_SMOKE_ENV)) and sys.platform == "win32"
+
+
+@pytest.mark.skipif(
+    not _windows_oracle_smoke_requested(),
+    reason="set HWPX_WINDOWS_ORACLE_SMOKE=1 on Windows + Hancom to drive the COM render smoke",
+)
+def test_visual_check_oracle_smoke_identical_doc(tmp_path, monkeypatch) -> None:
+    # Explicitly opted in: lift the suite-wide structural-only isolation for
+    # this one test, then require the real oracle and the imaging stack.
+    monkeypatch.delenv("HWPX_ORACLE_STRUCTURAL_ONLY", raising=False)
+    if not (
         RenderOracle().available()
         and detectors.imaging_available()
         and diff.pymupdf_available()
-    )
-
-
-@pytest.mark.skipif(not _oracle_ready(), reason="Hancom COM + imaging stack required")
-def test_visual_check_oracle_smoke_identical_doc(tmp_path) -> None:
+    ):
+        pytest.skip("Hancom COM + imaging stack required")
     from hwpx import HwpxDocument
 
     document = HwpxDocument.new()
@@ -238,6 +252,57 @@ def test_resolve_oracle_returns_render_backend(monkeypatch) -> None:
     assert isinstance(backend, NullOracle)
     assert isinstance(backend, RenderBackend)
     assert hasattr(backend, "available") and hasattr(backend, "render_many")
+
+
+def test_windows_oracle_obeys_structural_only_without_touching_registry(monkeypatch) -> None:
+    """ARC-03: structural-only must stop the Windows backend before any COM lookup."""
+
+    import types
+
+    def _forbidden(*_args, **_kwargs):
+        raise AssertionError("structural-only must not query the COM registry")
+
+    fake_winreg = types.SimpleNamespace(
+        HKEY_CLASSES_ROOT=object(), HKEY_LOCAL_MACHINE=object(), OpenKey=_forbidden
+    )
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setitem(sys.modules, "winreg", fake_winreg)
+    monkeypatch.setenv("HWPX_ORACLE_STRUCTURAL_ONLY", "1")
+
+    assert WindowsComOracle().available() is False
+    assert isinstance(resolve_oracle(), NullOracle)
+
+
+def test_windows_oracle_reads_registry_when_not_structural_only(monkeypatch) -> None:
+    import contextlib
+    import types
+
+    opened: list[object] = []
+
+    @contextlib.contextmanager
+    def _open_key(root, sub):
+        opened.append(sub)
+        yield object()
+
+    fake_winreg = types.SimpleNamespace(
+        HKEY_CLASSES_ROOT=object(), HKEY_LOCAL_MACHINE=object(), OpenKey=_open_key
+    )
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setitem(sys.modules, "winreg", fake_winreg)
+    monkeypatch.delenv("HWPX_ORACLE_STRUCTURAL_ONLY", raising=False)
+
+    assert WindowsComOracle().available() is True
+    assert opened  # the registered-class probe really ran
+
+
+def test_windows_oracle_smoke_is_opt_in_only(monkeypatch) -> None:
+    """The live COM smoke is gated on an explicit variable, like the Mac smoke."""
+
+    monkeypatch.delenv(_WINDOWS_ORACLE_SMOKE_ENV, raising=False)
+    assert _windows_oracle_smoke_requested() is False
+    monkeypatch.setenv(_WINDOWS_ORACLE_SMOKE_ENV, "1")
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert _windows_oracle_smoke_requested() is False
 
 
 def test_null_oracle_degrades_via_visual_check() -> None:

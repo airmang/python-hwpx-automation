@@ -90,9 +90,10 @@ def _clear_path_sandbox_for_inprocess_tests(
     may replace this value with a narrower root.
 
     The default suite is also structurally isolated from live GUI automation.
-    Real Hancom tests opt in explicitly with ``HWPX_MAC_ORACLE_SMOKE``; without
-    that signal, any incidental renderer resolution must degrade without
-    launching ``osascript``.
+    Real Hancom tests opt in explicitly with ``HWPX_MAC_ORACLE_SMOKE`` (macOS)
+    or ``HWPX_WINDOWS_ORACLE_SMOKE`` (Windows; that smoke lifts the switch for
+    itself only); without that signal, any incidental renderer resolution must
+    degrade without launching ``osascript`` or Hancom COM.
     """
 
     monkeypatch.delenv("HWPX_MCP_SANDBOX_ROOT", raising=False)
@@ -105,9 +106,13 @@ def _clear_path_sandbox_for_inprocess_tests(
     )
     from hwpx_automation import server as server_module
     from hwpx_automation.hwpx_ops import HwpxOps
-    from hwpx_automation.storage import LocalDocumentStorage
+    from hwpx_automation.storage import LocalDocumentStorage, clear_open_safety_memo
     from hwpx_automation.workspace import WorkspaceResolver
 
+    # Passing open-safety verdicts are remembered per content (EFF-15). Tests
+    # replace validators and engine internals freely, so each test starts with
+    # an empty memo instead of inheriting another test's verdict.
+    clear_open_safety_memo()
     server_module._replace_ops(
         HwpxOps(
             storage=LocalDocumentStorage(

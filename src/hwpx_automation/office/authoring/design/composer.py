@@ -86,12 +86,15 @@ def compose(
         marked = is_marked_profile(prof.manifest)
         for block in plan.iter_blocks():
             if marked:
-                new_paragraphs.extend(_marked_fragment_for(prof, block, production, warnings))
-                continue
-            frag = _fragment_for(prof, block, production, warnings)
-            if frag is None:
-                continue
-            new_paragraphs.append(frag)
+                fragments = _marked_fragment_for(prof, block, production, warnings)
+            else:
+                frag = _fragment_for(prof, block, production, warnings)
+                fragments = [] if frag is None else [frag]
+            if block.page_break_before and fragments and new_paragraphs:
+                # Hancom's own shape for a page break: the paragraph that
+                # starts the new page carries pageBreak="1".
+                fragments[0].set("pageBreak", "1")
+            new_paragraphs.extend(fragments)
 
         if not new_paragraphs:
             raise ProfileRequiredError(

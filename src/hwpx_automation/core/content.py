@@ -324,11 +324,174 @@ def get_table_data(doc: HwpxDocument, table_index: int) -> dict:
     return {"rows": rows, "cols": cols, "data": data}
 
 
-def get_table_map_in_doc(doc: HwpxDocument) -> dict:
-    """문서의 표 메타데이터를 LLM 친화적인 JSON 형태로 반환한다."""
+TABLE_MAP_DETAILS = ("compact", "full")
+#: Defaults of the compact table map (audit EFF-16).
+TABLE_MAP_PREVIEW_CHARS = 80
+TABLE_MAP_MAX_CHARS = 60_000
+
+
+def get_table_map_in_doc(
+    doc: HwpxDocument,
+    *,
+    detail: str = "full",
+    table_index: int | None = None,
+    text_preview_chars: int = TABLE_MAP_PREVIEW_CHARS,
+    max_chars: int = TABLE_MAP_MAX_CHARS,
+) -> dict:
+    """문서의 표 메타데이터를 LLM 친화적인 JSON 형태로 반환한다.
+
+    ``detail="full"`` (this function's default, used by in-process callers) is
+    python-hwpx's map unchanged: one entry per logical grid slot, a merged cell
+    repeated for every slot it covers.
+
+    ``detail="compact"`` lists each real cell once, at its anchor, with the
+    merge as numbers (``row_span``/``col_span``), a text preview of at most
+    *text_preview_chars* characters and no per-cell location objects; the whole
+    response is kept within about *max_chars* characters of JSON. A form with a
+    finely divided grid went from 3.1 MB to tens of kilobytes this way.
+    *table_index* restricts either form to one table.
+    """
+
+    if detail not in TABLE_MAP_DETAILS:
+        raise ValueError(f"detail must be one of {TABLE_MAP_DETAILS}, got {detail!r}")
     result = doc.tables.map()
     tables = list(result.get("tables", []))
-    return {"tables": tables, "count": len(tables)}
+    total = len(tables)
+    if table_index is not None:
+        if table_index < 0 or table_index >= total:
+            raise ValueError(f"유효하지 않은 table_index: {table_index}")
+        tables = [tables[table_index]]
+    if detail == "full":
+        return {"tables": tables, "count": len(tables)}
+    return _compact_table_map(
+        doc,
+        tables,
+        total=total,
+        text_preview_chars=max(0, int(text_preview_chars)),
+        max_chars=max(1_000, int(max_chars)),
+    )
+
+
+def _preview(text: str, limit: int) -> tuple[str, bool]:
+    if len(text) <= limit:
+        return text, False
+    return text[:limit], True
+
+
+def _compact_cells(table: Any, limit: int) -> list[dict[str, Any]]:
+    """One entry per physical cell, at its anchor slot, in row-major order."""
+
+    cells: list[dict[str, Any]] = []
+    for position in table.iter_grid():
+        if not position.is_anchor:
+            continue
+        paragraphs = list(getattr(position.cell, "paragraphs", []) or [])
+        text = (
+            "\n".join(paragraph.text or "" for paragraph in paragraphs)
+            if paragraphs
+            else (position.cell.text or "")
+        )
+        preview, cut = _preview(text, limit)
+        entry: dict[str, Any] = {"row": position.row, "col": position.column, "text": preview}
+        if position.row_span != 1:
+            entry["row_span"] = position.row_span
+        if position.col_span != 1:
+            entry["col_span"] = position.col_span
+        if cut:
+            entry["text_length"] = len(text)
+        if len(paragraphs) > 1:
+            entry["paragraph_count"] = len(paragraphs)
+        cells.append(entry)
+    return cells
+
+
+def _compact_table_map(
+    doc: HwpxDocument,
+    entries: list[dict[str, Any]],
+    *,
+    total: int,
+    text_preview_chars: int,
+    max_chars: int,
+) -> dict[str, Any]:
+    import json
+
+    # Same order as the map: body paragraphs, each table before the tables nested in it.
+    native_tables = list(_iter_tables(doc))
+    compact: list[dict[str, Any]] = []
+    used = 0
+    omitted_tables: list[int] = []
+    for entry in entries:
+        index = int(entry["table_index"])
+        table = native_tables[index] if index < len(native_tables) else None
+        if table is None or (table.row_count, table.column_count) != (entry["rows"], entry["cols"]):
+            # The map and the table list disagree; never guess which cell is which.
+            raise RuntimeError(
+                f"table {index}: the table map and the document's table list do not line up; "
+                'call get_table_map(detail="full")'
+            )
+        head: dict[str, Any] = {
+            "table_index": index,
+            "paragraph_index": entry["paragraph_index"],
+            "rows": entry["rows"],
+            "cols": entry["cols"],
+            "is_empty": entry.get("is_empty", False),
+        }
+        for key in ("caption_text", "preceding_paragraph_text", "header_text"):
+            value, _cut = _preview(str(entry.get(key) or ""), text_preview_chars)
+            if value:
+                head[key] = value
+        cells = _compact_cells(table, text_preview_chars)
+        head["cell_count"] = len(cells)
+        head["merged_cell_count"] = sum(
+            1 for cell in cells if "row_span" in cell or "col_span" in cell
+        )
+        head_size = len(json.dumps(head, ensure_ascii=False))
+        budget = max_chars - used - head_size
+        kept: list[dict[str, Any]] = []
+        for cell in cells:
+            size = len(json.dumps(cell, ensure_ascii=False)) + 2
+            if size > budget:
+                break
+            kept.append(cell)
+            budget -= size
+        head["cells"] = kept
+        if len(kept) < len(cells):
+            head["cells_omitted"] = len(cells) - len(kept)
+            omitted_tables.append(index)
+        used = max_chars - budget
+        compact.append(head)
+
+    payload: dict[str, Any] = {
+        "detail": "compact",
+        "tables": compact,
+        "count": len(compact),
+        "table_count": total,
+        "text_preview_chars": text_preview_chars,
+        # Compact cells carry no location objects; a location is these fields
+        # filled in from the cell (cell_paragraph_index counts from 0, below
+        # the cell's paragraph_count, which is 1 unless stated).
+        "cell_location": {
+            "kind": "table_cell",
+            "table_index": "<table_index>",
+            "row": "<row>",
+            "col": "<col>",
+        },
+        "cell_paragraph_location": {
+            "kind": "table_cell_paragraph",
+            "table_index": "<table_index>",
+            "row": "<row>",
+            "col": "<col>",
+            "cell_paragraph_index": 0,
+        },
+    }
+    if omitted_tables:
+        payload["truncated"] = True
+        payload["tables_with_omitted_cells"] = omitted_tables
+        payload["next_action"] = (
+            "cells were omitted to stay within max_chars: call get_table_map(table_index=N) "
+            "for one table, raise max_chars, or read text with get_table_text(table_index=N)"
+        )
+    return payload
 
 
 def find_cell_by_label_in_doc(doc: HwpxDocument, label_text: str, direction: str = "right") -> dict:

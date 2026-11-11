@@ -52,13 +52,39 @@ def _at(root: Any, path: tuple[int, ...]) -> Any:
     return root
 
 
+# What python-hwpx writes inside hp:t for a tab, a line break and the special
+# spaces, and the character each stands for when the text is read back.
+_INLINE_TEXT_ATOMS = {
+    HP + "tab": "\t",
+    HP + "lineBreak": "\n",
+    HP + "nbSpace": "\u00a0",
+    HP + "fwSpace": "\u3000",
+    HP + "hyphen": "\u00ad",
+}
+
+
+def _text_content(text: Any) -> str:
+    """The characters of one ``hp:t``: its text, its inline atoms and their tails.
+
+    Reading only ``text.text`` stopped at the first ``hp:tab``/``hp:lineBreak``,
+    so every edit whose value held a tab or a line break failed verification
+    and was rolled back (audit ENG-19).
+    """
+
+    parts = [text.text or ""]
+    for child in text:
+        parts.append(_INLINE_TEXT_ATOMS.get(child.tag, ""))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
 def _chars(node: Any) -> list[tuple[str, tuple[tuple[str, str], ...]]]:
     runs = [node] if node.tag == HP + "run" else node.findall(HP + "run")
     return [
         (char, tuple(sorted(run.attrib.items())))
         for run in runs
         for text in run.findall(HP + "t")
-        for char in text.text or ""
+        for char in _text_content(text)
     ]
 
 
@@ -77,6 +103,14 @@ def _text_skeleton(node: Any) -> tuple[Any, ...]:
     clone = deepcopy(node)
     for text in clone.iter(HP + "t"):
         text.text = "authorized-text"
+        # Tabs, line breaks and special spaces are text (compared through
+        # _chars); any other child of hp:t -- a highlight or tracked-change
+        # mark -- stays in the skeleton and must not change.
+        for child in list(text):
+            if child.tag in _INLINE_TEXT_ATOMS:
+                text.remove(child)
+            else:
+                child.tail = ""
     return _tree(clone)
 
 

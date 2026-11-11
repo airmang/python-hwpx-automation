@@ -115,7 +115,17 @@ jobs:
             --tier structural \
             --check tests/conformance/golden/structural.json
         working-directory: python-hwpx-automation
-      - run: python -m pytest -q
+      # The whole suite runs on every Python. One of them also measures line
+      # coverage and enforces the floor in pyproject ([tool.coverage.report]
+      # fail_under): before this, automation coverage could fall unnoticed
+      # (audit ARC-12). Measuring on a single version keeps the matrix fast.
+      - name: Run tests
+        if: matrix.python-version != '3.12'
+        run: python -m pytest -q
+        working-directory: python-hwpx-automation
+      - name: Run tests with the coverage floor
+        if: matrix.python-version == '3.12'
+        run: python -m pytest -q --cov --cov-report=term
         working-directory: python-hwpx-automation
       # The core fuzz harness builds documents through this package's builder,
       # so core's own CI can only skip it — and importorskip meant it silently

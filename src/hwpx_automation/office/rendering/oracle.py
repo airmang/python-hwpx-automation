@@ -376,8 +376,16 @@ class WindowsComOracle(RenderBackend):
         self.budget_seconds = budget_seconds
 
     def available(self) -> bool:
-        """True only on Windows with the ``HWPFrame.HwpObject`` COM class registered."""
+        """True only on Windows with the ``HWPFrame.HwpObject`` COM class registered.
 
+        ``HWPX_ORACLE_STRUCTURAL_ONLY`` forces ``False`` (the same contract as the
+        Mac backend) so no caller can start Hancom through COM in structural-only
+        operation -- including a direct ``WindowsComOracle()`` that bypasses
+        :func:`resolve_oracle`.
+        """
+
+        if structural_only():
+            return False
         if sys.platform != "win32":
             return False
         try:
