@@ -44,7 +44,11 @@ CORE_REPOSITORY = "airmang/python-hwpx"
 # carries mutation semantics, traversal recipes and the support matrix.
 CORE_DOCS = {"docs/_extra/llms.txt": "docs/llms.txt", "docs/stable-api.md": "docs/stable-api.md"}
 # Installer bookkeeping that importlib.metadata does not need.
-SKIPPED_METADATA = {"RECORD", "WHEEL", "entry_points.txt"}
+SKIPPED_METADATA = {"RECORD", "WHEEL", "entry_points.txt", "top_level.txt"}
+# Type-checker markers: nothing reads them at run time, and every file counts
+# against the plugin directory's file limit.
+SKIPPED_TYPING_MARKERS = ("py.typed",)
+SKIPPED_TYPING_SUFFIXES = (".pyi",)
 # Claude plugin directory limits: larger files are not inspected.
 MAX_FILE_BYTES = 256 * 1024
 MAX_PLUGIN_FILES = 512
@@ -105,6 +109,8 @@ def wheel_members(data: bytes) -> dict[str, bytes]:
                 continue
             parts = name.split("/")
             if parts[0].endswith(".dist-info") and parts[-1] in SKIPPED_METADATA:
+                continue
+            if parts[-1] in SKIPPED_TYPING_MARKERS or parts[-1].endswith(SKIPPED_TYPING_SUFFIXES):
                 continue
             if ".." in parts or name.startswith("/"):
                 raise SystemExit(f"unsafe wheel member: {name}")

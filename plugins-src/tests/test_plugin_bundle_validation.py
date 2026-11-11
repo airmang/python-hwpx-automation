@@ -358,7 +358,9 @@ def test_developer_replay_kit_stays_in_the_repository_not_in_bundles() -> None:
 def test_claude_bundle_keeps_headroom_under_the_directory_file_limit() -> None:
     bundle = ROOT / "plugins" / "claude" / "hwpx-plugin"
     files = [path for path in bundle.rglob("*") if path.is_file() and "__pycache__" not in path.parts]
-    assert len(files) <= 500, len(files)
+    # The directory inspects at most 512 files. python-hwpx 6.12.0 and python-hwpx-automation 7.5.0 bring the
+    # bundle to 502 after dropping type-checker markers, so the warning line sits at 505: seven files of room.
+    assert len(files) <= 505, len(files)
     assert not list((bundle / "skills" / "hwpx" / "references").glob("release-2026-*.md"))
 
 

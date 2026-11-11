@@ -83,7 +83,6 @@
       "outputDir": "plugins/claude/hwpx-plugin",
       "skillSubdir": "skills/hwpx",
       "frontmatterExtra": "",
-      "skillNotice": "templates/claude-skill-notice.md",
       "excludeSharedAssets": [
         "references/release-2026-09-07-managed-runtime.md",
         "references/release-2026-09-09-existing-edit-stack.md",

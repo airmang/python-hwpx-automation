@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Claude 번들의 엔진을 python-hwpx 6.12.0과 python-hwpx-automation 7.5.0으로 올립니다(6.8.0·7.3.4에서). 6.9.0부터 엔진
+  배포판에 256 KiB를 넘는 파일이 있어 올리지 못하던 것이 6.12.0에서 풀렸습니다. 표 안에 표가 있는 문서의 칸 채움이
+  고쳐졌으므로 Claude SKILL.md의 임시 안내문(`packaging/templates/claude-skill-notice.md`)을 뺍니다. 엔진을 실을 때
+  실행 중에 읽지 않는 타입 검사 표식(`py.typed`, `.pyi`, `top_level.txt`)을 빼 번들 파일 수는 502입니다(한도 512).
+  여유 한도 검사는 500에서 505로 옮겼습니다.
+
 - CI: 채팅 경로 시뮬레이션 행렬에서 `plugin-contract` 잡과 겹치는 ubuntu×3.12를 빼고, PR에 `concurrency`를 걸어 새 푸시가
   앞선 실행을 대체합니다.
 
