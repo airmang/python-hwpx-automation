@@ -41,15 +41,18 @@ class _CellAddressingKwargs(TypedDict, total=False):
     split_merged: bool
 
 
-_CELL_TEXT_ILLEGAL = _re.compile(r"[\x00-\x08\x09\x0b\x0c\x0d\x0e-\x1f\ufffe\uffff]")
+# Characters XML 1.0 cannot carry. Tab and the line breaks are NOT in this set:
+# python-hwpx writes a tab as hp:tab and LF / CRLF / CR as hp:lineBreak inside
+# hp:t, the way Hancom does (audit ENG-19 -- the tab used to be deleted here).
+_CELL_TEXT_ILLEGAL = _re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
 
 
 def _sanitize_cell_text(value: str) -> str:
-    """Remove characters illegal inside HWPML <hp:t> nodes.
+    """Remove the control characters an HWPML <hp:t> node cannot hold.
 
-    Tab (U+0009) is stripped - it must live in a separate cell column,
-    not be concatenated with the text. \r is stripped; \n is kept.
-    Logs a warning when anything is actually removed.
+    Tabs and line breaks are kept for the engine's cell text setter, which
+    turns them into ``hp:tab`` / ``hp:lineBreak``. Logs a warning when anything
+    is actually removed.
     """
     cleaned = _CELL_TEXT_ILLEGAL.sub("", value)
     if cleaned != value:

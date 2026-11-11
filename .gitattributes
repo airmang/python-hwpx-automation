@@ -1,0 +1,8 @@
+# Keep every text file LF in the working tree on every platform. Ledger and
+# contract tests hash checked-in files byte-for-byte, so a CRLF checkout
+# (Windows git default core.autocrlf=true) made them fail (audit ARC-04/ARC-12).
+* text=auto eol=lf
+*.hwpx binary
+*.hwp binary
+*.png binary
+*.pdf binary

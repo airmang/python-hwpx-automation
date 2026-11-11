@@ -3,12 +3,17 @@
 
 from __future__ import annotations
 
+import copy
+import filecmp
+import hashlib
 import logging
 import os
 import re
 import shutil
 import tempfile
+import threading
 import zipfile
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -227,6 +232,11 @@ class LocalDocumentStorage:
         if path.suffix.lower() == ".hwpx":
             require_hwpx_editor_open_safe(path, role="backup source")
         backup = path.with_suffix(path.suffix + ".bak")
+        if _same_file_content(path, backup):
+            # The transaction layer (rotate_and_backup) has just copied this
+            # exact content to the same ``.bak``; copying it a second time
+            # changes nothing (audit EFF-15).
+            return backup
         shutil.copy2(path, backup)
         return backup
 
@@ -616,14 +626,103 @@ def _open_safety_dependency_error() -> str | None:
     return None
 
 
+def _same_file_content(first: Path, second: Path) -> bool:
+    """Whether both paths exist as regular files holding the same bytes."""
+
+    try:
+        return (
+            first.is_file()
+            and second.is_file()
+            and filecmp.cmp(str(first), str(second), shallow=False)
+        )
+    except OSError:
+        return False
+
+
+# One tool call checked the same unchanged document again and again: when it
+# was opened, when the transaction backed it up, when storage backed it up, and
+# the next call checked the bytes the previous call had just verified and
+# written (audit EFF-15: six validations and fifteen opens for one edit). The
+# open-safety verdict is a pure function of the package bytes and of the
+# validators, so a passing report is remembered under the SHA-256 of the exact
+# bytes it was computed for. Every check still happens once per distinct
+# content; nothing is trusted by path, size or timestamp.
+_OPEN_SAFETY_MEMO_LIMIT = 16
+_OPEN_SAFETY_MEMO: "OrderedDict[tuple[Any, ...], Dict[str, Any]]" = OrderedDict()
+_OPEN_SAFETY_MEMO_LOCK = threading.Lock()
+
+
+def _open_safety_memo_key(data: bytes) -> tuple[Any, ...]:
+    # The validators are part of the key: a replaced validator (a test double,
+    # a reloaded module) never answers from another validator's verdict.
+    return (
+        hashlib.sha256(data).hexdigest(),
+        len(data),
+        validate_package,
+        is_editor_open_blocking_issue,
+        validate_document_path,
+        open_document,
+    )
+
+
+def _source_bytes(source: HwpxVerificationSource) -> bytes | None:
+    if isinstance(source, bytes):
+        return source
+    try:
+        return Path(source).read_bytes()
+    except OSError:
+        return None
+
+
+def clear_open_safety_memo() -> None:
+    """Forget every remembered open-safety verdict (tests, long-lived hosts)."""
+
+    with _OPEN_SAFETY_MEMO_LOCK:
+        _OPEN_SAFETY_MEMO.clear()
+
+
 def build_hwpx_open_safety_report(
+    source: HwpxVerificationSource,
+) -> Dict[str, Any]:
+    """Validate the package, validate the document and reopen it.
+
+    A passing verdict for byte-identical content is returned from the memo; a
+    failing verdict is never remembered, so its messages always describe the
+    source actually given.
+    """
+
+    source = _hwpx_view(source)
+    before = _source_bytes(source)
+    key = _open_safety_memo_key(before) if before is not None else None
+    if key is not None:
+        with _OPEN_SAFETY_MEMO_LOCK:
+            remembered = _OPEN_SAFETY_MEMO.get(key)
+            if remembered is not None:
+                _OPEN_SAFETY_MEMO.move_to_end(key)
+                return copy.deepcopy(remembered)
+
+    report = _compute_hwpx_open_safety_report(source)
+
+    if key is not None and report["ok"]:
+        # A path may have been rewritten while it was being validated; remember
+        # the verdict only when the bytes are still the ones that were hashed.
+        after = before if isinstance(source, bytes) else _source_bytes(source)
+        if after is not None and after == before:
+            with _OPEN_SAFETY_MEMO_LOCK:
+                _OPEN_SAFETY_MEMO[key] = copy.deepcopy(report)
+                _OPEN_SAFETY_MEMO.move_to_end(key)
+                while len(_OPEN_SAFETY_MEMO) > _OPEN_SAFETY_MEMO_LIMIT:
+                    _OPEN_SAFETY_MEMO.popitem(last=False)
+    return report
+
+
+def _compute_hwpx_open_safety_report(
     source: HwpxVerificationSource,
 ) -> Dict[str, Any]:
     package_payload: Dict[str, Any]
     document_payload: Dict[str, Any]
     reopen_payload: Dict[str, Any]
 
-    source = _hwpx_view(source)
     dependency_error = _open_safety_dependency_error()
     if dependency_error is not None:
         package_payload = {

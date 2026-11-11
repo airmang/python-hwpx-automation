@@ -9,10 +9,12 @@ from pathlib import Path
 
 from hwpx_automation.office import rendering
 from hwpx_automation.tool_contract import (
+    RELEASED_CONTRACT_HASH,
     contract_hash,
     expected_tool_names,
     skill_required_tool_names,
 )
+from sync_owner_tool_contract import current_tool_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDARY = runpy.run_path(str(ROOT / "scripts" / "check_product_boundary.py"))
@@ -41,12 +43,9 @@ def test_owner_ledger_matches_frozen_source_and_contract() -> None:
     assert tuple(OWNER["forbiddenCoreCompatibilityImports"]) == (
         BOUNDARY["FROZEN_CORE_VISUAL_RUNTIME_IMPORTS"]
     )
-    assert OWNER["toolContract"] == {
-        "default": 122,
-        "advanced": 130,
-        "skillRequired": 29,
-        "hash": "8c278ebd5becba08",
-    }
+    # The ledger records the current contract; the values come from
+    # tool_contract (scripts/sync_owner_tool_contract.py), never a literal here.
+    assert OWNER["toolContract"] == current_tool_contract()
 
 
 def test_rendering_owner_gate_rejects_runtime_and_private_core_seams() -> None:
@@ -99,7 +98,7 @@ def test_tool_surface_remains_exactly_frozen() -> None:
     assert len(expected_tool_names(advanced=False)) == 128
     assert len(expected_tool_names(advanced=True)) == 136
     assert len(skill_required_tool_names()) == 29
-    assert contract_hash() == "c3f17979a7b9a38d"  # source core-floor delta
+    assert contract_hash() == RELEASED_CONTRACT_HASH  # the one literal pin lives in test_tool_contract.py
 
 
 def test_real_product_tree_passes_rendering_owner_gate() -> None:

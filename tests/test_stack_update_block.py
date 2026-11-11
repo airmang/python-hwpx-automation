@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 from hwpx_automation.server import mcp_server_health
-from hwpx_automation.tool_contract import contract_hash
+from hwpx_automation.tool_contract import (
+    RELEASED_CONTRACT_HASH,
+    contract_hash,
+)
 
 STATE = {
     "schemaVersion": "hwpx.stack-update-state.v1",
@@ -54,7 +57,7 @@ def test_health_reports_missing_unreadable_and_unknown_state(tmp_path: Path, mon
 
 
 def test_additive_health_field_leaves_the_contract_hash_unchanged() -> None:
-    assert contract_hash() == "c3f17979a7b9a38d"  # source core-floor delta
+    assert contract_hash() == RELEASED_CONTRACT_HASH  # the one literal pin lives in test_tool_contract.py
 
 
 @pytest.mark.parametrize("running_automation, restart", [("7.0.2", True), ("7.0.3", False)])
