@@ -1,7 +1,23 @@
 # Changelog
 
-## [Unreleased]
+## [7.5.0] - 2026-11-11
 
+2026-11 전체 점검에서 나온 수정을 모은 릴리스입니다. 기본 동작이 바뀌는 것이 넷 있습니다.
+
+- `get_table_map`은 실제 칸만 싣는 압축 형태가 기본입니다. 이전 형태는 `detail="full"`로 받습니다. 도구 계약 해시가
+  `71622c28a07913d1`로 바뀝니다.
+- 기본 서식 레지스트리가 `~/.hwpx`에서 작업공간 루트의 `.hwpx`로 옮겨집니다. 홈에 등록해 둔 서식은 옮겨 주지 않습니다.
+- 루프백이 아닌 주소의 HTTP 전송은 `HWPX_AUTOMATION_HTTP_TOKEN`(32자 이상)이나 `--allow-unauthenticated-http` 없이는
+  시작하지 않습니다. 알 수 없는 프로필·전송 방식도 시작 때 거부합니다. Dockerfile의 기본값은 프로필 `full`,
+  바인드 `127.0.0.1`입니다.
+- python-hwpx 6.12.0과 함께 쓰면 평가계획 정리 단계가 안내 글 조각이 품은 표의 첫 칸 글을 지우지 않습니다.
+
+python-hwpx 최소 버전은 6.10.0 그대로입니다. 저장 성공만으로 시각 품질을 보증하지 않습니다.
+
+- 2026-11 audit, boundaries. Helper programs (the preview browser, Windows PowerShell) are found only on absolute `PATH` entries and never in the working directory, which is commonly the document workspace. `apply_template_formfit` re-validates the paths carried inside a caller-supplied `analysis`; the path form of `input_json`, workflow source and output paths, and image files named by a document plan are checked against the workspace before any file is touched. Plan images must be complete PNG, JPEG or GIF files of at most 20 MiB.
+- The default template registry lives under the primary workspace root (`.hwpx/template_registry.json`) instead of the user's home folder.
+- Server start refuses an unknown `--profile`/`HWPX_AUTOMATION_PROFILE` or transport instead of falling through to the full tool surface, and refuses to serve HTTP on a non-loopback address without `HWPX_AUTOMATION_HTTP_TOKEN` (clients send `Authorization: Bearer <token>`) or the explicit `--allow-unauthenticated-http`. The Docker image binds `127.0.0.1` and uses the `full` profile by default.
+- Template form-fit no longer loses or misplaces inserted text (ENG-16). Form-fill analysis plans and mixed-form replay results are kept in bounded, expiring stores, and workflow tools reuse the tool-surface check for 30 seconds instead of recomputing it on every call.
 - 2026-11 audit, correctness. `format_text` and memo styling no longer copy a whole run to restyle part of it: only text moves to the new run, so `hp:secPr`, `hp:ctrl` (column definitions, form-field begin/end) and the `hp:tab`/`hp:lineBreak` inside `hp:t` stay single. Formatting the first two characters of a new document's first paragraph used to leave three section definitions (ENG-15).
 - `apply_document_commands`: setting a table caption goes through python-hwpx's caption and run text setters, so the caption paragraph's line layout cache is dropped and `"
 "` is written as `hp:lineBreak`; a copied or moved paragraph no longer carries its source's cache (ENG-08). Paragraph text with a tab or a line break is written as `hp:tab`/`hp:lineBreak` and now passes verification; before, a tab made every such edit roll back with `verification_failed` (ENG-19).
