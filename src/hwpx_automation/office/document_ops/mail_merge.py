@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PII-bound application workflow over the generic core merge seam."""
+"""Application workflow over the generic core merge seam."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -13,7 +12,6 @@ from hwpx.tools.mail_merge import (
 )
 from hwpx.tools.mail_merge import merge_template_rows
 
-from ..compliance import DEFAULT_POLICY, mask_pii
 from ..form_fill.fit import FitMode, FitPolicy
 
 if TYPE_CHECKING:
@@ -40,7 +38,11 @@ def build_mail_merge(
     fit_mode: str | None = None,
     max_lines: int = 1,
 ) -> dict[str, Any]:
-    """Run mail merge with automation-owned fit and PII policies."""
+    """Run mail merge with the automation-owned fit policy.
+
+    Each generated document receives the row values exactly as given. The report
+    carries field names and counts, never the values, so nothing in it needs masking.
+    """
 
     fit_policy = None
     if fit_mode:
@@ -55,7 +57,6 @@ def build_mail_merge(
             max_lines=max_lines,
         )
 
-    sanitizer = partial(mask_pii, policy=DEFAULT_POLICY)
     return merge_template_rows(
         template,
         data,
@@ -66,7 +67,6 @@ def build_mail_merge(
         split_newlines=split_newlines,
         fit_policy=fit_policy,
         max_lines=max_lines,
-        value_sanitizer=sanitizer,
     )
 
 

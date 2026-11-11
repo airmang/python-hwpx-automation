@@ -311,11 +311,10 @@ def apply_form_fill_workflow(
         doc = open_doc(str(tmp_destination))
         applied: list[dict[str, Any]] = []
         for _raw_mapping in plan.get("mappings", {}).get("resolved", []):
-            # PII compliance: mask the merged-in value (machine set on by
-            # default) so neither the output doc nor the applied[] echo leaks raw PII.
+            # The document receives the value exactly as given: a form that asks for a
+            # phone number must hold the phone number. ``mask`` only covers what this
+            # call reports back (see the return below).
             mapping = dict(_raw_mapping)
-            if mask and mapping.get("value") is not None:
-                mapping["value"] = mask_pii(str(mapping["value"]), DEFAULT_POLICY)
             if mapping.get("kind") == "form-field":
                 before_fields = _document_form_fields(doc)
                 before_field = _find_form_field_by_mapping(before_fields, mapping)
@@ -330,7 +329,7 @@ def apply_form_fill_workflow(
                 applied.append(
                     {
                         **mapping,
-                        "before_text": mask_pii(_before_ff, DEFAULT_POLICY) if mask else _before_ff,
+                        "before_text": _before_ff,
                         "after_text": fill_result.after,
                         "style_before": list(fill_result.style_before),
                         "style_after": list(fill_result.style_after),
@@ -343,8 +342,6 @@ def apply_form_fill_workflow(
                 col = int(mapping["col"])
                 before_style = _cell_style_snapshot(doc, table_index, row, col)
                 before_text = _cell_text(doc, table_index, row, col)
-                if mask:
-                    before_text = mask_pii(before_text, DEFAULT_POLICY)
                 set_cell_text(doc, table_index, row, col, str(mapping.get("value", "")))
                 after_style = _cell_style_snapshot(doc, table_index, row, col)
                 applied.append(
@@ -406,15 +403,28 @@ def apply_form_fill_workflow(
             },
             "repair": repair_result,
             "lineage_id": _lineage_id(source_before_hash, str(destination)),
-            "applied": applied,
+            "applied": _mask_report(applied) if mask else applied,
             "unresolved": [],
-            "touched": touched,
+            "touched": _mask_report(touched) if mask else touched,
+            "responseMasked": bool(mask),
             "validation": validation,
             "persisted": ok,
             "visualComplete": quality_contract.visual_complete_block(save_report),
         }
     finally:
         _cleanup_temporary_destination(tmp_destination)
+
+
+def _mask_report(value: Any) -> Any:
+    """Mask personal information in the string values of a report echoed to the caller."""
+
+    if isinstance(value, str):
+        return mask_pii(value, DEFAULT_POLICY)
+    if isinstance(value, list):
+        return [_mask_report(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _mask_report(item) for key, item in value.items()}
+    return value
 
 
 def _load_canonical_input(
