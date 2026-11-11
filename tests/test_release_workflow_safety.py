@@ -25,12 +25,8 @@ EXPECTED_TRIGGER = {
     },
 }
 EXPECTED_STEP_IDENTITY_SHA256 = {
-    "prepublish": (
-        "82c28c6037b0da54b85a6cc1a2a3d48beab0f7995df39ac3c91f97f6b96b0f5a"
-    ),
-    "release": (
-        "454347a240d195208313588ad210ceb2c9e1a9d9d1d136d0c026a9732aa87e78"
-    ),
+    "prepublish": ("5111ad68bf0908ef1b099c5e4a0784b814b462287f371fe8383b86ab01b97267"),
+    "release": ("ff3be9fc4496c1b6f3e256cb50caee072e142633a2ac00213b964ae3d6158ee5"),
 }
 EXPECTED_RUN_SHA256 = {
     "prepublish": {
@@ -167,6 +163,9 @@ def _trigger(parsed: dict[object, Any]) -> object:
     return parsed["on"] if "on" in parsed else parsed.get(True)
 
 
+_PINNED_ACTION = re.compile(r"^([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)@[0-9a-f]{40}$")
+
+
 def _step_identity_digest(steps: list[dict[str, Any]]) -> str:
     keys = ("name", "uses", "with", "env", "shell", "working-directory")
     identities = [
@@ -176,6 +175,13 @@ def _step_identity_digest(steps: list[dict[str, Any]]) -> str:
         }
         for step in steps
     ]
+    # Dependabot raises the commit an action is pinned to and cannot edit this file. The
+    # digest therefore covers which action runs, not the commit: a full 40-hex pin is
+    # required separately for every step, and any other reference is hashed as written.
+    for identity in identities:
+        uses = identity.get("uses")
+        if isinstance(uses, str):
+            identity["uses"] = _PINNED_ACTION.sub(r"\1@<commit>", uses)
     payload = json.dumps(
         identities,
         ensure_ascii=True,
@@ -239,9 +245,7 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
             label = step.get("name", step.get("uses", "<unnamed>"))
             shell = step.get("shell")
             if shell not in (None, "bash"):
-                failures.append(
-                    f"{job_name} step has an unsafe custom shell: {label}"
-                )
+                failures.append(f"{job_name} step has an unsafe custom shell: {label}")
             if "if" in step:
                 failures.append(f"{job_name} step must not have a condition: {label}")
             if "continue-on-error" in step:
@@ -257,14 +261,9 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
             if isinstance(uses, str) and not uses.startswith(("./", "docker://")):
                 ref = uses.rsplit("@", 1)[-1] if "@" in uses else ""
                 if not re.fullmatch(r"[0-9a-f]{40}", ref):
-                    failures.append(
-                        f"{job_name} action must use a 40-hex pin: {label}"
-                    )
+                    failures.append(f"{job_name} action must use a 40-hex pin: {label}")
 
-        if (
-            _step_identity_digest(steps)
-            != EXPECTED_STEP_IDENTITY_SHA256[job_name]
-        ):
+        if _step_identity_digest(steps) != EXPECTED_STEP_IDENTITY_SHA256[job_name]:
             failures.append(f"{job_name} steps must match the exact frozen chain")
         if _run_digests(steps) != EXPECTED_RUN_SHA256[job_name]:
             failures.append(f"{job_name} run commands must remain frozen")
@@ -297,10 +296,7 @@ def _workflow_safety_failures(workflow: str) -> list[str]:
             for job_name, step in publishers
             if job_name == "release"
         }
-        if (
-            len(observed_publishers) != 2
-            or observed_publishers != EXPECTED_PUBLISHERS
-        ):
+        if len(observed_publishers) != 2 or observed_publishers != EXPECTED_PUBLISHERS:
             failures.append(
                 "PyPI publishers must use the distinct canonical and compat roots"
             )
@@ -329,11 +325,44 @@ def test_release_workflow_provenance_is_frozen() -> None:
     assert _workflow_safety_failures(RELEASE.read_text(encoding="utf-8")) == []
 
 
+def test_raising_a_pinned_commit_is_accepted_and_a_tag_reference_is_not() -> None:
+    workflow = RELEASE.read_text(encoding="utf-8")
+    pinned = re.compile(r"(uses: [A-Za-z0-9_./-]+)@[0-9a-f]{40}")
+    assert len(pinned.findall(workflow)) >= 3
+
+    raised = pinned.sub(
+        lambda match: f"{match.group(1)}@{'0123456789abcdef' * 2}{'0' * 8}", workflow
+    )
+    assert raised != workflow
+    assert _workflow_safety_failures(raised) == []
+
+    for reference in ("v1", "main", "0123456"):
+        loose = pinned.sub(rf"\1@{reference}", workflow, count=1)
+        failures = _workflow_safety_failures(loose)
+        assert any("must use a 40-hex pin" in failure for failure in failures), (
+            reference,
+            failures,
+        )
+        assert any(
+            "steps must match the exact frozen chain" in failure for failure in failures
+        ), (reference, failures)
+
+    renamed = pinned.sub(
+        lambda match: f"{match.group(1)}-fork@{'a' * 40}", workflow, count=1
+    )
+    assert any(
+        "steps must match the exact frozen chain" in failure
+        for failure in _workflow_safety_failures(renamed)
+    )
+
+
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     (
         (
-            lambda text: text.replace("          draft: false", "          draft: true"),
+            lambda text: text.replace(
+                "          draft: false", "          draft: true"
+            ),
             "GitHub Release must explicitly set draft and prerelease false",
         ),
         (
@@ -490,7 +519,5 @@ def test_release_workflow_holds_no_frozen_current_public_dict() -> None:
     assert "scripts/release_coordinates.py --verify" in workflow
     assert "check_current_public_remote.py --require-network" in workflow
 
-    gate = (ROOT / "scripts" / "release_coordinates.py").read_text(
-        encoding="utf-8"
-    )
+    gate = (ROOT / "scripts" / "release_coordinates.py").read_text(encoding="utf-8")
     assert "def check_promotion_not_premature" in gate
