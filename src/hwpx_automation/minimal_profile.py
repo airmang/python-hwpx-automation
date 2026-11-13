@@ -90,15 +90,16 @@ def build_minimal_server(package_version: str) -> FastMCP:
     def stage_text(text: str, draft_id: str | None = None) -> dict[str, Any]:
         return compact.stage_text(text, draft_id)
 
-    @server.tool(description="Make a new .hwpx from Markdown (# headings, lists, | tables |, **bold**). Give draft_id from stage_text, or markdown_path of a workspace file.")
+    @server.tool(description="Make a new .hwpx from Markdown (# headings, lists, | tables |, **bold**). Give draft_id from stage_text, or markdown_path of a workspace file. byline: department/date line under the title.")
     def create_from_markdown(
         output: str,
         draft_id: str | None = None,
         markdown_path: str | None = None,
         markdown: Annotated[str | None, Field(max_length=2000)] = None,
+        byline: Annotated[str | None, Field(max_length=200)] = None,
     ) -> dict[str, Any]:
         return compact.create_from_markdown(
-            output, draft_id=draft_id, markdown_path=markdown_path, markdown=markdown
+            output, draft_id=draft_id, markdown_path=markdown_path, markdown=markdown, byline=byline
         )
 
     @server.tool(description="Check that a .hwpx opens, reopens after saving and is safe for the Hancom editor.")

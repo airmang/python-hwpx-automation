@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from pathlib import Path
 
@@ -20,6 +21,19 @@ if not hasattr(HwpxDocument.new().text, "outline"):  # pragma: no cover - older 
 _needs_markdown_import = pytest.mark.skipif(
     __import__("importlib").util.find_spec("hwpx.tools.markdown_import") is None,
     reason="python-hwpx without hwpx.tools.markdown_import",
+)
+
+
+def _core_writes_bylines() -> bool:
+    try:
+        from hwpx.tools.markdown_import import from_markdown
+    except ImportError:
+        return False
+    return "byline" in inspect.signature(from_markdown).parameters
+
+
+_needs_byline = pytest.mark.skipif(
+    not _core_writes_bylines(), reason="python-hwpx whose from_markdown has no byline"
 )
 
 
@@ -155,6 +169,67 @@ def test_create_from_markdown_needs_exactly_one_source(tmp_path: Path) -> None:
     assert compact.create_from_markdown(out, draft_id="dmissing")["error"]["code"] == "DRAFT_UNKNOWN"
 
 
+def _core_without_byline(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Stand in a python-hwpx whose ``from_markdown`` has no ``byline``; return the texts it is given."""
+
+    from hwpx.tools import markdown_import
+
+    real = markdown_import.from_markdown
+    texts: list[str] = []
+
+    def from_markdown(markdown: str, *, style: None = None) -> HwpxDocument:  # python-hwpx 6.12.0's parameters
+        assert style is None
+        texts.append(markdown)
+        return real(markdown)
+
+    monkeypatch.setattr(markdown_import, "from_markdown", from_markdown)
+    return texts
+
+
+@_needs_markdown_import
+def test_create_from_markdown_without_a_byline_calls_the_core_as_before(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    texts = _core_without_byline(monkeypatch)
+    text = "# 계획\n\n본문"
+
+    results = [compact.create_from_markdown(str(tmp_path / "plain.hwpx"), markdown=text)]
+    for index, blank in enumerate((None, "", "  \n ")):
+        results.append(compact.create_from_markdown(str(tmp_path / f"blank{index}.hwpx"), markdown=text, byline=blank))
+
+    assert texts == [text] * 4
+    for result in results:
+        assert result == {"ok": True, "output": result["output"], "chars": len(text), "openSafe": True}
+        assert "계획" in compact.read_outline(result["output"])["outline"]
+
+
+@_needs_markdown_import
+def test_a_byline_is_refused_when_the_core_cannot_write_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    texts = _core_without_byline(monkeypatch)
+    draft = compact.stage_text("# 계획\n\n본문")["draftId"]
+    target = tmp_path / "plan.hwpx"
+
+    result = compact.create_from_markdown(str(target), draft_id=draft, byline="교무기획부")
+
+    assert result["ok"] is False and result["error"]["code"] == "DEPENDENCY_MISSING"
+    assert "byline" in result["error"]["message"] and "upgrade python-hwpx" in result["error"]["message"]
+    assert texts == [] and not target.exists()
+    assert compact.DRAFTS.text(draft) == "# 계획\n\n본문"  # kept for another try
+
+
+@_needs_markdown_import
+@_needs_byline
+def test_create_from_markdown_writes_the_byline(tmp_path: Path) -> None:
+    result = compact.create_from_markdown(
+        str(tmp_path / "report.hwpx"), markdown="# 체험학습 보고서\n\n본문입니다.", byline="교무기획부 (2026. 11. 13.)"
+    )
+
+    assert result["ok"] is True and result["openSafe"] is True
+    assert set(result) == {"ok", "output", "chars", "openSafe"}
+    outline = compact.read_outline(result["output"])["outline"]
+    assert "체험학습 보고서" in outline and "교무기획부 (2026. 11. 13.)" in outline
+
+
 # --------------------------------------------------------------------------- the MCP profile (#198)
 
 
@@ -206,6 +281,29 @@ def test_tool_results_are_compact_json_without_the_document_body(tmp_path: Path)
     assert json.loads(staged.content[0].text)["draftId"].startswith("d")
     assert missing.isError is True
     assert json.loads(missing.content[0].text)["error"]["code"] == "FILE_NOT_FOUND"
+
+
+@_needs_markdown_import
+def test_the_profile_tool_passes_a_short_byline_on(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    texts = _core_without_byline(monkeypatch)
+    target = tmp_path / "plan.hwpx"
+    arguments = {"output": str(target), "markdown": "# 계획\n\n본문"}
+
+    async def probe(client):
+        tools = (await client.list_tools()).tools
+        refused = await client.call_tool("create_from_markdown", {**arguments, "byline": "교무기획부"})
+        too_long = await client.call_tool("create_from_markdown", {**arguments, "byline": "가" * 201})
+        return tools, refused, too_long
+
+    tools, refused, too_long = _session_run(probe)
+    schema = next(tool for tool in tools if tool.name == "create_from_markdown").inputSchema
+    assert {"maxLength": 200, "type": "string"} in schema["properties"]["byline"]["anyOf"]
+    assert schema["required"] == ["output"]
+    # The stand-in core has no byline, so this answer shows the byline reached the operation.
+    assert refused.isError is True
+    assert json.loads(refused.content[0].text)["error"]["code"] == "DEPENDENCY_MISSING"
+    assert too_long.isError is True
+    assert texts == [] and not target.exists()
 
 
 def test_the_server_cli_accepts_the_profile() -> None:
