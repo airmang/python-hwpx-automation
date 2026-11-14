@@ -19,6 +19,7 @@ drafts and the compact result shape.
 
 from __future__ import annotations
 
+import inspect
 import secrets
 import threading
 import time
@@ -256,8 +257,14 @@ def create_from_markdown(
     draft_id: str | None = None,
     markdown_path: str | None = None,
     markdown: str | None = None,
+    byline: str | None = None,
 ) -> dict[str, Any]:
-    """Make a new document from Markdown given by draft id, workspace file or short inline text."""
+    """Make a new document from Markdown given by draft id, workspace file or short inline text.
+
+    *byline* is the department/date line python-hwpx writes right-aligned under
+    the title. A python-hwpx whose ``from_markdown`` has no ``byline`` gets
+    ``DEPENDENCY_MISSING`` and no document, rather than a document without it.
+    """
 
     sources = [value for value in (draft_id, markdown_path, markdown) if value]
     if len(sources) != 1:
@@ -280,8 +287,16 @@ def create_from_markdown(
             "DEPENDENCY_MISSING",
             "this python-hwpx has no Markdown import (hwpx.tools.markdown_import); upgrade python-hwpx",
         )
+    extra: dict[str, Any] = {}
+    if byline and byline.strip():
+        if "byline" not in inspect.signature(from_markdown).parameters:
+            return _failure(
+                "DEPENDENCY_MISSING",
+                "this python-hwpx cannot write a byline (from_markdown has no byline); upgrade python-hwpx",
+            )
+        extra["byline"] = byline
     target = _resolve(output)
-    doc = from_markdown(text)
+    doc = from_markdown(text, **extra)
     try:
         open_safe = _save(doc, target)
     finally:

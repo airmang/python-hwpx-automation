@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- 최소 프로필(`--profile minimal`)의 `create_from_markdown`이 `byline`(200자까지)을 받습니다. 제목 아래에 오른쪽 정렬로 쓰는
+  부서·날짜 줄이고, `"\n"`은 줄바꿈입니다. `from_markdown`이 `byline`을 받는 python-hwpx가 있어야 쓸 수 있습니다.
+  6.12.0은 받지 않습니다. 그런 python-hwpx에서 `byline`을 주면 문서를 만들지 않고 `DEPENDENCY_MISSING`으로 답합니다.
+  `byline`을 주지 않으면 이전과 똑같이 동작합니다. 파이썬의 `hwpx_automation.office.compact.create_from_markdown`도
+  같은 `byline` 인수를 받습니다.
+
 ### Changed
 
 - 양식 채움(`apply_form_fill`)과 메일 머지(`mail_merge`)가 문서에 값을 준 그대로 씁니다. 이전에는 전화번호·이메일·

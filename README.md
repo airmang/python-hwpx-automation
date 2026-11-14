@@ -105,6 +105,9 @@ Ollama·Open WebUI의 27B급 모델처럼 도구가 많으면 길을 잃는 환�
 `apply_text_changes`(`{id: 새 글}`, 서식 유지·칸 넘침 알림), `replace_text`,
 `stage_text` → `create_from_markdown`, `validate_document`. 긴 본문은 도구 인수에
 한 번에 싣지 않고 `stage_text`로 1,000자 안팎씩 나눠 보낸 뒤 `draft_id`로 넘깁니다.
+`create_from_markdown`의 `byline`(200자까지)은 제목 아래 오른쪽에 쓰는 부서·날짜 줄입니다.
+`from_markdown`이 `byline`을 받지 않는 python-hwpx(6.12.0까지)에서는 문서를 만들지 않고
+`DEPENDENCY_MISSING`으로 답합니다.
 결과에는 문서 본문을 싣지 않고, 수정본은 기본으로 `<이름>.edited.hwpx`에 저장합니다.
 
 ## 한컴으로 PDF 렌더하기

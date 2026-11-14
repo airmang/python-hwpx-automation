@@ -1599,7 +1599,12 @@ def test_fill_by_path_reports_ambiguous_label_as_failed_entry(tmp_path: Path):
     assert result["applied"] == []
     assert result["applied_count"] == 0
     assert result["failed_count"] == 1
-    assert result["failed"] == [{"path": "성명 > right", "reason": "ambiguous label"}]
+    (entry,) = result["failed"]
+    assert (entry["path"], entry["reason"]) == ("성명 > right", "ambiguous label")
+    # python-hwpx after 6.12.0 also lists the cells the label could mean, with a selector for each
+    assert set(entry) <= {"path", "reason", "candidates"}
+    if "candidates" in entry:
+        assert [candidate["selector"] for candidate in entry["candidates"]] == ["성명[1]", "성명[2]"]
 
 
 def test_fill_by_path_reports_out_of_bounds_path_as_failed_entry(tmp_path: Path):
