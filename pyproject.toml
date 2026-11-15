@@ -55,8 +55,10 @@ mcp = ["mcp==1.30.0", "cryptography>=42.0"]
 # it is optional; the MCP workflow tools get it through [mcp] above.
 workflow = ["cryptography>=42.0"]
 
-# Legacy .hwp (HWP5/OLE2) reading. Lazy-imported; clear error if missing.
-hwp = ["olefile>=0.47"]
+# Legacy .hwp (HWP 5.0) reading is python-hwpx's own since 6.6 (the floor is
+# above that), so this extra installs nothing. It stays declared so existing
+# `pip install "python-hwpx-automation[hwp]"` commands keep working silently.
+hwp = []
 # HTTP/streamable transport. The default stdio transport needs no extra.
 http = ["uvicorn>=0.30"]
 # Advertised non-HWPX ingest formats only. Avoid cloud/audio/mail extras and their
@@ -78,7 +80,6 @@ test = [
     "jsonschema>=4.22",
     # Parse the checked-in GitHub workflow and freeze cross-platform shell semantics.
     "pyyaml>=6.0",
-    "olefile>=0.47",
     # Tests drive the workflow store and call anyio.run directly; neither is a
     # base dependency any more.
     "cryptography>=42.0",

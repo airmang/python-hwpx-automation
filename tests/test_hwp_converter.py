@@ -1,105 +1,144 @@
+# SPDX-License-Identifier: Apache-2.0
+"""``.hwp`` -> ``.hwpx`` conversion goes through python-hwpx's own HWP 5.0 reader.
+
+The fixture is a file Hancom Office saved (see ``fixtures/hwp5/NOTICE.md``).
+"""
+
+from __future__ import annotations
+
+import shutil
 import subprocess
+import warnings
+from pathlib import Path
+from types import MappingProxyType, SimpleNamespace
 
 import pytest
 from hwpx.document import HwpxDocument
 
-from hwpx_automation.hwp_converter import convert_hwp_to_hwpx
+from hwpx_automation import hwp_converter
+from hwpx_automation.hwp_converter import HwpConversionError, convert_hwp_to_hwpx
 from hwpx_automation.hwpx_ops import HwpxOps
 
+FIXTURE = Path(__file__).parent / "fixtures" / "hwp5" / "border_3d.hwp"
+TEXT = "가나다라 ABC abc 123"
 
-def _table_count(document: HwpxDocument) -> int:
-    tables = []
+
+def _open(path: Path) -> HwpxDocument:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return HwpxDocument.open(path)
+
+
+def _texts(document: HwpxDocument) -> list[str]:
+    texts = [paragraph.text for paragraph in document.paragraphs]
     for paragraph in document.paragraphs:
-        tables.extend(paragraph.tables)
-    return len(tables)
+        for table in paragraph.tables:
+            texts.extend(cell.text for row in table.rows for cell in row.cells)
+    return texts
 
 
-def test_convert_hwp_to_hwpx_maps_text_and_table(monkeypatch, tmp_path):
-    source = tmp_path / "sample.hwp"
-    source.write_bytes(b"dummy")
-    output = tmp_path / "sample.hwpx"
+def _tables(document: HwpxDocument) -> int:
+    return sum(len(list(paragraph.tables)) for paragraph in document.paragraphs)
 
-    xml_payload = """
-    <HwpDoc>
-      <Paragraph><Text>첫 문단</Text></Paragraph>
-      <Paragraph><Text>둘째 문단</Text></Paragraph>
-      <TableControl>
-        <TableRow>
-          <TableCell><Paragraph><Text>A1</Text></Paragraph></TableCell>
-          <TableCell><Paragraph><Text>B1</Text></Paragraph></TableCell>
-        </TableRow>
-        <TableRow>
-          <TableCell><Paragraph><Text>A2</Text></Paragraph></TableCell>
-          <TableCell><Paragraph><Text>B2</Text></Paragraph></TableCell>
-        </TableRow>
-      </TableControl>
-      <OLE />
-    </HwpDoc>
-    """.strip()
 
-    def fake_run(*_args, **_kwargs):
-        return subprocess.CompletedProcess(args=["hwp5proc"], returncode=0, stdout=xml_payload, stderr="")
+@pytest.fixture
+def hwp_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / "form.hwp"
+    shutil.copy2(FIXTURE, target)
+    return target
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
 
-    result = convert_hwp_to_hwpx(str(source), str(output))
+def test_conversion_keeps_text_and_tables_from_the_core_reader(hwp_source: Path) -> None:
+    output = hwp_source.with_name("form.hwpx")
 
+    result = convert_hwp_to_hwpx(str(hwp_source), str(output))
+
+    original = _open(hwp_source)
+    try:
+        expected_tables = _tables(original)
+        expected_texts = _texts(original)
+    finally:
+        original.close()
     assert result.success is True
-    assert result.paragraphs_converted == 2
-    assert result.tables_converted == 1
-    assert "OLE 개체" in result.skipped_elements
+    assert result.output_path == str(output.resolve())
+    assert result.tables_converted == expected_tables
     assert result.open_safety["ok"] is True
     assert result.verification["openSafety"]["ok"] is True
 
-    converted = HwpxDocument.open(output)
-    assert len(list(converted.paragraphs)) >= 2
-    assert _table_count(converted) == 1
+    assert output.read_bytes()[:2] == b"PK"  # an HWPX package, not the OLE2 input
+    converted = _open(output)
+    try:
+        assert any(TEXT in text for text in _texts(converted))
+        assert _texts(converted) == expected_texts
+        assert _tables(converted) == expected_tables
+        assert converted.validate().ok
+    finally:
+        converted.close()
 
-    ops = HwpxOps(base_directory=tmp_path)
-    validation = ops.validate_structure(output.name)
-    assert validation["ok"] is True
+
+def test_conversion_does_not_run_external_programs(hwp_source: Path, monkeypatch) -> None:
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("the converter must not start hwp5proc or any other program")
+
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
+
+    result = convert_hwp_to_hwpx(str(hwp_source), str(hwp_source.with_name("out.hwpx")))
+
+    assert result.success is True
 
 
-def test_convert_hwp_to_hwpx_warns_for_unsupported(monkeypatch, tmp_path):
-    source = tmp_path / "warn.hwp"
-    source.write_bytes(b"dummy")
-    output = tmp_path / "warn.hwpx"
+def test_conversion_report_becomes_skipped_elements_and_warnings(
+    hwp_source: Path, monkeypatch
+) -> None:
+    report = SimpleNamespace(
+        unconverted=MappingProxyType({"track-changes": 1}),
+        dropped=MappingProxyType({"range-tag-0": 3}),
+    )
+    real_open = HwpxDocument.open
 
-    xml_payload = """
-    <HwpDoc>
-      <Paragraph><Text>본문</Text></Paragraph>
-      <FootNote><Text>주석</Text></FootNote>
-      <Revision><Text>변경</Text></Revision>
-    </HwpDoc>
-    """.strip()
+    def open_with_report(source, *args, **kwargs):
+        document = real_open(source, *args, **kwargs)
+        monkeypatch.setattr(type(document), "conversion_report", property(lambda _self: report))
+        return document
 
-    def fake_run(*_args, **_kwargs):
-        return subprocess.CompletedProcess(args=["hwp5proc"], returncode=0, stdout=xml_payload, stderr="")
+    monkeypatch.setattr(hwp_converter.HwpxDocument, "open", staticmethod(open_with_report))
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = convert_hwp_to_hwpx(str(hwp_source), str(hwp_source.with_name("out.hwpx")))
 
-    result = convert_hwp_to_hwpx(str(source), str(output))
+    assert result.skipped_elements == ["track-changes (1)", "range-tag-0 (3)"]
+    assert any("track-changes 1개" in item for item in result.warnings)
+    assert any("range-tag-0 3개" in item for item in result.warnings)
+    assert any(item.startswith("변환 제외 요소") for item in result.warnings)
 
-    assert "각주/미주" in result.skipped_elements
-    assert "변경 추적" in result.skipped_elements
-    assert any("변환 제외 요소" in item for item in result.warnings)
+
+def test_unreadable_hwp_is_a_conversion_error_and_writes_nothing(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    source = tmp_path / "broken.hwp"
+    source.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
+    output = tmp_path / "broken.hwpx"
+
+    with pytest.raises(HwpConversionError, match="python-hwpx"):
+        convert_hwp_to_hwpx(str(source), str(output))
+
+    assert not output.exists()
+
+
+def test_source_must_be_hwp(tmp_path) -> None:
+    source = tmp_path / "x.hwpx"
+    source.write_bytes(b"PK")
+    with pytest.raises(HwpConversionError, match=".hwp"):
+        convert_hwp_to_hwpx(str(source), str(tmp_path / "y.hwpx"))
 
 
 def test_convert_hwp_to_hwpx_preserves_existing_output_when_open_safety_fails(
+    hwp_source: Path,
     monkeypatch,
-    tmp_path,
-):
-    source = tmp_path / "unsafe-conversion.hwp"
-    source.write_bytes(b"dummy")
-    output = tmp_path / "existing.hwpx"
+) -> None:
+    output = hwp_source.with_name("existing.hwpx")
     HwpxDocument.new().save_to_path(output)
     original_output = output.read_bytes()
-    xml_payload = "<HwpDoc><Paragraph><Text>본문</Text></Paragraph></HwpDoc>"
-
-    def fake_run(*_args, **_kwargs):
-        return subprocess.CompletedProcess(args=["hwp5proc"], returncode=0, stdout=xml_payload, stderr="")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(
         "hwpx_automation.storage.build_hwpx_open_safety_report",
         lambda path: {
@@ -116,25 +155,28 @@ def test_convert_hwp_to_hwpx_preserves_existing_output_when_open_safety_fails(
     )
 
     with pytest.raises(RuntimeError, match="open-safety"):
-        convert_hwp_to_hwpx(str(source), str(output))
+        convert_hwp_to_hwpx(str(hwp_source), str(output))
 
     assert output.read_bytes() == original_output
 
 
-def test_hwp_ops_convert_hwp_to_hwpx_returns_open_safety_evidence(monkeypatch, tmp_path):
-    source = tmp_path / "ops.hwp"
-    source.write_bytes(b"dummy")
+def test_hwp_ops_convert_hwp_to_hwpx_keeps_its_result_keys(hwp_source: Path) -> None:
+    ops = HwpxOps(base_directory=hwp_source.parent)
 
-    xml_payload = "<HwpDoc><Paragraph><Text>본문</Text></Paragraph></HwpDoc>"
+    result = ops.convert_hwp_to_hwpx(hwp_source.name, "ops.hwpx")
 
-    def fake_run(*_args, **_kwargs):
-        return subprocess.CompletedProcess(args=["hwp5proc"], returncode=0, stdout=xml_payload, stderr="")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    ops = HwpxOps(base_directory=tmp_path)
-
-    result = ops.convert_hwp_to_hwpx("ops.hwp", "ops.hwpx")
-
+    assert set(result) == {
+        "success",
+        "outputPath",
+        "paragraphsConverted",
+        "tablesConverted",
+        "skippedElements",
+        "warnings",
+        "verification",
+        "openSafety",
+    }
     assert result["success"] is True
     assert result["openSafety"]["ok"] is True
     assert result["verification"]["openSafety"]["ok"] is True
+    validation = ops.validate_structure("ops.hwpx")
+    assert validation["ok"] is True
