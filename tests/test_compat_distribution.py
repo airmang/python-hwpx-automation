@@ -93,7 +93,7 @@ def test_compat_metadata_exactly_delegates_to_canonical_distribution() -> None:
     assert project["scripts"] == {
         "hwpx-mcp-server": "hwpx_automation.mcp_cli:main"
     }
-    for extra in ("mcp", "hwp", "http", "ingest", "oracle", "vision"):
+    for extra in ("mcp", "workflow", "hwp", "http", "ingest", "oracle", "vision"):
         assert project["optional-dependencies"][extra] == [
             f"python-hwpx-automation[{extra}]=={canonical_version}"
         ]

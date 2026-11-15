@@ -38,6 +38,7 @@ dependencies = ["python-hwpx-automation[mcp]==7.5.0"]
 # 일도 안 일어나는 설치 안내는 없는 것만 못하다.
 [project.optional-dependencies]
 mcp = ["python-hwpx-automation[mcp]==7.5.0"]
+workflow = ["python-hwpx-automation[workflow]==7.5.0"]
 hwp = ["python-hwpx-automation[hwp]==7.5.0"]
 http = ["python-hwpx-automation[http]==7.5.0"]
 ingest = ["python-hwpx-automation[ingest]==7.5.0"]

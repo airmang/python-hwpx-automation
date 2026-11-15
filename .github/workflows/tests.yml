@@ -219,7 +219,7 @@ jobs:
             markitdown: absent
             mcp: absent
           - label: all-runtime-extras
-            extras: "[mcp,hwp,http,ingest,oracle,vision]"
+            extras: "[mcp,workflow,hwp,http,ingest,oracle,vision]"
             markitdown: present
             mcp: present
     steps:

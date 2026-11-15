@@ -34,8 +34,9 @@ dependencies = [
     "python-hwpx>=6.10.0,<7", # HWPX object model, OXML/OPC, format-native primitives
 
     "pydantic>=2.11,<3",
-    "cryptography>=42.0",
-    "anyio>=4.0",
+    # cryptography (workflow store only) is the [workflow] extra and anyio is
+    # imported nowhere in this package; the MCP SDK brings both when [mcp] is
+    # installed. A plain install stays lxml + core + pydantic.
     "tomli>=2.0; python_version < '3.11'",
 ]
 
@@ -47,7 +48,12 @@ dependencies = [
 # seam is pinned to one exact patch (1.30.0, the first 1.x with the
 # GHSA-84m7-p3x7-pcfv fix) and re-audited per docs/mcp-sdk-reaudit.md before
 # the pin moves.
-mcp = ["mcp==1.30.0"]
+mcp = ["mcp==1.30.0", "cryptography>=42.0"]
+
+# The durable workflow store (hwpx_automation.workflow.WorkflowStore) encrypts
+# work orders and results with AES-GCM. Only that store needs cryptography, so
+# it is optional; the MCP workflow tools get it through [mcp] above.
+workflow = ["cryptography>=42.0"]
 
 # Legacy .hwp (HWP5/OLE2) reading. Lazy-imported; clear error if missing.
 hwp = ["olefile>=0.47"]
@@ -73,6 +79,10 @@ test = [
     # Parse the checked-in GitHub workflow and freeze cross-platform shell semantics.
     "pyyaml>=6.0",
     "olefile>=0.47",
+    # Tests drive the workflow store and call anyio.run directly; neither is a
+    # base dependency any more.
+    "cryptography>=42.0",
+    "anyio>=4.0",
     "uvicorn>=0.30",
     "numpy>=1.26",
     "pillow>=10.0",

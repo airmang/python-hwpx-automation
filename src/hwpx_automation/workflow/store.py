@@ -11,9 +11,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterator
-
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from typing import TYPE_CHECKING, Any, Iterator
 
 from .models import (
     ActionResult,
@@ -28,6 +26,30 @@ from .models import (
     utc_now,
 )
 from .state_machine import assert_transition
+
+if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+_CRYPTOGRAPHY_INSTALL_HINT = (
+    "The durable workflow store encrypts work orders and results with AES-GCM "
+    "and needs the 'cryptography' package. Install it with: "
+    "pip install 'python-hwpx-automation[workflow]' "
+    "(the [mcp] extra includes it too)."
+)
+
+
+def _aesgcm_class() -> type[AESGCM]:
+    """Import AES-GCM on first use; ``cryptography`` is an optional extra."""
+
+    try:
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    except ImportError as exc:
+        raise WorkflowStoreDependencyError(_CRYPTOGRAPHY_INSTALL_HINT) from exc
+    return AESGCM
+
+
+class WorkflowStoreDependencyError(ImportError):
+    """The optional dependency the encrypted workflow store needs is missing."""
 
 
 class WorkflowConflict(RuntimeError):
@@ -56,13 +78,16 @@ class WorkflowStore:
         encryption_key: bytes | str | None = None,
         result_retention_seconds: int = 24 * 60 * 60,
     ) -> None:
+        # Fail before touching the disk: without the cipher no key file or
+        # database should be created, and existing encrypted rows stay intact.
+        aesgcm = _aesgcm_class()
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not 1 <= result_retention_seconds <= self._MAX_RESULT_RETENTION_SECONDS:
             raise ValueError("result retention must be between 1 second and 30 days")
         self.result_retention_seconds = result_retention_seconds
         self._key = self._load_or_create_key(encryption_key)
-        self._aead = AESGCM(self._key)
+        self._aead = aesgcm(self._key)
         migrated = self._initialize()
         if migrated:
             # Ensure legacy plaintext does not survive in free pages or the WAL.
@@ -97,7 +122,7 @@ class WorkflowStore:
         try:
             key = key_path.read_bytes()
         except FileNotFoundError:
-            key = AESGCM.generate_key(bit_length=256)
+            key = _aesgcm_class().generate_key(bit_length=256)
             temporary = key_path.with_name(f".{key_path.name}.{uuid.uuid4().hex}.tmp")
             descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             try:
@@ -744,4 +769,9 @@ class WorkflowStore:
         )
 
 
-__all__ = ["WorkflowConflict", "WorkflowNotFound", "WorkflowStore"]
+__all__ = [
+    "WorkflowConflict",
+    "WorkflowNotFound",
+    "WorkflowStore",
+    "WorkflowStoreDependencyError",
+]
