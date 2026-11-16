@@ -48,8 +48,6 @@ __all__ = [
     "form_choices",
 ]
 
-_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
-
 #: family -> (unchecked marks, checked marks)
 _FAMILIES: dict[str, tuple[str, str]] = {
     "square": ("□☐", "■☑☒▣"),
@@ -118,9 +116,7 @@ class ChooseResult(TypedDict):
 
 @dataclass(slots=True)
 class _Mark:
-    node: Any  # the element whose text or tail holds the character
-    in_tail: bool
-    offset: int
+    position: int  # the character's place in ``paragraph.text`` (``paragraph.replace_range``)
     char: str
     text: str = ""  # the option's name
 
@@ -135,33 +131,39 @@ class _Group:
     path: str = ""
 
 
-def _segments(paragraph: Any) -> list[tuple[Any, bool, str]]:
-    """The paragraph element's own text as ``(node, in_tail, text)`` pieces, in order.
+def _segments(paragraph: Any) -> list[tuple[int | None, str]]:
+    """The paragraph's own text (``run.content``, what its runs' ``hp:t`` hold) as
+    ``(position, text)`` pieces, in order.
 
-    A control inside the text (a tab, a line break) stands between two pieces
-    as a piece of one space that belongs to no node.
+    *position* is where the piece starts in ``paragraph.text``. A glyph or mark inside the
+    text (a tab, a line break, 형광펜) stands between two pieces as a piece of one space with
+    no position.
     """
 
-    pieces: list[tuple[Any, bool, str]] = []
-    for text_element in paragraph.iterfind(f"{_HP}run/{_HP}t"):
-        if text_element.text:
-            pieces.append((text_element, False, text_element.text))
-        for child in text_element:
-            pieces.append((None, False, " "))
-            if child.tail:
-                pieces.append((child, True, child.tail))
+    pieces: list[tuple[int | None, str]] = []
+    position = 0  # in paragraph.text: the hp:t text, and a tab written right in the run
+    for run in paragraph.runs:
+        for item in run.content:
+            if item.container == "t":
+                if item.kind == "text":
+                    pieces.append((position, item.text))
+                else:
+                    pieces.append((None, " "))
+                position += len(item.text)
+            elif item.kind == "tab":
+                position += 1
     return pieces
 
 
 def _read_marks(paragraph: Any) -> tuple[str, list[_Mark]]:
-    """The text before the first mark and the marks of the paragraph element's choice group.
+    """The text before the first mark and the marks of the paragraph's choice group.
 
     No group (an empty list) unless one family has two or more marks; marks of
     the other family are then plain characters of the names around them.
     """
 
     pieces = _segments(paragraph)
-    whole = "".join(text for _, _, text in pieces)
+    whole = "".join(text for _, text in pieces)
     found = _lone_marks(whole)
     by_family = Counter(_FAMILY_OF[char] for _, char in found)
     if not by_family:
@@ -177,11 +179,11 @@ def _read_marks(paragraph: Any) -> tuple[str, list[_Mark]]:
     cursor = 0
     lookup = iter(positions)
     wanted = next(lookup, None)
-    for node, in_tail, text in pieces:
+    for start, text in pieces:
         while wanted is not None and cursor <= wanted[0] < cursor + len(text):
-            if node is None:
+            if start is None:
                 return whole, []
-            marks.append(_Mark(node=node, in_tail=in_tail, offset=wanted[0] - cursor, char=wanted[1]))
+            marks.append(_Mark(position=start + wanted[0] - cursor, char=wanted[1]))
             wanted = next(lookup, None)
         cursor += len(text)
     bounds = [start for start, _ in positions] + [len(whole)]
@@ -267,7 +269,7 @@ def _collect(document: HwpxDocument) -> list[_Group]:
         by_anchor.setdefault(table_ref.paragraph_index, []).append(table_ref)
 
     for paragraph_index, paragraph in enumerate(document.paragraphs):
-        before, marks = _read_marks(paragraph.element)
+        before, marks = _read_marks(paragraph)
         if marks:
             groups.append(
                 _Group(
@@ -286,7 +288,7 @@ def _collect(document: HwpxDocument) -> list[_Group]:
                 cell = position.cell
                 earlier = ""
                 for cell_paragraph in cell.paragraphs:
-                    before, marks = _read_marks(cell_paragraph.element)
+                    before, marks = _read_marks(cell_paragraph)
                     if not marks:
                         own = _label_text(before)
                         if own:
@@ -422,13 +424,10 @@ def _replacement(char: str, want_checked: bool, group: _Group, pairings: tuple[C
     return (_CHECKED_FOR if want_checked else _UNCHECKED_FOR)[char]
 
 
-def _write(mark: _Mark, char: str) -> None:
-    current = mark.node.tail if mark.in_tail else mark.node.text
-    updated = current[: mark.offset] + char + current[mark.offset + 1 :]
-    if mark.in_tail:
-        mark.node.tail = updated
-    else:
-        mark.node.text = updated
+def _write(paragraph: Any, mark: _Mark, char: str) -> None:
+    """Put *char* in place of *mark* (``paragraph.replace_range``: the run and its shape stay)."""
+
+    paragraph.replace_range(mark.position, mark.position + 1, char)
     mark.char = char
 
 
@@ -479,10 +478,10 @@ def choose(doc: HwpxDocument, selections: Mapping[str, ChoiceSelection]) -> Choo
             want_checked = number in wanted
             if (mark.char in _CHECKED) == want_checked:
                 continue
-            _write(mark, _replacement(mark.char, want_checked, group, pairings))
+            _write(group.paragraph, mark, _replacement(mark.char, want_checked, group, pairings))
             changed += 1
         if changed:
-            # python-hwpx 7.0: clearing the cache after an .element edit also marks the part changed.
+            # The paragraph's lines are laid out again (replace_range keeps the runs as they are).
             group.paragraph.clear_layout_cache()
         applied.append(
             {
