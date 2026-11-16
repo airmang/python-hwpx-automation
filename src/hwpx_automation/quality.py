@@ -239,10 +239,11 @@ def save_through_pipeline(document: Any, output_path: Any, *, quality: Any = Non
         policy = resolve_policy(quality)
     else:
         policy = quality
-    from .office.rendering import bind_document_rendering, save_gate_report
+    from .office.rendering import hancom_save_pipeline, save_gate_report
 
-    with bind_document_rendering(document):
-        report = save_gate_report(document, output_path, quality=policy)
+    report = save_gate_report(
+        document, output_path, quality=policy, pipeline=hancom_save_pipeline()
+    )
     if not report.ok:
         raise QualityGateError(report)
     return report

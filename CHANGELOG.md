@@ -20,6 +20,10 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 - 기본 설치가 `cryptography`와 `anyio`를 끌어오지 않습니다. 파이썬에서 워크플로 저장소(`WorkflowStore`)를 직접 쓰려면
   `[workflow]` extra를 함께 설치합니다(`[mcp]`에는 들어 있습니다). 없을 때 저장소를 만들면 디스크를 건드리기 전에
   `WorkflowStoreDependencyError`가 설치 명령을 알려 줍니다.
+- `hwpx_automation.office.bind_document_rendering`(문서의 비공개 `_save_pipeline`을 잠시 바꿔 끼우던 문맥 관리자)을
+  지웠습니다. python-hwpx 7.0에는 그 속성이 없어 끼워도 렌더링되지 않습니다. 한/글로 렌더링하는 저장 관문은
+  `doc.save(path, quality=policy, pipeline=hancom_save_pipeline())`(`hwpx_automation.office.hancom_save_pipeline`)로 줍니다.
+  한/글은 정책이 렌더링할 때만 찾습니다.
 
 ### Added
 

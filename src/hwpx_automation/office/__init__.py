@@ -3,12 +3,12 @@
 
 from .rendering import (
     HancomRenderBackend,
-    bind_document_rendering,
+    hancom_save_pipeline,
     resolve_hancom_backend,
 )
 
 __all__ = [
     "HancomRenderBackend",
-    "bind_document_rendering",
+    "hancom_save_pipeline",
     "resolve_hancom_backend",
 ]
