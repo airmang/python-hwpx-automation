@@ -687,7 +687,7 @@ def _shape_paragraphs(paragraph, seen: set):
 def _shape_text_lines(paragraph, doc, notes_out: list | None = None) -> list[str]:
     lines: list[str] = []
     for sub_p in _shape_paragraphs(paragraph, set()):
-        md = _labelled_md(_p_element_to_md(sub_p.element, doc, notes_out).strip(), sub_p.element, block=False)
+        md = _labelled_md(_p_element_to_md(sub_p.element, doc, notes_out).strip(), sub_p, block=False)
         if md:
             lines.append(md)
     return lines
@@ -700,8 +700,8 @@ class _LabelCache:
     def __init__(self, labels: ListLabels) -> None:
         self.labels = labels
 
-    def get(self, p_el) -> tuple[str, str | None]:
-        return (self.labels.label(p_el), self.labels.kind(p_el))
+    def get(self, paragraph) -> tuple[str, str | None]:
+        return (self.labels.label(paragraph), self.labels.kind(paragraph))
 
 
 #: 목록 번호를 싣는가(``list_labels=``). 실을 때는 번호를 세는 _LabelCache.
@@ -709,13 +709,13 @@ _LABELS: ContextVar["_LabelCache | None"] = ContextVar("hwpx_markdown_labels", d
 _ORDERED_LABEL = re.compile(r"\d{1,9}[.)]\Z")
 
 
-def _labelled_md(md: str, p_el, *, block: bool) -> str:
+def _labelled_md(md: str, paragraph, *, block: bool) -> str:
     """*md* 앞에 문단의 목록 번호·글머리를 붙인다. 문단 자리(*block*)에서는 글머리를 ``- ``로,
     ``1.``·``1)`` 꼴 번호는 그대로 Markdown 목록으로 쓴다. 다른 번호(``가.``, ``①``)는 글로 쓴다."""
     cache = _LABELS.get()
     if cache is None:
         return md
-    label, kind = cache.get(p_el)
+    label, kind = cache.get(paragraph)
     if not label or not md:
         return md
     if block and kind == "BULLET":
@@ -728,7 +728,7 @@ def _labelled_md(md: str, p_el, *, block: bool) -> str:
 def _cell_to_md(cell, doc, mapping, depth: int = 0, notes_out: list | None = None) -> str:
     chunks: list[str] = []
     for cp in cell.paragraphs:
-        md = _labelled_md(_p_element_to_md(cp.element, doc, notes_out).strip(), cp.element, block=False)
+        md = _labelled_md(_p_element_to_md(cp.element, doc, notes_out).strip(), cp, block=False)
         imgs = _paragraph_images(cp, mapping)
         shape_lines = _shape_text_lines(cp, doc, notes_out)
         if md:
@@ -927,7 +927,7 @@ def _export_shape_lines(p, doc, notes) -> list[str]:
     seen_p = {nested for table in p.tables for nested in _object_paragraphs(table)}
     for sub_p in _shape_paragraphs(p, seen_p):
         sub_md = _p_element_to_md(sub_p.element, doc, notes).strip()
-        sub_md = _labelled_md(escape_line_starts(sub_md), sub_p.element, block=True)
+        sub_md = _labelled_md(escape_line_starts(sub_md), sub_p, block=True)
         if sub_md:
             shape_lines.append(sub_md)
     return shape_lines
@@ -979,7 +979,7 @@ class _HeadingPlan:
 
 def _export_paragraph_lines(p, doc, mapping, notes, plan: _HeadingPlan) -> list[str]:
     cache = _LABELS.get()
-    label = cache.get(p.element)[0] if cache is not None else ""  # 문단 번호를 칸 안 문단보다 먼저 센다
+    label = cache.get(p)[0] if cache is not None else ""  # 문단 번호를 칸 안 문단보다 먼저 센다
     md = _p_element_to_md(p.element, doc, notes).strip()
     imgs = _paragraph_images(p, mapping)
     tables = [_table_to_md(t, doc, mapping, 0, notes) for t in p.tables]
@@ -1013,7 +1013,7 @@ def _export_paragraph_lines(p, doc, mapping, notes, plan: _HeadingPlan) -> list[
     if promoted:
         out.append(promoted)
     elif md:
-        out.append(_labelled_md(escape_line_starts(md), p.element, block=True))
+        out.append(_labelled_md(escape_line_starts(md), p, block=True))
     out.extend(shape_lines)
     out.extend(imgs)
     out.extend(tables)
