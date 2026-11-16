@@ -914,19 +914,20 @@ def _page_text_lines(section_el, tag: str, doc, seen: set[tuple[str, str]]) -> l
     return lines
 
 
-def _unanchored_memo_lines(section_el, doc, notes) -> list[str]:
-    """구역의 메모 목록(``hp:memogroup``) 가운데 본문에 걸린 자리가 없는 메모를 ``> 메모: 글`` 줄로."""
+def _unanchored_memo_lines(section, doc, notes) -> list[str]:
+    """구역의 메모 목록(``hp:memogroup``, ``section.memo_group``) 가운데 본문에 걸린 자리가 없는
+    메모를 ``> 메모: 글`` 줄로."""
 
     anchored = {text for kind, _, text in notes if kind == "memo"}
     lines: list[str] = []
-    for group in _descendants(section_el, "memogroup"):
-        for memo in _direct_children(group, "memo"):
-            parts = [_p_element_to_md(p, doc, None).strip() for p in _descendants(memo, "p")]
-            text = "메모: " + " ".join(" ".join(part.split("\n")) for part in parts if part)
-            if text == "메모: " or text in anchored:
-                continue
-            anchored.add(text)
-            lines.append(f"> {text}")
+    group = section.memo_group
+    for memo in group.memos if group is not None else ():
+        parts = [_p_element_to_md(p.element, doc, None).strip() for p in memo.paragraphs]
+        text = "메모: " + " ".join(" ".join(part.split("\n")) for part in parts if part)
+        if text == "메모: " or text in anchored:
+            continue
+        anchored.add(text)
+        lines.append(f"> {text}")
     return lines
 
 
@@ -1066,7 +1067,7 @@ def _export_markdown(
                 # 구역에 바로 놓인 표(문단 밖)의 글도 문서의 글이다.
                 lines.extend(_section_table_lines(child))
         if memos:
-            lines.extend(_unanchored_memo_lines(section.element, doc, notes))
+            lines.extend(_unanchored_memo_lines(section, doc, notes))
         lines.extend(footers)
 
     body = "\n\n".join(lines)
