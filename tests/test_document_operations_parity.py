@@ -77,6 +77,31 @@ def _redline_pair(tmp_path: Path) -> tuple[Path, Path]:
     return before, after
 
 
+# Core #711 (reviewed) stopped warning that the manifest does not list
+# version.xml: every Hangul-saved HWPX keeps it at the fixed path unlisted, so
+# it is the normal state. The frozen receipts still carry that one warning; it
+# is accepted present or absent, nothing else is.
+CORE_711_DROPPED_WARNING = (
+    "Contents/content.hpf: manifest does not reference a version part; "
+    "engine will fall back to 'version.xml'"
+)
+
+
+def _without_core_711_warning(value: Any) -> Any:
+    if isinstance(value, dict):
+        out = {key: _without_core_711_warning(item) for key, item in value.items()}
+        package = out.get("validatePackage")
+        if isinstance(package, dict) and isinstance(package.get("warnings"), list):
+            out["validatePackage"] = {
+                **package,
+                "warnings": [w for w in package["warnings"] if w != CORE_711_DROPPED_WARNING],
+            }
+        return out
+    if isinstance(value, list):
+        return [_without_core_711_warning(item) for item in value]
+    return value
+
+
 def _mail_merge_projection(report: dict[str, Any]) -> dict[str, Any]:
     row = report["rows"][0]
     return {
@@ -138,7 +163,9 @@ def test_mail_merge_policy_and_receipts_match_frozen_core(tmp_path: Path) -> Non
         **golden["projection"],
         "row": {**golden["projection"]["row"], "maskedFields": []},
     }
-    assert _mail_merge_projection(canonical) == expected
+    assert _without_core_711_warning(
+        _mail_merge_projection(canonical)
+    ) == _without_core_711_warning(expected)
     canonical_doc = HwpxDocument.open(canonical["rows"][0]["filename"])
     try:
         assert canonical_doc.text.plain() == "name=홍길동 / phone=010-1234-5678"
