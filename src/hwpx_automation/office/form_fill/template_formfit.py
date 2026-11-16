@@ -474,14 +474,20 @@ def _apply_section_region(
     section = doc.sections[match["section_index"]]
     anchor_index = int(match["section_paragraph_index"])
     paragraphs = _paragraph_values(target.get("value"))
-    removed = _remove_placeholder_paragraphs(section, anchor_index + 1)
-    template = removed[0] if removed else section.paragraphs[anchor_index].element
-    new_elements = [_paragraph_clone_with_text(template, text) for text in paragraphs]
-    section.insert_paragraphs(anchor_index + 1, new_elements)
+    placeholders = _placeholder_paragraphs(section, anchor_index + 1)
+    # Each value paragraph takes the first placeholder's (else the anchor's) paragraph and run
+    # shape: python-hwpx's insert_after(text) builds it from that paragraph, while it is still
+    # in the document, then the placeholders go.
+    previous = placeholders[0] if placeholders else section.paragraphs[anchor_index]
+    for text in paragraphs:
+        previous = previous.insert_after(text)
+    for placeholder in placeholders:
+        placeholder.remove()
+    removed = placeholders
     return {
         **dict(target),
         "applied": True,
-        "inserted_paragraphs": len(new_elements),
+        "inserted_paragraphs": len(paragraphs),
         "inserted_texts": list(paragraphs),
         "removed_placeholders": len(removed),
     }
@@ -491,13 +497,15 @@ def _apply_table_region(doc: HwpxDocument, target: Mapping[str, Any]) -> dict[st
     match = _single_current_anchor(doc, str(target["anchor"]))
     section = doc.sections[match["section_index"]]
     anchor_index = int(match["section_paragraph_index"])
-    removed = _remove_placeholder_paragraphs(section, anchor_index + 1)
+    removed = _placeholder_paragraphs(section, anchor_index + 1)
+    for placeholder in removed:
+        placeholder.remove()
     rows = _table_rows(target.get("value"))
     columns = [str(column) for column in target.get("columns") or []]
     if not columns and rows:
         columns = list(rows[0].keys())
-    generated = _build_table_paragraph(doc, columns, rows)
-    section.insert_paragraphs(anchor_index + 1, [generated])
+    table = _build_table(doc, columns, rows)
+    table.paragraph.move_after(section.paragraphs[anchor_index])
     header = columns or ["내용"]
     return {
         **dict(target),
@@ -544,7 +552,7 @@ def _table_rows(value: Any) -> list[dict[str, str]]:
     return rows
 
 
-def _build_table_paragraph(
+def _build_table(
     doc: HwpxDocument,
     columns: list[str],
     rows: list[dict[str, str]],
@@ -555,16 +563,14 @@ def _build_table_paragraph(
     for row_index, row in enumerate(rows, start=1):
         for col_index, column in enumerate(columns or list(row.keys()) or ["내용"]):
             table.set_cell_text(row_index, col_index, row.get(column, ""))
-    generated_paragraph = doc.sections[-1].paragraphs[-1]
-    cloned = copy.deepcopy(generated_paragraph.element)
-    doc.sections[-1].remove_paragraph(len(doc.sections[-1].paragraphs) - 1)
-    return cloned
+    return table
 
 
-def _remove_placeholder_paragraphs(section: Any, start_index: int) -> list[Any]:
-    removed: list[Any] = []
-    while start_index < len(section.paragraphs):
-        paragraph = section.paragraphs[start_index]
+def _placeholder_paragraphs(section: Any, start_index: int) -> list[Any]:
+    """The placeholder paragraphs right after *start_index* (still in the section)."""
+
+    found: list[Any] = []
+    for paragraph in section.paragraphs[start_index:]:
         text = (paragraph.text or "").strip()
         if not _looks_like_placeholder(text):
             break
@@ -572,9 +578,8 @@ def _remove_placeholder_paragraphs(section: Any, start_index: int) -> list[Any]:
             # Its own text is empty, but it carries a table, picture or
             # section settings: that is content, not a placeholder.
             break
-        removed.append(copy.deepcopy(paragraph.element))
-        section.remove_paragraph(start_index)
-    return removed
+        found.append(paragraph)
+    return found
 
 
 def _looks_like_placeholder(text: str) -> bool:
@@ -596,37 +601,6 @@ def _is_plain_text_paragraph(element: Any) -> bool:
             if _local_name(item.tag) != "t":
                 return False
     return True
-
-
-def _paragraph_clone_with_text(template: Any, text: str) -> Any:
-    """A new paragraph with the template formatting and exactly *text*.
-
-    Only the paragraph and run attributes are taken from the template. Its
-    children are rebuilt, so a template without a text slot still receives the
-    text and a template that carries objects does not get them duplicated.
-    """
-
-    cloned = copy.deepcopy(template)
-    runs = [child for child in cloned if _local_name(child.tag) == "run"]
-    styled_run = next(
-        (run for run in runs if any(_local_name(item.tag) == "t" for item in run)),
-        runs[0] if runs else None,
-    )
-    run_attributes = (
-        dict(styled_run.attrib) if styled_run is not None else {"charPrIDRef": "0"}
-    )
-    for child in list(cloned):
-        cloned.remove(child)
-    for attribute in ("pageBreak", "columnBreak"):
-        if attribute in cloned.attrib:
-            cloned.set(attribute, "0")
-    namespace = str(cloned.tag)[: -len(_local_name(cloned.tag))]
-    run = cloned.makeelement(f"{namespace}run", run_attributes)
-    text_node = run.makeelement(f"{namespace}t", {})
-    text_node.text = text
-    run.append(text_node)
-    cloned.append(run)
-    return cloned
 
 
 def _element_text(element: Any) -> str:
