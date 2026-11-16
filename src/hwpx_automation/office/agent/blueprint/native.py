@@ -14,7 +14,14 @@ from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HH, HP
 from hwpx.oxml.shape_position import line_width_mm_for_units
 
-from ..commands import _add, _insert_direct_child, _insert_inline, _remove_inline_element, _table_caption
+from ..commands import (
+    _add,
+    _insert_direct_child,
+    _insert_inline,
+    _move_paragraph_into_place,
+    _remove_inline_element,
+    _table_caption,
+)
 from ..document import HwpxAgentDocument, NodeRecord
 from ..model import AgentContractError
 
@@ -303,9 +310,7 @@ class TypedNativeBridge:
             reuse_existing = False
         self._apply_paragraph_dependencies(paragraph, node)
         if root_view is not None and root_parent is not None and position and position["mode"] != "append":
-            paragraph.element.getparent().remove(paragraph.element)
-            _insert_direct_child(root_view, root_parent, "paragraph", paragraph.element, position)
-            root_parent.native.mark_dirty()
+            _move_paragraph_into_place(root_view, root_parent, paragraph, position)
         self.created[node_id] = CreatedBinding("paragraph", paragraph)
         child_ids = list(node["children"])
         self._create_runs(paragraph, child_ids, reuse_existing=reuse_existing)

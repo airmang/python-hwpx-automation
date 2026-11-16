@@ -79,6 +79,16 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   주민등록번호를 가린 값(`010-****-****`)이 문서에 들어갔습니다. 양식 채움의 `mask`(기본 켬)는 이제 응답에 되돌려 주는
   `applied`·`touched`만 가리고, 응답의 `responseMasked`로 가렸는지 알립니다. 메일 머지 보고에는 값이 실리지 않으므로
   가릴 것이 없고, `maskedFields`는 빈 목록입니다.
+- 표·문단 편집 몇 가지가 python-hwpx 7.0의 한/글식 동작을 그대로 씁니다. 결과 문서가 이렇게 달라질 수 있습니다:
+  - `add_table(auto_fit=True)`의 열 폭은 `table.set_column_width`로 씁니다. 칸 좌우 여백 + 283보다 좁은 열은 거부되고,
+    병합 칸은 걸친 열 폭의 합이 됩니다(자동 맞춤의 최소 폭은 이보다 넓어 지금 쓰임에서는 같은 결과입니다).
+  - `apply_document_commands`의 행 추가는 한/글의 "줄 추가"처럼 이웃 행의 칸 서식(테두리·여백·크기·`dirty` 등)을
+    이어받은 빈 행을 넣습니다(전에는 기본 서식의 새 행). 행 수·칸 주소·병합 칸도 python-hwpx가 맞춥니다.
+  - `apply_document_commands`·`replay_document_blueprint`의 문단 추가를 구역 맨 앞에 두면 구역 설정이 새 첫 문단으로
+    옮겨 갑니다(`paragraph.move_before`).
+  - `compose_exam`의 쪽·단 나누기는 `paragraph.page_break`·`column_break`로 켜며, 그 문단의 줄 배치 캐시를 지웁니다.
+  - "선 없음" 표 테두리(`border_style="none"`)는 정의되지 않은 id `"0"` 대신 문서의 선 없는 테두리 정의(한/글 문서의
+    1번)를 가리킵니다. 없으면 하나 만듭니다.
 
 ### Fixed
 

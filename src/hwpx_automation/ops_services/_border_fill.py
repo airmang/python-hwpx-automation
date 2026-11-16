@@ -99,7 +99,10 @@ def _shortcut_border_fill_id(
     if normalized_style == "none" and not any(
         [normalized_border_color, normalized_fill_color, border_width]
     ):
-        return "0"
+        # Hancom writes "no lines" as a border fill whose four sides are NONE (id 1 in every one of
+        # python-hwpx's 1,204 Hancom-saved fixtures); no table or cell names an id "0". None here
+        # (no such fill yet) builds one below.
+        return _no_line_border_fill_id(document)
 
     if (
         normalized_style in {None, "solid"}
@@ -109,6 +112,16 @@ def _shortcut_border_fill_id(
     ):
         return document.oxml.ensure_basic_border_fill()
 
+    return None
+
+
+def _no_line_border_fill_id(document: HwpxDocument) -> Optional[str]:
+    """The first border fill drawing no line on any side and no fill, or None."""
+
+    for identifier, info in document.styles.border_fills.items():
+        sides = (info.left, info.right, info.top, info.bottom)
+        if info.fill is None and all(side is not None and side.type == "NONE" for side in sides):
+            return str(identifier)
     return None
 
 

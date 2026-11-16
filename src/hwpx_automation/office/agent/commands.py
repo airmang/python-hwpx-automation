@@ -15,12 +15,8 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree as ET
-
-from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
 
 from hwpx.document import HwpxDocument
-from hwpx.oxml import HwpxOxmlTable
 from hwpx.quality import SavePipeline
 
 from ._batch_publication import BatchPublication
@@ -436,6 +432,27 @@ def _insert_direct_child(
             container.append(element)
     else:
         container.insert(list(container).index(siblings[index]), element)
+
+
+def _move_paragraph_into_place(
+    view: HwpxAgentDocument, parent: NodeRecord, paragraph: Any, position: Mapping[str, Any]
+) -> None:
+    """Put *paragraph* (just appended to *parent*) at *position* among the parent's paragraphs.
+
+    python-hwpx's ``move_before``/``move_after`` move it; before a section's first paragraph the
+    section settings (``hp:secPr``) go along to the new first paragraph, as Hancom keeps them.
+    """
+
+    siblings = [
+        record.native for record in view.records if record.parent_path == parent.path and record.kind == "paragraph"
+    ]
+    index = _insertion_index(
+        view, parent, "paragraph", position, siblings=[_element(sibling) for sibling in siblings]
+    )
+    if index < len(siblings):
+        paragraph.move_before(siblings[index])
+    elif siblings and siblings[-1] != paragraph:
+        paragraph.move_after(siblings[-1])
 
 
 def _drop_layout_cache(paragraph_element: Any | None) -> None:
@@ -878,14 +895,9 @@ def _add(
         return created
     if kind == "paragraph":
         created = parent.native.add_paragraph(str(properties.get("text", "")))
-        # add_paragraph appends; relocate its native element for all other positions.
+        # add_paragraph appends; move it for all other positions.
         if position["mode"] != "append":
-            if hasattr(created.element, "getparent"):
-                created.element.getparent().remove(created.element)
-            else:
-                parent.native.element.remove(created.element)
-            _insert_direct_child(view, parent, kind, created.element, position)
-            parent.native.mark_dirty()
+            _move_paragraph_into_place(view, parent, created, position)
         return created
     if kind == "run":
         run_kwargs = {
@@ -923,23 +935,14 @@ def _add(
             raise AgentContractError(
                 "incompatible_parent", "row cellCount must equal table columnCount", target=parent.path
             )
-        sample = HwpxOxmlTable.create(
-            1,
-            table.column_count,
-            width=next(
-                (int(child.get("width", "0")) for child in table.element if _local_name(child) == "sz"),
-                None,
-            ),
-            border_fill_id_ref=table.border_fill_id_ref or "0",
-        )
-        created = next(child for child in sample if _local_name(child) == "tr")
-        if type(created) is not type(table.element):
-            payload = ET.tostring(created, encoding="utf-8")
-            created = LET.fromstring(payload) if isinstance(table.element, LET._Element) else ET.fromstring(payload)
-        _insert_direct_child(view, parent, kind, created, position)
-        table.mark_dirty()
-        _refresh_table_rows(table)
-        return created
+        # python-hwpx inserts an empty row as Hancom's 줄 추가 does: its cells take the format of
+        # the row beside it, and rowCnt, cell addresses and merged cells follow.
+        index = _insertion_index(view, parent, kind, position)
+        if index <= 0:
+            table.insert_rows(0, side="above")
+        else:
+            table.insert_rows(index - 1, side="below")
+        return table.rows[max(index, 0)].element
     raise AgentContractError("unsupported_operation", f"add is unsupported for {kind}")
 
 
