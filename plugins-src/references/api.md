@@ -36,11 +36,11 @@
 ## 설치와 기본 import
 
 ```bash
-pip install -U python-hwpx lxml
+pip install -U "python-hwpx>=7.0,<8" "python-hwpx-automation>=8.0,<9"
 ```
 
-이 스킬 후보의 최종 HWPX 산출물 작성에는 최소 호환 버전인 `python-hwpx >= 6.5.0`이 필요하다.
-더 낮은 버전은 현재 계약 밖이므로 handoff용 파일 생성에 사용하지 않는다.
+이 스킬의 8.0 트레인은 `python-hwpx 7.0` 이상과 `python-hwpx-automation 8.0` 이상을 쓴다. Markdown·HTML 내보내기,
+메일 머지, 이름표로 칸 찾기는 python-hwpx 7.0에서 `hwpx_automation`으로 옮겼다.
 
 ```python
 from hwpx import HwpxDocument, HwpxPackage, ObjectFinder, TextExtractor
@@ -56,20 +56,21 @@ from hwpx import HwpxDocument
 
 doc = HwpxDocument.new()
 doc.add_paragraph("자동 생성 문서")
-doc.save_to_path("output.hwpx")
+report = doc.save("output.hwpx")        # MutationReport, 저장한 경로는 report.path
 
-with HwpxDocument.open("input.hwpx") as doc:
+with HwpxDocument.open("output.hwpx") as doc:
     doc.add_paragraph("추가 문단")
-    doc.save_to_path("edited.hwpx")
+    doc.save("edited.hwpx")
 ```
 
 핵심 포인트:
 
-- `HwpxDocument.open(source)`
-- `HwpxDocument.new()`
-- `save_to_path(path)`를 기본 저장 API로 사용한다.
-- `save()`는 deprecated compatibility wrapper다.
-- 바이트가 필요하면 `to_bytes()`를 사용한다.
+- `HwpxDocument.open(source)`, `HwpxDocument.new()`
+- 저장은 `doc.save(path)` 하나다(6.x의 `save_to_path`는 7.0에서 `save`로 합쳤다). 늘 `MutationReport`를 돌려준다.
+- 바이트가 필요하면 `to_bytes()`를 쓴다.
+- 7.0은 저장 전에 한/글이 버리거나 열지 못할 문서를 거부한다: 문단에 걸지 않은 새 메모(`note-memo-unanchored`),
+  어느 구역에도 잇지 않은 새 바탕쪽(`master-page-unlinked`), 열기 안전성 검사 실패(`open-safety-failed`).
+  MCP 도구는 이것을 `DOCUMENT_SAVE_FAILED`와 `details.coreCode`로 알린다.
 
 ### 문단과 표 추가
 
@@ -85,18 +86,23 @@ table.set_cell_text(0, 1, "1학년")
 table.set_cell_text(1, 0, "담당")
 table.set_cell_text(1, 1, "홍길동")
 
-doc.save_to_path("table-example.hwpx")
+table.insert_rows(1)                     # 한/글처럼 빈 행(기준 칸의 서식만 받는다)
+table.insert_rows(0, copy_content=True)  # 기준 행의 글·개체까지 복사
+
+doc.save("table-example.hwpx")
 ```
 
-현재 공개 문서화 기준(5.0.1) 시그니처:
+python-hwpx 7.0 시그니처:
 
-- `add_table(rows, cols, *, section=None, section_index=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style_id_ref=None, char_pr_id_ref=None, run_attributes=None, inherit_style=False, **extra_attrs) -> HwpxOxmlTable`
-- `set_cell_text(row_index, col_index, text, *, logical=False, split_merged=False, preserve_format=True, split_paragraphs=False, fit=None, ledger=None) -> FitResult | None`
+- `add_table(rows, cols, *, section=None, width=None, height=None, border_fill_id_ref=None, para_pr_id_ref=None, style=None, char_pr_id_ref=None, inherit_style=False) -> HwpxOxmlTable`
+- `set_cell_text(row, col, text, *, logical=False, split_merged=False, preserve_format=True, split_paragraphs=False, fit=None, ledger=None) -> FitResult | None`
+- `insert_rows(ref_row, count=1, *, side="below", copy_content=False) -> None` (`insert_columns`도 같다. 6.x의 `blank=`는 없어졌다)
 
 주의:
 
 - `set_cell_text()`는 `HwpxDocument` 메서드가 아니라 `add_table()`가 반환한 표 객체의 메서드다.
 - 병합 셀에 논리 좌표로 쓰려면 `logical=True`를 사용한다.
+- 구역은 `section=`에 번호나 구역 객체로 준다(6.x의 `section_index=`는 없어졌다).
 
 ### 메모 추가
 
@@ -106,43 +112,43 @@ from hwpx import HwpxDocument
 doc = HwpxDocument.new()
 paragraph = doc.add_paragraph("검토가 필요한 문장입니다.")
 
-memo, anchor_paragraph, field_value = doc.add_memo_with_anchor(
-    "표현을 한 번 더 확인하세요.",
-    paragraph=paragraph,
-    author="검토자",
-)
+memo = doc.notes.add_memo("표현을 한 번 더 확인하세요.", paragraph=paragraph, author="검토자")
+memo.paragraph, memo.field_id            # 건 문단과 메모 누름틀의 id
+
+shape = doc.styles.ensure_memo_shape(fill_color="#FFF2CC")
+doc.notes.set_memo_shape(shape, section=0)   # 메모 모양은 구역마다다
 ```
 
-현재 공개 문서화 기준(5.0.1) 시그니처:
+python-hwpx 7.0 시그니처:
 
-- `add_memo_with_anchor(text="", *, paragraph=None, section=None, section_index=None, paragraph_text=None, memo_shape_id_ref=None, memo_id=None, char_pr_id_ref=None, attributes=None, field_id=None, author=None, created=None, number=1, anchor_char_pr_id_ref=None) -> tuple[HwpxOxmlMemo, HwpxOxmlParagraph, str]`
+- `doc.notes.add_memo(text="", *, paragraph=None, section=None, memo_id=None, char_pr_id_ref=None, attributes=None, paragraph_text=None, field_id=None, author=None, created=None, number=None, paragraph_char_pr_id_ref=None, match=None) -> Memo`
+- `doc.notes.attach(paragraph, memo, ...) -> Memo`, `doc.notes.remove_memo(memo)`, `doc.notes.memos`
+- `doc.notes.set_memo_shape(memo_shape_id_ref, *, section=None)` (`section="all"`은 모든 구역)
+
+주의:
+
+- 메모는 한/글 2024처럼 문단의 메모 누름틀 안에만 쓴다. `paragraph=` 없이 만든 메모는 걸기(`attach`) 전까지 저장이 거부된다.
+- 6.x의 `add_memo_with_anchor`·메모마다의 `memo_shape_id_ref=`는 없어졌다. `match="글자"`를 주면 그 글자에만 메모를 건다.
 
 ### 스타일 기반 런 검색과 치환
 
 ```python
 with HwpxDocument.open("input.hwpx") as doc:
-    red_runs = doc.find_runs_by_style(text_color="#FF0000")
-
-    replaced = doc.replace_text_in_runs(
-        "TODO",
-        "DONE",
-        text_color="#FF0000",
-        underline_type="SOLID",
-        limit=3,
-    )
-
-    doc.save_to_path("output.hwpx")
+    red_runs = doc.text.find_runs(text_color="#FF0000")
+    replaced = doc.text.replace("TODO", "DONE", text_color="#FF0000", underline_type="SOLID", limit=3)
+    doc.save("output.hwpx")
 ```
 
-현재 공개 문서화 기준(5.0.1) 시그니처:
+python-hwpx 7.0 시그니처:
 
-- `find_runs_by_style(*, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None) -> list[HwpxOxmlRun]`
-- `replace_text_in_runs(search, replacement, *, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None, limit=None) -> int`
+- `doc.text.find_runs(*, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None) -> tuple[HwpxOxmlRun, ...]`
+- `doc.text.replace(search, replacement, *, regex=False, text_color=None, underline_type=None, underline_color=None, char_pr_id_ref=None, limit=None, everywhere=False) -> int`
 
 주의:
 
 - 빈 검색어는 허용되지 않는다.
-- `replace_text_in_runs()`는 런 단위로 동작한다.
+- 기본 범위는 본문 문단의 런 하나 안이다. 표 칸·글상자·머리말까지 바꾸려면 `everywhere=True`. 기본 범위에서 0건인데 다른 곳에
+  찾는 글이 있으면 `ReplaceScopeWarning`이 난다.
 - 표 셀까지 보장되는 전역 치환이 필요하면 번들 스크립트 `scripts/zip_replace_all.py`를 사용한다. 글(텍스트 노드)만 바꾸고
   속성 값(글꼴 이름·크기·ID)은 건드리지 않는다. 값의 `&`·`<`는 이스케이프하고 줄바꿈은 `hp:lineBreak`로 넣는다.
   한 낱말이 두 run에 걸쳐 있으면 찾지 못하고, 맞는 글이 없으면 경고를 낸다.
@@ -150,45 +156,42 @@ with HwpxDocument.open("input.hwpx") as doc:
 ### 내보내기
 
 ```python
+from hwpx_automation.markdown import to_html, to_markdown
+
 with HwpxDocument.open("input.hwpx") as doc:
-    text = doc.export_text()
-    html = doc.export_html()
-    markdown = doc.export_markdown()
+    text = doc.text.plain()
+    html = to_html(doc)
+    markdown = to_markdown(doc)          # rich=True면 서식·각주·그림·수식까지
 ```
 
-실측 메서드:
-
-- `export_text(**kwargs) -> str`
-- `export_html(**kwargs) -> str`
-- `export_markdown(**kwargs) -> str`
-
-이 메서드들은 내부 exporter로 keyword argument를 그대로 전달한다.
+- `doc.text.plain(**kwargs) -> str` (본체)
+- `hwpx_automation.markdown.to_markdown(doc, *, rich=False, **options) -> str`, `to_html(doc, **options) -> str`
+  (python-hwpx 6.x의 `export_markdown()`·`export_html()`·`doc.text.markdown()`·`html()`이 옮겨 온 자리)
 
 ### 헤더와 푸터
 
-간단한 문자열은 `set_header_text()`와 `set_footer_text()`로 넣을 수 있다. 리치 런과
-쪽번호가 필요한 머리글/바닥글은 `hwpx_automation.office.authoring.builder` 또는 아래 facade 메서드를 사용한다.
-자동화 경로에서는 적용 후 결과 파일을 다시 열어 확인하는 방식으로 쓴다.
+```python
+doc.page.set_header(text="샘플학교 가정통신문")
+doc.page.set_footer(content=[{"children": [{"type": "run", "text": "쪽 "}, {"type": "page_number", "format": "page"}]}])
+```
 
-현재 facade:
+python-hwpx 7.0:
 
-- `set_header_content(content, *, section_index=0) -> None`
-- `set_footer_content(content, *, section_index=0) -> None`
-- header/footer 객체의 `add_page_number_field(*, paragraph=None, format="page", position="BOTTOM_CENTER") -> Element`
-
-섹션 관리 facade:
-
-- `add_section(*, after: int | None = None) -> HwpxOxmlSection`
-- `remove_section(section: HwpxOxmlSection | int) -> None`
-
-3.2.0 공개 릴리스의 `add_section()`은 인접 섹션의 유효한 용지·여백·단 설정만 복제하고
-머리글/바닥글 story는 복제하지 않는다. 새 section part와 manifest/spine 순서,
-`Contents/header.xml`의 `secCnt`를 함께 맞추며, 양의 페이지 geometry를 만들 수 없으면
-mutation 전에 실패한다. `remove_section()`도 같은 section count 계약을 유지한다.
+- `doc.page.set_header(*, text=None, content=None, page_type="BOTH", section=None) -> HwpxOxmlSectionHeaderFooter` (`set_footer`도 같다)
+- 머리말·꼬리말 객체의 `add_page_number_field(*, paragraph=None, format="page", position="BOTTOM_CENTER", format_type=None)`
+- `doc.page.set_page_number(...)`, `doc.page.headers()`·`footers()`로 읽기
 
 `content`는 paragraph spec 목록이다. 각 paragraph는 `{"children": [...]}` 형태이고,
 child는 `{"type": "run", "text": "...", "bold": True, ...}` 또는
-`{"type": "page_number", "format": "page"}`다.
+`{"type": "page_number", "format": "page"}`다. `section="all"`은 모든 구역에 쓴다.
+
+섹션 관리:
+
+- `doc.add_section(*, after=None) -> HwpxOxmlSection`
+- `doc.remove_section(section) -> None`
+
+`add_section()`은 인접 섹션의 유효한 용지·여백·단 설정만 복제하고 머리글/바닥글 story는 복제하지 않는다.
+새 section part와 manifest/spine 순서, `Contents/header.xml`의 `secCnt`를 함께 맞춘다.
 
 ## 문서 빌더 — `hwpx_automation.office.authoring.builder`
 
@@ -323,19 +326,16 @@ python3 examples/10_create_with_builder.py
 python3 scripts/quickcheck.py --builder
 ```
 
-### Builder 관련 facade 확장
+### Builder 관련 본체 API
 
-builder가 사용하는 신규 facade 메서드는 직접 XML을 조작하지 않고도 주요 OWPML gap을
-다룰 수 있게 한다.
+builder는 직접 XML을 조작하지 않고 python-hwpx 7.0의 공개 API로 문서를 만든다.
 
-- `ensure_run_style(bold=False, italic=False, underline=False, color=None, font=None, size=None, highlight=None, strike=None, base_char_pr_id=None) -> str`
-- `ensure_numbering(kind="bullet", levels=None) -> list[str]`
-- `add_picture(image_data, image_format, *, width=None, height=None, width_mm=None, height_mm=None, align=None, section_index=None, ...) -> HwpxOxmlInlineObject`
-- `set_header_content(content, *, section_index=None, page_type="BOTH") -> HwpxOxmlSectionHeaderFooter`
-- `set_footer_content(content, *, section_index=None, page_type="BOTH") -> HwpxOxmlSectionHeaderFooter`
-- header/footer 객체의 `add_page_number_field(*, paragraph=None, format="page", position="BOTTOM_CENTER") -> Element`
+- `doc.styles.ensure_run(*, bold=None, italic=None, underline=None, color=None, font=None, size=None, highlight=None, strike=None, ...) -> str`
+- `doc.styles.ensure_numbering(*, kind, levels=None) -> tuple[str, ...]`
+- `doc.add_picture(image_data, image_format, *, section=None, width=None, height=None, width_mm=None, height_mm=None, alignment=None, ...) -> Picture`
+- `doc.page.set_header(...)`·`set_footer(...)`, 머리말·꼬리말 객체의 `add_page_number_field(...)`
 
-표 객체 확장:
+표 객체:
 
 - `table.merge_cells("A2:A3")`
 - `table.set_cell_shading(row_index, col_index, "EAF1FB")`
@@ -696,7 +696,7 @@ if not validation.ok:
     raise SystemExit(1)
 
 doc = create_document_from_plan(document_plan)
-doc.save_to_path("agent-plan.hwpx")
+doc.save("agent-plan.hwpx")
 doc.close()
 
 from hwpx.tools import validate_editor_open_safety
@@ -901,7 +901,7 @@ proposal_spec = {
 }
 
 doc = create_proposal_document(proposal_spec)
-doc.save_to_path("proposal.hwpx")
+doc.save("proposal.hwpx")
 doc.close()
 
 report = inspect_proposal_quality("proposal.hwpx")
