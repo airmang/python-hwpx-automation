@@ -279,6 +279,34 @@ def test_set_compiles_allowlisted_properties_and_verifies_once(tmp_path: Path) -
         assert _record(agent, "form-field", "601").summary["value"] == "홍길동"
         assert _record(agent, "form-field", "601").summary["readOnly"] is True
         assert _record(agent, "shape", "401").summary["altText"] == "흰색 사각형"
+        # python-hwpx 7.0's field.editable writes Hancom's own spelling ("0", not "false").
+        begin = _record(agent, "form-field", "601").native["_field_begin"]
+        assert begin.get("editable") == "0"
+
+
+def test_form_field_bindings_come_from_the_public_field_list(tmp_path: Path) -> None:
+    """The agent binds form fields from doc.fields.all (python-hwpx 7.0's FormField
+    location/paragraph/end_location/text_elements), not core's private match iterator."""
+
+    source = tmp_path / "input.hwpx"
+    _write_fixture(source)
+    with HwpxAgentDocument.open(source) as agent:
+        record = _record(agent, "form-field", "601")
+        native = record.native
+        fields = list(agent.document.fields.all)
+        (index,) = [number for number, item in enumerate(fields) if item.element is native["_field_begin"]]
+        field = fields[index]
+        assert native["_field"].element is field.element
+        assert native["index"] == index
+        assert (native["section_index"], native["run_index"], native["child_index"]) == (
+            field.location.section_index,
+            field.location.run_index,
+            field.location.child_index,
+        )
+        assert native["_paragraph"].element is field.paragraph.element
+        assert native["_runs"][native["run_index"]] is native["_field_begin"].getparent().getparent()
+        assert "".join(node.text or "" for node in native["_text_nodes"]) == field.value == native["current_value"]
+        assert native["_end_run_index"] == field.end_location.run_index
 
 
 def test_add_alias_and_remove_are_sequential_but_commit_atomically(tmp_path: Path) -> None:

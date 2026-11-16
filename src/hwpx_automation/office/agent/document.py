@@ -87,6 +87,74 @@ def _identity(element: Any, *names: str) -> str | None:
     return None
 
 
+_INSTRUCTION_PARAMETERS = frozenset({"instruction", "guide", "help", "description", "desc"})
+
+
+def _form_field_matches(document: HwpxDocument) -> list[dict[str, Any]]:
+    """Every form field of *document* in document order, as the binding dict the agent's
+    records keep as their native (``record.native``).
+
+    python-hwpx 6.x handed this dict out from a private iterator; it is built here from
+    the public ``doc.fields.all`` (``FormField``: ``location``, ``paragraph``,
+    ``end_location``, ``text_elements``, ``element``) with the same keys and values:
+    ``index`` is the place in ``doc.fields.all`` (``doc.fields.fill(index=)``),
+    ``_text_nodes`` the ``hp:t`` of the begin's own paragraph, ``_end_run_index`` the
+    run holding the end when the end is in that paragraph (else ``None``).
+    """
+
+    matches: list[dict[str, Any]] = []
+    for index, form_field in enumerate(document.fields.all):
+        begin = form_field.element
+        location = form_field.location
+        paragraph = form_field.paragraph
+        own = paragraph.element if paragraph is not None else None
+        runs = [child for child in own if _local_name(child) == "run"] if own is not None else []
+        end = form_field.end_location
+        same_paragraph_end = end is not None and end.paragraph_index == location.paragraph_index
+        control = begin.getparent()
+        instruction = next(
+            (
+                parameter.value.strip()
+                for parameter in form_field.parameters
+                if parameter.name.casefold() in _INSTRUCTION_PARAMETERS and parameter.value.strip()
+            ),
+            "",
+        )
+        matches.append(
+            {
+                "index": index,
+                "field_id": form_field.field_id,
+                "id": begin.get("id", ""),
+                "fieldid": begin.get("fieldid", ""),
+                "name": form_field.name,
+                "prompt": form_field.prompt,
+                "instruction": instruction or form_field.prompt,
+                "is_placeholder": form_field.is_placeholder,
+                "current_value": form_field.value,
+                "field_type": form_field.field_type,
+                "control_type": control.get("type", "") if control is not None else "",
+                "has_end": form_field.has_end,
+                "section_index": location.section_index,
+                "paragraph_index": location.paragraph_index,
+                "paragraph_index_in_section": location.paragraph_index_in_section,
+                "run_index": location.run_index,
+                "child_index": location.child_index,
+                "_field": form_field,
+                "_field_begin": begin,
+                "_paragraph": paragraph,
+                "_runs": runs,
+                "_begin_run_index": location.run_index,
+                "_end_run_index": end.run_index if same_paragraph_end and end is not None else None,
+                "_text_nodes": [
+                    node
+                    for node in form_field.text_elements
+                    if own is not None and node.getparent() is not None and node.getparent().getparent() is own
+                ],
+            }
+        )
+    return matches
+
+
 @dataclass(slots=True)
 class NodeRecord:
     """Request-local native binding; never serialized directly."""
@@ -188,9 +256,9 @@ class HwpxAgentDocument:
                     self._id_counts[(kind, value)] += 1
 
     def _collect_form_fields(self) -> None:
-        # This private iterator is deliberately consumed inside python-hwpx so
-        # later mutation can reuse its already-safe field matching semantics.
-        matches = self.document._iter_form_field_matches()  # type: ignore[attr-defined]
+        # The fields python-hwpx itself matches (doc.fields.all), so later mutation
+        # reuses its already-safe field matching semantics.
+        matches = _form_field_matches(self.document)
         for match in matches:
             section_index = int(match["section_index"])
             paragraph_index = int(match["paragraph_index_in_section"])

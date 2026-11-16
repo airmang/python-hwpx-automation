@@ -135,14 +135,10 @@ DELEGATED_MODULE_FORBIDDEN_IMPORTS = (
 # lxml's element types are spelled with an underscore but are its public type
 # names, so they are not counted.
 FOREIGN_UNDERSCORE_NAMES = frozenset({"_Element", "_ElementTree"})
-CORE_PRIVATE_MEMBER_EXCEPTIONS: dict[tuple[str, str], dict[str, object]] = {
-    ("src/hwpx_automation/office/agent/document.py", "_iter_form_field_matches"): {
-        "count": 1,
-        "reason": "the agent node map reuses core's form-field matching so edits find the same fields",
-        "upstream": "a public iterator of form-field matches with section/paragraph positions",
-        "removeWhen": "core exposes that iterator and the minimum supported core has it",
-    },
-}
+# The last entry (office/agent/document.py -> _iter_form_field_matches) went with
+# python-hwpx 7.0: the agent node map reads doc.fields.all (FormField.location,
+# paragraph, end_location, text_elements) instead.
+CORE_PRIVATE_MEMBER_EXCEPTIONS: dict[tuple[str, str], dict[str, object]] = {}
 CANONICAL_POLICY_ROOTS = {
     "src/hwpx_automation/office/compliance": ("hwpx.document",),
     # #177: the structural layout-drift metrics are core-native; quality

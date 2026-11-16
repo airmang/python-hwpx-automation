@@ -806,17 +806,13 @@ def _apply_set_form_field(document: HwpxDocument, native: Any, properties: Mappi
     if "value" in properties:
         document.fields.fill(properties["value"], index=int(native["index"]))
     if "readOnly" in properties:
-        runs = native.get("_runs") or []
-        try:
-            ctrl = list(runs[int(native["run_index"])])[int(native["child_index"])]
-            begin = next(child for child in ctrl if _local_name(child) == "fieldBegin")
-        except (IndexError, KeyError, StopIteration, TypeError) as exc:
+        form_field = native.get("_field")
+        if form_field is None:
             raise AgentContractError(
                 "unsupported_content", "form-field control is incomplete", target=record.path
-            ) from exc
-        begin.set("editable", "false" if properties["readOnly"] else "true")
-        paragraph = native["_paragraph"]
-        paragraph.section.mark_dirty()
+            )
+        # python-hwpx writes Hancom's own editable="1"/"0" and marks the part changed.
+        form_field.editable = not properties["readOnly"]
 
 
 def _apply_set_picture_shape(document: HwpxDocument, native: Any, kind: str, properties: Mapping[str, Any]) -> None:
