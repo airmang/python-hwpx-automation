@@ -113,6 +113,9 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 - Markdown 내보내기(`to_markdown(rich=True)`, `document_to_markdown`): 표 칸 안 그림의 캡션(그림을 꺼낼 때는 그림 줄도)이
   표 앞에 한 번, 칸 안에 또 한 번 나오던 것. 이제 칸 안 제자리에만 나옵니다.
 - 디자인 프로필 뼈대의 빈 첫 문단이 구역 이름공간(`hs:p`)으로 쓰이던 것. 이제 `hp:p`입니다.
+- `apply_document_commands`의 `move`로 문단을 구역 맨 앞에 옮기거나 첫 문단을 옮기면 구역 설정(`hp:secPr`)이 첫
+  문단이 아닌 곳에 남아, python-hwpx 7.0(#765)이 저장을 거절하던 것. 이제 python-hwpx의
+  `paragraph.move_before`·`move_after`로 옮겨 구역 설정이 늘 첫 문단에 있습니다.
 
 ## [7.5.0] - 2026-11-11
 

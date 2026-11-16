@@ -1036,6 +1036,41 @@ def _detach(view: HwpxAgentDocument, record: NodeRecord) -> Any:
     return element
 
 
+def _move_paragraph(
+    view: HwpxAgentDocument,
+    source: NodeRecord,
+    parent: NodeRecord,
+    siblings: list[Any],
+    anchor_index: int,
+) -> Any:
+    """Move a section paragraph beside one of *parent*'s other paragraphs with python-hwpx.
+
+    ``move_before``/``move_after`` keep the section settings (``hp:secPr``) in each section's first
+    paragraph, as Hancom reads them: the first paragraph hands them to the next one when it leaves,
+    and a paragraph moved in front of the first takes them. They also drop the moved paragraph's
+    line layout cache. The only paragraph of its section stays put. A refusal (the last paragraph of a section) is an ``incompatible_parent``.
+    """
+
+    paragraphs = {
+        _element(record.native): record.native
+        for record in view.records
+        if record.parent_path == parent.path and record.kind == "paragraph"
+    }
+    try:
+        if not siblings:  # the section's only paragraph stays where it is
+            return _element(source.native)
+        if anchor_index >= len(siblings):
+            source.native.move_after(paragraphs[siblings[-1]])
+        else:
+            source.native.move_before(paragraphs[siblings[anchor_index]])
+    except ValueError as exc:  # python-hwpx HwpxValueError
+        if getattr(exc, "code", None) is None:
+            raise
+        raise AgentContractError("incompatible_parent", str(exc), target=source.path) from exc
+    parent.native.mark_dirty()
+    return _element(source.native)
+
+
 def _move(
     view: HwpxAgentDocument,
     source: NodeRecord,
@@ -1065,9 +1100,11 @@ def _move(
             anchor_index = _insertion_index(view, parent, source.kind, position, siblings=siblings)
         elif old_index < anchor_index:
             anchor_index -= 1
+    if source.kind == "paragraph":
+        return _move_paragraph(view, source, parent, siblings, anchor_index)
     detached = _detach(view, source)
 
-    if source.kind in {"paragraph", "run", "row"}:
+    if source.kind in {"run", "row"}:
         container = _element(parent.native)
         if anchor_index >= len(siblings):
             if siblings:
@@ -1076,12 +1113,7 @@ def _move(
                 container.append(detached)
         else:
             container.insert(list(container).index(siblings[anchor_index]), detached)
-        if source.kind == "paragraph":
-            # The paragraph may now sit in a column or cell of another width;
-            # its cached lines were measured where it came from.
-            _drop_layout_cache(detached)
-            parent.native.mark_dirty()
-        elif source.kind == "run":
+        if source.kind == "run":
             _drop_layout_cache(parent.native.element)
             parent.native.section.mark_dirty()
         else:
