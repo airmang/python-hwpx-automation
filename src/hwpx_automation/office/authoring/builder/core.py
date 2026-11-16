@@ -1124,7 +1124,7 @@ class Document:
 
     def lower(self) -> HwpxDocument:
         _check_unique_keys(self.sections)
-        document = HwpxDocument.new()
+        document = HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
         preset = _builder_preset(self.preset)
         if self.metadata is not None:
             _write_package_metadata(document, self.metadata)

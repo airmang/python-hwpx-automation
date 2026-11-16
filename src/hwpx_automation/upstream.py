@@ -114,7 +114,7 @@ def hwpx_view_bytes(source: str | PathLike[str] | bytes) -> bytes:
 
 
 def new_document() -> HwpxDocument:
-    return HwpxDocument.new()
+    return HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
 
 
 def blank_document_template_bytes() -> bytes:

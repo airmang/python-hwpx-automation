@@ -1287,7 +1287,7 @@ def create_document_from_plan(
         if isinstance(preset, DocumentStylePreset)
         else DocumentStylePreset(name=str(preset or normalized.style_preset or DEFAULT_STYLE_PRESET))
     )
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
     document.page.setup(
         margins_mm={
             "left": _DEFAULT_PAGE_MARGIN_MM,

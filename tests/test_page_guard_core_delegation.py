@@ -25,7 +25,7 @@ _SECTION = "Contents/section0.xml"
 
 
 def _document() -> bytes:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     doc.add_paragraph("가나다 라마")
     doc.add_paragraph("")
     outer = doc.add_table(2, 2)

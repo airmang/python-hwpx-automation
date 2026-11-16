@@ -64,7 +64,7 @@ def test_inline_tab_and_line_break_are_moved_not_copied() -> None:
 
 
 def test_middle_split_gives_three_runs_and_drops_the_line_cache() -> None:
-    doc = HwpxDocument.new()
+    doc = HwpxDocument.new(empty_first_line=True)
     paragraph = doc.add_paragraph("가나다라마")
     cache = etree.SubElement(paragraph.element, _HP + "linesegarray")
     etree.SubElement(cache, _HP + "lineseg", {"textpos": "0"})
