@@ -20,6 +20,11 @@ that is not installed is reported as skipped, not as a pass.
 
 They must also not be reached through the top-level ``hwpx_automation``
 ``__getattr__`` facade, which loads ``hwpx_automation.api`` (pydantic).
+
+A framework adapter (``integrations.langchain``, ``integrations.llama_index``)
+exists to hand results to its framework, and that framework brings its own
+dependencies (LangChain and LlamaIndex both use pydantic). For those the probe
+imports the framework first and checks that the adapter adds nothing beyond it.
 """
 
 from __future__ import annotations
@@ -52,6 +57,19 @@ LIGHT_LAYER_MODULES = (
 FORBIDDEN_TOP_LEVEL = ("pydantic", "pydantic_core", "cryptography", "mcp")
 FORBIDDEN_INTERNAL = ("hwpx_automation.errors", "hwpx_automation.office")
 
+# Adapter submodule -> the framework modules it imports. What the framework
+# itself loads is the framework's; the adapter must not add to it.
+FRAMEWORK_ADAPTERS = {
+    "hwpx_automation.integrations.langchain": [
+        "langchain_core.document_loaders",
+        "langchain_core.documents",
+    ],
+    "hwpx_automation.integrations.llama_index": [
+        "llama_index.core.readers.base",
+        "llama_index.core.schema",
+    ],
+}
+
 _PROBE = textwrap.dedent(
     """
     import importlib
@@ -63,6 +81,7 @@ _PROBE = textwrap.dedent(
     forbidden_top = tuple(json.loads(sys.argv[2]))
     forbidden_internal = tuple(json.loads(sys.argv[3]))
     walk = sys.argv[4] == "walk"
+    frameworks = json.loads(sys.argv[5])
 
     def offenders():
         found = []
@@ -81,8 +100,10 @@ _PROBE = textwrap.dedent(
         report["offenders"][target] = bad
     if walk and hasattr(module, "__path__"):
         for info in pkgutil.walk_packages(module.__path__, target + "."):
-            before = set(sys.modules)
             try:
+                for framework in frameworks.get(info.name, []):
+                    importlib.import_module(framework)
+                baseline = set(offenders())
                 importlib.import_module(info.name)
             except ModuleNotFoundError as exc:
                 missing = (exc.name or "").split(".")[0]
@@ -91,7 +112,10 @@ _PROBE = textwrap.dedent(
                 report["skipped"][info.name] = missing
                 continue
             report["checked"].append(info.name)
-            bad = [b for b in offenders() if b not in report["offenders"].get(target, [])]
+            bad = [
+                b for b in offenders()
+                if b not in baseline and b not in report["offenders"].get(target, [])
+            ]
             if bad:
                 report["offenders"][info.name] = bad
     print(json.dumps(report))
@@ -116,6 +140,7 @@ def _probe(module: str, *, walk: bool = True) -> dict:
             json.dumps(FORBIDDEN_TOP_LEVEL),
             json.dumps(FORBIDDEN_INTERNAL),
             "walk" if walk else "root",
+            json.dumps(FRAMEWORK_ADAPTERS),
         ],
         cwd=ROOT,
         env=env,
