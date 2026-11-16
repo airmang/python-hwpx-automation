@@ -141,9 +141,13 @@ def export_document(document: HwpxDocument, output_format: Literal["text", "html
     if output_format == "text":
         return document.text.plain()
     if output_format == "html":
-        return document.text.html()
+        from .markdown import to_html
+
+        return to_html(document)
     if output_format == "markdown":
-        return document.text.markdown()
+        from .markdown import to_markdown
+
+        return to_markdown(document)
     raise ValueError(f"unsupported export format: {output_format}")
 
 

@@ -13,13 +13,12 @@ argument carries a long body. These operations are shaped for it:
 Every operation takes and returns plain JSON values and resolves paths inside
 the configured workspace. The document work itself is python-hwpx's
 (``doc.text.outline`` / ``apply_changes`` / ``replace``,
-``hwpx.tools.markdown_import``); this module only adds the workspace, the
+``hwpx_automation.markdown``); this module only adds the workspace, the
 drafts and the compact result shape.
 """
 
 from __future__ import annotations
 
-import inspect
 import secrets
 import threading
 import time
@@ -261,9 +260,8 @@ def create_from_markdown(
 ) -> dict[str, Any]:
     """Make a new document from Markdown given by draft id, workspace file or short inline text.
 
-    *byline* is the department/date line python-hwpx writes right-aligned under
-    the title. A python-hwpx whose ``from_markdown`` has no ``byline`` gets
-    ``DEPENDENCY_MISSING`` and no document, rather than a document without it.
+    *byline* is the department/date line written right-aligned under the title
+    (:func:`hwpx_automation.markdown.from_markdown`); a blank one is not passed on.
     """
 
     sources = [value for value in (draft_id, markdown_path, markdown) if value]
@@ -280,20 +278,10 @@ def create_from_markdown(
         text = source.read_text(encoding="utf-8")
     else:
         text = str(markdown)
-    try:
-        from hwpx.tools.markdown_import import from_markdown
-    except ImportError:
-        return _failure(
-            "DEPENDENCY_MISSING",
-            "this python-hwpx has no Markdown import (hwpx.tools.markdown_import); upgrade python-hwpx",
-        )
+    from hwpx_automation.markdown import from_markdown
+
     extra: dict[str, Any] = {}
     if byline and byline.strip():
-        if "byline" not in inspect.signature(from_markdown).parameters:
-            return _failure(
-                "DEPENDENCY_MISSING",
-                "this python-hwpx cannot write a byline (from_markdown has no byline); upgrade python-hwpx",
-            )
         extra["byline"] = byline
     target = _resolve(output)
     doc = from_markdown(text, **extra)
