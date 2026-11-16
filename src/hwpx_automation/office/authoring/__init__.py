@@ -8,7 +8,7 @@ import re
 from ast import literal_eval as _literal
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Mapping, Sequence, cast, overload
+from typing import Any, Callable, Literal, Mapping, Sequence, cast, overload
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HP as _HP
@@ -338,7 +338,9 @@ def _plan_validation_report(
     )
 
 
-_COMPUTED_FUNCTIONS = {
+# Typed now that the helpers live in office.utilities (8.0); their signatures
+# differ, so the table is called through Callable[..., object].
+_COMPUTED_FUNCTIONS: dict[str, Callable[..., object]] = {
     "krw_hangul": format_krw_hangul,
     "commas": format_number_commas,
     "age": calculate_age,
