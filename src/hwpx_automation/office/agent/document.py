@@ -72,9 +72,11 @@ def _drawn_page_size(page_size: Any) -> tuple[int, int]:
     """Width and height as Hancom draws the page: as stored for
     ``landscape="WIDELY"`` (portrait), turned otherwise (``NARROWLY``)."""
 
+    # python-hwpx 7.0 reads a page with no hp:pagePr as None; 6.x read it as 0.
+    width, height = page_size.width or 0, page_size.height or 0
     if page_size.orientation == "WIDELY":
-        return page_size.width, page_size.height
-    return page_size.height, page_size.width
+        return width, height
+    return height, width
 
 
 def _first_child(element: Any, local_name: str) -> Any | None:

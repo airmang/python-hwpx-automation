@@ -1532,7 +1532,10 @@ class _Writer:
         if self._text_width is None:
             try:
                 size, margins = self.doc.page.size(), self.doc.page.margins()
-                self._text_width = int(size.width - margins.left - margins.right)
+                if size.width is None:  # no hp:pagePr: the fallback below
+                    raise ValueError("page width is not written")
+                # python-hwpx 7.0 reads an unwritten margin as None; 6.x read it as 0.
+                self._text_width = int(size.width - (margins.left or 0) - (margins.right or 0))
             except Exception:  # pragma: no cover - a page the facade cannot read
                 self._text_width = _FALLBACK_TEXT_WIDTH
             if self._text_width <= 0:  # pragma: no cover - defensive
