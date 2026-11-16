@@ -13,6 +13,7 @@ from typing import Any
 from uuid import uuid4
 from xml.etree import ElementTree as ET
 
+from .. import forms
 from ..compat import patch_python_hwpx
 from ..storage import build_hwpx_open_safety_report, open_local_document
 from ..upstream import (
@@ -496,12 +497,12 @@ def _compact_table_map(
 
 def find_cell_by_label_in_doc(doc: HwpxDocument, label_text: str, direction: str = "right") -> dict:
     """라벨 셀 기준으로 대상 셀을 찾는다."""
-    return doc.tables.find_cell_by_label(label_text, direction=direction)
+    return forms.find_cell_by_label(doc, label_text, direction=direction)
 
 
 def fill_by_path_in_doc(doc: HwpxDocument, mappings: dict[str, str]) -> dict:
     """라벨 기반 경로 구문으로 표 셀을 채운다."""
-    return doc.tables.fill_by_path(mappings)
+    return forms.fill_by_path(doc, mappings)
 
 
 def set_cell_text(
