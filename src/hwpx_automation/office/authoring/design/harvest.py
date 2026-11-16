@@ -26,7 +26,6 @@ from pathlib import Path
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
 
 from hwpx.document import HwpxDocument
-from hwpx.errors import HwpxValueError
 from hwpx.oxml.namespaces import OPF_NS
 
 import hwpx_automation.office.authoring.design._support as S
@@ -170,9 +169,9 @@ def _build_skeleton(source: Path, out_path: Path) -> dict:
     # section settings (and its columns), no header or footer, no body.
     try:
         section.clear_body(keep_headers=False, on_control_content="strip")
-    except HwpxValueError as exc:
+    except ValueError as exc:  # python-hwpx HwpxValueError
         doc.close()
-        if exc.code == "section-clear-no-section-properties":
+        if getattr(exc, "code", None) == "section-clear-no-section-properties":
             raise ValueError("template has no secPr (page setup)") from exc
         raise
 
