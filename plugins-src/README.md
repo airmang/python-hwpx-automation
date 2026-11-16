@@ -1,0 +1,183 @@
+<p align="center">
+  <h1 align="center">hwpx-plugins</h1>
+  <p align="center">
+    <strong>python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬</strong>
+  </p>
+  <p align="center">
+    문서 편집은 순수 Python으로 수행하며, 최종 시각 검증은 필요할 때 한컴 오라클을 사용합니다.
+  </p>
+  <p align="center">
+    <a href="https://pypi.org/project/python-hwpx/"><img src="https://img.shields.io/pypi/v/python-hwpx?color=blue&label=core" alt="core"></a>
+    <a href="https://pypi.org/project/python-hwpx-automation/"><img src="https://img.shields.io/pypi/v/python-hwpx-automation?color=blue&label=automation" alt="automation"></a>
+    <a href="https://github.com/airmang/hwpx-plugins"><img src="https://img.shields.io/badge/plugin-hwpx--plugin-181717" alt="plugin"></a>
+    <a href="https://github.com/airmang/hwpx-plugins/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
+  </p>
+</p>
+
+<!-- release-state: released -->
+
+> [!NOTE]
+> 현재 공개 트레인은 `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0`입니다.
+
+HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
+에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
+`SKILL.md`의 의사결정 트리를 따라 알맞은 스크립트와 MCP 도구를 스스로 고르고,
+문서 처리는 코어 [python-hwpx](https://github.com/airmang/python-hwpx)가 순수
+파이썬으로 수행합니다.
+
+| | 저장소 | 역할 |
+|---|---|---|
+| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX 문서를 읽고·고치고·만드는 순수 파이썬 엔진 |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 저작·양식 채움 워크플로, `hwpx` CLI, 선택형 MCP 서버 |
+| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트가 알맞은 도구를 고르도록 돕는 플러그인/스킬 번들 |
+
+응용 저장소는 `python-hwpx-automation`으로 이름을 바꿨습니다 — 정식 배포·
+import·콘솔은 각각 `python-hwpx-automation` · `hwpx_automation` ·
+`hwpx-automation-mcp`이고, 기존 `hwpx-mcp-server` 표면도 그대로 동작합니다.
+
+## 시작하기
+
+호스트의 플러그인 명령으로 스킬과 MCP 서버를 함께 설치합니다. **설치·재설치 후에는 새 에이전트
+세션을 시작해야** 새 skill과 MCP 도구가 로드됩니다.
+
+```bash
+# Claude Code
+claude plugin marketplace add airmang/hwpx-plugins
+claude plugin install hwpx-plugin@hwpx
+
+# Codex CLI
+codex plugin marketplace add airmang/hwpx-plugins
+codex plugin add hwpx-plugin@hwpx
+```
+
+Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 잠긴 정확한 버전으로
+`uv run --frozen`으로 실행합니다. 잠긴 버전은 아래 표의 검증 좌표가 아니라 설치 제약 창 안에서 갱신 절차가 마지막으로 올린 조합이며,
+값은 번들의 `server/pyproject.toml`에 적혀 있습니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 새 엔진은 CI 봇이 검증해 PR로 올리고, 유지보수자가 승인한 뒤 플러그인 업데이트로 전달합니다.
+Codex에서는 설치 뒤 번들 런처가 런타임을 하루 1회 같은 메이저 안의 최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
+`HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. Codex 번들의 MCP 서버는 `bash`로 런처를 실행하므로,
+**Windows에서는 `bash`(Git for Windows의 Git Bash 또는 WSL)가 `PATH`에 있어야** 시작됩니다. `bash`가 없으면 서버가 뜨지 않습니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
+Claude Code는 `/plugin` → Marketplaces → `hwpx`에서 자동 업데이트를 켜거나
+`claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx`, Codex는
+`codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`를 실행합니다.
+
+**claude.ai 채팅**에서는 로컬 MCP 서버가 돌지 않고 코드 실행 환경이 PyPI에 닿지 않습니다. 그래서 Claude 번들의
+스킬에는 같은 버전의 `python-hwpx`·`python-hwpx-automation`이 원본 그대로 `skills/hwpx/engine/`에 들어 있고,
+MCP 도구가 없으면 스킬이 `chat-engine.md` 절차로 이 엔진을 불러와 쓰기 시작합니다(설치·인터넷 접속 없음).
+Claude Code·Cowork에서 MCP 서버가 뜨지 않을 때(`uv`가 없을 때 등)도 같은 경로를 씁니다. 환경의 Python 3.10 이상에
+`lxml`이 있어야 하며, 새 문서 만들기는 `pydantic`·`cryptography`도 있어야 합니다. 없으면 스킬이 사용자 동의를 받은 뒤
+같은 Python에 그 패키지만 설치합니다(네트워크가 막힌 환경에서는 알리고 멈춥니다). 엔진 사본은 손으로
+고치지 않습니다. 봇이 `server/uv.lock`을 올릴 때 같은 wheel에서 다시 풀고 파일마다 해시를 `engine/VENDOR.json`에 남기므로,
+MCP 서버와 채팅 경로는 항상 같은 엔진 버전으로 함께 바뀝니다.
+
+환경마다 쓰는 경로가 다릅니다.
+
+| 환경 | 스킬 | MCP 서버 | 엔진을 쓰는 방법 |
+|---|---|---|---|
+| Claude Code(터미널·IDE·데스크톱 Code 탭) | 로드 | 로드 — `uv` 필요, 첫 실행 때 PyPI에서 설치 | MCP. `uv`가 없거나 서버가 실패하면 스킬의 동봉 엔진 |
+| Cowork(데스크톱) | 로드 | 세션이 내 컴퓨터에서 돌 때만 로드 | 위와 같음. 그 밖에는 동봉 엔진 |
+| claude.ai 채팅·데스크톱 채팅·모바일 | 로드 | 무시됨 | 동봉 엔진(코드 실행 환경에 `lxml` 필요) |
+| Claude Code 클라우드 세션 | 로드 | — | 동봉 엔진. 기본 네트워크 수준(Trusted)은 PyPI에 닿으므로, 빠진 패키지는 동의 후 설치 |
+
+첫 MCP 실행은 Python 3.12와 패키지를 내려받느라 오래 걸려 호스트의 시작 시간 제한에 걸릴 수 있습니다. 그때는 호스트를 다시
+시작하면 설치를 이어서 끝내고, Claude Code에서는 `MCP_TIMEOUT`(밀리초) 환경 변수로 제한을 늘릴 수 있습니다.
+
+Cursor용 번들과 규칙 파일(`.mdc`)은 이 저장소에 없습니다. Cursor에서 쓰려면 canonical skill 파일(`SKILL.md`,
+`references/`, `scripts/`, `examples/`)을 `.cursor/skills/hwpx/`(또는 글로벌 `~/.cursor/skills/hwpx/`)에 직접 복사합니다.
+이 경로는 CI가 검증하지 않습니다. OpenClaw·Hermes는 각 호스트 번들(`plugins/openclaw/hwpx-plugin`,
+`plugins/hermes/hwpx`)에 MCP 배선 안내가 함께 들어 있습니다. 저장소 이름 `hwpx-plugins`와 설치되는
+skill 이름 `hwpx`를 혼동하지 마세요.
+
+## 에이전트에게 말 걸기
+
+기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](references/workflows-existing-edit.md)를 먼저 확인하세요. 새 문서는 document-plan, 에이전트 연결은 선택 MCP와 호스트 플러그인을 사용합니다.
+
+설치 후 사용자가 직접 파이썬을 칠 일은 거의 없습니다. 에이전트에게 자연어로 말하면 스킬이 트리거됩니다.
+
+| 이렇게 말하면 | 에이전트가 하는 일 |
+|---|---|
+| "이 hwpx 텍스트 전부 뽑아줘" | 표 안 문단·각주 포함 텍스트 추출 |
+| "이 양식은 그대로 두고 내용만 채워줘" | 바이트 보존 양식 form-fit (셀 채움·행/열 조정·한컴 검증) |
+| "머리글·쪽번호 들어간 계획서 새로 만들어줘" | 문서 빌더(document plan)로 레이아웃 민감 문서 조립 |
+| "한컴에서 안 열리는 hwpx인데 복구해줘" | repair/recover 복구 복사본 생성 |
+
+> **예시 —** 사용자: "첨부한 가정통신문 양식에서 학교명이랑 날짜만 우리 학교 걸로 바꿔서 새 파일로 줘."
+> 에이전트가 원본을 보존한 채 form-fit으로 값을 채우고, 패키지·스키마 검증을 거친 새 파일을 돌려줍니다.
+
+## 무엇을 하나
+
+- **에이전트 온보딩 스킬** — `SKILL.md` 의사결정 트리로 요청 성격에 맞는 스크립트·MCP 도구를 스스로 선택
+- **문서 능력 한 벌** — 읽기·양식 채움·생성·편집·공문서·신구대조표·mail merge
+- **MCP 서버 동봉 배선** — 호스트별 MCP 설정과 런처가 포함되어 스킬과 도구가 한 번에 로드
+- **호스트별 번들** — Claude Code·Codex·OpenClaw·Hermes 진입점을 한 canonical 소스에서 빌드
+- **신뢰 루프** — `render_preview` 페이지 PNG 자기검증, package/schema/text 검증, 시각 검토 기록
+
+자세한 내용: [SKILL.md](SKILL.md) · [references/](references/)
+
+## 버전·호환성·성숙도
+
+| 구분 | 의미 | 현재 값 |
+|---|---|---|
+| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` |
+| 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 6.5.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
+| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` |
+| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 이 창 안의 한 조합을 `uv.lock`으로 고정(검증 좌표와 다를 수 있음. 값은 번들 `server/pyproject.toml`) | `python-hwpx[preview]>=6.6.0,<7` · `python-hwpx-automation[mcp,oracle]>=7.3.1,<8` |
+
+- 코어 성숙도: 검증 좌표 `python-hwpx 6.6.0`의 패키지 분류는 `Development Status :: 3 - Alpha`이고, 6.10.0부터는
+  `Development Status :: 4 - Beta`입니다(설치 제약 창 안에서 새로 설치하면 Beta 분류 판을 받습니다). Python 기준은 3.10 이상입니다.
+- MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
+
+산출물이 실제 한컴오피스에서 열리는지는 코어가 동결 코퍼스 전수로 측정해 그대로
+공개합니다 — [실측 코퍼스 메트릭](https://airmang.github.io/python-hwpx/corpus-metrics.html).
+
+## 관리 런타임의 갱신 시점
+
+Codex는 관리 런처를 실행합니다. Claude Code는 관리 런처 대신 `server/uv.lock`으로 잠긴 런타임을
+플러그인 폴더의 `server/.venv`에 설치합니다. 창 안의 새 엔진은 저장소의 CI 봇이 매일 확인해 전체 테스트를
+통과한 조합을 PR로 올리고, 유지보수자가 검토·승인한 것만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 됩니다.
+Codex 런처는 시작할 때 마지막 점검에서
+24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
+다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나
+실행하지 않은 호스트에서 24시간 내 활성화를 보장하지 않습니다. 최초 설치에는
+네트워크가 필요하고, 준비된 런타임의 시작은 네트워크를 기다리지 않습니다.
+`HWPX_STACK_CHANNEL=verified`는 정확 검증 조합을 고정하고 자동 갱신을 끕니다.
+OpenClaw·Hermes의 직접 설치 안내(`uv tool install`)는 관리 런처를 쓰지 않으므로 `uv tool upgrade`로 수동 갱신합니다.
+
+Codex는 번들 `env_vars`에 선언된 환경변수만 전달합니다. `HWPX_STACK_CHANNEL`,
+`HWPX_STACK_AUTO_UPDATE`, `HWPX_STACK_UPDATE_INTERVAL_HOURS`,
+`HWPX_AUTOMATION_RUNTIME_ROOT`, `HWPX_AUTOMATION_ADVANCED`,
+`HWPX_AUTOMATION_WORKSPACE_ROOTS` 및 실한컴 렌더의 큐·인증서 환경변수를
+설정한 환경에서 새 Codex 세션을 시작하세요. `HWPX_AUTOMATION_ADVANCED=1`은
+고급 도구를 켜며, 미지정 기본값은 0입니다. secret 값을 설정 파일에 복사할 필요는 없습니다.
+
+관리 상태의 `runtime.installed`는 다음 시작에 사용할 세대입니다. 상태 보고를 지원하는
+automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인 버전과
+구분합니다. `stackUpdate` 필드는 automation 7.1.0부터 제공됩니다.
+
+## 알려진 제약
+
+- `.hwpx`와 HWP 5.0 `.hwp`를 다룹니다. `.hwp`는 python-hwpx 6.6.0 이상이 같은 문서 모델로 읽고 HWP 5.0으로 다시 씁니다. 옮기지 못한 내용과 쓸 수 없는 내용(암호·배포용·DRM 포함)은 숨기지 않고 보고합니다. MCP 도구는 automation 7.3.3부터 `.hwp`를 직접 다루며, 표·본문 바이트를 고치는 도구만 `.hwpx` 사본을 거칩니다.
+- `visual_review_required=true`는 package/schema/text 검사는 통과했지만 열린 문서의 페이지 나눔·표 맞춤은 아직 미확인이라는 뜻입니다. 최종 제출이라고 하려면 한/글이나 뷰어에서 직접 열어 확인한 결과(`observed_pass`)를 남깁니다.
+- 예제·문서에는 이름·전화번호·이메일·주소 등 PII를 redaction 없이 넣지 않습니다.
+
+## 기여하기
+
+[Discussions](https://github.com/airmang/hwpx-plugins/discussions) ·
+[이슈](https://github.com/airmang/hwpx-plugins/issues) ·
+[CONTRIBUTING](https://github.com/airmang/hwpx-plugins/blob/main/CONTRIBUTING.md) ·
+[CHANGELOG](CHANGELOG.md)
+
+canonical `SKILL.md`·`references/`·`examples/`·`scripts/`를 편집한 뒤
+`python3 scripts/build_hwpx_plugins.py`로 호스트 번들을 재빌드하고
+`python3 scripts/validate_hwpx_plugin.py`로 검증합니다.
+
+## 감사의 말
+
+[python-hwpx](https://github.com/airmang/python-hwpx) · [python-hwpx-automation](https://github.com/airmang/python-hwpx-automation) 위에서 동작하며, 아래 공개 표준·프로젝트에 빚지고 있습니다.
+
+- **[OWPML — 개방형 워드프로세서 마크업 언어 (KS X 6101)](https://www.kssn.net/search/stddetail.do?itemNo=K001010119985)** — HWPX가 기반하는 한국 산업 표준
+- **[hancom-io/hwpx-owpml-model](https://github.com/hancom-io/hwpx-owpml-model)** — OWPML 요소 구조 참조 모델 · **[neolord0/hwpxlib](https://github.com/neolord0/hwpxlib)** — 오라클 샘플 코퍼스
+- **[edwardkim/rhwp](https://github.com/edwardkim/rhwp)** — 멱등성·검증 게이트 설계 영감
+
+## License · Maintainer
+
+Apache-2.0 ([LICENSE](https://github.com/airmang/hwpx-plugins/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/hwpx-plugins/blob/main/NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)

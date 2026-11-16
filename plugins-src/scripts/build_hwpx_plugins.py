@@ -1,0 +1,430 @@
+#!/usr/bin/env python3
+"""Build per-host HWPX plugin bundles from the canonical skill source."""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import shlex
+import shutil
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PACKAGING = ROOT / "packaging"
+CONFIG = PACKAGING / "hosts.json"
+
+
+def codex_launcher_command(launcher: str) -> str:
+    """Ship the canonical launcher without relying on host root interpolation.
+
+    A content-addressed copy survives detached refresh children. The runtime
+    lives outside that versioned script directory so bundle updates can reuse
+    a compatible generation. No cd: MCP workspace roots remain the thread cwd.
+    """
+    digest = hashlib.sha256(launcher.encode()).hexdigest()
+    return (
+        'set -eu\numask 077\n'
+        'cache="${XDG_CACHE_HOME:-$HOME/.cache}/hwpx-plugin"\n'
+        f'runner_dir="$cache/launchers/{digest}/scripts"\n'
+        'mkdir -p "$runner_dir"\n'
+        'runner="$runner_dir/hwpx-automation-mcp"\n'
+        'tmp="$(mktemp "$runner_dir/.launcher.XXXXXX")"\n'
+        'trap \'rm -f "$tmp"\' EXIT HUP INT TERM\n'
+        f"printf '%s' {shlex.quote(launcher)} > \"$tmp\"\n"
+        'chmod 700 "$tmp"\n'
+        'mv -f "$tmp" "$runner"\n'
+        'trap - EXIT HUP INT TERM\n'
+        'export HWPX_AUTOMATION_RUNTIME_ROOT="${HWPX_AUTOMATION_RUNTIME_ROOT:-${HWPX_MCP_RUNTIME_ROOT:-${HWPX_MCP_SERVER_VENV:-$cache/runtime}}}"\n'
+        'export HWPX_LAUNCHER_EMBEDDED=1\n'
+        'exec bash "$runner" "$@"\n'
+    )
+
+
+def render_mcp_config(template: str, launcher: str) -> str:
+    data = json.loads(template)
+    server = data["mcpServers"]["hwpx"]
+    if server.get("args") != ["-c", "__HWPX_MANAGED_LAUNCHER__"]:
+        raise ValueError("Codex MCP template must select the canonical managed launcher")
+    server["args"] = ["-c", codex_launcher_command(launcher), "hwpx-managed-launcher"]
+    return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+
+
+INSTALL_GUIDE_TOKEN = "{{HWPX_"
+
+
+def install_guide_values(identity: dict) -> dict[str, str]:
+    """Coordinates the direct-host install guides print, all from product-identity.json."""
+    constraint = identity["installConstraint"]
+    public = identity["currentPublicStack"]
+    components = identity["components"]
+    public_stack = (
+        f"`{public['core']['distribution']} {public['core']['version']}` / "
+        f"`{public['application']['distribution']} {public['application']['version']}` / "
+        f"`{public['plugin']['installedPluginId']} {public['plugin']['version']}`"
+    )
+    status = identity["releaseState"]["status"]
+    if status == "released":
+        release_note = (
+            f"The coordinates below belong to the current public release: {public_stack}. "
+            "The install window follows newer engine releases inside the same major."
+        )
+    else:
+        candidate = (
+            f"`{components['core']['distribution']} {components['core']['currentVersion']}` / "
+            f"`{components['automation']['distribution']} {components['automation']['currentVersion']}` / "
+            f"`{components['plugin']['installedPluginId']} {components['plugin']['currentVersion']}`"
+        )
+        release_note = (
+            f"Release state `{status}`: the coordinates below ({candidate}) are carried for "
+            f"pre-release verification and are not yet the public release. The current public release is {public_stack}."
+        )
+    return {
+        "{{HWPX_CORE_CONSTRAINT}}": constraint["core"],
+        "{{HWPX_AUTOMATION_CONSTRAINT}}": constraint["automation"],
+        "{{HWPX_CORE_RANGE}}": constraint["core"].split("]", 1)[1],
+        "{{HWPX_AUTOMATION_RANGE}}": constraint["automation"].split("]", 1)[1],
+        "{{HWPX_PLUGIN_VERSION}}": components["plugin"]["currentVersion"],
+        "{{HWPX_RELEASE_NOTE}}": release_note,
+    }
+
+
+def render_install_guide(template: str, identity: dict) -> str:
+    """Fill a direct-host INSTALL-mcp.md template from product-identity.json.
+
+    The guides used to carry hand-typed coordinates and a release sentence that
+    nobody advanced: they still said "unpublished candidate" and named a public
+    stack three trains old after the release (audit ARC-11).
+    """
+    text = template
+    for token, value in install_guide_values(identity).items():
+        text = text.replace(token, value)
+    if INSTALL_GUIDE_TOKEN in text:
+        leftover = sorted(set(re.findall(r"\{\{HWPX_[A-Za-z_]*", text)))
+        raise SystemExit(f"install guide template has unknown tokens: {leftover}")
+    return text
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def render_skill_md(canonical_text: str, extra_frontmatter: str, notice: str = "") -> str:
+    """Host SKILL.md: canonical body, host frontmatter, and an optional host-only notice.
+
+    *notice* (``skillNotice`` in hosts.json) is placed right under the first
+    heading. It carries guidance that holds for one host bundle only, such as a
+    limitation of the engine version that bundle pins, so removing the notice
+    file and its hosts.json key is all it takes to retire it.
+    """
+    if not canonical_text.startswith("---\n"):
+        raise SystemExit("canonical SKILL.md is missing YAML frontmatter")
+    fence = canonical_text.index("\n---\n", 4)
+    frontmatter = canonical_text[4:fence]
+    body = canonical_text[fence + len("\n---\n"):]
+    if extra_frontmatter.strip():
+        frontmatter = frontmatter.rstrip("\n") + "\n" + extra_frontmatter.rstrip("\n")
+    if notice.strip():
+        lines = body.split("\n")
+        heading = next((index for index, line in enumerate(lines) if line.startswith("# ")), None)
+        if heading is None:
+            raise SystemExit("canonical SKILL.md has no top-level heading to place the host notice under")
+        lines[heading + 1:heading + 1] = ["", *notice.strip("\n").split("\n")]
+        body = "\n".join(lines)
+    return "---\n" + frontmatter + "\n---\n" + body
+
+
+def host_skill_notice(host: dict) -> tuple[Path | None, str]:
+    """The host-only SKILL.md notice template and its text, if the host declares one."""
+    template = host.get("skillNotice")
+    if not template:
+        return None, ""
+    path = PACKAGING / template
+    if not path.is_file():
+        raise SystemExit(f"missing skill notice template: {template}")
+    return path, path.read_text(encoding="utf-8")
+
+
+CHAT_ENGINE_REWRITES = [
+    ("# 웹 작업 절차 (W1~W5)", "## 작업 절차 (W1~W5)"),
+    ("`/mnt/data`의 첨부 파일", "`IN_DIR`의 첨부 파일"),
+    ("[SKILL.md의 시작 절차](../SKILL.md)", "[시작 블록](#1-시작--대화마다-한-번)"),
+    ('"src": "/mnt/data/', '"src": "/mnt/user-data/uploads/'),
+    ('"out": "/mnt/data/', '"out": "/mnt/user-data/outputs/'),
+    ("](core/recipes-traversal.md)", "](engine/hwpx/data/contract_docs/recipes-traversal.md)"),
+    ("[automation-python-api.md](automation-python-api.md#", "[문서 계획 v1](#"),
+    ("[automation-python-api.md](automation-python-api.md)", "[python-hwpx-automation 파이썬 API](#python-hwpx-automation-파이썬-api)"),
+    ("# python-hwpx-automation 파이썬 API (웹판)", "## python-hwpx-automation 파이썬 API"),
+    ("\n## 문서 계획 v1", "\n### 문서 계획 v1"),
+    ("\n## 이 웹판에서 검증하지 않은 경로", "\n### 이 웹판에서 검증하지 않은 경로"),
+    ("](core/llms.txt)", "](engine/docs/llms.txt)"),
+]
+
+
+def render_chat_engine(template: str, workflows: str, automation_api: str) -> str:
+    """The no-MCP guide: Claude template + the ChatGPT W1~W5 blocks and facade notes, re-pathed.
+
+    The workflow code stays single-sourced with the ChatGPT skill (whose sandbox
+    simulation exercises it); only paths, headings and links change here.
+    """
+    text = template.replace("{{WORKFLOWS}}", workflows.strip()).replace("{{AUTOMATION_API}}", automation_api.strip())
+    for old, new in CHAT_ENGINE_REWRITES:
+        text = text.replace(old, new)
+    leftovers = [token for token in ("/mnt/data/", "sandbox:", "](core/", "automation-python-api.md", "{{WORKFLOWS}}",
+                                     "{{AUTOMATION_API}}", "`/mnt/data`의") if token in text]
+    if leftovers:
+        raise SystemExit(f"chat engine guide still carries ChatGPT-only text: {leftovers}")
+    return text
+
+
+def copy_file(src: Path, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dest)
+
+
+def record(source_rel: str, source_path: Path, dest_path: Path, transformed: bool) -> dict:
+    return {
+        "source": source_rel,
+        "sourceSha256": sha256(source_path),
+        "dest": dest_path.relative_to(ROOT).as_posix(),
+        "destSha256": sha256(dest_path),
+        "transformed": transformed,
+    }
+
+
+def skill_dir_for(host: dict) -> Path:
+    out = ROOT / host["outputDir"]
+    return out if host["skillSubdir"] == "." else out / host["skillSubdir"]
+
+
+def load_identity(config: dict) -> dict:
+    identity_path = PACKAGING / config["identityFile"]
+    if not identity_path.is_file():
+        raise SystemExit(f"missing product identity: {identity_path}")
+    return json.loads(identity_path.read_text(encoding="utf-8"))
+
+
+def host_frontmatter(host: dict, identity: dict) -> str:
+    extra = host.get("frontmatterExtra", "").strip()
+    if host.get("includeVersionFrontmatter"):
+        version = identity["components"]["plugin"]["currentVersion"]
+        extra = f"version: {version}" + (f"\n{extra}" if extra else "")
+    return extra
+
+
+def remove_previous_generated_files(out: Path) -> None:
+    """Remove only files recorded by the previous build.
+
+    Host skill directories are also legitimate runtime workspaces.  In
+    particular, examples write user-owned artifacts below ``examples/out``.
+    A blanket ``rmtree(out)`` destroyed those artifacts during a rebuild.
+    """
+    if not out.exists():
+        return
+    sync_path = out / "plugin-sync.json"
+    if not sync_path.is_file():
+        raise SystemExit(
+            f"refusing to replace existing bundle without plugin-sync.json: {out}"
+        )
+    try:
+        sync = json.loads(sync_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"invalid previous sync manifest: {sync_path}: {exc}") from exc
+    records = sync.get("files")
+    if not isinstance(records, list):
+        raise SystemExit(f"invalid previous sync records: {sync_path}")
+
+    resolved_out = out.resolve()
+    for index, rec in enumerate(records):
+        if not isinstance(rec, dict) or not isinstance(rec.get("dest"), str):
+            raise SystemExit(f"invalid previous sync record {index}: {sync_path}")
+        target = (ROOT / rec["dest"]).resolve()
+        try:
+            target.relative_to(resolved_out)
+        except ValueError:
+            raise SystemExit(
+                f"previous sync destination escapes bundle {out}: {rec['dest']}"
+            ) from None
+        if target.is_file() or target.is_symlink():
+            target.unlink()
+    sync_path.unlink()
+
+    # Prune directories made empty by generated-file removal.  Non-empty
+    # runtime/output directories remain untouched.
+    directories = sorted(
+        (path for path in out.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    )
+    for directory in directories:
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
+
+
+def build_host(host: dict, config: dict, identity: dict) -> None:
+    out = ROOT / host["outputDir"]
+    remove_previous_generated_files(out)
+    skill_dir = skill_dir_for(host)
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    records: list[dict] = []
+
+    canonical = ROOT / config["canonicalSkill"]
+    skill_md = skill_dir / "SKILL.md"
+    notice_path, notice = host_skill_notice(host)
+    skill_md.write_text(
+        render_skill_md(
+            canonical.read_text(encoding="utf-8"),
+            host_frontmatter(host, identity),
+            notice,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    records.append(record(config["canonicalSkill"], canonical, skill_md, transformed=True))
+    if notice_path is not None:
+        records.append(record(notice_path.relative_to(ROOT).as_posix(), notice_path, skill_md, transformed=True))
+
+    excluded = set(host.get("excludeSharedAssets", []))
+    for rel in config["sharedAssets"]:
+        if rel in excluded:
+            continue
+        src = ROOT / rel
+        if not src.is_file():
+            raise SystemExit(f"missing shared asset: {rel}")
+        dest = skill_dir / rel
+        copy_file(src, dest)
+        records.append(record(rel, src, dest, transformed=False))
+
+    for tree_rel in config.get("sharedAssetTrees", []):
+        tree = ROOT / tree_rel
+        if not tree.is_dir():
+            raise SystemExit(f"missing shared asset tree: {tree_rel}")
+        for src in sorted(path for path in tree.rglob("*") if path.is_file()):
+            rel = src.relative_to(ROOT).as_posix()
+            dest = skill_dir / rel
+            copy_file(src, dest)
+            records.append(record(rel, src, dest, transformed=False))
+
+    for generated in host.get("generatedReferences", []):
+        sources = [PACKAGING / generated[key] for key in ("template", "workflows", "automationApi")]
+        for src in sources:
+            if not src.is_file():
+                raise SystemExit(f"missing generated-reference source: {src.relative_to(ROOT)}")
+        dest = skill_dir / generated["dest"]
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(render_chat_engine(*(src.read_text(encoding="utf-8") for src in sources)), encoding="utf-8", newline="\n")
+        for src in sources:
+            records.append(record(src.relative_to(ROOT).as_posix(), src, dest, transformed=True))
+
+    for manifest in host.get("manifests", []):
+        src = PACKAGING / manifest["template"]
+        if not src.is_file():
+            raise SystemExit(f"missing template: {manifest['template']}")
+        dest = out / manifest["dest"]
+        copy_file(src, dest)
+        records.append(record(f"packaging/{manifest['template']}", src, dest, transformed=False))
+
+    for asset in host.get("assets", []):
+        src = PACKAGING / asset["template"]
+        if not src.is_file():
+            raise SystemExit(f"missing asset template: {asset['template']}")
+        dest = out / asset["dest"]
+        copy_file(src, dest)
+        records.append(record(f"packaging/{asset['template']}", src, dest, transformed=False))
+
+    mcp = host["mcp"]
+    mcp_src = PACKAGING / mcp["template"]
+    if not mcp_src.is_file():
+        raise SystemExit(f"missing template: {mcp['template']}")
+    mcp_dest = out / mcp["dest"]
+    if host["id"] == "codex":
+        mcp_dest.write_text(render_mcp_config(
+            mcp_src.read_text(encoding="utf-8"),
+            (PACKAGING / config["launcherTemplate"]).read_text(encoding="utf-8"),
+        ), encoding="utf-8", newline="\n")
+    elif mcp.get("strategy") == "config-doc":
+        mcp_dest.parent.mkdir(parents=True, exist_ok=True)
+        mcp_dest.write_text(
+            render_install_guide(mcp_src.read_text(encoding="utf-8"), identity),
+            encoding="utf-8",
+            newline="\n",
+        )
+    else:
+        copy_file(mcp_src, mcp_dest)
+    records.append(
+        record(
+            f"packaging/{mcp['template']}",
+            mcp_src,
+            mcp_dest,
+            transformed=host["id"] == "codex" or mcp.get("strategy") == "config-doc",
+        )
+    )
+
+    if host.get("bundleLauncher"):
+        launcher_src = PACKAGING / config["launcherTemplate"]
+        launcher_dest = out / "scripts" / config["launcherName"]
+        copy_file(launcher_src, launcher_dest)
+        launcher_dest.chmod(0o755)
+        records.append(record(f"packaging/{config['launcherTemplate']}", launcher_src, launcher_dest, transformed=False))
+        compatibility_src = PACKAGING / config["compatibilityLauncherTemplate"]
+        compatibility_dest = out / "scripts" / config["compatibilityLauncherName"]
+        copy_file(compatibility_src, compatibility_dest)
+        compatibility_dest.chmod(0o755)
+        records.append(
+            record(
+                f"packaging/{config['compatibilityLauncherTemplate']}",
+                compatibility_src,
+                compatibility_dest,
+                transformed=False,
+            )
+        )
+
+    for rec in records:
+        text = (ROOT / rec["dest"]).read_text(encoding="utf-8", errors="ignore")
+        if "[PLACEHOLDER:" in text:
+            raise SystemExit(f"generated file contains a placeholder: {rec['dest']}")
+
+    sync = out / "plugin-sync.json"
+    sync.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "hwpx.plugin-sync.v2",
+                "plugin": identity["components"]["plugin"]["installedPluginId"],
+                "host": host["id"],
+                "files": records,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def build_repo_root_artifacts(config: dict) -> None:
+    for artifact in config.get("repoRootArtifacts", []):
+        src = PACKAGING / artifact["template"]
+        if not src.is_file():
+            raise SystemExit(f"missing template: {artifact['template']}")
+        copy_file(src, ROOT / artifact["dest"])
+
+
+def main() -> int:
+    config = json.loads(CONFIG.read_text(encoding="utf-8"))
+    identity = load_identity(config)
+    for host in config["hosts"]:
+        build_host(host, config, identity)
+    build_repo_root_artifacts(config)
+    print(f"[OK] built {len(config['hosts'])} host bundles")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

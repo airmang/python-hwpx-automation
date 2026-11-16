@@ -1,0 +1,10 @@
+{
+  "humanLabels": false,
+  "independentInvocationRequired": true,
+  "judgeType": "agent_judge",
+  "judgments": [],
+  "manifestHash": null,
+  "passId": "judge-b",
+  "rubricVersion": "1.0.0",
+  "status": "unscored_template"
+}

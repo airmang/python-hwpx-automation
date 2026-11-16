@@ -1,0 +1,180 @@
+{
+  "schemaVersion": "hwpx.packaging.v1",
+  "identityFile": "product-identity.json",
+  "canonicalSkill": "SKILL.md",
+  "launcherTemplate": "templates/hwpx-automation-mcp",
+  "launcherName": "hwpx-automation-mcp",
+  "compatibilityLauncherTemplate": "templates/hwpx-mcp-server",
+  "compatibilityLauncherName": "hwpx-mcp-server",
+  "sharedAssets": [
+    "README.md",
+    "CHANGELOG.md",
+    "packaging/product-identity.json",
+    "packaging/old-name-taxonomy.json",
+    "references/api.md",
+    "references/evidence-contract.md",
+    "references/government-report-visual-review.md",
+    "references/official-document-rules.md",
+    "references/tool-contract.generated.md",
+    "references/workflows-toc.md",
+    "references/workflows-autonomous.md",
+    "references/workflows-agent-document.md",
+    "references/workflows-agent-blueprint.md",
+    "references/workflows-real-hancom-render.md",
+    "references/workflows-authoring.md",
+    "references/workflows-bulk-compare.md",
+    "references/workflows-creation.md",
+    "references/workflows-house-style.md",
+    "references/workflows-reading.md",
+    "references/workflows-redline.md",
+    "references/workflows-pii.md",
+    "references/workflows-editing.md",
+    "references/workflows-exam.md",
+    "references/workflows-forms.md",
+    "references/workflows-evalplan.md",
+    "references/workflows-preview.md",
+    "references/migration-mcp-5.0.md",
+    "references/migration-core-5.0.md",
+    "examples/01_create_and_save.py",
+    "examples/02_extract_and_inspect.py",
+    "examples/03_template_replace.py",
+    "examples/04_create_proposal.py",
+    "examples/05_mcp_quality_pipeline.md",
+    "examples/06_create_from_document_plan.py",
+    "examples/06_mcp_document_plan.md",
+    "examples/07_create_operating_plan.py",
+    "examples/07_mcp_operating_plan.md",
+    "examples/08_template_formfit.py",
+    "examples/08_mcp_canonical_form_fill.md",
+    "examples/09_visual_review_loop.md",
+    "examples/10_create_government_report.py",
+    "examples/10_create_with_builder.py",
+    "examples/10_mcp_government_report.md",
+    "examples/11_computeruse_visual_review.md",
+    "examples/11_official_document_recipes.py",
+    "examples/13_advanced_generators.py",
+    "examples/14_mail_merge_table_compute.py",
+    "scripts/fix_namespaces.py",
+    "scripts/detect_hwpx_viewer.py",
+    "scripts/quickcheck.py",
+    "scripts/text_extract.py",
+    "scripts/visual_review.py",
+    "scripts/visual_review_batch.py",
+    "scripts/zip_replace_all.py",
+    "references/release-2026-09-07-managed-runtime.md",
+    "references/release-2026-09-09-existing-edit-stack.md",
+    "references/release-2026-09-22-trustworthy-edit-engine.md",
+    "references/release-2026-09-28-render-pdf-hwp5-stack.md",
+    "references/workflows-existing-edit.md"
+  ],
+  "repoRootArtifacts": [
+    {
+      "template": "templates/claude.marketplace.json",
+      "dest": ".claude-plugin/marketplace.json"
+    },
+    {
+      "template": "templates/codex.marketplace.json",
+      "dest": ".agents/plugins/marketplace.json"
+    }
+  ],
+  "hosts": [
+    {
+      "id": "claude",
+      "skillNotice": "templates/claude-render-notice.md",
+      "outputDir": "plugins/claude/hwpx-plugin",
+      "skillSubdir": "skills/hwpx",
+      "frontmatterExtra": "",
+      "excludeSharedAssets": [
+        "references/release-2026-09-07-managed-runtime.md",
+        "references/release-2026-09-09-existing-edit-stack.md",
+        "references/release-2026-09-22-trustworthy-edit-engine.md",
+        "references/release-2026-09-28-render-pdf-hwp5-stack.md"
+      ],
+      "generatedReferences": [
+        {
+          "template": "templates/claude-chat-engine.md",
+          "workflows": "chatgpt/skill/references/web-workflows.md",
+          "automationApi": "chatgpt/skill/references/automation-python-api.md",
+          "dest": "chat-engine.md"
+        }
+      ],
+      "vendoredEngine": "engine",
+      "manifests": [
+        {
+          "template": "templates/claude.plugin.json",
+          "dest": ".claude-plugin/plugin.json"
+        }
+      ],
+      "mcp": {
+        "strategy": "bundled",
+        "template": "templates/claude.mcp.json",
+        "dest": ".mcp.json"
+      },
+      "bundleLauncher": false,
+      "assets": [
+        {
+          "template": "templates/claude-runtime/pyproject.toml",
+          "dest": "server/pyproject.toml"
+        },
+        {
+          "template": "templates/claude-runtime/uv.lock",
+          "dest": "server/uv.lock"
+        },
+        {
+          "template": "templates/claude.icon.svg",
+          "dest": ".claude-plugin/icon.svg"
+        }
+      ]
+    },
+    {
+      "id": "codex",
+      "outputDir": "plugins/codex/hwpx-plugin",
+      "skillSubdir": "skills/hwpx",
+      "frontmatterExtra": "",
+      "manifests": [
+        {
+          "template": "templates/codex.plugin.json",
+          "dest": ".codex-plugin/plugin.json"
+        }
+      ],
+      "mcp": {
+        "strategy": "bundled",
+        "template": "templates/codex.mcp.json",
+        "dest": ".mcp.json"
+      },
+      "bundleLauncher": true
+    },
+    {
+      "id": "openclaw",
+      "outputDir": "plugins/openclaw/hwpx-plugin",
+      "skillSubdir": "skills/hwpx",
+      "frontmatterExtra": "",
+      "manifests": [
+        {
+          "template": "templates/openclaw.plugin.json",
+          "dest": "openclaw.plugin.json"
+        }
+      ],
+      "mcp": {
+        "strategy": "config-doc",
+        "template": "templates/openclaw.mcp-install.md",
+        "dest": "INSTALL-mcp.md"
+      },
+      "bundleLauncher": false
+    },
+    {
+      "id": "hermes",
+      "outputDir": "plugins/hermes/hwpx",
+      "skillSubdir": ".",
+      "includeVersionFrontmatter": true,
+      "frontmatterExtra": "author: airmang\nlicense: Apache-2.0\nmetadata:\n  hermes:\n    tags: [productivity, documents, hwpx, korean-documents]\n    category: productivity",
+      "manifests": [],
+      "mcp": {
+        "strategy": "config-doc",
+        "template": "templates/hermes.mcp-install.md",
+        "dest": "INSTALL-mcp.md"
+      },
+      "bundleLauncher": false
+    }
+  ]
+}

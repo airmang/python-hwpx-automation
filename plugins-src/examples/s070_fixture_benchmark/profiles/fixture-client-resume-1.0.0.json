@@ -1,0 +1,25 @@
+{
+  "clientType": "fixture_client_profile",
+  "continueCadence": 1,
+  "fixture": true,
+  "humanControls": false,
+  "humanJudges": false,
+  "humanLabels": false,
+  "materiallyDifferentRealAgent": false,
+  "profileId": "fixture-client-resume",
+  "profileVersion": "1.0.0",
+  "realAgentClients": false,
+  "realAgentClientsVerified": false,
+  "realHancomVerified": false,
+  "replacementClaimAllowed": false,
+  "requiredApi": [
+    "start_workflow",
+    "get_workflow",
+    "continue_workflow",
+    "approve_workflow_decision",
+    "resume_workflow",
+    "cancel_workflow"
+  ],
+  "schemaVersion": "hwpx.fixture-client-profile.v1",
+  "workflowContract": "server-enforced-workflow.v1"
+}

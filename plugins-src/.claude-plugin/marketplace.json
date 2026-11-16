@@ -1,0 +1,15 @@
+{
+  "name": "hwpx",
+  "owner": {
+    "name": "Kohkyuhyun",
+    "url": "https://github.com/airmang"
+  },
+  "description": "python-hwpx 프로젝트가 직접 관리하는 한/글 문서(HWPX·HWP) 편집·추출·자동화 플러그인 마켓플레이스입니다.",
+  "plugins": [
+    {
+      "name": "hwpx-plugin",
+      "source": "./plugins/claude/hwpx-plugin",
+      "description": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬. 편집은 순수 Python이며 최종 시각 검증은 필요 시 한컴 오라클을 사용합니다."
+    }
+  ]
+}

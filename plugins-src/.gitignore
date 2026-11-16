@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+examples/out/
+.DS_Store
+**/examples/out/
+dist/
+.cache/

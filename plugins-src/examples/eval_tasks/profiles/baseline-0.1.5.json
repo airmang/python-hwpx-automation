@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "hwpx.task-eval-profile.v1",
+  "id": "baseline-0.1.5",
+  "label": "Pre-trust-loop plugin profile",
+  "pluginVersion": "0.1.5",
+  "availableTools": [
+    "add_heading",
+    "add_memo",
+    "add_page_break",
+    "add_paragraph",
+    "add_table",
+    "batch_replace",
+    "create_custom_style",
+    "create_document",
+    "delete_paragraph",
+    "fill_by_path",
+    "find_cell_by_label",
+    "find_text",
+    "format_table",
+    "format_text",
+    "get_document_text",
+    "get_paragraphs_text",
+    "get_table_map",
+    "get_table_text",
+    "insert_paragraph",
+    "merge_table_cells",
+    "replace_in_paragraph",
+    "search_and_replace",
+    "set_table_cell_text",
+    "split_table_cell"
+  ],
+  "brokenTools": ["format_text"],
+  "guidanceTags": [
+    "generation",
+    "editing",
+    "forms"
+  ]
+}

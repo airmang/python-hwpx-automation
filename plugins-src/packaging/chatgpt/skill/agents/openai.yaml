@@ -1,0 +1,7 @@
+interface:
+  display_name: "한/글 문서"
+  short_description: "한/글 문서(HWPX·HWP) 읽기·편집·작성"
+policy:
+  products:
+    - CHAT
+  allow_implicit_invocation: true

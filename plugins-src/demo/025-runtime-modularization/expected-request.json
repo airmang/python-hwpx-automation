@@ -1,0 +1,42 @@
+{
+  "filename": "source.hwpx",
+  "output": "expected.hwpx",
+  "commands": [
+    {
+      "commandId": "body",
+      "op": "set",
+      "path": "/section[1]/paragraph[@id=\"0\"]",
+      "properties": {
+        "text": "2026학년도 디지털 교육 운영 계획(확정)"
+      }
+    },
+    {
+      "commandId": "cell",
+      "op": "set",
+      "path": "/section[1]/paragraph[@id=\"641758544\"]/table[@id=\"1279708826\"]/row[1]/cell[2]",
+      "properties": {
+        "text": "디지털교육지원팀"
+      }
+    },
+    {
+      "commandId": "header",
+      "op": "set",
+      "path": "/section[1]/header[@page-type=\"BOTH\"]",
+      "properties": {
+        "text": "S-080 확정 머리글"
+      }
+    }
+  ],
+  "expected_revision": "sha256:4eb6d40043ae553d603bea4c310e22b3b222e8abe669903bbb0d04f739d900ff",
+  "idempotency_key": "s080-demo-025-runtime-modularization-v1",
+  "dry_run": false,
+  "quality": "transparent",
+  "verification_requirements": [
+    "package",
+    "reopen",
+    "openSafety",
+    "semanticDiff",
+    "bytePreservation"
+  ],
+  "overwrite": false
+}

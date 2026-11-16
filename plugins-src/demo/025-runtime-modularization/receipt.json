@@ -1,0 +1,289 @@
+{
+  "schemaVersion": "hwpx.demo.runtime-modularization-receipt/v1",
+  "fixture": "025-runtime-modularization",
+  "releaseState": "released",
+  "status": "public-index-replay-passed",
+  "targetStack": {
+    "pythonHwpx": "3.2.0",
+    "mcpServer": "4.1.0",
+    "plugin": "0.4.0"
+  },
+  "contract": {
+    "officialHash": "c127914cc3f4480e",
+    "status": "observed-from-public-runtime",
+    "toolCountsExpectedUnchanged": {
+      "default": 121,
+      "advanced": 132,
+      "skillRequired": 28
+    }
+  },
+  "artifacts": {
+    "source": {
+      "path": "source.hwpx",
+      "bytes": 9496,
+      "sha256": "sha256:4eb6d40043ae553d603bea4c310e22b3b222e8abe669903bbb0d04f739d900ff"
+    },
+    "expected": {
+      "path": "expected.hwpx",
+      "bytes": 9486,
+      "sha256": "sha256:7745ca81cc4dc93e412cff2e236111f1cf2d32f9899260527cfba8c74215d62f"
+    }
+  },
+  "preliminaryReplay": {
+    "status": "passed",
+    "runtimeNature": "pre-version-bump S-080 source-worktree metadata",
+    "publicPackagesUsed": false,
+    "runtime": {
+      "pythonHwpx": "3.1.0",
+      "mcpServer": "4.0.0",
+      "plugin": "0.3.0"
+    },
+    "contractHash": "f46ec677231b3a20",
+    "checks": {
+      "atomicCommit": true,
+      "bytePreservation": true,
+      "changedMembers": [
+        "Contents/section0.xml"
+      ],
+      "idempotentReplay": true,
+      "openSafety": true,
+      "reopen": true,
+      "storyPreservation": true
+    },
+    "scope": "Frozen preliminary source-worktree lineage only; it is not the target candidate stack and does not establish public python-hwpx 3.1.0 compatibility."
+  },
+  "candidateReplay": {
+    "status": "passed",
+    "runtime": {
+      "pythonHwpx": "3.2.0",
+      "mcpServer": "4.1.0",
+      "plugin": "0.4.0"
+    },
+    "initializedServerVersion": "4.1.0",
+    "contractHash": "c127914cc3f4480e",
+    "outputSha256": "sha256:a997cdc230c7ee9e975dcb957dabf74e6f1dc61eb1ae69c635ebbc229287447c",
+    "checks": {
+      "sourceUnchanged": true,
+      "firstCommitted": true,
+      "idempotentReplay": true,
+      "idempotentBytesExact": true,
+      "expectedBytesExact": true,
+      "changedMembersExact": true,
+      "openSafety": true,
+      "reopen": true,
+      "storyPreservation": true
+    },
+    "changedMembers": [
+      "Contents/section0.xml"
+    ],
+    "reopen": {
+      "sectionCountTwo": true,
+      "firstHeaderApplied": true,
+      "secondHeaderPreserved": true,
+      "secondBodyPreserved": true,
+      "bodyApplied": true,
+      "cellApplied": true
+    },
+    "storyPreservation": {
+      "schemaVersion": "hwpx.agent-story-preservation/v1",
+      "ok": true,
+      "storyCount": 1,
+      "stories": [
+        {
+          "commandId": "header",
+          "path": "/section[1]/header[@page-type=\"BOTH\"]",
+          "stableId": "header:1153630576",
+          "pageType": "BOTH",
+          "textMatched": true
+        }
+      ]
+    },
+    "environment": {
+      "installedPackageIsolation": {
+        "pythonHwpxSitePackages": true,
+        "mcpServerSitePackages": true
+      },
+      "packageOrigin": "local-wheel",
+      "publicIndexResolution": false,
+      "publicMcpToolBoundary": true
+    }
+  },
+  "candidateSourceWorktreeCheck": {
+    "status": "passed",
+    "publicPackagesUsed": false,
+    "runtime": {
+      "pythonHwpx": "3.2.0",
+      "mcpServer": "4.1.0",
+      "plugin": "0.4.0"
+    },
+    "contractHash": "c127914cc3f4480e",
+    "outputSha256": "sha256:a997cdc230c7ee9e975dcb957dabf74e6f1dc61eb1ae69c635ebbc229287447c",
+    "checks": {
+      "changedMembersExact": true,
+      "expectedBytesExact": true,
+      "firstCommitted": true,
+      "idempotentBytesExact": true,
+      "idempotentReplay": true,
+      "openSafety": true,
+      "reopen": true,
+      "sourceUnchanged": true,
+      "storyPreservation": true
+    },
+    "scope": "Read-only source-worktree check through the public FastMCP tool boundary; the separate local-wheel candidate replay is recorded above."
+  },
+  "releaseFinalV3": {
+    "status": "passed",
+    "runtime": {
+      "pythonHwpx": "3.2.0",
+      "mcpServer": "4.1.0",
+      "plugin": "0.4.0"
+    },
+    "initializedServerVersion": "4.1.0",
+    "contractHash": "c127914cc3f4480e",
+    "outputSha256": "sha256:7745ca81cc4dc93e412cff2e236111f1cf2d32f9899260527cfba8c74215d62f",
+    "checks": {
+      "sourceUnchanged": true,
+      "firstCommitted": true,
+      "idempotentReplay": true,
+      "idempotentBytesExact": true,
+      "expectedBytesExact": true,
+      "changedMembersExact": true,
+      "openSafety": true,
+      "reopen": true,
+      "storyPreservation": true,
+      "singleSerializationAcrossApplyAndReplay": true,
+      "faultRollback": true
+    },
+    "changedMembers": [
+      "Contents/section0.xml"
+    ],
+    "reopen": {
+      "sectionCountTwo": true,
+      "firstHeaderApplied": true,
+      "secondHeaderPreserved": true,
+      "secondBodyPreserved": true,
+      "bodyApplied": true,
+      "cellApplied": true
+    },
+    "storyPreservation": {
+      "schemaVersion": "hwpx.agent-story-preservation/v1",
+      "ok": true,
+      "storyCount": 1,
+      "stories": [
+        {
+          "commandId": "header",
+          "path": "/section[1]/header[@page-type=\"BOTH\"]",
+          "stableId": "header:1094637672",
+          "pageType": "BOTH",
+          "textMatched": true
+        }
+      ]
+    },
+    "environment": {
+      "installedPackageIsolation": {
+        "pythonHwpxSitePackages": true,
+        "mcpServerSitePackages": true
+      },
+      "packageOrigin": "local-wheel",
+      "publicIndexResolution": false,
+      "publicMcpToolBoundary": true
+    }
+  },
+  "publicIndexReplay": {
+    "status": "passed",
+    "runtime": {
+      "pythonHwpx": "3.2.0",
+      "mcpServer": "4.1.0",
+      "plugin": "0.4.0"
+    },
+    "initializedServerVersion": "4.1.0",
+    "contractHash": "c127914cc3f4480e",
+    "outputSha256": "sha256:7745ca81cc4dc93e412cff2e236111f1cf2d32f9899260527cfba8c74215d62f",
+    "checks": {
+      "sourceUnchanged": true,
+      "firstCommitted": true,
+      "idempotentReplay": true,
+      "idempotentBytesExact": true,
+      "expectedBytesExact": true,
+      "changedMembersExact": true,
+      "openSafety": true,
+      "reopen": true,
+      "storyPreservation": true
+    },
+    "changedMembers": [
+      "Contents/section0.xml"
+    ],
+    "reopen": {
+      "sectionCountTwo": true,
+      "firstHeaderApplied": true,
+      "secondHeaderPreserved": true,
+      "secondBodyPreserved": true,
+      "bodyApplied": true,
+      "cellApplied": true
+    },
+    "storyPreservation": {
+      "schemaVersion": "hwpx.agent-story-preservation/v1",
+      "ok": true,
+      "storyCount": 1,
+      "stories": [
+        {
+          "commandId": "header",
+          "path": "/section[1]/header[@page-type=\"BOTH\"]",
+          "stableId": "header:1094637672",
+          "pageType": "BOTH",
+          "textMatched": true
+        }
+      ]
+    },
+    "environment": {
+      "installedPackageIsolation": {
+        "pythonHwpxSitePackages": true,
+        "mcpServerSitePackages": true
+      },
+      "packageOrigin": "public-index",
+      "publicIndexResolution": true,
+      "publicMcpToolBoundary": true
+    }
+  },
+  "evidenceLineage": {
+    "cleanWheelReceiptSha256": "87c1c16bad4a5c4ed95c1e6ae0245184cc48738ace485b271e4a78c303c3c5cf",
+    "installedTransactionReceiptSha256": "8ef891c075ab235a5095254d0876cc107af717be47dab26b99994d5ec064b8ae",
+    "hancomVisualReceiptSha256": "71f1d3799a1d647a429d8b574a8daaac8ac8222a61cf57d49e7baf550a65a2fb"
+  },
+  "realHancom": {
+    "status": "pass",
+    "scope": "The replay output is exact-byte identical to the bundled warning-free Hancom-reviewed release-final-v3 bytes; package origin was public-index.",
+    "application": "Hancom Office HWP 12.30.0 build 6382",
+    "warningFreeOpen": true,
+    "pagesObserved": "2/2",
+    "sectionsObserved": "2/2",
+    "exactOutputSha256": "sha256:7745ca81cc4dc93e412cff2e236111f1cf2d32f9899260527cfba8c74215d62f",
+    "releaseExactByteLineageVerified": true,
+    "screenshots": [
+      {
+        "path": "release-final-v3-page-1.jpeg",
+        "bytes": 70810,
+        "sha256": "sha256:c510c50ddca1fd5bd63bb7c000c3427042dca483c84b6afa7055596acd07ad49"
+      },
+      {
+        "path": "release-final-v3-pages-1-2.jpeg",
+        "bytes": 68990,
+        "sha256": "sha256:e56acb7ee2a1ad2249008b909b1be009657f1c1e7289e05bd161359dae735308"
+      },
+      {
+        "path": "release-final-v3-page-2.jpeg",
+        "bytes": 68023,
+        "sha256": "sha256:c88bbcfbbd1a8918748307f76a151906f2eabc08f7f733f5c3ec4a840ce0ec2b"
+      }
+    ],
+    "screenshotsBundled": true,
+    "publicIndexExactByteLineageVerified": true
+  },
+  "dataPolicy": {
+    "containsRealPersonalData": false,
+    "containsTestMaterial": false,
+    "synthetic": true
+  },
+  "publicationPerformed": false,
+  "readyForPublicRelease": true
+}
