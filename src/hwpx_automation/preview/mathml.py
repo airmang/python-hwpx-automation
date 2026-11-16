@@ -7,7 +7,7 @@ no script or font bundle is shipped.  ``latex2mathml`` is an optional extra
 code block rather than dropping the equation.
 
 Moved from ``hwpx.equation.mathml`` (python-hwpx 6.x) unchanged. The EqEdit
-token table stays in python-hwpx; it is read from ``hwpx.equation.tokens``.
+token table stays in python-hwpx; it is read from ``hwpx.equation``.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import re
 from typing import Callable
 from xml.etree.ElementTree import Element, tostring
 
-from hwpx.equation.tokens import EQEDIT_MATHML_OPERATOR_COMMANDS
+from hwpx.equation import EQEDIT_MATHML_OPERATOR_COMMANDS
 from hwpx.errors import HwpxError
 
 # ``False`` marks a resolved-but-unavailable converter; ``None`` means "not yet

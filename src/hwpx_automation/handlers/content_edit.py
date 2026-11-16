@@ -856,7 +856,7 @@ def replace_picture(
         old_item_id=binary_item_id_ref,
         remove_orphaned=remove_orphaned,
     )
-    replaced_section_index = section_index_of(doc, replacement.picture.paragraph.section)
+    replaced_section_index = section_index_of(doc, replacement.picture)
     replacement_payload = {
         "picture_index": picture_index,
         "section_index": replaced_section_index,

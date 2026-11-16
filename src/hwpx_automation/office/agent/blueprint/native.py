@@ -12,6 +12,7 @@ from typing import Any, cast
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HH, HP
+from hwpx.oxml.shape_position import line_width_mm_for_units
 
 from ..commands import _add, _insert_direct_child, _insert_inline, _remove_inline_element, _table_caption
 from ..document import HwpxAgentDocument, NodeRecord
@@ -51,16 +52,11 @@ def _mm_units(value: object, default: int) -> int:
     return max(1, round(float(cast(Any, value)) * _HWP_UNITS_PER_MM))
 
 
-#: python-hwpx 7.0 takes a shape's line width in mm and writes int(mm * 283) HWPUNIT.
-_LINE_WIDTH_UNITS_PER_MM = 283
-
-
 def _line_width_mm(value: object) -> float:
     """The blueprint's ``lineWidth`` (HWPUNIT, as ``hp:lineShape/@width`` holds it) as the
     millimetres ``add_rectangle``/``add_ellipse`` take, so the same HWPUNIT is written back."""
 
-    units = int(str(value).strip())
-    return (units + 0.5) / _LINE_WIDTH_UNITS_PER_MM
+    return line_width_mm_for_units(int(str(value).strip()))
 
 
 def _bool(value: object, default: bool = False) -> bool:

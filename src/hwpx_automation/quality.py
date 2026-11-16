@@ -153,7 +153,7 @@ def resolve_policy(quality: Mapping[str, Any] | str | None) -> Any:
     with camelCase overrides (``renderCheck`` / ``overflowPolicy`` / ``layoutLint`` …).
     """
 
-    from hwpx.quality import QualityPolicy
+    from hwpx import QualityPolicy
 
     if quality is None:
         quality = env_value("QUALITY", "transparent") or "transparent"

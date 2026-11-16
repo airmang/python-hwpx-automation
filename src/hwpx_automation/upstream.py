@@ -151,13 +151,6 @@ def export_document(document: HwpxDocument, output_format: Literal["text", "html
     raise ValueError(f"unsupported export format: {output_format}")
 
 
-#: Hancom's line widths in mm (the ``hc:LineWidth`` list python-hwpx writes).
-_HANCOM_LINE_WIDTHS_MM = (
-    "0.1", "0.12", "0.15", "0.2", "0.25", "0.3", "0.4", "0.5",
-    "0.6", "0.7", "1.0", "1.5", "2.0", "3.0", "4.0", "5.0",
-)
-
-
 def border_width_mm(width: Any) -> Any:
     """A 6.x border width (``"0.12 mm"``, ``"1mm"``, a number) as the millimetres python-hwpx
     7.0 takes (``border_width_mm=``).
@@ -170,6 +163,10 @@ def border_width_mm(width: Any) -> Any:
     """
 
     from decimal import Decimal, InvalidOperation
+
+    # Hancom's line widths in mm; python-hwpx refuses any other. Snapping to the
+    # nearest is this package's 6.x compatibility, not the engine's.
+    from hwpx.oxml.utils import LINE_WIDTHS_MM
 
     if width is None or width == "":
         return 0.12
@@ -184,20 +181,18 @@ def border_width_mm(width: Any) -> Any:
     if not millimetres.is_finite() or millimetres <= 0:
         return width
     nearest = min(
-        (Decimal(listed) for listed in _HANCOM_LINE_WIDTHS_MM),
+        (Decimal(str(listed)) for listed in LINE_WIDTHS_MM),
         key=lambda listed: (abs(listed - millimetres), -listed),
     )
     return float(nearest)
 
 
-def section_index_of(document: HwpxDocument, section: Any) -> int | None:
-    """The place of *section* in ``document.sections``, or ``None``."""
+def section_index_of(document: HwpxDocument, item: Any) -> int | None:
+    """The place in ``document.sections`` of the section holding *item* (a picture,
+    equation, shape or table), or ``None`` when no section holds it (a master page)."""
 
-    element = getattr(section, "element", None)
-    return next(
-        (index for index, candidate in enumerate(document.sections) if candidate.element is element),
-        None,
-    )
+    section = item.section
+    return None if section is None else document.sections.index(section)
 
 
 def _hwpunit_or_none(value: str | None) -> int | None:
@@ -226,7 +221,7 @@ def picture_reference_payloads(document: HwpxDocument) -> list[dict[str, Any]]:
         payloads.append(
             {
                 "pictureIndex": index,
-                "sectionIndex": section_index_of(document, picture.paragraph.section),
+                "sectionIndex": section_index_of(document, picture),
                 "binaryItemIDRef": picture.item_id,
                 "width": _hwpunit_or_none(size.get("width") if size is not None else None),
                 "height": _hwpunit_or_none(size.get("height") if size is not None else None),
@@ -235,20 +230,16 @@ def picture_reference_payloads(document: HwpxDocument) -> list[dict[str, Any]]:
     return payloads
 
 
+#: The unit of this package's table auto-fit (HWPUNIT, about 25.4 mm). python-hwpx
+#: keeps no public default cell width (a table without ``width=`` takes the room of
+#: its paragraph), so the value 6.x's private fallback had is held here.
+DEFAULT_CELL_WIDTH = 7200
+
+
 def default_cell_width() -> int:
-    """Return the upstream default table-cell width.
+    """The default table-cell width this package's auto-fit works in (HWPUNIT)."""
 
-    ``python-hwpx`` currently stores this as the private module constant
-    ``hwpx.oxml.document._DEFAULT_CELL_WIDTH``. Centralize that lookup here so a
-    future upstream change only touches one place downstream.
-    """
-
-    try:  # pragma: no branch - single lookup with defensive fallback
-        from hwpx.oxml import document as hwpx_document_module
-
-        return int(getattr(hwpx_document_module, "_DEFAULT_CELL_WIDTH", 7200))
-    except Exception:  # pragma: no cover - fallback only used if upstream internals move
-        return 7200
+    return DEFAULT_CELL_WIDTH
 
 
 def append_xml_child(parent: ET.Element, tag: str, attrs: dict[str, str] | None = None) -> ET.Element:

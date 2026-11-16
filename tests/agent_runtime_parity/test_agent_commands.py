@@ -25,7 +25,7 @@ def _revision(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _write_fixture(path: Path, *, merged: bool = False, editable: str = "true") -> None:
+def _write_fixture(path: Path, *, merged: bool = False, editable: str | None = "true") -> None:
     with HwpxDocument.new() as document:
         first = document.sections[0].paragraphs[0]
         first.element.set("id", "101")
@@ -65,10 +65,10 @@ def _write_fixture(path: Path, *, merged: bool = False, editable: str = "true") 
 
         field_run = second.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
         control = field_run.makeelement(f"{HP}ctrl", {"type": "FORM"})
-        begin = control.makeelement(
-            f"{HP}fieldBegin",
-            {"id": "601", "fieldName": "담당자", "type": "CLICK_HERE", "editable": editable},
-        )
+        begin_attributes = {"id": "601", "fieldName": "담당자", "type": "CLICK_HERE"}
+        if editable is not None:
+            begin_attributes["editable"] = editable
+        begin = control.makeelement(f"{HP}fieldBegin", begin_attributes)
         control.append(begin)
         field_run.append(control)
         second.element.append(field_run)
@@ -317,6 +317,19 @@ def test_read_only_reads_the_same_in_the_old_and_the_hancom_spelling(
         assert record.summary["readOnly"] is (not read_only)
         assert record.native["_field_begin"].get("editable") == ("1" if read_only else "0")
 
+
+
+def test_read_only_of_a_field_without_editable_stays_unwritten(tmp_path: Path) -> None:
+    """python-hwpx 7.0 reads an absent ``editable`` as the schema default (editable);
+    the projection keeps reporting ``readOnly: None`` (not written), as 6.x did."""
+
+    source = tmp_path / "input.hwpx"
+    _write_fixture(source, editable=None)
+    with HwpxAgentDocument.open(source) as agent:
+        record = _record(agent, "form-field", "601")
+        assert record.native["_field_begin"].get("editable") is None
+        assert record.summary["readOnly"] is None
+        assert record.native["_field"].editable is True
 
 def test_form_field_bindings_come_from_the_public_field_list(tmp_path: Path) -> None:
     """The agent binds form fields from doc.fields.all (python-hwpx 7.0's FormField
