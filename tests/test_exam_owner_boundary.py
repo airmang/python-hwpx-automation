@@ -43,7 +43,9 @@ def test_canonical_owner_rejects_frozen_and_unapproved_core_seams() -> None:
     assert check(canonical, "hwpx.form_fit.wordbox") is not None
     assert check(canonical, "hwpx.authoring") is not None
     assert check(canonical, "hwpx.document") is None
-    assert check(canonical, "hwpx.tools.table_cleanup") is None
+    # 8.0: table cleanup moved here from python-hwpx 7.0
+    # (hwpx_automation.office.utilities.table_cleanup); the core path is gone.
+    assert check(canonical, "hwpx.tools.table_cleanup") is not None
     assert (
         check(
             "src/hwpx_automation/office/exam/measure.py",

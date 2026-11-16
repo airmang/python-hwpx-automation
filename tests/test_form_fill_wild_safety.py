@@ -45,8 +45,10 @@ def _portable(value: Any) -> Any:
 
     if isinstance(value, str):
         marker = "/tests/fixtures/"
-        if marker in value:
-            return "<core-repo>/tests/fixtures/" + value.split(marker, 1)[1]
+        # A Windows checkout reports the path with backslashes.
+        normalized = value.replace("\\", "/")
+        if marker in normalized:
+            return "<core-repo>/tests/fixtures/" + normalized.split(marker, 1)[1]
         return value
     if isinstance(value, dict):
         return {k: _portable(v) for k, v in value.items()}

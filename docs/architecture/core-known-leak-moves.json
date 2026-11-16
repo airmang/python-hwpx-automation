@@ -2,7 +2,7 @@
  "schemaVersion": "python-hwpx-automation.core-known-leak-moves/v1",
  "status": "contract",
  "coreContract": "python-hwpx docs/architecture/known-leak-migration.json",
- "note": "The automation side of python-hwpx's known-leak migration contract (python-hwpx #565). Each group names the automation owner that will hold the policy and the core names automation still calls until the move. Nothing has moved yet. The owner chose core compatibility option A (coreCompatibility); releases are named only relative to each other, so no version number or date is recorded here.",
+ "note": "The automation side of python-hwpx's known-leak migration contract (python-hwpx #565). Each group names the automation owner that will hold the policy and the core names automation still calls until the move. Two groups (official-reference-policy, report-heading-guess) moved with python-hwpx's whole conversion and guessing move and are listed under moved; the two left follow the owner's core compatibility option A (coreCompatibility). Releases are named only relative to each other, so no version number or date is recorded here.",
  "coreCompatibility": {
   "decision": "A",
   "schedule": {
@@ -13,38 +13,14 @@
  },
  "groups": [
   {
-   "id": "official-reference-policy",
-   "canonicalOwner": "hwpx_automation.office.compliance",
-   "plannedEntryPoint": "hwpx_automation.office.compliance.inspect_reference_consistency",
-   "coreCallsUntilMoved": [
-    "hwpx.tools.doc_diff.inspect_reference_consistency"
-   ],
-   "consumers": [
-    "hwpx_automation.handlers.quality_render.inspect_reference_consistency"
-   ]
-  },
-  {
    "id": "document-plan-input",
    "canonicalOwner": "hwpx_automation.office.document_ops",
-   "plannedEntryPoint": "a document-plan to paragraph-sequence function in office.document_ops, called before core diff and reference checks",
+   "plannedEntryPoint": "a document-plan to paragraph-sequence function in office.document_ops, called before core diff",
    "coreCallsUntilMoved": [
-    "hwpx.tools.doc_diff.doc_diff",
-    "hwpx.tools.doc_diff.inspect_reference_consistency"
+    "hwpx.tools.doc_diff.doc_diff"
    ],
    "consumers": [
-    "hwpx_automation.handlers.quality_render.inspect_reference_consistency",
     "hwpx_automation.office.document_ops.comparison.build_comparison_table_plan"
-   ]
-  },
-  {
-   "id": "report-heading-guess",
-   "canonicalOwner": "hwpx_automation.office.authoring.report_parser",
-   "plannedEntryPoint": "a report heading detector in office.authoring.report_parser, passed to core Markdown export through its heading-detector hook",
-   "coreCallsUntilMoved": [
-    "hwpx.ingest.DocumentIngestor.default (HwpxMarkdownConverter -> hwpx.tools.markdown_export.export_markdown)"
-   ],
-   "consumers": [
-    "hwpx_automation.handlers.read_export._ingest_local_document"
    ]
   },
   {
@@ -56,6 +32,32 @@
    ],
    "consumers": [
     "hwpx_automation.office.evalplan.runtime"
+   ]
+  }
+ ],
+ "moved": [
+  {
+   "id": "official-reference-policy",
+   "canonicalOwner": "hwpx_automation.office.compliance",
+   "entryPoint": "hwpx_automation.office.compliance.inspect_reference_consistency",
+   "replacedCoreNames": [
+    "hwpx.tools.doc_diff.inspect_reference_consistency"
+   ],
+   "consumers": [
+    "hwpx_automation.handlers.quality_render.inspect_reference_consistency"
+   ]
+  },
+  {
+   "id": "report-heading-guess",
+   "canonicalOwner": "hwpx_automation.markdown",
+   "entryPoint": "hwpx_automation.markdown.to_markdown",
+   "replacedCoreNames": [
+    "hwpx.tools.markdown_export.export_markdown",
+    "hwpx.ingest.DocumentIngestor.default"
+   ],
+   "consumers": [
+    "hwpx_automation.handlers.read_export._ingest_local_document",
+    "hwpx_automation.ingest.DocumentIngestor.default"
    ]
   }
  ]

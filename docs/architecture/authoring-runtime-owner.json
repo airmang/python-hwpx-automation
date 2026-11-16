@@ -36,8 +36,6 @@
   "hwpx.tools.idempotence",
   "hwpx.tools.package_reconcile",
   "hwpx.tools.package_validator",
-  "hwpx.tools.report_utils",
-  "hwpx.tools.table_cleanup",
   "hwpx.tools.template_analyzer",
   "hwpx.tools.toc_author",
   "hwpx.tools.validator"
@@ -46,7 +44,9 @@
   "hwpx.tools.official_lint": "hwpx_automation.office.compliance.official_lint",
   "hwpx.tools.page_guard": "hwpx.tools.page_guard (core-native; hwpx_automation.office.quality.page_guard re-exports it, #177)",
   "hwpx.visual application runtime": "hwpx_automation.office.rendering",
-  "hwpx.tools.mail_merge.mail_merge": "hwpx_automation.office.document_ops.mail_merge.build_mail_merge"
+  "hwpx.tools.mail_merge.mail_merge": "hwpx_automation.office.document_ops.mail_merge.build_mail_merge",
+  "hwpx.tools.report_utils": "hwpx_automation.office.utilities.report_utils (moved from python-hwpx 7.0)",
+  "hwpx.tools.table_cleanup": "hwpx_automation.office.utilities.table_cleanup (moved from python-hwpx 7.0)"
  },
  "forbiddenCoreCompatibilityImports": [
   "hwpx.authoring",
@@ -78,6 +78,6 @@
   "default": 128,
   "advanced": 136,
   "skillRequired": 29,
-  "hash": "71622c28a07913d1"
+  "hash": "1b572e4ed5e410e6"
  }
 }

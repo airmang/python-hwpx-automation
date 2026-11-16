@@ -24,14 +24,16 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # 6.10.0 is the floor, not a preference: the delegated template analyzer and
-    # the public style APIs this package calls first shipped there. The lower
+    # 7.0 is the floor, not a preference: python-hwpx 7.0 keeps the engine only
+    # and the conversion and guessing features (Markdown, ingest, forms, mail
+    # merge, preview, format rules) live in this package from 8.0, so a 6.x core
+    # would ship them twice and declare `hwpx-check-format` twice. The lower
     # bound has been at or above 6.0 since this package took over the `hwpx`
     # console name (core stopped declaring it at 5.0), which is what makes "no
     # valid install has two declarers" true rather than hopeful. The bounded
-    # major (<7) keeps the next core major from silently breaking an
+    # major (<8) keeps the next core major from silently breaking an
     # already-published automation line.
-    "python-hwpx>=6.10.0,<7", # HWPX object model, OXML/OPC, format-native primitives
+    "python-hwpx>=7.0,<8", # HWPX object model, OXML/OPC, format-native primitives
 
     "pydantic>=2.11,<3",
     # cryptography (workflow store only) is the [workflow] extra and anyio is
@@ -64,6 +66,18 @@ http = ["uvicorn>=0.30"]
 # Advertised non-HWPX ingest formats only. Avoid cloud/audio/mail extras and their
 # unrelated dependency trees; HTML and text formats are supported by the base.
 ingest = ["markitdown[pdf,docx,xlsx]>=0.1.6,<0.2"]
+# The next four came with the features python-hwpx 7.0 moved here (8.0); each is
+# imported lazily by the one module that needs it, and absent it that module
+# says which extra to install.
+# Equation MathML in the preview (hwpx_automation.preview); without it the
+# preview fails closed to a LaTeX code block instead of dropping equations.
+preview = ["latex2mathml>=3.77"]
+# Excel (.xlsx/.xlsm) rosters for hwpx_automation.mail_merge.
+xlsx = ["openpyxl>=3.1"]
+# LangChain loader (hwpx_automation.integrations.langchain).
+langchain = ["langchain-core>=0.3"]
+# LlamaIndex reader (hwpx_automation.integrations.llama_index).
+llamaindex = ["llama-index-core>=0.12"]
 # 직인 날인/검증의 한컴 렌더 오라클 경로(렌더→fitz word/image bbox). macOS+Hancom 필요;
 # 없으면 place_seal/check_seal_compliance가 renderChecked=false로 정직하게 degrade한다.
 # The imaging stack is declared here now. Core stopped reading PDFs and images
@@ -88,6 +102,11 @@ test = [
     "numpy>=1.26",
     "pillow>=10.0",
     "ruff>=0.12",
+    # The moved preview, mail-merge and LangChain tests run in CI instead of
+    # skipping (the [preview], [xlsx] and [langchain] extras above).
+    "latex2mathml>=3.77",
+    "openpyxl>=3.1",
+    "langchain-core>=0.3",
 ]
 typecheck = [
     "mypy>=1.10,<3",
@@ -105,6 +124,9 @@ Issues = "https://github.com/airmang/python-hwpx-automation/issues"
 # Canonical optional-adapter command. The bounded 6.x compatibility distribution
 # owns the old console so each executable has exactly one distribution owner.
 "hwpx-automation-mcp" = "hwpx_automation.mcp_cli:main"
+# Moved from python-hwpx 7.0 with hwpx_automation.format_rules; core stops
+# declaring it in the same major this package's core floor reaches.
+"hwpx-check-format" = "hwpx_automation.format_rules:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -146,14 +168,6 @@ addopts = "-q"
 # source precisely rather than silencing DeprecationWarning wholesale.
 filterwarnings = [
     "error::DeprecationWarning",
-    # hwpx-core's own internal modules still call its pre-6.0 facade
-    # internally (core's own migration debt, not automation's -- out of this
-    # package's control/scope).
-    "ignore::DeprecationWarning:hwpx\\._document\\._legacy",
-    "ignore::DeprecationWarning:hwpx\\.form_fit\\.measure",
-    "ignore::DeprecationWarning:hwpx\\.ingest\\.hwpx_converter",
-    "ignore::DeprecationWarning:hwpx\\.tools\\.mail_merge",
-    "ignore::DeprecationWarning:hwpx\\.tools\\.redline",
     # test_fuzz_harness_wired dynamically imports whichever co-located
     # python-hwpx* sibling checkout happens to carry scripts/fuzz (by design
     # it does not pin to PYTHON_HWPX_REPO -- see that test's own docstring);
@@ -196,6 +210,15 @@ files = [
     "src/hwpx_automation/office",
     "src/hwpx_automation/tool_contract.py",
     "src/hwpx_automation/workflow/service.py",
+    # 8.0: the light layer python-hwpx 7.0 moved here.
+    "src/hwpx_automation/markdown",
+    "src/hwpx_automation/ingest",
+    "src/hwpx_automation/ingest_adapters.py",
+    "src/hwpx_automation/integrations",
+    "src/hwpx_automation/forms",
+    "src/hwpx_automation/mail_merge.py",
+    "src/hwpx_automation/preview",
+    "src/hwpx_automation/format_rules.py",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true
@@ -230,6 +253,15 @@ include = [
     "src/hwpx_automation/office",
     "src/hwpx_automation/tool_contract.py",
     "src/hwpx_automation/workflow/service.py",
+    # 8.0: the light layer python-hwpx 7.0 moved here.
+    "src/hwpx_automation/markdown",
+    "src/hwpx_automation/ingest",
+    "src/hwpx_automation/ingest_adapters.py",
+    "src/hwpx_automation/integrations",
+    "src/hwpx_automation/forms",
+    "src/hwpx_automation/mail_merge.py",
+    "src/hwpx_automation/preview",
+    "src/hwpx_automation/format_rules.py",
 ]
 reportMissingTypeStubs = false
 

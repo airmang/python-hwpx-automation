@@ -6,7 +6,7 @@ The chain never yields an empty result (Constitution VI, fail-closed):
 1. ``EqEdit → LaTeX`` fails  → the original ``<hp:script>`` text in a code block
    labelled ``수식(변환 불가)``.
 2. ``latex2mathml`` missing  → the LaTeX in a code block labelled
-   ``수식(LaTeX) — MathML 렌더는 python-hwpx[preview] 설치``.
+   ``수식(LaTeX) — MathML 렌더는 python-hwpx-automation[preview] 설치``.
 3. ``latex2mathml`` errors   → the LaTeX in a code block labelled
    ``수식(LaTeX) — MathML 변환 실패``.
 4. otherwise                 → inline ``<math>`` MathML.
@@ -25,10 +25,10 @@ from hwpx.equation import EquationConversionError, eqedit_to_latex
 from .mathml import MathMLUnavailableError, eqedit_latex_to_mathml
 
 # Fidelity labels surfaced in the preview (Constitution IX, honest reporting).
-# The "python-hwpx[preview]" wording is kept byte-for-byte for 8.0 (the output
-# of the move must not change); see the move report for the extra rename.
+# The install hint names this package's extra: latex2mathml is declared by
+# python-hwpx-automation[preview] since the preview moved here (8.0).
 LABEL_MATHML = "수식 MathML 렌더"
-LABEL_LATEX_NO_LIB = "수식(LaTeX) — MathML 렌더는 python-hwpx[preview] 설치"
+LABEL_LATEX_NO_LIB = "수식(LaTeX) — MathML 렌더는 python-hwpx-automation[preview] 설치"
 LABEL_LATEX_ERROR = "수식(LaTeX) — MathML 변환 실패"
 LABEL_SCRIPT = "수식(변환 불가)"
 

@@ -50,15 +50,19 @@ def test_canonical_policy_owner_inventory_is_complete() -> None:
         separators=(",", ":"),
     ).encode()
 
-    assert len(rows) == canonical["pythonFiles"] == 7
+    # 7 -> 10 (8.0): python-hwpx 7.0 moved its reference-consistency check
+    # (compliance) and the table-cleanup and report-number helpers (utilities)
+    # here.
+    assert len(rows) == canonical["pythonFiles"] == 10
     # 1684 -> 1443: quality/page_guard.py re-exports core's metrics (#177).
-    assert sum(int(row["loc"]) for row in rows) == canonical["loc"] == 1443
+    # 1443 -> 1881: the three modules above (8.0).
+    assert sum(int(row["loc"]) for row in rows) == canonical["loc"] == 1881
     assert hashlib.sha256(payload).hexdigest() == canonical[
         "manifestSha256"
     ]
-    assert len(compliance.__all__) == 14
+    assert len(compliance.__all__) == 16
     assert len(quality.__all__) == 3
-    assert len(utilities.__all__) == 2
+    assert len(utilities.__all__) == 13
 
 
 def test_all_policy_production_bindings_use_the_automation_owner() -> None:

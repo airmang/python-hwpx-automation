@@ -1,10 +1,10 @@
 {
   "schemaVersion": "python-hwpx-automation.public-modules/v1",
-  "scope": "All Python modules shipped by the canonical 6.x distribution. Base-public modules must import without the optional MCP SDK; the six adapter modules require the mcp extra by design.",
-  "moduleCount": 191,
-  "moduleSha256": "bfe822db8f83ba32dcfc4b7cbf11fac882170396a41aa701ef147065c33c57be",
-  "basePublicModuleCount": 185,
-  "basePublicModuleSha256": "2339441d8dd084feaac8161136fa1115b039116db951f4951f17ee42183c3a18",
+  "scope": "All Python modules shipped by the canonical distribution. Base-public modules must import without the optional MCP SDK; the six adapter modules require the mcp extra by design, and the two framework adapters require their framework's extra (langchain, llamaindex).",
+  "moduleCount": 216,
+  "moduleSha256": "1cb0dac309a120e53e58a3f56026f771485e25235dbda8623948b6c854c0cfb7",
+  "basePublicModuleCount": 208,
+  "basePublicModuleSha256": "2acd6ff116b5cdac5af877a76b16acda5a59b2820505b0017ede3f01f1b1c110",
   "basePublicModules": [
     "hwpx_automation",
     "hwpx_automation.__main__",
@@ -33,6 +33,10 @@
     "hwpx_automation.execution_lock",
     "hwpx_automation.form_fill",
     "hwpx_automation.form_output_models",
+    "hwpx_automation.format_rules",
+    "hwpx_automation.forms",
+    "hwpx_automation.forms.choices",
+    "hwpx_automation.forms.labels",
     "hwpx_automation.handlers",
     "hwpx_automation.handlers._shared",
     "hwpx_automation.handlers.agent_document",
@@ -48,7 +52,18 @@
     "hwpx_automation.hwp_support",
     "hwpx_automation.hwpx_ops",
     "hwpx_automation.identity",
+    "hwpx_automation.ingest",
+    "hwpx_automation.ingest._types",
+    "hwpx_automation.ingest.adapters",
+    "hwpx_automation.ingest.base",
+    "hwpx_automation.ingest.hwpx_converter",
     "hwpx_automation.ingest_adapters",
+    "hwpx_automation.integrations",
+    "hwpx_automation.mail_merge",
+    "hwpx_automation.markdown",
+    "hwpx_automation.markdown._export",
+    "hwpx_automation.markdown._import",
+    "hwpx_automation.markdown._plain_export",
     "hwpx_automation.markdown_plan",
     "hwpx_automation.mcp_cli",
     "hwpx_automation.metadata.tools_meta",
@@ -100,6 +115,7 @@
     "hwpx_automation.office.compliance",
     "hwpx_automation.office.compliance.official_lint",
     "hwpx_automation.office.compliance.pii",
+    "hwpx_automation.office.compliance.reference_consistency",
     "hwpx_automation.office.document_ops",
     "hwpx_automation.office.document_ops.comparison",
     "hwpx_automation.office.document_ops.mail_merge",
@@ -147,6 +163,8 @@
     "hwpx_automation.office.rendering.qa_metrics",
     "hwpx_automation.office.rendering.worker",
     "hwpx_automation.office.utilities",
+    "hwpx_automation.office.utilities.report_utils",
+    "hwpx_automation.office.utilities.table_cleanup",
     "hwpx_automation.office.utilities.table_compute",
     "hwpx_automation.ops_services",
     "hwpx_automation.ops_services._border_fill",
@@ -163,6 +181,11 @@
     "hwpx_automation.ops_services.save_policy",
     "hwpx_automation.ops_services.tables",
     "hwpx_automation.ops_services.transactions",
+    "hwpx_automation.preview",
+    "hwpx_automation.preview.document_viewer",
+    "hwpx_automation.preview.equation_render",
+    "hwpx_automation.preview.layout_preview",
+    "hwpx_automation.preview.mathml",
     "hwpx_automation.preview_output_models",
     "hwpx_automation.quality",
     "hwpx_automation.quality_generation",
@@ -218,6 +241,20 @@
     {
       "module": "hwpx_automation.tool_bindings",
       "reason": "Binds pure ToolSpec data to FastMCP runtime handlers."
+    }
+  ],
+  "frameworkAdapterModuleCount": 2,
+  "frameworkAdapterModuleSha256": "9913bb269ece95d6bb10c9d2b0c7774326ebcb1c7ae6d4ea7e47fd5a63854167",
+  "frameworkAdapterModules": [
+    {
+      "module": "hwpx_automation.integrations.langchain",
+      "extra": "langchain",
+      "reason": "Subclasses langchain-core's BaseLoader; needs the langchain extra."
+    },
+    {
+      "module": "hwpx_automation.integrations.llama_index",
+      "extra": "llamaindex",
+      "reason": "Subclasses llama-index-core's BaseReader; needs the llamaindex extra."
     }
   ]
 }

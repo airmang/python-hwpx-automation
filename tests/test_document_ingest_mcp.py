@@ -108,3 +108,91 @@ def test_document_to_markdown_reports_missing_markitdown_dependency(
     assert result["attempts"][1]["converter"] == "MarkItDownAdapter"
     assert result["attempts"][1]["accepted"] is True
     assert result["attempts"][1]["error_type"] == "MissingMarkItDownDependency"
+
+
+@pytest.mark.parametrize("name", ["broken.hwp", "broken.hwpx"])
+def test_an_hwp_python_hwpx_cannot_open_fails_instead_of_reaching_markitdown(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    name: str,
+) -> None:
+    """A .hwp/.hwpx that python-hwpx cannot open (HWP 3.x, password, damaged)
+    used to fall through to MarkItDown, which returned the file's bytes as
+    Markdown with ok=True. It must fail with python-hwpx's own reason."""
+
+    class _MarkItDownMustNotRun:
+        def convert(self, path: str):
+            raise AssertionError(f"MarkItDown was asked to convert {path}")
+
+    monkeypatch.setattr(ingest_adapters, "_load_markitdown_class", lambda: _MarkItDownMustNotRun)
+    target = tmp_path / name
+    target.write_bytes(b"HWP Document File V3.00 \x1a\x01\x02\x03\x04\x05" + b"\x00" * 64)
+
+    result = server.document_to_markdown(str(target))
+
+    assert result["ok"] is False
+    assert "markdown" not in result
+    assert result["error"] == "UnsupportedDocumentFormat"
+    assert result["message"].startswith("HwpxMarkdownConverter could not convert the document: ")
+    first = result["attempts"][0]
+    assert first["converter"] == "HwpxMarkdownConverter"
+    assert first["accepted"] is True
+    assert first["error_type"]
+    assert first["message"] and first["message"] in result["message"]
+    assert result["attempts"][1] == {
+        **result["attempts"][1],
+        "converter": "MarkItDownAdapter",
+        "accepted": False,
+    }
+
+
+def test_markitdown_adapter_refuses_hwp_sources_by_extension_and_mimetype() -> None:
+    import io
+
+    from hwpx_automation.ingest import DocumentSourceInfo, MarkItDownAdapter
+
+    adapter = MarkItDownAdapter()
+    stream = io.BytesIO(b"x")
+    assert adapter.accepts(stream, DocumentSourceInfo(extension=".hwp")) is False
+    assert adapter.accepts(stream, DocumentSourceInfo(extension=".HWPX")) is False
+    assert adapter.accepts(stream, DocumentSourceInfo(mimetype="application/hwp+zip")) is False
+    assert adapter.accepts(stream, DocumentSourceInfo(extension=".docx")) is True
+    assert adapter.accepts(stream, DocumentSourceInfo()) is True
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_markitdown_adapter_removes_its_temporary_copy_of_a_stream(
+    monkeypatch: pytest.MonkeyPatch,
+    fails: bool,
+) -> None:
+    """A stream with no local path is copied to a temporary file for MarkItDown;
+    the copy is removed when the conversion ends, also when it fails."""
+
+    import io
+
+    from hwpx_automation.ingest import DocumentSourceInfo, MarkItDownAdapter
+
+    seen: list[Path] = []
+
+    class _FakeMarkItDown:
+        def convert(self, path: str):
+            seen.append(Path(path))
+            assert Path(path).read_bytes() == b"plain text"
+            if fails:
+                raise ValueError("cannot read this")
+            return type("FakeResult", (), {"text_content": "plain text"})()
+
+    monkeypatch.setattr(ingest_adapters, "_load_markitdown_class", lambda: _FakeMarkItDown)
+    stream = io.BytesIO(b"plain text")
+    info = DocumentSourceInfo(extension=".txt")
+
+    if fails:
+        with pytest.raises(ValueError, match="cannot read this"):
+            MarkItDownAdapter().convert(stream, info)
+    else:
+        result = MarkItDownAdapter().convert(stream, info)
+        assert result.markdown == "plain text"
+
+    assert len(seen) == 1 and seen[0].suffix == ".txt"
+    assert not seen[0].exists()
+    assert stream.tell() == 0

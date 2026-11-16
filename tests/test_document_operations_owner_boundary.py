@@ -30,16 +30,13 @@ OWNER = json.loads(
         / "document-operations-owner.json"
     ).read_text(encoding="utf-8")
 )
+# 8.0: python-hwpx 7.0 moved mail merge (hwpx_automation.mail_merge) and the
+# reference-consistency check (hwpx_automation.office.compliance) here, so
+# those members are no longer core's (ledger "movedFromCore").
 RETAINED_CORE_SYMBOLS = {
     "hwpx.tools.doc_diff": (
         "diff_paragraphs",
         "doc_diff",
-        "inspect_reference_consistency",
-    ),
-    "hwpx.tools.mail_merge": (
-        "inspect_mail_merge_placeholders",
-        "load_mail_merge_rows",
-        "merge_template_rows",
     ),
     "hwpx.tools.redline": (
         "author_demo_redline",
@@ -149,7 +146,8 @@ def test_boundary_rejects_frozen_callable_and_unapproved_seams() -> None:
     )
 
     assert check(canonical, "hwpx.tools.doc_diff") is None
-    assert check(canonical, "hwpx.tools.mail_merge") is None
+    # 8.0: mail merge lives in hwpx_automation.mail_merge; core's is gone.
+    assert check(canonical, "hwpx.tools.mail_merge") is not None
     assert check(canonical, "hwpx.visual.oracle") is not None
     assert check(canonical, "hwpx.authoring") is not None
 

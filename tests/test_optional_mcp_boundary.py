@@ -36,16 +36,27 @@ def test_public_module_manifest_freezes_the_complete_shipped_source_surface() ->
     adapter_modules = [
         item["module"] for item in manifest["mcpAdapterModules"]
     ]
-    all_modules = sorted((*base_modules, *adapter_modules))
+    # Framework adapters (8.0, moved from python-hwpx) subclass a framework's
+    # base class, so they import only with that framework's extra installed.
+    framework_rows = manifest["frameworkAdapterModules"]
+    framework_modules = [item["module"] for item in framework_rows]
+    all_modules = sorted((*base_modules, *adapter_modules, *framework_modules))
 
     assert base_modules == sorted(set(base_modules))
     assert adapter_modules == sorted(set(adapter_modules))
+    assert framework_modules == sorted(set(framework_modules))
     assert set(base_modules).isdisjoint(adapter_modules)
-    assert manifest["basePublicModuleCount"] == len(base_modules) == 185
+    assert set(base_modules).isdisjoint(framework_modules)
+    assert set(adapter_modules).isdisjoint(framework_modules)
+    # 185 -> 208: python-hwpx 7.0 moved Markdown, ingest, forms, mail merge,
+    # preview and format rules here (8.0).
+    assert manifest["basePublicModuleCount"] == len(base_modules) == 208
     assert manifest["mcpAdapterModuleCount"] == len(adapter_modules) == 6
-    assert manifest["moduleCount"] == len(all_modules) == 191
+    assert manifest["frameworkAdapterModuleCount"] == len(framework_modules) == 2
+    assert manifest["moduleCount"] == len(all_modules) == 216
     assert manifest["basePublicModuleSha256"] == _digest(base_modules)
     assert manifest["mcpAdapterModuleSha256"] == _digest(adapter_modules)
+    assert manifest["frameworkAdapterModuleSha256"] == _digest(framework_modules)
     assert manifest["moduleSha256"] == _digest(all_modules)
     assert all_modules == _source_modules()
     assert adapter_modules == [
@@ -55,6 +66,10 @@ def test_public_module_manifest_freezes_the_complete_shipped_source_surface() ->
         "hwpx_automation.runtime",
         "hwpx_automation.server",
         "hwpx_automation.tool_bindings",
+    ]
+    assert [(item["module"], item["extra"]) for item in framework_rows] == [
+        ("hwpx_automation.integrations.langchain", "langchain"),
+        ("hwpx_automation.integrations.llama_index", "llamaindex"),
     ]
 
 
@@ -83,7 +98,7 @@ modules = manifest["basePublicModules"]
 digest = hashlib.sha256(
     ("\n".join(sorted(modules)) + "\n").encode()
 ).hexdigest()
-assert len(modules) == manifest["basePublicModuleCount"] == 185
+assert len(modules) == manifest["basePublicModuleCount"] == 208
 assert digest == manifest["basePublicModuleSha256"]
 for module in modules:
     importlib.import_module(module)

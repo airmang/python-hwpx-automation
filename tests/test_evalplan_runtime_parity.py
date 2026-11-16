@@ -185,6 +185,30 @@ CORE_677_BYTES = {
 }
 
 
+# Core #711 (reviewed) stopped warning that the manifest does not list
+# version.xml: every Hangul-saved HWPX keeps it at the fixed path unlisted, so
+# it is the normal state. The frozen fillResult still carries that one warning
+# in openSafety.validatePackage; it is accepted present or absent, nothing else.
+CORE_711_DROPPED_WARNING = (
+    "Contents/content.hpf: manifest does not reference a version part; "
+    "engine will fall back to 'version.xml'"
+)
+
+
+def _without_core_711_warning(result: object) -> object:
+    if not isinstance(result, dict):
+        return result
+    safety = result.get("openSafety")
+    package = safety.get("validatePackage") if isinstance(safety, dict) else None
+    if not (isinstance(package, dict) and isinstance(package.get("warnings"), list)):
+        return result
+    warnings = [w for w in package["warnings"] if w != CORE_711_DROPPED_WARNING]
+    return {
+        **result,
+        "openSafety": {**safety, "validatePackage": {**package, "warnings": warnings}},
+    }
+
+
 def _jsonify(value: object) -> object:
     """Round-trip through JSON so tuples (``dataclasses.asdict`` keeps
     ``RubricItem.levels: list[tuple[str, str]]`` as ``tuple``) compare equal
@@ -254,7 +278,9 @@ def test_plan_fill_and_cleanup_byte_matches_frozen_core(
         phase=phase,
     )
     data = canonical_result.pop("_data")
-    assert _jsonify(canonical_result) == expected["fillResult"]
+    assert _without_core_711_warning(_jsonify(canonical_result)) == _without_core_711_warning(
+        expected["fillResult"]
+    )
     accepted = {(expected["dataSha256"], expected["dataLength"])}
     if (key := f"{phase}:{md_label}") in CORE_659_BYTES:
         accepted.add(CORE_659_BYTES[key])

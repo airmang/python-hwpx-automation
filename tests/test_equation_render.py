@@ -108,8 +108,18 @@ def test_missing_latex2mathml_falls_back_to_latex_block(monkeypatch: pytest.Monk
     result = render_equation("{alpha} over {beta}")
     assert result.mode == "latex"
     assert result.label == LABEL_LATEX_NO_LIB
-    assert "python-hwpx[preview]" in result.html
+    assert "python-hwpx-automation[preview]" in result.html
     assert r"\frac{\alpha}{\beta}" in result.html
+
+
+def test_missing_latex2mathml_error_names_this_packages_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mathml_module, "_converter", False)
+    with pytest.raises(mathml_module.MathMLUnavailableError) as raised:
+        mathml_module.latex_to_mathml("x")
+    assert 'pip install "python-hwpx-automation[preview]"' in str(raised.value)
+    assert raised.value.code == "equation-mathml-unavailable"
 
 
 def test_latex2mathml_error_falls_back_to_latex_block(monkeypatch: pytest.MonkeyPatch) -> None:

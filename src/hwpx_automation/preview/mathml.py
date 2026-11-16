@@ -3,7 +3,7 @@
 
 MathML keeps the preview self-contained: browsers render ``<math>`` natively, so
 no script or font bundle is shipped.  ``latex2mathml`` is an optional extra
-(``python-hwpx[preview]``); when it is absent the caller fails closed to a LaTeX
+(``python-hwpx-automation[preview]``); when it is absent the caller fails closed to a LaTeX
 code block rather than dropping the equation.
 
 Moved from ``hwpx.equation.mathml`` (python-hwpx 6.x) unchanged. The EqEdit
@@ -80,7 +80,8 @@ def latex_to_mathml(latex: str) -> str:
     convert = _load_converter()
     if convert is False:
         raise MathMLUnavailableError(
-            "latex2mathml is required for MathML rendering; install python-hwpx[preview]"
+            "latex2mathml is required for MathML rendering; "
+            'install it with: pip install "python-hwpx-automation[preview]"'
         )
     assert not isinstance(convert, bool)  # narrowed for type-checkers
     try:

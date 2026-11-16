@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "hwpx.tool-contract-delta/v1",
+  "releaseStatus": "unreleased-source",
+  "baseline": {
+    "release": "7.5.0",
+    "contractHash": "71622c28a07913d1"
+  },
+  "target": {
+    "contractHash": "1b572e4ed5e410e6",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136,
+    "skillRequiredToolCount": 29
+  },
+  "floors": {
+    "minPythonHwpx": "7.0.0",
+    "minAutomationVersion": "7.2.0",
+    "minMcpVersion": "7.2.0",
+    "minSkillVersion": "2.0.0"
+  },
+  "note": "Source-only floor update: python-hwpx 7.0 keeps the engine only, and the conversion and guessing features it moved out (Markdown, ingest, forms, mail merge, preview, format rules) live in this package. Package versions, historical release receipts and currentPublic are unchanged. No tool callable, description, input or output schema changed; only minPythonHwpx and each tool's python-hwpx minimumVersion moved from 6.10.0 to 7.0.0."
+}

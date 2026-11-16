@@ -5,8 +5,9 @@ python-hwpx keeps docs/architecture/known-leak-migration.json: four groups of
 genre/policy logic still in core, each with the automation owner it moves to.
 docs/architecture/core-known-leak-moves.json is this repository's record of the
 same groups. These checks keep the two in step and keep the owners and
-consumers they name real. Nothing has moved yet; the owner chose option A
-for retiring the core names, recorded here as a relative schedule.
+consumers they name real. Two groups moved with python-hwpx's conversion and
+guessing move (listed under ``moved``); for the two left the owner chose
+option A for retiring the core names, recorded here as a relative schedule.
 """
 from __future__ import annotations
 
@@ -25,10 +26,12 @@ DOCUMENT_OPS = json.loads(
     (ROOT / "docs" / "architecture" / "document-operations-owner.json").read_text(encoding="utf-8")
 )
 GROUP_IDS = [
-    "official-reference-policy",
     "document-plan-input",
-    "report-heading-guess",
     "evalplan-caption-cleanup",
+]
+MOVED_IDS = [
+    "official-reference-policy",
+    "report-heading-guess",
 ]
 
 
@@ -61,6 +64,18 @@ def test_groups_owners_and_consumers_are_real() -> None:
         assert group["coreCallsUntilMoved"] and group["plannedEntryPoint"].strip()
 
 
+def test_moved_groups_have_a_real_entry_point_here() -> None:
+    assert [group["id"] for group in MOVES["moved"]] == MOVED_IDS
+    for group in MOVES["moved"]:
+        _resolve(group["canonicalOwner"])
+        entry = _resolve(group["entryPoint"])
+        assert callable(entry), group["id"]
+        assert group["entryPoint"].startswith(group["canonicalOwner"] + "."), group["id"]
+        assert group["replacedCoreNames"], group["id"]
+        for consumer in group["consumers"]:
+            _resolve(consumer)
+
+
 def test_document_ops_ledger_marks_its_core_members_that_will_move() -> None:
     known = DOCUMENT_OPS["coreKnownLeakMembers"]
     assert set(known) <= set(DOCUMENT_OPS["memberOwners"]["core"])
@@ -76,9 +91,14 @@ def test_matches_the_core_contract_when_the_core_checkout_has_it() -> None:
     if contract is None:
         pytest.skip("core checkout has no docs/architecture/known-leak-migration.json (python-hwpx #565)")
     core = {group["id"]: group for group in contract["groups"]}
-    assert list(core) == GROUP_IDS
+    core_moved = {group["id"]: group for group in contract.get("moved", [])}
+    # A core checkout from before the move still lists all four groups as open.
+    assert sorted([*core, *core_moved]) == sorted([*GROUP_IDS, *MOVED_IDS])
     for group in MOVES["groups"]:
         assert core[group["id"]]["canonicalOwner"] == group["canonicalOwner"], group["id"]
+    for group in MOVES["moved"]:
+        if group["id"] in core_moved:
+            assert core_moved[group["id"]]["canonicalOwner"] == group["canonicalOwner"], group["id"]
     # The core contract recorded the decision after this file did; until the
     # core checkout carries it, it still reads pending-owner.
     assert contract["compatibility"]["decision"] in {"pending-owner", MOVES["coreCompatibility"]["decision"]}

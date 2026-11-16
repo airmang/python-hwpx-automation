@@ -13,8 +13,8 @@
  "canonical": {
   "status": "canonical",
   "pythonFiles": 4,
-  "loc": 183,
-  "manifestSha256": "b301674170731684c1259c86a862835842271ef56f77634c02ac4904dbe7a6d9",
+  "loc": 182,
+  "manifestSha256": "e393da663a627fe80c995226d3ff2759b35f2c04e5e337e4af3ad68c59c1dd52",
   "nomenclatureRefrozenFrom": {
    "loc": 183,
    "manifestSha256": "504480de77ec0053f713725629ff675b46b4c35257ceb7644ee002e6d9743548",
@@ -22,18 +22,19 @@
   },
   "refrozenFrom": {
    "loc": 183,
-   "manifestSha256": "16fdc78fc1e13462809125a21bfbb54477d90ca84bd608361842926a0c99b62f",
-   "reason": "패키지 이름을 hwpx_mcp_server에서 hwpx_automation으로 바꿨다. 동작 변화 없음."
+   "manifestSha256": "b301674170731684c1259c86a862835842271ef56f77634c02ac4904dbe7a6d9",
+   "reason": "8.0: python-hwpx 7.0이 메일 머지를 옮겨서 mail_merge.py가 hwpx.tools.mail_merge 대신 hwpx_automation.mail_merge를 부른다. 출력은 같다.",
+   "previous": {
+    "loc": 183,
+    "manifestSha256": "16fdc78fc1e13462809125a21bfbb54477d90ca84bd608361842926a0c99b62f",
+    "reason": "패키지 이름을 hwpx_mcp_server에서 hwpx_automation으로 바꿨다. 동작 변화 없음."
+   }
   }
  },
  "memberOwners": {
   "core": [
    "hwpx.tools.doc_diff.diff_paragraphs",
    "hwpx.tools.doc_diff.doc_diff",
-   "hwpx.tools.doc_diff.inspect_reference_consistency",
-   "hwpx.tools.mail_merge.inspect_mail_merge_placeholders",
-   "hwpx.tools.mail_merge.load_mail_merge_rows",
-   "hwpx.tools.mail_merge.merge_template_rows",
    "hwpx.tools.redline.author_demo_redline",
    "hwpx.tools.redline.inspect_redline_structure",
    "hwpx.tools.redline.verify_redline"
@@ -48,18 +49,13 @@
    "hwpx.tools.mail_merge.mail_merge"
   ]
  },
+ "movedFromCore": {
+  "hwpx.tools.doc_diff.inspect_reference_consistency": "hwpx_automation.office.compliance.inspect_reference_consistency",
+  "hwpx.tools.mail_merge.inspect_mail_merge_placeholders": "hwpx_automation.mail_merge.inspect_mail_merge_placeholders",
+  "hwpx.tools.mail_merge.load_mail_merge_rows": "hwpx_automation.mail_merge.load_mail_merge_rows",
+  "hwpx.tools.mail_merge.merge_template_rows": "hwpx_automation.mail_merge.merge_template_rows"
+ },
  "coreKnownLeakMembers": {
-  "hwpx.tools.doc_diff.inspect_reference_consistency": {
-   "groups": [
-    "official-reference-policy",
-    "document-plan-input"
-   ],
-   "plannedOwners": [
-    "hwpx_automation.office.compliance",
-    "hwpx_automation.office.document_ops"
-   ],
-   "status": "core member until python-hwpx's known-leak migration moves it; see core-known-leak-moves.json"
-  },
   "hwpx.tools.doc_diff.doc_diff": {
    "groups": [
     "document-plan-input"
@@ -74,7 +70,6 @@
   "hwpx.document",
   "hwpx.quality.rendering",
   "hwpx.tools.doc_diff",
-  "hwpx.tools.mail_merge",
   "hwpx.tools.redline"
  ],
  "forbiddenCoreCompatibilityCallables": {
@@ -110,6 +105,6 @@
   "default": 128,
   "advanced": 136,
   "skillRequired": 29,
-  "hash": "71622c28a07913d1"
+  "hash": "1b572e4ed5e410e6"
  }
 }

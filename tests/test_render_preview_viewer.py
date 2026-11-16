@@ -100,7 +100,7 @@ def test_render_preview_viewer_renders_mathml(tmp_path: Path) -> None:
     viewer = manifest["viewer"]
 
     assert manifest["status"] == "html_only"
-    # Equations render as native MathML (python-hwpx[preview] present in the venv).
+    # Equations render as native MathML (latex2mathml, the [preview] extra, present in the venv).
     assert viewer["equationLibrary"] == "latex2mathml"
     assert viewer["equationRendering"] == {
         "mathml": 3,
