@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from .. import quality as quality_contract
 from ..storage import LocalDocumentStorage, build_hwpx_verification_report
+from ..errors import CORE_SAVE_REFUSALS
 from ..workspace import (
     WorkspaceMissingParentGuard,
     WorkspaceOutputGuard,
@@ -111,10 +112,14 @@ class SavePolicy:
             hwp_error = self._context._hwp_error(exc)
             if hwp_error is not None:
                 raise hwp_error from exc
+            details: Dict[str, Any] = {"path": str(target)}
+            core_code = getattr(exc, "code", None)
+            if isinstance(core_code, str) and core_code in CORE_SAVE_REFUSALS:
+                details["coreCode"] = core_code  # python-hwpx 7.0 refused the save
             raise self._context._new_error(
                 "DOCUMENT_SAVE_FAILED",
                 f"failed to save '{target}': {exc}",
-                details={"path": str(target)},
+                details=details,
             ) from exc
 
     def _save_transaction_document(

@@ -77,7 +77,9 @@ EXPECTED_SERVICE_LINES = {
     # domain payload's preservation claim verbatim, so an incoherent payload
     # printed a byteIdentical receipt onto a rewritten document. The seam now
     # refuses the impossible combination rather than forwarding it.
-    "save_policy.py": 619,
+    # 8.0: a save python-hwpx 7.0 refuses carries its code as details.coreCode
+    # (619 -> 624).
+    "save_policy.py": 624,
     # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
     # hasattr fallback (equivalent direct itemCnt computation) is now the only
     # branch, so the dead private call went away.
