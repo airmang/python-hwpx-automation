@@ -1287,7 +1287,7 @@ def create_document_from_plan(
         if isinstance(preset, DocumentStylePreset)
         else DocumentStylePreset(name=str(preset or normalized.style_preset or DEFAULT_STYLE_PRESET))
     )
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
     document.page.setup(
         margins_mm={
             "left": _DEFAULT_PAGE_MARGIN_MM,
@@ -2736,12 +2736,17 @@ def _render_block(
     style_preset: DocumentStylePreset,
 ) -> None:
     if isinstance(block, BuilderHeading):
+        refs = dict(_outline_style_refs(document, block.level))
+        # Core 7.0 dropped style_id_ref=; set the label only (style= would also apply shapes).
+        style_id = refs.pop("style_id_ref", None)
         paragraph = document.add_paragraph(
             block.text,
             char_pr_id_ref=tokens["heading"],
             inherit_style=False,
-            **cast(Any, _outline_style_refs(document, block.level)),
+            **cast(Any, refs),
         )
+        if style_id is not None:
+            paragraph.style_id_ref = style_id
         _format_para(
             document,
             paragraph,

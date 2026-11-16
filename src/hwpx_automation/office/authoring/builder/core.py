@@ -370,7 +370,7 @@ class Toc:
         entry_style = document.styles.ensure_run()
         document.add_paragraph(
             _computed_text(self.title),
-            section_index=section_index,
+            section=section_index,
             char_pr_id_ref=title_style,
             inherit_style=False,
         )
@@ -382,7 +382,7 @@ class Toc:
             line = f"{text}\t{page}" if page else text
             document.add_paragraph(
                 _computed_text(line),
-                section_index=section_index,
+                section=section_index,
                 char_pr_id_ref=entry_style,
                 inherit_style=False,
             )
@@ -460,13 +460,18 @@ class Heading:
             raise ValueError("heading level must be between 1 and 3")
         style_preset = preset or _BuilderPreset()
         char_pr_id = document.styles.ensure_run(**style_preset.heading_style(self.level))
-        document.add_paragraph(
+        refs = dict(_outline_style_refs(document, self.level))
+        # Core 7.0 dropped style_id_ref=; set the label only (style= would also apply shapes).
+        style_id = refs.pop("style_id_ref", None)
+        paragraph = document.add_paragraph(
             _computed_text(self.text),
-            section_index=section_index,
+            section=section_index,
             char_pr_id_ref=char_pr_id,
             inherit_style=False,
-            **cast(Any, _outline_style_refs(document, self.level)),
+            **cast(Any, refs),
         )
+        if style_id is not None:
+            paragraph.style_id_ref = style_id
 
 
 @dataclass(frozen=True)
@@ -501,7 +506,7 @@ class Bullet:
         for item in self.items:
             document.add_paragraph(
                 _computed_text(item),
-                section_index=section_index,
+                section=section_index,
                 para_pr_id_ref=para_pr_id,
                 inherit_style=False,
             )
@@ -519,7 +524,7 @@ class NumberedList:
         for item in self.items:
             document.add_paragraph(
                 _computed_text(item),
-                section_index=section_index,
+                section=section_index,
                 para_pr_id_ref=para_pr_id,
                 inherit_style=False,
             )
@@ -552,7 +557,7 @@ class Table:
         table = document.add_table(
             len(table_rows),
             column_count,
-            section_index=section_index,
+            section=section_index,
         )
         for row_index, row in enumerate(table_rows):
             for col_index, value in enumerate(row):
@@ -693,10 +698,10 @@ class Image:
             image_format,
             width_mm=self.width_mm,
             align=self.align,
-            section_index=section_index,
+            section=section_index,
         )
         if self.caption:
-            document.add_paragraph(_computed_text(self.caption), section_index=section_index, inherit_style=False)
+            document.add_paragraph(_computed_text(self.caption), section=section_index, inherit_style=False)
 
 
 @dataclass(frozen=True)
@@ -717,7 +722,7 @@ class Header:
     ) -> None:
         document.page.set_header(
             content=_header_footer_content_specs(self.children, preset=preset),
-            section_index=section_index,
+            section=section_index,
         )
 
 
@@ -734,7 +739,7 @@ class Footer:
     ) -> None:
         document.page.set_footer(
             content=_header_footer_content_specs(self.children, preset=preset),
-            section_index=section_index,
+            section=section_index,
         )
 
 
@@ -1036,7 +1041,7 @@ class Section:
                 width=width,
                 height=height,
                 orientation=orientation,
-                section_index=section_index,
+                section=section_index,
             )
         if self.margins is not None:
             document.page.set_margins(
@@ -1047,7 +1052,7 @@ class Section:
                 header=_mm_to_hwp_units(self.margins.header_mm),
                 footer=_mm_to_hwp_units(self.margins.footer_mm),
                 gutter=_mm_to_hwp_units(self.margins.gutter_mm),
-                section_index=section_index,
+                section=section_index,
             )
         if self.header is not None:
             self.header.lower(document, section_index=section_index, preset=preset)
@@ -1119,7 +1124,7 @@ class Document:
 
     def lower(self) -> HwpxDocument:
         _check_unique_keys(self.sections)
-        document = HwpxDocument.new()
+        document = HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
         preset = _builder_preset(self.preset)
         if self.metadata is not None:
             _write_package_metadata(document, self.metadata)

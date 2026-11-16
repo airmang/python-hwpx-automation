@@ -160,7 +160,7 @@ def create_proposal_document(
         if isinstance(preset, ProposalStylePreset)
         else ProposalStylePreset(name=str(preset or "clean_korean_proposal"))
     )
-    document = HwpxDocument.new()
+    document = HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
     tokens = style_preset.ensure_tokens(document)
 
     _add_paragraph(document, normalized.title, tokens["title"])

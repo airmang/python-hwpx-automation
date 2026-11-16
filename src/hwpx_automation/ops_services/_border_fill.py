@@ -230,6 +230,23 @@ def _find_matching_border_fill(
     return None
 
 
+def _next_border_fill_id(border_fills_element: ET.Element) -> str:
+    """The id a new ``hh:borderFill`` takes: one past the largest numeric id (0 when none)."""
+
+    existing = {child.get("id") or "" for child in border_fills_element.findall(f"{HH_NS}borderFill")}
+    existing.discard("")
+    numeric_ids: list[int] = []
+    for value in existing:
+        try:
+            numeric_ids.append(int(value))
+        except ValueError:
+            continue
+    next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+    while str(next_id) in existing:
+        next_id += 1
+    return str(next_id)
+
+
 def _build_border_fill_element(
     border_fills_element: ET.Element, new_id: str, spec: _BorderFillSpec
 ) -> None:

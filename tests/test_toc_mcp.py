@@ -17,13 +17,10 @@ def _authored(tmp_path: Path, *, headings: int = 2) -> Path:
     doc = HwpxDocument.new()
     refs = _outline_style_refs(doc, 1)
     for i in range(1, headings + 1):
-        doc.add_paragraph(
-            f"{i}번째 제목",
-            style_id_ref=refs.get("style_id_ref"),
-            para_pr_id_ref=refs.get("para_pr_id_ref"),
-        )
-        doc.add_paragraph("본문 문장. " * 30, style_id_ref="1", para_pr_id_ref=1)
-    doc.add_paragraph("참조 문단: ", style_id_ref="1", para_pr_id_ref=1)
+        heading = doc.add_paragraph(f"{i}번째 제목", para_pr_id_ref=refs.get("para_pr_id_ref"))
+        heading.style_id_ref = refs.get("style_id_ref")
+        doc.add_paragraph("본문 문장. " * 30, para_pr_id_ref=1).style_id_ref = "1"
+    doc.add_paragraph("참조 문단: ", para_pr_id_ref=1).style_id_ref = "1"
     target = tmp_path / "native-toc.hwpx"
     doc.save_to_path(str(target))
     return target

@@ -136,23 +136,11 @@ DELEGATED_MODULE_FORBIDDEN_IMPORTS = (
 # names, so they are not counted.
 FOREIGN_UNDERSCORE_NAMES = frozenset({"_Element", "_ElementTree"})
 CORE_PRIVATE_MEMBER_EXCEPTIONS: dict[tuple[str, str], dict[str, object]] = {
-    ("src/hwpx_automation/office/agent/commands.py", "_memo_group_element"): {
-        "count": 2,
-        "reason": "moving or copying a memo needs the section's hp:memogroup container",
-        "upstream": "a public section/memo accessor that returns (or creates) the memo group",
-        "removeWhen": "core exposes that accessor and the minimum supported core has it",
-    },
     ("src/hwpx_automation/office/agent/document.py", "_iter_form_field_matches"): {
         "count": 1,
         "reason": "the agent node map reuses core's form-field matching so edits find the same fields",
         "upstream": "a public iterator of form-field matches with section/paragraph positions",
         "removeWhen": "core exposes that iterator and the minimum supported core has it",
-    },
-    ("src/hwpx_automation/ops_services/tables.py", "_allocate_border_fill_id"): {
-        "count": 1,
-        "reason": "table border remapping builds a hh:borderFill from an arbitrary spec",
-        "upstream": "doc.styles.ensure_border_fill accepting the full border spec the remapper copies",
-        "removeWhen": "the remapper can express every copied border through the public verb",
     },
 }
 CANONICAL_POLICY_ROOTS = {

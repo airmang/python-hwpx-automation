@@ -182,7 +182,7 @@ class MemoStyleService:
         document, resolved = self._context._open_document(path)
         memo = document.notes.add_memo(
             text,
-            section_index=section_index,
+            section=section_index,
             attributes={
                 "author": author or "",
                 "createDateTime": timestamp
@@ -237,11 +237,11 @@ class MemoStyleService:
         # no-anchor path instead). Create the host paragraph explicitly
         # through the public add_paragraph, exactly mirroring what 5.x did
         # internally when its own paragraph= argument was omitted.
-        paragraph = document.add_paragraph("", section_index=section_index)
+        paragraph = document.add_paragraph("", section=section_index)
         memo = document.notes.add_memo(
             text,
             anchor=paragraph,
-            section_index=section_index,
+            section=section_index,
             memo_shape_id_ref=memo_shape_id_ref,
         )
         field_id = memo.field_id

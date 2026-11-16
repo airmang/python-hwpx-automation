@@ -75,7 +75,7 @@ class ContentLayoutService:
         char_id = self._styles._ensure_char_style(document, run_style)
         paragraph = document.add_paragraph(
             text,
-            section_index=section_index,
+            section=section_index,
             char_pr_id_ref=char_id,
         )
         paragraphs = self._context._iter_paragraphs(document)
@@ -312,7 +312,7 @@ class ContentLayoutService:
         for text in paragraphs:
             document.add_paragraph(
                 text,
-                section_index=section_index,
+                section=section_index,
                 char_pr_id_ref=char_id,
             )
             count += 1
@@ -402,7 +402,7 @@ class ContentLayoutService:
             gutter_mm=gutter_mm,
             columns=columns,
             column_gap_mm=column_gap_mm,
-            section_index=section_index,
+            section=section_index,
         ).to_dict()
         result.update({"ok": True, "filename": path})
         return self._transactions._with_transaction_verification(
@@ -448,14 +448,14 @@ class ContentLayoutService:
             wrapper = document.page.set_header(
                 text=text,
                 content=content,
-                section_index=section_index,
+                section=section_index,
                 page_type=page_type,
             )
         elif normalized_kind == "footer":
             wrapper = document.page.set_footer(
                 text=text,
                 content=content,
-                section_index=section_index,
+                section=section_index,
                 page_type=page_type,
             )
         else:
@@ -498,7 +498,7 @@ class ContentLayoutService:
             prefix=prefix,
             suffix=suffix,
             format_type=format_type,
-            section_index=section_index,
+            section=section_index,
         )
         result = {
             "ok": True,

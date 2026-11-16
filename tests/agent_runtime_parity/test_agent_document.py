@@ -139,7 +139,7 @@ def test_paths_are_deterministic_across_save_and_reopen(tmp_path: Path) -> None:
 
 
 def test_duplicate_native_ids_become_positional_and_id_path_is_ambiguous() -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         first = document.sections[0].paragraphs[0]
         second = document.add_paragraph("둘")
         first.element.set("id", "duplicate")
@@ -154,7 +154,7 @@ def test_duplicate_native_ids_become_positional_and_id_path_is_ambiguous() -> No
 
 
 def test_get_depth_child_limits_and_coverage_are_exact() -> None:
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(empty_first_line=True) as document:
         for index in range(5):
             document.add_paragraph(f"문단 {index}")
         agent = HwpxAgentDocument.from_document(document, revision=REVISION)

@@ -150,6 +150,17 @@ def _outline_style_for_level(doc: HwpxDocument, level: int) -> dict[str, Any] | 
     return None
 
 
+def _label_style(paragraph, style_id) -> None:
+    """Set only the paragraph's style reference, as 6.x ``style_id_ref=`` did.
+
+    Core 7.0 dropped ``style_id_ref=``; its ``style=`` also applies the style's
+    paragraph and character shapes, which would change the written document.
+    """
+
+    if style_id is not None:
+        paragraph.style_id_ref = style_id
+
+
 def add_heading_to_doc(doc: HwpxDocument, text: str, level: int = 1) -> int:
     """문서 끝에 제목(헤딩) 문단을 추가한다. 추가된 paragraph_index를 반환.
 
@@ -169,13 +180,14 @@ def add_heading_to_doc(doc: HwpxDocument, text: str, level: int = 1) -> int:
 
     outline_style = _outline_style_for_level(doc, safe_level)
     if outline_style is not None:
-        doc.add_paragraph(
+        heading = doc.add_paragraph(
             stripped,
-            style_id_ref=outline_style.get("id"),
             para_pr_id_ref=outline_style.get("para_pr_id_ref"),
             char_pr_id_ref=char_ref,
             inherit_style=False,
         )
+        # Label only: style= would also apply the style's own shapes (core 7.0).
+        _label_style(heading, outline_style.get("id"))
     else:
         doc.add_paragraph(stripped, char_pr_id_ref=char_ref, inherit_style=False)
     return len(doc.paragraphs) - 1
@@ -205,10 +217,10 @@ def add_paragraph_to_doc(doc: HwpxDocument, text: str, style: str = None) -> int
     inherit = not (style_id is None and _last_paragraph_is_outline(doc))
     paragraph = doc.add_paragraph(
         text or "",
-        style_id_ref=style_id,
         char_pr_id_ref=char_ref,
         inherit_style=inherit,
     )
+    _label_style(paragraph, style_id)
     _enforce_run_char_pr(paragraph, char_ref)
     repair_pathological_text_spacing(
         doc,
@@ -243,11 +255,11 @@ def insert_paragraph_to_doc(doc: HwpxDocument, paragraph_index: int, text: str, 
             char_ref = getattr(target_runs[0], "char_pr_id_ref", None)
     inserted = section.add_paragraph(
         text or "",
-        style_id_ref=style_id,
         para_pr_id_ref=para_pr_id_ref,
         char_pr_id_ref=char_ref,
         inherit_style=False,
     )
+    _label_style(inserted, style_id)
     _enforce_run_char_pr(inserted, char_ref)
     repair_pathological_text_spacing(
         doc,
