@@ -95,6 +95,8 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   부모로 주면 `incompatible_parent`, 문단에 걸리지 않은 메모는 `unsupported_content`).
 - 문서 설계도 재생(`replay_document_blueprint`)이 그림·도형의 대체 글을 OWPML에 없는 `altText` 속성으로 쓰던 것. 이제
   `apply_document_commands`의 `set`처럼 한/글의 대체 글 자리인 `hp:shapeComment`에 씁니다.
+- `insert_paragraph`(과 `apply_edits`의 문단 넣기)로 구역의 맨 앞에 문단을 넣으면 구역 설정(`hp:secPr`: 용지·여백·단)이
+  둘째 문단에 남던 것. 한/글 저장본처럼 새 첫 문단의 첫 런으로 옮깁니다(python-hwpx의 `paragraph.move_before`).
 
 ## [7.5.0] - 2026-11-11
 

@@ -264,15 +264,9 @@ def insert_paragraph_to_doc(doc: HwpxDocument, paragraph_index: int, text: str, 
         fallback_char_pr_id=_style_char_pr(doc, style_id) or _default_body_char_pr(doc),
     )
 
-    section_element = section.element
-    try:
-        target_position = list(section_element).index(target.element)
-    except ValueError as exc:
-        raise RuntimeError("대상 문단 요소를 섹션에서 찾을 수 없습니다.") from exc
-
-    # add_paragraph는 항상 끝에 붙으므로, 생성한 요소를 제거한 뒤 목표 위치에 재삽입한다.
-    section_element.remove(inserted.element)
-    section_element.insert(target_position, inserted.element)
+    # add_paragraph는 항상 끝에 붙으므로 목표 문단 앞으로 옮긴다. 구역 첫 문단 앞이면
+    # python-hwpx가 구역 설정(secPr)을 새 첫 문단으로 넘긴다(한/글 저장본은 늘 구역 첫 문단에 둔다).
+    inserted.move_before(target)
     return paragraph_index
 
 
