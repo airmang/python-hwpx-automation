@@ -23,6 +23,7 @@ from hwpx.opc.security import (
     guard_zip_file,
     read_member,
 )
+from hwpx.tools.exporter import table_grid_text
 
 from ..markdown import to_markdown
 from ._types import DocumentIngestResult, DocumentSourceInfo
@@ -130,25 +131,11 @@ class HwpxMarkdownConverter:
         )
 
 
-_HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
-_HP = f"{{{_HP_NS}}}"
-
-#: 글을 담는 요소 → 종류. 종류 이름은 ``metadata["left_out"]``의 키이자 계약이다.
-#: 문단은 가장 가까운 담는 요소(또는 아래 _SKIPPED_OWNERS)의 것으로 센다. 표 칸 안
-#: 각주는 각주로, 글상자 안 표는 표로 한 번만 센다.
-_TEXT_CONTAINERS: dict[str, str] = {
-    "header": "header",
-    "footer": "footer",
-    "memo": "memo",
-    "footNote": "footnote",
-    "endNote": "endnote",
-    "drawText": "text_box",
-    "caption": "caption",
-    "tbl": "table",
-}
-#: 문단을 품지만 따로 세지 않는 요소: 메모 필드(같은 메모가 ``hp:memo``로도 있다)와 숨은 설명.
-_SKIPPED_OWNERS = frozenset({"fieldBegin", "hiddenComment"})
-#: 글을 속성에 담는 요소 → (종류, 속성 이름).
+#: 글을 담는 자리의 종류. 종류 이름은 ``metadata["left_out"]``의 키이자 계약이다.
+#: 문단은 가장 가까운 담는 자리(머리말·꼬리말, 메모, 각주·미주, 글상자, 캡션, 표 칸)의 것으로
+#: 센다. 표 칸 안 각주는 각주로, 글상자 안 표는 표로 한 번만 센다. 메모 필드(같은 메모가
+#: 구역의 메모 목록에도 있다)와 숨은 설명의 문단은 따로 세지 않는다.
+#: 글을 속성에 담는 조각(``run.content``) → (종류, 속성 이름).
 _ATTRIBUTE_TEXT: dict[str, tuple[str, str]] = {
     "compose": ("composed_character", "composeText"),
     "checkBtn": ("form_caption", "caption"),
@@ -196,18 +183,20 @@ def _markdown_haystack(markdown: str) -> str:
 
 
 def _own_segments(paragraph: Any) -> Iterator[str]:
-    """문단 자신의 run에 든 글을, 글이 아닌 run 자식(컨트롤·수식·개체)에서 끊어 낸다.
+    """문단 자신의 run에 든 글(``run.content``의 ``hp:t`` 글자)을, 글이 아닌 run 조각(컨트롤·수식·
+    개체)에서 끊어 낸다.
 
     Markdown은 그 자리에 각주 표시·수식·링크를 끼우므로 한 덩어리로 찾으면 실린 글도
     빠진 것으로 보인다.
     """
 
     buffer: list[str] = []
-    for run in paragraph.iterfind(f"{_HP}run"):
-        for child in run:
-            if child.tag == f"{_HP}t":
-                # 내보내기는 한/글 하이픈(U+00AD)을 "-"로 쓴다.
-                buffer.append("".join(child.itertext()).replace("­", "-"))
+    for run in paragraph.runs:
+        for item in run.content:
+            if item.container == "t":
+                if item.kind in ("text", "unknown"):
+                    # 내보내기는 한/글 하이픈(U+00AD)을 "-"로 쓴다.
+                    buffer.append(item.text.replace("­", "-"))
             elif buffer:
                 yield "".join(buffer)
                 buffer = []
@@ -215,59 +204,105 @@ def _own_segments(paragraph: Any) -> Iterator[str]:
         yield "".join(buffer)
 
 
-def _owned_paragraphs(owner: Any) -> Iterator[Any]:
-    """*owner* 의 문단 가운데 더 가까운 담는 요소가 없는 것."""
-
-    for paragraph in owner.iter(f"{_HP}p"):
-        parent = paragraph.getparent()
-        while parent is not None and parent is not owner:
-            if _owner_name(parent) is not None:
-                break
-            parent = parent.getparent()
-        else:
-            yield paragraph
+def _paragraph_texts(paragraphs: Iterable[Any]) -> list[str]:
+    return [segment for paragraph in paragraphs for segment in _own_segments(paragraph) if segment.strip()]
 
 
-def _owner_name(element: Any) -> str | None:
-    tag = element.tag
-    if not isinstance(tag, str) or not tag.startswith(_HP):
-        return None
-    name = tag[len(_HP) :]
-    return name if name in _TEXT_CONTAINERS or name in _SKIPPED_OWNERS else None
+def _cell_paragraphs(table: Any) -> Iterator[Any]:
+    for row in table.rows:
+        for cell in row.cells:
+            yield from cell.paragraphs
 
 
-def _paragraph_texts(container: Any) -> Iterator[str]:
-    for paragraph in _owned_paragraphs(container):
-        for segment in _own_segments(paragraph):
-            if segment.strip():
-                yield segment
+def _caption_of(obj: Any) -> Any:
+    caption = getattr(obj, "caption", None)
+    return caption if caption is not None and hasattr(caption, "paragraphs") else None
 
 
-def _candidates(root: Any) -> Iterator[tuple[str, list[str]]]:
-    """``(종류, 그 요소가 담은 글 조각들)``을 문서 순서로 낸다."""
+def _candidates(doc: HwpxDocument) -> Iterator[tuple[str, list[str]]]:
+    """``(종류, 그 자리가 담은 글 조각들)``을 낸다(구역의 글, 바탕쪽 밖).
+
+    머리말·꼬리말은 ``doc.page``, 각주·미주는 ``doc.notes``, 메모는 구역의 메모 목록, 표·글상자·캡션은
+    ``doc.text.iter_objects()``, 수식·덧말·글자 겹침·양식 캡션·글맵시는 문단의 ``run.content``로 읽는다.
+    """
 
     from ..markdown import equation_markdown
 
-    for element in root.iter():
-        tag = element.tag
-        if not isinstance(tag, str) or not tag.startswith(_HP):
+    for section in doc.sections:
+        for story in doc.page.headers(section=section):
+            yield "header", _paragraph_texts(story.paragraphs)
+        for story in doc.page.footers(section=section):
+            yield "footer", _paragraph_texts(story.paragraphs)
+        group = section.memo_group
+        for memo in group.memos if group is not None else ():
+            yield "memo", _paragraph_texts(memo.paragraphs)
+        for block in section.blocks:
+            if hasattr(block, "rows"):  # 구역에 바로 놓인 표(문단 밖, 한/글이 아닌 프로그램이 쓴다)
+                # 칸 문단을 hp:subList 없이 칸에 바로 두는 일이 많아 칸 글은 table_grid_text로 읽는다.
+                yield "table", [text for row in table_grid_text(block) for text in row if text.strip()]
+                caption = _caption_of(block)
+                if caption is not None:
+                    yield "caption", _paragraph_texts(caption.paragraphs)
+    for note in doc.notes.footnotes:
+        yield "footnote", _paragraph_texts(note.paragraphs)
+    for note in doc.notes.endnotes:
+        yield "endnote", _paragraph_texts(note.paragraphs)
+    for place in doc.text.iter_objects():
+        if place.section is None:
+            continue  # 바탕쪽은 따로 센다
+        obj = place.object
+        if place.kind == "table":
+            yield "table", _paragraph_texts(_cell_paragraphs(obj))
+        elif place.kind == "shape":
+            draw_text = obj.draw_text
+            if draw_text is not None:
+                yield "text_box", _paragraph_texts(draw_text.paragraphs)
+        caption = _caption_of(obj)
+        if caption is not None:
+            yield "caption", _paragraph_texts(caption.paragraphs)
+    for place in doc.text.iter_paragraphs():
+        if place.section is None:
             continue
-        name = tag[len(_HP) :]
-        if name in _TEXT_CONTAINERS:
-            yield _TEXT_CONTAINERS[name], list(_paragraph_texts(element))
-        elif name in _ATTRIBUTE_TEXT:
-            kind, attribute = _ATTRIBUTE_TEXT[name]
-            yield kind, [element.get(attribute) or ""]
-        elif name == "equation":
-            script = element.find(f"{_HP}script")
-            # 수식은 LaTeX로 바뀌어 실린다. 실린 모양 그대로를 찾는다.
-            yield "equation", [equation_markdown("".join(script.itertext())) if script is not None else ""]
-        elif name == "dutmal":
-            yield "ruby", [
-                "".join(child.itertext())
-                for child in element
-                if child.tag in (f"{_HP}mainText", f"{_HP}subText")
-            ]
+        for run in place.paragraph.runs:
+            for item in run.content:
+                if item.name in _ATTRIBUTE_TEXT:
+                    kind, attribute = _ATTRIBUTE_TEXT[item.name]
+                    yield kind, [item.attribute(attribute) or ""]
+                elif item.kind == "equation":
+                    # 수식은 LaTeX로 바뀌어 실린다. 실린 모양 그대로를 찾는다.
+                    yield "equation", [equation_markdown(item.object.script)]
+                elif item.kind == "ruby":
+                    yield "ruby", [item.object.text or "", item.object.ruby_text or ""]
+
+
+def _master_page_paragraphs(doc: HwpxDocument) -> list[list[Any]]:
+    """바탕쪽마다 그 모든 문단(칸·글상자 안까지), 문서 차례로(``doc.text.iter_paragraphs()``의 바탕쪽 문단을
+    바탕쪽의 첫 문단에서 나눈다)."""
+
+    pages = list(doc.parts.master_pages)
+    starts = {page.paragraphs[0]: number for number, page in enumerate(pages) if page.paragraphs}
+    grouped: list[list[Any]] = [[] for _ in pages]
+    current = None
+    for place in doc.text.iter_paragraphs():
+        if place.section is not None:
+            continue
+        current = starts.get(place.paragraph, current)
+        if current is not None:
+            grouped[current].append(place.paragraph)
+    return grouped
+
+
+def _deleted_marks(doc: HwpxDocument) -> int:
+    """구역 글에 든 변경 추적의 지운 글 표시(``hp:deleteBegin``) 수."""
+
+    return sum(
+        1
+        for place in doc.text.iter_paragraphs()
+        if place.section is not None
+        for run in place.paragraph.runs
+        for item in run.content
+        if item.kind == "delete_begin"
+    )
 
 
 def _left_out_content(doc: HwpxDocument, markdown: str) -> dict[str, dict[str, int]]:
@@ -309,23 +344,13 @@ def _left_out_content(doc: HwpxDocument, markdown: str) -> dict[str, dict[str, i
         entry["count"] += 1
         entry["chars"] += sum(len(_squash(piece)) for piece in missing)
 
-    for section in doc.sections:
-        for kind, pieces in _candidates(section.element):
-            record(kind, pieces)
-    for master_page in doc.parts.master_pages:
-        record(
-            "master_page",
-            [
-                segment
-                for paragraph in master_page.element.iter(f"{_HP}p")
-                for segment in _own_segments(paragraph)
-                if segment.strip()
-            ],
-        )
+    for kind, pieces in _candidates(doc):
+        record(kind, pieces)
+    if doc.parts.master_pages:
+        for paragraphs in _master_page_paragraphs(doc):
+            record("master_page", _paragraph_texts(paragraphs))
 
-    deleted = sum(
-        1 for section in doc.sections for _ in section.element.iter(f"{_HP}deleteBegin")
-    )
+    deleted = _deleted_marks(doc)
     if deleted:
         found["tracked_deletion"] = {"count": deleted, "chars": 0}
     return found
