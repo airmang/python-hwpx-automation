@@ -468,10 +468,20 @@ def main(argv: list[str] | None = None) -> int:
     adapter_modules = [
         item["module"] for item in public_modules["mcpAdapterModules"]
     ]
-    all_modules = sorted((*base_modules, *adapter_modules))
+    # LangChain/LlamaIndex adapters import only with their framework extra, so
+    # the base probe below never imports them; they still count in the total.
+    framework_modules = [
+        item["module"] for item in public_modules["frameworkAdapterModules"]
+    ]
+    all_modules = sorted((*base_modules, *adapter_modules, *framework_modules))
     if (
         public_modules["basePublicModuleCount"] != len(base_modules)
         or public_modules["mcpAdapterModuleCount"] != len(adapter_modules)
+        or public_modules["frameworkAdapterModuleCount"] != len(framework_modules)
+        or public_modules["frameworkAdapterModuleSha256"]
+        != hashlib.sha256(
+            ("\n".join(sorted(framework_modules)) + "\n").encode()
+        ).hexdigest()
         or public_modules["moduleCount"] != len(all_modules)
         or public_modules["basePublicModuleSha256"]
         != hashlib.sha256(

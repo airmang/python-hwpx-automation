@@ -34,7 +34,10 @@ EXPECTED_SDK_IMPORTERS = (
 )
 
 EXPECTED_SERVICE_LINES = {
-    "_border_fill.py": 283,
+    # 8.0: python-hwpx 7.0 has no public border-fill id allocator, so the next
+    # free id is computed here with core's own rule (core's private helper is
+    # no longer called).
+    "_border_fill.py": 300,
     # WP-F: add_equation/add_chart/set_header_footer/set_page_number now
     # dispatch to the page/shapes namespaces and .to_dict() the returned
     # living views before this op's dict-mutation contract (result.update()).
@@ -61,7 +64,9 @@ EXPECTED_SERVICE_LINES = {
     "package_validation.py": 164,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
-    "preview_export.py": 585,
+    # 8.0: the layout preview moved into this package (hwpx_automation.preview),
+    # so the branches for a core without it went away (585 -> 549).
+    "preview_export.py": 549,
     "read_query.py": 606,
     # Receipt-truthfulness repair: the written verification report copied the
     # domain payload's preservation claim verbatim, so an incoherent payload
@@ -71,8 +76,12 @@ EXPECTED_SERVICE_LINES = {
     # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
     # hasattr fallback (equivalent direct itemCnt computation) is now the only
     # branch, so the dead private call went away.
-    "tables.py": 539,
-    "transactions.py": 617,
+    # 8.0: section_index= became section=, and the private border-fill id
+    # allocator call moved into _border_fill.py (539 -> 534).
+    "tables.py": 534,
+    # 8.0: fill_by_path is hwpx_automation.forms.fill_by_path(doc, ...) now that
+    # python-hwpx 7.0 moved it here (617 -> 618).
+    "transactions.py": 618,
 }
 
 EXPECTED_FACADE_LINES = {
@@ -215,7 +224,8 @@ EXPECTED_C901 = (
     # page_guard's collect_metrics (13) and compare_metrics (16) left with the
     # copy: the module re-exports core's hwpx.tools.page_guard (#177).
     ("src/hwpx_automation/ops_services/form_fields.py", "apply_evalplan_fill", 12),
-    ("src/hwpx_automation/ops_services/preview_export.py", "render_preview", 16),
+    # 16 -> 15: the missing-core-preview branch left with the 8.0 preview move.
+    ("src/hwpx_automation/ops_services/preview_export.py", "render_preview", 15),
     ("src/hwpx_automation/ops_services/read_query.py", "analyze_template_structure", 13),
     ("src/hwpx_automation/ops_services/read_query.py", "find", 20),
     ("src/hwpx_automation/ops_services/read_query.py", "get_paragraphs", 11),

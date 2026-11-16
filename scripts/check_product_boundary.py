@@ -90,8 +90,8 @@ ALLOWED_AUTHORING_CORE_IMPORTS = (
     "hwpx.tools.idempotence",
     "hwpx.tools.package_reconcile",
     "hwpx.tools.package_validator",
-    "hwpx.tools.report_utils",
-    "hwpx.tools.table_cleanup",
+    # 8.0: hwpx.tools.report_utils and hwpx.tools.table_cleanup left this list;
+    # python-hwpx 7.0 moved both to hwpx_automation.office.utilities.
     "hwpx.tools.template_analyzer",
     "hwpx.tools.toc_author",
     "hwpx.tools.validator",
@@ -198,7 +198,8 @@ CANONICAL_EXAM_FILE_COUNT = 6
 ALLOWED_EXAM_CORE_IMPORTS = (
     "hwpx.document",
     "hwpx.oxml",
-    "hwpx.tools.table_cleanup",
+    # 8.0: hwpx.tools.table_cleanup left; the parser takes
+    # hwpx_automation.office.utilities.table_cleanup (moved from python-hwpx 7.0).
     "hwpx.visual.block_splits",
 )
 FROZEN_CORE_EXAM_IMPORTS = (
@@ -211,7 +212,8 @@ ALLOWED_DOCUMENT_OPS_CORE_IMPORTS = (
     "hwpx.document",
     "hwpx.quality.rendering",
     "hwpx.tools.doc_diff",
-    "hwpx.tools.mail_merge",
+    # 8.0: hwpx.tools.mail_merge left; mail merge is hwpx_automation.mail_merge
+    # (moved from python-hwpx 7.0).
     "hwpx.tools.redline",
 )
 # Feature 049 D2: the ban targets core's *application* callables, not its neutral
