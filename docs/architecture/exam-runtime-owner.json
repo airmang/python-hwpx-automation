@@ -12,16 +12,21 @@
   "status": "canonical",
   "pythonFiles": 6,
   "loc": 805,
-  "manifestSha256": "eae10b440c21141adfb95f48a24182ec6623d8ee351cbf1c2a6ff6ab32b7b9b5",
+  "manifestSha256": "35175331731c4fa2c8ab60094264f4e8749b3a124a83b4c172848756fd1955c9",
   "refrozenNote": "WP-F (core 6.0 namespace adaptation): profile.py's doc.style(sid) call moved to doc.styles.get(sid) (design §2.4, id·이름 겸용 조회로 승격). Same line count, no behavior change.",
   "refrozenFrom": {
-   "loc": 806,
-   "manifestSha256": "8b1c5e859b6e466409692fe2a4e6b7e28c95670d64ee5860a00eb45a93cdef21",
-   "reason": "8.0: python-hwpx 7.0이 표 정리 도우미를 옮겨서 parser.py가 hwpx.tools.table_cleanup 대신 office.utilities.table_cleanup을, compose.py가 style_id_ref= 대신 만든 뒤 문단의 style_id_ref를 쓴다. 출력은 같다.",
+   "loc": 805,
+   "manifestSha256": "eae10b440c21141adfb95f48a24182ec6623d8ee351cbf1c2a6ff6ab32b7b9b5",
+   "reason": "8.0: python-hwpx 7.0의 저장 통합(#730) — save_report·save_to_path 대신 doc.save를 쓰고, 품질 게이트 저장은 office.rendering.save_gate_report가 맡는다(rendering·template_formfit·exam/compose). 출력은 같다.",
    "previous": {
     "loc": 806,
-    "manifestSha256": "7485965024224771d91ab6cc64bec34fd66e9488531e37b8fb910f879b646dda",
-    "reason": "measure.py block-split contract sourced from the render owner instead of core (5.0 boundary close)"
+    "manifestSha256": "8b1c5e859b6e466409692fe2a4e6b7e28c95670d64ee5860a00eb45a93cdef21",
+    "reason": "8.0: python-hwpx 7.0이 표 정리 도우미를 옮겨서 parser.py가 hwpx.tools.table_cleanup 대신 office.utilities.table_cleanup을, compose.py가 style_id_ref= 대신 만든 뒤 문단의 style_id_ref를 쓴다. 출력은 같다.",
+    "previous": {
+     "loc": 806,
+     "manifestSha256": "7485965024224771d91ab6cc64bec34fd66e9488531e37b8fb910f879b646dda",
+     "reason": "measure.py block-split contract sourced from the render owner instead of core (5.0 boundary close)"
+    }
    }
   }
  },

@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3716,
-    "manifestSha256": "f04919f0f1eae4ba54117325c866be7c6801c39ef377ba4c23de485fbe8efc38",
+    "loc": 3750,
+    "manifestSha256": "45677bf03711cd6fcc122a06bcd8e764f41ee4c655d5036161441192b31ca869",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -26,9 +26,14 @@
       "reason": "Owned Mac session adapter; cancellation and hash-bound immutable artifacts; complete PDF and exact owned-document cleanup. See docs/architecture/owned-render-recovery.md. Historical core source receipts unchanged."
     },
     "refrozenFrom": {
-      "loc": 3713,
-      "manifestSha256": "99d45bf95dd57d241d4dcf3fcd5d27414c8cea19cbcf5cadda369a2c13256930",
-      "reason": "security fixes merged with main after #211"
+      "loc": 3716,
+      "manifestSha256": "f04919f0f1eae4ba54117325c866be7c6801c39ef377ba4c23de485fbe8efc38",
+      "reason": "8.0: python-hwpx 7.0의 저장 통합(#730) — save_report·save_to_path 대신 doc.save를 쓰고, 품질 게이트 저장은 office.rendering.save_gate_report가 맡는다(rendering·template_formfit·exam/compose). 출력은 같다.",
+      "previous": {
+        "loc": 3713,
+        "manifestSha256": "99d45bf95dd57d241d4dcf3fcd5d27414c8cea19cbcf5cadda369a2c13256930",
+        "reason": "security fixes merged with main after #211"
+      }
     },
     "renderPdfRefrozenFrom": {
       "loc": 3190,
