@@ -151,6 +151,90 @@ def export_document(document: HwpxDocument, output_format: Literal["text", "html
     raise ValueError(f"unsupported export format: {output_format}")
 
 
+#: Hancom's line widths in mm (the ``hc:LineWidth`` list python-hwpx writes).
+_HANCOM_LINE_WIDTHS_MM = (
+    "0.1", "0.12", "0.15", "0.2", "0.25", "0.3", "0.4", "0.5",
+    "0.6", "0.7", "1.0", "1.5", "2.0", "3.0", "4.0", "5.0",
+)
+
+
+def border_width_mm(width: Any) -> Any:
+    """A 6.x border width (``"0.12 mm"``, ``"1mm"``, a number) as the millimetres python-hwpx
+    7.0 takes (``border_width_mm=``).
+
+    6.x wrote a width that is not one of Hancom's as the nearest of them (the thicker when
+    halfway: ``"0.45 mm"`` drew 0.5 mm); 7.0 refuses such a width, so the nearest is taken
+    here and the tools keep drawing what they drew. ``None`` or ``""`` is the 0.12 mm 6.x
+    fell back to; a value that is not a positive width in mm is passed on as it is, so core
+    refuses it with ``style-line-width-invalid`` as before.
+    """
+
+    from decimal import Decimal, InvalidOperation
+
+    if width is None or width == "":
+        return 0.12
+    if isinstance(width, bool):
+        return width
+    text = str(width).strip().lower()
+    number = (text[:-2] if text.endswith("mm") else text).strip()
+    try:
+        millimetres = Decimal(number)
+    except InvalidOperation:
+        return width
+    if not millimetres.is_finite() or millimetres <= 0:
+        return width
+    nearest = min(
+        (Decimal(listed) for listed in _HANCOM_LINE_WIDTHS_MM),
+        key=lambda listed: (abs(listed - millimetres), -listed),
+    )
+    return float(nearest)
+
+
+def section_index_of(document: HwpxDocument, section: Any) -> int | None:
+    """The place of *section* in ``document.sections``, or ``None``."""
+
+    element = getattr(section, "element", None)
+    return next(
+        (index for index, candidate in enumerate(document.sections) if candidate.element is element),
+        None,
+    )
+
+
+def _hwpunit_or_none(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def picture_reference_payloads(document: HwpxDocument) -> list[dict[str, Any]]:
+    """Every body picture as the dict python-hwpx 6.x ``doc.media.picture_references()``
+    gave (``pictureIndex``, ``sectionIndex``, ``binaryItemIDRef``, ``width``, ``height``),
+    in document order.
+
+    7.0 replaced that read with ``doc.media.pictures`` (``Picture`` objects, the same
+    pictures in the same order, which is also ``replace_picture``'s ``index``). The size
+    is read from the picture's ``hp:sz`` as 6.x did, so a picture without one still
+    reports ``None`` rather than the 0 ``Picture.width`` gives.
+    """
+
+    payloads: list[dict[str, Any]] = []
+    for index, picture in enumerate(document.media.pictures):
+        size = picture.element.find(f"{HP_NS}sz")
+        payloads.append(
+            {
+                "pictureIndex": index,
+                "sectionIndex": section_index_of(document, picture.paragraph.section),
+                "binaryItemIDRef": picture.item_id,
+                "width": _hwpunit_or_none(size.get("width") if size is not None else None),
+                "height": _hwpunit_or_none(size.get("height") if size is not None else None),
+            }
+        )
+    return payloads
+
+
 def default_cell_width() -> int:
     """Return the upstream default table-cell width.
 
@@ -303,7 +387,7 @@ def char_style_matches(
 ) -> bool:
     if run_style_flags(run_style) != flags:
         return False
-    if ((run_style.text_color() if run_style is not None else None) or _DEFAULT_TEXT_COLOR).upper() != color:
+    if ((run_style.color if run_style is not None else None) or _DEFAULT_TEXT_COLOR).upper() != color:
         return False
     if (run_style_height(run_style) or _DEFAULT_CHAR_HEIGHT) != height:
         return False
@@ -427,12 +511,12 @@ def ensure_char_style(
             bold=target_flags[0],
             italic=target_flags[1],
             underline=target_flags[2],
-            base_char_pr_id=base_char_pr_id,
+            base_char_pr_id_ref=base_char_pr_id,
         )
 
     header = primary_header(document)
     target_color = normalize_hex_color(color) or (
-        (base_style.text_color() if base_style is not None else None) or _DEFAULT_TEXT_COLOR
+        (base_style.color if base_style is not None else None) or _DEFAULT_TEXT_COLOR
     ).upper()
     target_height = normalize_font_size(font_size) or run_style_height(base_style) or _DEFAULT_CHAR_HEIGHT
     target_font_refs = {

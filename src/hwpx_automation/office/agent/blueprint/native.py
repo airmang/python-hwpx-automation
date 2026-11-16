@@ -51,6 +51,18 @@ def _mm_units(value: object, default: int) -> int:
     return max(1, round(float(cast(Any, value)) * _HWP_UNITS_PER_MM))
 
 
+#: python-hwpx 7.0 takes a shape's line width in mm and writes int(mm * 283) HWPUNIT.
+_LINE_WIDTH_UNITS_PER_MM = 283
+
+
+def _line_width_mm(value: object) -> float:
+    """The blueprint's ``lineWidth`` (HWPUNIT, as ``hp:lineShape/@width`` holds it) as the
+    millimetres ``add_rectangle``/``add_ellipse`` take, so the same HWPUNIT is written back."""
+
+    units = int(str(value).strip())
+    return (units + 0.5) / _LINE_WIDTH_UNITS_PER_MM
+
+
 def _bool(value: object, default: bool = False) -> bool:
     return value if isinstance(value, bool) else default
 
@@ -89,9 +101,9 @@ def create_paragraph_style(
     base_name = str(properties.get("name") or "Blueprint Style")[:200]
     target_name = _collision_free_style_name(document, base_name, source_key)
     para_pr_id = document.styles.ensure_paragraph_format(
-        base_para_pr_id="0",
+        base_para_pr_id_ref="0",
         alignment=properties.get("alignment"),
-        line_spacing_percent=properties.get("lineSpacingPercent"),
+        line_spacing=properties.get("lineSpacingPercent"),
         break_setting={
             key: value
             for key, value in {
@@ -233,7 +245,7 @@ class TypedNativeBridge:
             if heading is None or not self.document.oxml.headers:
                 raise AgentContractError("invariant_violation", "mapped numbering has no heading")
             paragraph.para_pr_id_ref = self.document.styles.ensure_paragraph_format(
-                base_para_pr_id=paragraph.para_pr_id_ref,
+                base_para_pr_id_ref=paragraph.para_pr_id_ref,
                 heading={"type": heading.type or "NONE", "idRef": heading.id_ref or 0, "level": heading.level or 0},
             )
 
@@ -436,7 +448,7 @@ class TypedNativeBridge:
             resource["identity"]["binaryItemIDRef"],
             width=_mm_units(properties.get("widthMm"), 14400),
             height=_mm_units(properties.get("heightMm"), 14400),
-            align=properties.get("alignment"),
+            alignment=properties.get("alignment"),
             treat_as_char=_bool(properties.get("treatAsChar"), True),
         )
         _move_to_host_run(paragraph, picture, host_run)
@@ -455,7 +467,7 @@ class TypedNativeBridge:
             "width": _mm_units(properties.get("widthMm"), 14400),
             "height": _mm_units(properties.get("heightMm"), 7200),
             "line_color": str(properties.get("lineColor") or "#000000"),
-            "line_width": str(properties.get("lineWidth") or "283"),
+            "line_width_mm": _line_width_mm(properties.get("lineWidth") or "283"),
             "fill_color": properties.get("fillColor"),
             "treat_as_char": True,
         }

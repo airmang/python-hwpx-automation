@@ -25,7 +25,7 @@ def _form(path: Path) -> Path:
     table.set_cell_text(0, 1, "1. 다음 글을 읽고 답하시오.")
     table.set_cell_text(1, 0, "답")
     table.set_cell_text(1, 1, "")
-    doc.save_to_path(path)
+    doc.save(path)
     return path
 
 

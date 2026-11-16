@@ -13,7 +13,7 @@ def _template(path: Path) -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("{{student}} 상장")
     doc.add_paragraph("담임 ${teacher} / 학급 {{class_name}}")
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
 

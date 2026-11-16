@@ -198,7 +198,7 @@ def compose_exam_into_form(
     prof = profile_form(doc, role_style_names=role_style_names)
     specs = lower_exam(exam, prof)
     anchors = replace_body_region(doc, prof, specs)
-    doc.save_to_path(out_path)
+    doc.save(out_path)
     notes.append(
         f"composed {len(list(exam.iter_questions()))} 문항 into body"
         f" [{prof.body_start}..{prof.body_end}]"
@@ -267,7 +267,7 @@ def compose_exam_into_form(
         kind = "page" if report.kinds.get("page") else "column"
         for block_id in report.split_ids:
             _insert_break(section, anchors[block_id], kind)
-        doc.save_to_path(out_path)
+        doc.save(out_path)
 
     needs_review = splits is None or splits > 0 or not placeholders_ok
     return ComposeResult(

@@ -192,7 +192,9 @@ def _build_skeleton(source: Path, out_path: Path) -> dict:
     except Exception:  # pragma: no cover - diagnostics only
         page = {}
 
-    report = doc.save_report(out_path)
+    from ...rendering import save_gate_report
+
+    report = save_gate_report(doc, out_path)
     style_count = len(doc.styles.char_properties)
     doc.close()
     return {

@@ -22,7 +22,7 @@ def _authored(tmp_path: Path, *, headings: int = 2) -> Path:
         doc.add_paragraph("본문 문장. " * 30, para_pr_id_ref=1).style_id_ref = "1"
     doc.add_paragraph("참조 문단: ", para_pr_id_ref=1).style_id_ref = "1"
     target = tmp_path / "native-toc.hwpx"
-    doc.save_to_path(str(target))
+    doc.save(str(target))
     return target
 
 
@@ -46,7 +46,7 @@ def test_add_toc_requires_outline_headings(tmp_path: Path) -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("개요 스타일이 아닌 문단")
     src = tmp_path / "plain.hwpx"
-    doc.save_to_path(str(src))
+    doc.save(str(src))
     result = server.add_toc(str(src))
     assert result["ok"] is False
     assert result["errors"][0]["code"] == "no_outline_headings"

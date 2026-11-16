@@ -71,6 +71,6 @@ def test_reference_consistency_reads_a_document_plan_and_a_file(tmp_path: Path) 
     document = HwpxDocument.new()
     for text in ("붙임 2 참조", "표 1 현황", "붙임 1. 세부계획서 1부."):
         document.add_paragraph(text)
-    document.save_to_path(path)
+    document.save(path)
     from_file = inspect_reference_consistency(path)
     assert from_file["violations"] == from_plan["violations"]

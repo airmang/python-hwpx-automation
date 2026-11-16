@@ -133,7 +133,7 @@ def test_no_outline_or_list_numbering_leaks_into_following_paragraphs() -> None:
 def test_save_reopen_and_editor_open_safety(tmp_path) -> None:
     doc = from_markdown(SAMPLE, style="plain")
     path = tmp_path / "md.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     reopened = HwpxDocument.open(path)
     assert [p.text for p in reopened.paragraphs] == [p.text for p in doc.paragraphs]
     assert "| 1학기 | 10 | 12 |" in to_markdown(reopened)
@@ -168,7 +168,7 @@ def test_numbered_list_start_is_kept() -> None:
     numbering_id = doc.styles.paragraph_property(doc.paragraphs[0].para_pr_id_ref).heading.id_ref
     numbering = doc.styles.numbering(numbering_id)
     assert numbering is not None
-    assert "3" in {child.attributes.get("start") for child in numbering.children if child.name == "paraHead"}
+    assert 3 in {level.start for level in numbering.levels}
 
 
 def test_style_overrides_sizes() -> None:
@@ -199,7 +199,7 @@ def _table(doc):
 
 
 def _align(doc, cell) -> str:
-    return doc.styles.paragraph_property(cell.paragraphs[0].para_pr_id_ref).align.horizontal
+    return doc.styles.paragraph_property(cell.paragraphs[0].para_pr_id_ref).alignment.horizontal
 
 
 LABELLED = (
@@ -294,7 +294,7 @@ def test_a_one_column_table_and_a_fitted_table_save_and_reopen(tmp_path) -> None
     doc = from_markdown("| 하나뿐 |\n|---|\n| 값 |\n\n" + LABELLED, style="plain")
     path = tmp_path / "tables.hwpx"
 
-    doc.save_to_path(path)
+    doc.save(path)
 
     assert validate_editor_open_safety(path).to_dict()["ok"] is True
     reopened = HwpxDocument.open(path)
@@ -346,7 +346,7 @@ def _tables(doc):
 
 
 def _border(doc, cell):
-    return doc.styles.border_fill_info(cell.element.get("borderFillIDRef"))
+    return doc.styles.border_fill(cell.element.get("borderFillIDRef"))
 
 
 def _line(side) -> tuple[str, float]:
@@ -375,9 +375,9 @@ def test_a_style_numbers_headings_and_centres_the_title_over_a_rule() -> None:
         "3. 현황",
     ]
     title = _shape(doc, doc.paragraphs[0])
-    assert title.align.horizontal == "CENTER"
+    assert title.alignment.horizontal == "CENTER"
     assert title.border.border_fill_id_ref != _shape(doc, doc.paragraphs[2]).border.border_fill_id_ref  # the rule
-    assert _shape(doc, doc.paragraphs[1]).align.horizontal != "CENTER"
+    assert _shape(doc, doc.paragraphs[1]).alignment.horizontal != "CENTER"
     assert _char(doc, doc.paragraphs[0], "운영 계획").height == 2000
     assert _char(doc, doc.paragraphs[2], "본문이다.").height == 1200
     assert _char(doc, _table(doc).cell(1, 1).paragraphs[0], "한 학기").height == 1100
@@ -548,7 +548,7 @@ def test_the_report_look_by_name_is_the_report_style() -> None:
 def test_the_report_look_puts_a_page_number_in_a_new_document_only(tmp_path) -> None:
     def has_footer(document) -> bool:
         path = tmp_path / "out.hwpx"
-        document.save_to_path(path)
+        document.save(path)
         import zipfile
 
         with zipfile.ZipFile(path) as archive:
@@ -677,7 +677,7 @@ def test_bullets_by_depth_and_one_bullet_for_all() -> None:
 def test_the_report_look_saves_and_reopens(tmp_path) -> None:
     path = tmp_path / "report.hwpx"
 
-    from_markdown(REPORT, style="report").save_to_path(path)
+    from_markdown(REPORT, style="report").save(path)
 
     assert validate_editor_open_safety(path).to_dict()["ok"] is True
     reopened = HwpxDocument.open(path)
@@ -713,7 +713,8 @@ def test_default_document_inherits_from_body_text_but_not_from_a_heading() -> No
     assert (body.para_pr_id_ref, body.style_id_ref) == ("0", "0")
     assert body.para_pr_id_ref != heading.para_pr_id_ref
     # 본문 뒤의 본문은 전처럼 앞 문단을 따른다.
-    styled = doc.add_paragraph("모양을 준 본문", para_pr_id_ref="9", style_id_ref="1")
+    styled = doc.add_paragraph("모양을 준 본문", para_pr_id_ref="9")
+    styled.style_id_ref = "1"  # python-hwpx 7.0: the label only (style= would apply its shapes too)
     following = doc.add_paragraph("이어지는 본문")
     assert (following.para_pr_id_ref, following.style_id_ref) == (styled.para_pr_id_ref, "1")
 
@@ -760,7 +761,7 @@ def test_the_byline_stands_right_aligned_under_the_title() -> None:
     assert texts.count("교무기획부") == 1 and texts[1] == "교무기획부"  # under the first title only
     line = doc.paragraphs[1]
     run = _run(line, "교무기획부")
-    assert _shape(doc, line).align.horizontal == "RIGHT"
+    assert _shape(doc, line).alignment.horizontal == "RIGHT"
     assert (_look(doc, run).height, _look(doc, run).bold) == (1300, True)
     assert doc.styles.font_face(run.char_pr_id_ref) == "한컴산뜻돋움"
     # the space kept under the title is kept under the byline instead
@@ -772,7 +773,7 @@ def test_the_byline_is_the_first_line_when_there_is_no_title() -> None:
 
     first = doc.paragraphs[0]
     assert first.text.replace("\n", " ").split() == ["교무기획부", "2026.", "11.", "13."]
-    assert _shape(doc, first).align.horizontal == "RIGHT"
+    assert _shape(doc, first).alignment.horizontal == "RIGHT"
     assert not _look(doc, next(run for run in first.runs if run.text)).bold  # the plain look does not embolden it
     assert doc.paragraphs[1].text == "목적"
 
@@ -786,7 +787,7 @@ def test_append_markdown_takes_a_byline_too() -> None:
     texts = [paragraph.text for paragraph in doc.paragraphs]
 
     assert texts[texts.index("제목") + 1] == "연구부"
-    assert _shape(doc, doc.paragraphs[texts.index("연구부")]).align.horizontal == "RIGHT"
+    assert _shape(doc, doc.paragraphs[texts.index("연구부")]).alignment.horizontal == "RIGHT"
 
 
 # -- what the report look does by what the text holds ---------------------------------

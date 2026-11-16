@@ -223,7 +223,7 @@ class FormFieldService:
         # established snake_case/nested-dict contract, so rebuild it here.
         fill_result = document.fields.fill(
             value,
-            field_index=field_index,
+            index=field_index,
             field_id=field_id,
             name=name,
         )

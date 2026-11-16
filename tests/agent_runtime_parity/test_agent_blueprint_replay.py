@@ -71,7 +71,7 @@ def _write_supported_fixture(path: Path, *, paragraph_id: str = "102") -> str:
         end_run.append(end_ctrl)
         paragraph.element.append(end_run)
         paragraph.section.mark_dirty()
-        document.save_to_path(path)
+        document.save(path)
     with HwpxAgentDocument.open(path) as agent:
         return next(
             record.path
@@ -86,7 +86,7 @@ def _write_unsupported_fixture(path: Path) -> str:
         paragraph = document.sections[0].paragraphs[0]
         paragraph.runs[0].element.append(paragraph.runs[0].element.makeelement(f"{HP}mysteryObject", {}))
         paragraph.section.mark_dirty()
-        document.save_to_path(path)
+        document.save(path)
     return root
 
 
@@ -100,7 +100,7 @@ def _write_target(path: Path, texts: tuple[str, ...] = ("TARGET",)) -> None:
         first.text = texts[0]
         for text in texts[1:]:
             document.add_paragraph(text)
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _request(
@@ -236,9 +236,9 @@ def test_portable_style_conflict_and_numbering_allocate_mapped_records(tmp_path:
     with HwpxDocument.new() as document:
         paragraph = document.sections[0].paragraphs[0]
         paragraph.text = "목록 항목"
-        document.styles.apply_paragraph_format(paragraph_index=0, alignment="CENTER")
-        document.styles.apply_list_format(paragraph_index=0, kind="bullet", level=1)
-        document.save_to_path(source)
+        document.styles.apply_paragraph_format(paragraph=0, alignment="CENTER")
+        document.styles.apply_list_format(paragraph=0, kind="bullet", level=1)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         root = next(record.path for record in agent.records if record.kind == "paragraph")
     dumped = dump_document_blueprint(source, path=root, output=bundle)
@@ -286,7 +286,7 @@ def test_before_position_and_document_root_children_are_supported(tmp_path: Path
     output = tmp_path / "positioned.hwpx"
     with HwpxDocument.new() as document:
         document.sections[0].paragraphs[0].text = "INSERTED"
-        document.save_to_path(source)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         paragraph_path = next(record.path for record in agent.records if record.kind == "paragraph")
     dumped = dump_document_blueprint(source, path=paragraph_path, output=bundle)
@@ -329,7 +329,7 @@ def test_standalone_section_replay_ignores_source_index_at_append_destination(tm
     output = tmp_path / "section-output.hwpx"
     with HwpxDocument.new() as document:
         document.sections[0].paragraphs[0].text = "APPENDED SECTION"
-        document.save_to_path(source)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         section_path = next(record.path for record in agent.records if record.kind == "section")
     dumped = dump_document_blueprint(source, path=section_path, output=bundle)
@@ -364,7 +364,7 @@ def test_standalone_row_replays_but_cell_dump_fails_closed(tmp_path: Path) -> No
         source_table = document.sections[0].paragraphs[0].add_table(1, 2)
         source_table.rows[0].cells[0].text = "왼쪽"
         source_table.rows[0].cells[1].text = "오른쪽"
-        document.save_to_path(source)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         row_path = next(record.path for record in agent.records if record.kind == "row")
         cell_path = next(record.path for record in agent.records if record.kind == "cell")
@@ -375,7 +375,7 @@ def test_standalone_row_replays_but_cell_dump_fails_closed(tmp_path: Path) -> No
 
     with HwpxDocument.new() as document:
         document.sections[0].paragraphs[0].add_table(1, 2)
-        document.save_to_path(target)
+        document.save(target)
     with HwpxAgentDocument.open(target) as agent:
         target_table = next(record.path for record in agent.records if record.kind == "table")
     result = replay_document_blueprint(

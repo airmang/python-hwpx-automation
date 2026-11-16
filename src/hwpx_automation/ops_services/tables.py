@@ -310,7 +310,7 @@ class TableService:
                 details={"tableIndex": table_index},
             ) from exc
 
-        grid_positions = table.get_cell_map()
+        grid_positions = table.cell_map
         serialized: List[List[Dict[str, Any]]] = []
         for row in grid_positions:
             row_payload: List[Dict[str, Any]] = []

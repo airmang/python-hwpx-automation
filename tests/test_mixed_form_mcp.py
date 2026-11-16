@@ -112,7 +112,7 @@ def _build_fixture(
 
         purpose = document.add_paragraph("행사 목적: 여기를 입력하세요")
         purpose.element.set("id", "240050")
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _revision(path: Path) -> str:

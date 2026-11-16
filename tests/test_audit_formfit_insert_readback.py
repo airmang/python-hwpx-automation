@@ -49,7 +49,7 @@ def _template_with_empty_line(path: Path) -> None:
     doc.add_paragraph("1. 추진 배경")
     _strip_text_slot(doc.add_paragraph(""))
     doc.add_paragraph("2. 다음 제목")
-    doc.save_to_path(str(path))
+    doc.save(str(path))
     doc.close()
 
 
@@ -61,7 +61,7 @@ def _template_with_table(path: Path) -> None:
         for col in range(2):
             table.set_cell_text(row, col, f"칸{row}{col}")
     doc.add_paragraph("2. 다음 제목")
-    doc.save_to_path(str(path))
+    doc.save(str(path))
     doc.close()
 
 
@@ -123,7 +123,7 @@ def test_section_properties_paragraph_is_not_cloned(tmp_path: Path) -> None:
     first = doc.sections[0].paragraphs[0]
     first.text = "1. 추진 배경"
     doc.add_paragraph("2. 다음 제목")
-    doc.save_to_path(str(source))
+    doc.save(str(source))
     doc.close()
 
     result = apply_template_formfit(

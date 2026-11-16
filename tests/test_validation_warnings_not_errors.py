@@ -23,7 +23,7 @@ def _document(tmp_path):
     path = tmp_path / "doc.hwpx"
     document = HwpxDocument.new()
     document.add_paragraph("본문")
-    document.save_to_path(path)
+    document.save(path)
     return path
 
 

@@ -67,7 +67,7 @@ def test_preview_style_attributes_carry_no_document_supplied_css(tmp_path: Path)
     path = tmp_path / "doc.hwpx"
     doc = HwpxDocument.new()
     doc.add_paragraph("본문")
-    doc.save_to_path(path)
+    doc.save(path)
 
     def inject(xml: str) -> str:
         xml, colours = re.subn(r'textColor="[^"]*"', 'textColor="#000;background:url(http://127.0.0.1:1/MARK)"', xml)
@@ -88,7 +88,7 @@ def test_preview_shows_the_text_after_line_breaks_tabs_and_marks(tmp_path: Path)
     doc.add_paragraph("ZQ첫줄\nZQ둘째줄\nZQ셋째줄")
     doc.add_paragraph("ZQ탭앞\tZQ탭뒤")
     doc.add_paragraph("ZQ형광앞ZQ형광뒤")
-    doc.save_to_path(path)
+    doc.save(path)
 
     def mark(xml: str) -> str:
         changed = xml.replace("ZQ형광앞ZQ형광뒤", 'ZQ형광앞<hp:markpenBegin color="#FFFF00"/>ZQ형광<hp:markpenEnd/>뒤')

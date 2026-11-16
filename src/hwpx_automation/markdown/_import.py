@@ -55,11 +55,10 @@ list item does not hand its outline or list numbering to the paragraph after it.
 
 from __future__ import annotations
 
-import builtins
 import os
 import re
 import warnings
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -967,34 +966,16 @@ def _blocks(lines: list[str]) -> Iterator[object]:
 # Writing
 
 
-def _local(element: Any) -> str:
-    tag = element.tag
-    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+def _outline_numbering(document: HwpxDocument) -> tuple[str, dict[int, str]] | None:
+    """The numbering the last section numbers its outline with: its id and each level's number pattern."""
 
-
-def _outline_heads(document: HwpxDocument) -> dict[int, Any]:
-    """The heads (``hh:paraHead``) of the numbering the last section numbers its outline with, by level."""
-
-    sections = document.oxml.sections
-    headers = document.oxml.headers
-    if not sections or not headers:
-        return {}
-    sec_pr = next((node for node in sections[-1].element.iter() if _local(node) == "secPr"), None)
-    shape = sec_pr.get("outlineShapeIDRef") if sec_pr is not None else None
-    numbering = next(
-        (node for node in headers[0].element.iter() if _local(node) == "numbering" and node.get("id") == shape),
-        None,
-    )
-    if numbering is None:
-        return {}
-    heads: dict[int, Any] = {}
-    for head in numbering:
-        if _local(head) == "paraHead":
-            try:
-                heads[int(head.get("level") or 0)] = head
-            except ValueError:  # pragma: no cover - defensive
-                continue
-    return heads
+    if not document.sections:
+        return None
+    outline = document.sections[-1].properties.outline_shape_id_ref
+    info = document.styles.numbering(outline) if outline is not None else None
+    if outline is None or info is None:
+        return None
+    return outline, {level.level: level.text or "" for level in info.levels}
 
 
 def _unnumber_outline(document: HwpxDocument) -> None:
@@ -1005,13 +986,12 @@ def _unnumber_outline(document: HwpxDocument) -> None:
     an outline number drawn as well would show each number twice.
     """
 
-    # TODO(core-7.0-formats): the engine reads numbering definitions (doc.styles.numbering_info) but has no
-    # public write for a level's paraHead text yet; the heads are emptied in the header XML directly.
-    heads = _outline_heads(document)
-    for head in heads.values():
-        head.text = None
-    if heads:
-        document.oxml.headers[0].mark_dirty()
+    found = _outline_numbering(document)
+    if found is None:
+        return
+    outline, patterns = found
+    for level in patterns:
+        document.styles.set_numbering_level(outline, level, text="")
 
 
 #: How many of each loss the warning names by example.
@@ -1086,10 +1066,11 @@ class _Writer:
         self.losses: dict[str, list[str]] = {}
         self._used_notes: set[str] = set()
         self._outline_styles = self._find_outline_styles()
-        heads = _outline_heads(document)
+        found = _outline_numbering(document)
+        patterns = found[1] if found is not None else {}
         #: The outline levels the document draws no number for: a heading there can be an outline paragraph.
         self._silent_outline = {
-            level for level in range(1, _HEADING_LEVELS + 1) if level in heads and not (heads[level].text or "").strip()
+            level for level in range(1, _HEADING_LEVELS + 1) if level in patterns and not patterns[level].strip()
         }
         self._text_width: int | None = None
         self._looks: dict[tuple[object, ...], tuple[Any, float]] = {}
@@ -1243,7 +1224,7 @@ class _Writer:
             if span.note is not None:
                 self._used_notes.add(span.note)
                 note = "".join(chunk for chunk, _bold, _italic in parse_inline(self.refs.notes[span.note]))
-                self.doc.notes.add_footnote(note, paragraph)  # type: ignore[arg-type,unused-ignore]
+                self.doc.notes.add_footnote(note, paragraph=paragraph)
                 continue
             if span.image is not None:  # where a picture cannot stand: its description stands for it
                 self.lose("image-in-text", span.image)
@@ -1282,11 +1263,11 @@ class _Writer:
             lines = None
             if sides is not None:
                 lines = {
-                    name: None if line is None else {"type": line[0], "width": line[1]}
+                    name: None if line is None else {"type": line[0], "width_mm": float(line[1].split()[0])}
                     for name, line in zip(("left", "right", "top", "bottom"), sides)
                 }
             self._border_ids[key] = self.doc.styles.ensure_border_fill(
-                border_color=color, border_width=width, fill_color=fill, sides=lines
+                border_color=color, border_width_mm=float(width.split()[0]), fill_color=fill, sides=lines
             )
         return self._border_ids[key]
 
@@ -1352,7 +1333,7 @@ class _Writer:
             keep_with_next=True,
             bottom_border=title and self.style.title_rule,
             border_color="#000000",
-            border_width="0.4 mm",
+            border_width_mm=0.4,
         )
         self.outline(paragraph, block.level)
         return paragraph
@@ -1390,7 +1371,7 @@ class _Writer:
         table.set_cell_border_fill(1, 0, self.border_id(fill=style.banner_fill, sides=(None, None, None, None)))
         title = table.cell(1, 0).paragraphs[0]
         self.write_runs(title, block.text, bold=self.heading_bold(1), size=size, font=self.heading_font(1))
-        self.doc.styles.apply_paragraph_format(paragraphs=[title], alignment="center", line_spacing_percent=120)
+        self.doc.styles.apply_paragraph_format(paragraphs=[title], alignment="center", line_spacing=120)
         self.outline(title, 1)
         table.set_row_heights([_STRIP_HEIGHT, round(size * 100 * _BANNER_HEIGHT_EMS), _STRIP_HEIGHT])
         self.doc.styles.apply_paragraph_format(
@@ -1434,7 +1415,7 @@ class _Writer:
         heading = table.cell(0, 1 if number else 0).paragraphs[0]
         self.write_runs(heading, text, bold=self.heading_bold(2), size=size, font=self.heading_font(2), color=ink)
         self.doc.styles.apply_paragraph_format(
-            paragraphs=[heading], indent_left_mm=_BOX_TITLE_INDENT_MM, line_spacing_percent=130
+            paragraphs=[heading], indent_left_mm=_BOX_TITLE_INDENT_MM, line_spacing=130
         )
         self.outline(heading, 2)
         table.set_row_heights([round(size * 100 * _BOX_HEIGHT_EMS)])
@@ -1570,11 +1551,11 @@ class _Writer:
         height = max(1, round(width * height_px / width_px))
         self.stop_reusing()
         picture = self.doc.add_picture(
-            data, image_format, width=width, height=height, align="CENTER", para_pr_id_ref="0", style=0
+            data, image_format, width=width, height=height, alignment="CENTER", para_pr_id_ref="0", style=0
         )
         description = description.strip()
         if description:
-            picture.set_description(description)
+            picture.description = description
             picture.set_caption(description, side="BOTTOM")
 
     def code(self, block: _Code) -> None:
@@ -1660,7 +1641,7 @@ class _Writer:
             if width(spacing) <= room * (1 - _FIT_SPARE):
                 for run in runs:
                     run.char_pr_id_ref = self.doc.styles.ensure_run(
-                        base_char_pr_id=run.char_pr_id_ref, letter_spacing=spacing
+                        base_char_pr_id_ref=run.char_pr_id_ref, letter_spacing=spacing
                     )
                 return
 
@@ -1702,7 +1683,7 @@ class _Writer:
             key = (paragraph.para_pr_id_ref, item.kind, item.level, left)
             if key not in shapes:
                 shapes[key] = self.doc.styles.ensure_paragraph_format(
-                    base_para_pr_id=paragraph.para_pr_id_ref,
+                    base_para_pr_id_ref=paragraph.para_pr_id_ref,
                     heading=heads[(item.kind, item.level)],
                     margins={"left": round(left * _HWPUNIT_PER_MM)} if left > 0 else None,
                 )
@@ -1712,17 +1693,17 @@ class _Writer:
                 for paragraph in paragraphs:
                     self.fit_on_one_line(paragraph)
 
-    def list_heads(self, heads: dict[tuple[str, int], dict[str, str]], kind: str, refs: builtins.list[str]) -> None:
+    def list_heads(
+        self, heads: dict[tuple[str, int], dict[str, str]], kind: str, refs: Sequence[str]
+    ) -> None:
         """The list head (``hh:heading``) of each depth of a *kind* list, from its paragraph shapes *refs*."""
 
         for level, ref in enumerate(refs, start=1):
-            # the shapes were just made with a heading, so neither the shape nor its heading is None
-            heading = self.doc.styles.paragraph_property(ref).heading  # pyright: ignore[reportOptionalMemberAccess]
-            heads[(kind, level)] = {
-                "type": str(heading.type),  # pyright: ignore[reportOptionalMemberAccess]
-                "idRef": str(heading.id_ref),  # pyright: ignore[reportOptionalMemberAccess]
-                "level": str(level - 1),
-            }
+            shape = self.doc.styles.paragraph_property(ref)
+            heading = shape.heading if shape is not None else None
+            if heading is None:  # pragma: no cover - ensure_numbering makes each shape with a heading
+                raise RuntimeError(f"list paragraph shape {ref!r} has no heading")
+            heads[(kind, level)] = {"type": str(heading.type), "idRef": str(heading.id_ref), "level": str(level - 1)}
 
     def table(self, block: _Table) -> None:
         if not block.rows:

@@ -12,7 +12,7 @@ def test_large_summary_has_bounded_revision_bound_continuation(tmp_path: Path):
     with HwpxDocument.open(source) as document:
         for i in range(80):
             document.sections[0].add_paragraph(f"항목 {i}: " + "긴 설명 " * 300)
-        document.save_to_path(target, mode="patch", fallback="error")
+        document.save(target, mode="patch", fallback="error")
     full = server.get_document_map(str(target), detail="full")
     summary = server.get_document_map(str(target), detail="summary")
     assert len(json.dumps(summary, ensure_ascii=False)) <= SUMMARY_MAX_CHARS

@@ -32,7 +32,7 @@ def _document(path: Path, *, long_text: str = "") -> None:
     inner = inner_host.add_table(1, 2)
     inner.set_cell_text(0, 0, "안쪽 A")
     inner.set_cell_text(0, 1, "안쪽 B")
-    doc.save_to_path(str(path))
+    doc.save(str(path))
     doc.close()
 
 
@@ -117,7 +117,7 @@ def test_total_size_is_bounded_and_omissions_are_reported(tmp_path: Path) -> Non
         for row in range(20):
             for col in range(10):
                 table.set_cell_text(row, col, f"값 {row}-{col} " + "글" * 30)
-    doc.save_to_path(str(target))
+    doc.save(str(target))
     doc.close()
 
     limited = get_table_map(str(target), max_chars=8000)

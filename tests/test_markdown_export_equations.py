@@ -33,7 +33,7 @@ def test_an_equation_comes_where_it_sits_as_latex() -> None:
 def test_an_equation_in_a_footnote_is_carried_too() -> None:
     doc = HwpxDocument.new()
     paragraph = doc.add_paragraph("본문")
-    note = doc.notes.add_footnote("각주 ", paragraph)
+    note = doc.notes.add_footnote("각주 ", paragraph=paragraph)
     note_paragraph = next(iter(note.paragraphs)) if hasattr(note, "paragraphs") else None
     if note_paragraph is None:
         return

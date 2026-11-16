@@ -190,7 +190,7 @@ def test_filled_form_survives_save_and_reopen(tmp_path: Path) -> None:
     slots = form_slots(document)["slots"]
     fill_by_path(document, {slot["path"]: "값" for slot in slots})
     target = tmp_path / "filled.hwpx"
-    document.save_to_path(target)
+    document.save(target)
 
     with HwpxDocument.open(target) as reopened:
         for slot in slots:

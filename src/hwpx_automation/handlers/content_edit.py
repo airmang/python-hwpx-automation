@@ -31,7 +31,9 @@ from ..office.authoring.builder.core import validate_image_bytes
 from ..office.utilities import table_compute as build_hwpx_table_compute
 from ..runtime_services import RUNTIME_SERVICES
 from ..upstream import (
+    picture_reference_payloads,
     repair_pathological_text_spacing,
+    section_index_of,
 )
 from ..utils.helpers import resolve_path
 from ._shared import (
@@ -787,12 +789,11 @@ def insert_picture(
         width_mm=width_mm,
         height_mm=height_mm,
         section=section_index,
-        align=align,
+        alignment=align,
     )
-    # media.picture_references now returns tuple[PictureRef, ...] rather
-    # than list[dict] (design §2.5) — .to_dict() per entry keeps this
-    # handler's own dict-shaped response unchanged.
-    picture_refs = [ref.to_dict() for ref in doc.media.picture_references()]
+    # python-hwpx 7.0 dropped media.picture_references() for media.pictures;
+    # the helper rebuilds this handler's established dict-shaped entries.
+    picture_refs = picture_reference_payloads(doc)
     result = {
         "ok": True,
         "filename": filename,
@@ -851,18 +852,11 @@ def replace_picture(
     replacement = doc.media.replace_picture(
         image_data,
         image_format,
-        picture_index=picture_index,
-        binary_item_id_ref=binary_item_id_ref,
+        index=picture_index,
+        old_item_id=binary_item_id_ref,
         remove_orphaned=remove_orphaned,
     )
-    replaced_section_index = next(
-        (
-            index
-            for index, section in enumerate(doc.sections)
-            if section.element is replacement.picture.paragraph.section.element
-        ),
-        None,
-    )
+    replaced_section_index = section_index_of(doc, replacement.picture.paragraph.section)
     replacement_payload = {
         "picture_index": picture_index,
         "section_index": replaced_section_index,
@@ -876,7 +870,7 @@ def replace_picture(
         "filename": filename,
         "outputPath": target_path,
         "replacement": replacement_payload,
-        "pictureReferences": [ref.to_dict() for ref in doc.media.picture_references()],
+        "pictureReferences": picture_reference_payloads(doc),
         "idIntegrity": _id_integrity_payload(doc),
     }
     if dry_run:

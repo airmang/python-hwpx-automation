@@ -132,6 +132,40 @@ def bind_document_rendering(document: Any) -> Iterator[None]:
             document._save_pipeline = previous
 
 
+def save_gate_report(document: Any, target: Any, *, quality: Any = None) -> Any:
+    """Save *document* to *target* (a path or a binary stream) through its SavePipeline
+    gate and return the gate's ``VisualCompleteReport``, written or refused.
+
+    python-hwpx 7.0 folded ``save_report`` into ``doc.save(target, quality=...)``,
+    which returns the receipt (``MutationReport``, the gate's report in ``.quality``)
+    and raises ``SaveError`` (``quality-gate-failed``, the report in ``.report``)
+    when the gate refuses the archive -- nothing is written then. This returns the
+    report either way, as ``save_report`` did, so callers keep reading ``report.ok``.
+    *quality* ``None`` is the transparent policy ``save_report`` defaulted to. The
+    name of the target picks the format as before (``.hwp`` is HWP 5.0); the
+    warning 7.0 adds for HWPX written to another name is not repeated, since the
+    callers stage under names of their own.
+    """
+
+    import warnings
+
+    from hwpx.quality import QualityPolicy
+
+    policy = QualityPolicy.transparent() if quality is None else quality
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Saving HWPX data to a file named", category=UserWarning
+            )
+            receipt = document.save(target, quality=policy)
+    except Exception as error:  # SaveError("quality-gate-failed") carries the refused report
+        refused = getattr(error, "report", None)
+        if getattr(error, "code", None) == "quality-gate-failed" and refused is not None:
+            return refused
+        raise
+    return receipt.quality
+
+
 __all__ = [
     "HancomBusy",
     "HancomRenderBackend",

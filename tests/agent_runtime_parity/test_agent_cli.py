@@ -32,7 +32,7 @@ def _fixture(path: Path) -> None:
         table.element.set("id", "201")
         table.rows[0].cells[0].text = "항목"
         table.rows[0].cells[1].text = "내용"
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _revision(path: Path) -> str:
@@ -180,7 +180,7 @@ def test_blueprint_replay_reads_request_from_stdin_and_commits_atomically(tmp_pa
     blueprint_hash = json.loads(payload)["blueprintHash"]
     with HwpxDocument.new() as document:
         document.sections[0].paragraphs[0].text = "TARGET"
-        document.save_to_path(target)
+        document.save(target)
     request = {
         "schemaVersion": "hwpx.agent-blueprint-replay/v1",
         "bundle": {"filename": str(bundle), "blueprintHash": blueprint_hash},

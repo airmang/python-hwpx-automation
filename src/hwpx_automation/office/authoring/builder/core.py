@@ -346,7 +346,7 @@ class Paragraph:
 @dataclass(frozen=True)
 class PageBreak:
     def lower(self, document: HwpxDocument) -> None:
-        document.add_paragraph("", pageBreak="1", inherit_style=False)
+        document.add_paragraph("", inherit_style=False).page_break = True
 
 
 @dataclass(frozen=True)
@@ -697,7 +697,7 @@ class Image:
             image_data,
             image_format,
             width_mm=self.width_mm,
-            align=self.align,
+            alignment=self.align,
             section=section_index,
         )
         if self.caption:
@@ -1153,7 +1153,9 @@ class Document:
         # Funnel the write through the single SavePipeline and keep its uniform
         # report (plan §2 Phase B). Transparent policy -> behaviour-identical to
         # the prior ``document.save_to_path`` for a from-scratch (new) document.
-        visual_complete = document.save_report(path)
+        from ...rendering import save_gate_report
+
+        visual_complete = save_gate_report(document, path)
         saved_path = Path(path)
         package_report = validate_package(saved_path)
         document_report = validate_document(saved_path)

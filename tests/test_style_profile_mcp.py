@@ -25,7 +25,7 @@ def _reference_doc(path: Path) -> None:
     table.set_cell_text(1, 0, "A")
     table.set_cell_text(1, 1, "${teacher}")
     table.set_cell_text(1, 2, "확인")
-    document.save_to_path(path)
+    document.save(path)
     document.close()
 
 

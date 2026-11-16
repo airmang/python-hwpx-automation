@@ -110,7 +110,7 @@ def test_format_text_tool_does_not_duplicate_section_definition(tmp_path: Path) 
     create_document(str(target))
     doc = HwpxDocument.open(str(target))
     doc.paragraphs[0].runs[0].text = "첫 문단 제목"
-    doc.save_to_path(str(target))
+    doc.save(str(target))
     doc.close()
 
     result = format_text(str(target), paragraph_index=0, start_pos=0, end_pos=2, bold=True)

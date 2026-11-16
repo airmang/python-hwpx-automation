@@ -12,6 +12,8 @@ from ..core.transactions import (
 )
 from ..upstream import (
     HwpxDocument,
+    picture_reference_payloads,
+    section_index_of,
 )
 from hwpx.tools.id_integrity import check_id_integrity
 
@@ -103,12 +105,11 @@ class MediaService:
             width_mm=width_mm,
             height_mm=height_mm,
             section=section_index,
-            align=align,
+            alignment=align,
         )
-        # media.picture_references now returns tuple[PictureRef, ...] rather
-        # than list[dict] (design §2.5) — .to_dict() per entry keeps this
-        # service's own dict-shaped response unchanged.
-        picture_refs = [ref.to_dict() for ref in document.media.picture_references()]
+        # python-hwpx 7.0 dropped media.picture_references() for media.pictures;
+        # the helper rebuilds this service's established dict-shaped entries.
+        picture_refs = picture_reference_payloads(document)
         result: Dict[str, Any] = {
             "ok": True,
             "dryRun": dry_run,
@@ -161,18 +162,11 @@ class MediaService:
         replacement = document.media.replace_picture(
             self._decode_image_base64(image_base64),
             image_format,
-            picture_index=picture_index,
-            binary_item_id_ref=binary_item_id_ref,
+            index=picture_index,
+            old_item_id=binary_item_id_ref,
             remove_orphaned=remove_orphaned,
         )
-        replaced_section_index = next(
-            (
-                index
-                for index, section in enumerate(document.sections)
-                if section.element is replacement.picture.paragraph.section.element
-            ),
-            None,
-        )
+        replaced_section_index = section_index_of(document, replacement.picture.paragraph.section)
         replacement_payload = {
             "picture_index": picture_index,
             "section_index": replaced_section_index,
@@ -181,16 +175,13 @@ class MediaService:
             "removedOldImage": bool(replacement.removed_orphans),
             "geometryPreserved": True,
         }
-        # media.picture_references now returns tuple[PictureRef, ...] rather
-        # than list[dict] (design §2.5) — .to_dict() per entry keeps this
-        # service's own dict-shaped response unchanged.
         result: Dict[str, Any] = {
             "ok": True,
             "dryRun": dry_run,
             "filename": path,
             "outputPath": str(target),
             "replacement": replacement_payload,
-            "pictureReferences": [ref.to_dict() for ref in document.media.picture_references()],
+            "pictureReferences": picture_reference_payloads(document),
             "idIntegrity": self._id_integrity_payload(document),
         }
         if dry_run:

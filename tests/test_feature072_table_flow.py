@@ -29,7 +29,7 @@ def test_plan_authored_long_table_flows_and_short_table_keeps_layout(tmp_path: P
     for row_count, expected_inline in ((2, True), (80, False)):
         path = tmp_path / f"inventory-{row_count}.hwpx"
         with create_document_from_plan(_plan(row_count)) as document:
-            document.save_to_path(path)
+            document.save(path)
         with HwpxDocument.open(path) as reopened:
             table = reopened.tables.all[0]
             assert table.treat_as_char is expected_inline

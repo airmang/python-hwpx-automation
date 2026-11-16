@@ -82,7 +82,7 @@ def _write_fixture(path: Path, *, merged: bool = False) -> None:
         end_run.append(end_control)
         second.element.append(end_run)
         second.section.mark_dirty()
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _batch(
@@ -137,7 +137,7 @@ def test_mixed_run_text_edit_preserves_other_run_and_refuses_cross_style(tmp_pat
         run.append(text)
         paragraph.element.append(run)
         paragraph.section.mark_dirty()
-        document.save_to_path(source)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         target = next(record for record in agent.records if record.kind == "paragraph" and record.native.text == "alphabeta")
     command = {"commandId": "edit", "op": "set", "path": target.path,
@@ -187,8 +187,8 @@ def test_existing_field_value_has_package_wide_preservation_proof(tmp_path: Path
     output = tmp_path / "edited.hwpx"
     _write_fixture(source)
     with HwpxDocument.open(source) as document:
-        document.fields.fill("old value", field_index=0)
-        document.save_to_path(source)
+        document.fields.fill("old value", index=0)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         field = _record(agent, "form-field", "601")
     command = {"commandId": "field", "op": "set", "path": field.path,
@@ -279,6 +279,34 @@ def test_set_compiles_allowlisted_properties_and_verifies_once(tmp_path: Path) -
         assert _record(agent, "form-field", "601").summary["value"] == "홍길동"
         assert _record(agent, "form-field", "601").summary["readOnly"] is True
         assert _record(agent, "shape", "401").summary["altText"] == "흰색 사각형"
+        # python-hwpx 7.0's field.editable writes Hancom's own spelling ("0", not "false").
+        begin = _record(agent, "form-field", "601").native["_field_begin"]
+        assert begin.get("editable") == "0"
+
+
+def test_form_field_bindings_come_from_the_public_field_list(tmp_path: Path) -> None:
+    """The agent binds form fields from doc.fields.all (python-hwpx 7.0's FormField
+    location/paragraph/end_location/text_elements), not core's private match iterator."""
+
+    source = tmp_path / "input.hwpx"
+    _write_fixture(source)
+    with HwpxAgentDocument.open(source) as agent:
+        record = _record(agent, "form-field", "601")
+        native = record.native
+        fields = list(agent.document.fields.all)
+        (index,) = [number for number, item in enumerate(fields) if item.element is native["_field_begin"]]
+        field = fields[index]
+        assert native["_field"].element is field.element
+        assert native["index"] == index
+        assert (native["section_index"], native["run_index"], native["child_index"]) == (
+            field.location.section_index,
+            field.location.run_index,
+            field.location.child_index,
+        )
+        assert native["_paragraph"].element is field.paragraph.element
+        assert native["_runs"][native["run_index"]] is native["_field_begin"].getparent().getparent()
+        assert "".join(node.text or "" for node in native["_text_nodes"]) == field.value == native["current_value"]
+        assert native["_end_run_index"] == field.end_location.run_index
 
 
 def test_add_alias_and_remove_are_sequential_but_commit_atomically(tmp_path: Path) -> None:
@@ -1262,7 +1290,7 @@ def test_copy_footnote_refreshes_real_corpus_instid(tmp_path: Path) -> None:
         note.element.set("instid", "777")
         destination = document.add_paragraph("붙일 곳")
         destination.element.set("id", "900")
-        document.save_to_path(source)
+        document.save(source)
 
     with HwpxAgentDocument.open(source) as agent:
         footnote = _record(agent, "footnote", "777")

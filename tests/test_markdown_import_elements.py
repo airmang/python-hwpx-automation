@@ -70,7 +70,7 @@ def test_a_code_block_keeps_every_character_and_line() -> None:
     assert _texts(doc) == ["앞", code, "뒤"]
     run = next(run for run in doc.paragraphs[1].runs if run.text)
     assert doc.styles.font_face(run.char_pr_id_ref) == "돋움체"
-    assert _shape(doc, doc.paragraphs[1]).align.horizontal == "LEFT"
+    assert _shape(doc, doc.paragraphs[1]).alignment.horizontal == "LEFT"
 
 
 def test_inline_code_is_kept_as_written_in_the_code_typeface() -> None:
@@ -100,7 +100,7 @@ def test_headings_are_outline_paragraphs_that_hancom_numbers_no_second_time() ->
     section = doc.oxml.sections[0].element
     shape = next(node for node in section.iter(f"{_HP}secPr")).get("outlineShapeIDRef")
     numbering = doc.styles.numbering(shape)
-    assert [(child.text or "") for child in numbering.children if child.name == "paraHead"] == [""] * 10
+    assert [(level.text or "") for level in numbering.levels] == [""] * 10
     found = toc_author.outline_heading_paragraphs(doc)
     assert [(level, text) for _paragraph, level, text in found] == [
         (1, "제목"), (2, "대항목"), (3, "소항목"), (4, "세부"), (5, "다섯"), (6, "여섯")
@@ -125,7 +125,7 @@ def test_the_report_look_marks_the_heading_text_inside_its_banner_and_box() -> N
 def test_markdown_added_to_a_document_with_numbered_outlines_keeps_the_style_only() -> None:
     doc = HwpxDocument.new()
     doc.add_heading("기존 제목", 1)
-    before = [(child.text or "") for child in doc.styles.numbering("1").children if child.name == "paraHead"]
+    before = [(level.text or "") for level in doc.styles.numbering("1").levels]
 
     append_markdown(doc, "# 덧붙인 제목\n\n## 덧붙인 항목\n")
     added = [paragraph for paragraph in doc.paragraphs if paragraph.text.startswith("덧붙인")]
@@ -133,7 +133,7 @@ def test_markdown_added_to_a_document_with_numbered_outlines_keeps_the_style_onl
     # Hancom would draw "1." before each: the heading keeps its outline style but no outline level
     assert [_style_name(doc, paragraph) for paragraph in added] == ["개요 1", "개요 2"]
     assert [_heading(doc, paragraph) for paragraph in added] == [("NONE", 0), ("NONE", 0)]
-    assert [(child.text or "") for child in doc.styles.numbering("1").children if child.name == "paraHead"] == before
+    assert [(level.text or "") for level in doc.styles.numbering("1").levels] == before
 
 
 # -- pictures ------------------------------------------------------------------
@@ -324,9 +324,9 @@ def test_a_nested_numbered_list_numbers_its_depths_as_hancom_does() -> None:
     doc = _quiet("1. 첫째\n   1. 안의 하나\n      1. 더 안\n2. 둘째\n", style="plain")
     heading = _shape(doc, doc.paragraphs[0]).heading
     numbering = doc.styles.numbering(heading.id_ref)
-    heads = {int(child.attributes["level"]): child for child in numbering.children if child.name == "paraHead"}
+    heads = {head.level: head for head in numbering.levels}
 
-    assert [(heads[level].text, heads[level].attributes["numFormat"]) for level in (1, 2, 3)] == [
+    assert [(heads[level].text, heads[level].number_format) for level in (1, 2, 3)] == [
         ("^1.", "DIGIT"),
         ("^2.", "HANGUL_SYLLABLE"),
         ("^3)", "DIGIT"),
@@ -389,7 +389,7 @@ def test_everything_together_saves_reopens_and_validates(tmp_path) -> None:
     for style in ("report", "plain"):
         doc = _quiet(markdown, style=style, base_dir=tmp_path)
         path = tmp_path / f"{style}.hwpx"
-        doc.save_to_path(path)
+        doc.save(path)
         reopened = HwpxDocument.open(path)
         assert reopened.validate().ok
         assert "*a* **b**" in [paragraph.text for paragraph in reopened.paragraphs]

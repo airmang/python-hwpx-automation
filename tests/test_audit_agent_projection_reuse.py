@@ -31,7 +31,7 @@ def _fixture(path: Path) -> None:
             table.set_cell_text(row, col, f"칸 {row}-{col}")
     table.merge_cells(0, 0, 0, 1)
     doc.add_paragraph("끝")
-    doc.save_to_path(str(path))
+    doc.save(str(path))
     doc.close()
 
 
@@ -181,8 +181,8 @@ def test_projection_looks_each_style_up_once_and_keeps_summaries(
             para_pr = real_para(doc.styles, record.native.element.get("paraPrIDRef"))
             expected_name = style.name if style is not None and style.name else record.native.element.get("styleIDRef")
             assert record.summary["style"] == expected_name
-            if para_pr is not None and para_pr.align is not None:
-                assert record.summary["alignment"] == para_pr.align.horizontal
+            if para_pr is not None and para_pr.alignment is not None:
+                assert record.summary["alignment"] == para_pr.alignment.horizontal
         # Summaries are per-record objects: editing one never leaks into another.
         paragraphs[0].summary["alignment"] = "CHANGED"
         assert all(r.summary.get("alignment") != "CHANGED" for r in paragraphs[1:])

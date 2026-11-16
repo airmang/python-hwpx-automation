@@ -32,7 +32,7 @@ def _template(path: Path, *, extra=None) -> Path:
     doc.add_paragraph("이 줄은 자리표시가 없는 고정 문장")
     if extra is not None:
         extra(doc)
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
     return path
 
@@ -161,7 +161,7 @@ def test_repeated_role_is_rejected(tmp_path: Path) -> None:
 def test_template_without_placeholders_is_rejected(tmp_path: Path) -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("자리표시 없음")
-    doc.save_to_path(tmp_path / "plain.hwpx")
+    doc.save(tmp_path / "plain.hwpx")
     doc.close()
 
     with pytest.raises(MarkedTemplateError, match="no \\{\\{placeholder\\}\\}"):

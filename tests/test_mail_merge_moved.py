@@ -32,7 +32,7 @@ def _template(tmp_path: Path) -> Path:
     doc.page.set_header(text="머리말 {{school}}")
     doc.page.set_footer(text="꼬리말 {{쪽}}")
     path = tmp_path / "tpl.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
     return path
 
 
@@ -88,7 +88,7 @@ def test_digit_first_text_is_not_a_placeholder(tmp_path: Path) -> None:
     doc = HwpxDocument.new()
     doc.add_paragraph("{{1번}} {{ }} {{a b}}")
     path = tmp_path / "t.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
 
     assert inspect_mail_merge_placeholders(path)["keys"] == []
 
@@ -154,7 +154,7 @@ def test_mail_merge_fills_placeholders_in_text_boxes(tmp_path) -> None:
     cell.text = "칸"
     document.shapes.add_rectangle(paragraph=cell.paragraphs[0]).set_draw_text("칸 상자: {{name}}")
     template = tmp_path / "tpl.hwpx"
-    document.save_to_path(template)
+    document.save(template)
 
     report = merge_template_rows(template, [{"name": "홍길동"}], output_dir=tmp_path / "out")
 
@@ -174,9 +174,9 @@ def test_mail_merge_fills_captions_and_dutmal(tmp_path) -> None:
     table = paragraph.add_table(1, 1)
     table.set_cell_text(0, 0, "칸")
     table.set_caption("캡션: {{title}}")
-    doc.shapes.add_dutmal("{{who}}", "덧말", paragraph=doc.add_paragraph(""))
+    doc.shapes.add_ruby("{{who}}", "덧말", paragraph=doc.add_paragraph(""))
     template = tmp_path / "tpl.hwpx"
-    doc.save_to_path(template)
+    doc.save(template)
 
     report = merge_template_rows(template, [{"name": "홍길동", "title": "요약", "who": "김"}], output_dir=tmp_path / "out")
 
@@ -195,7 +195,7 @@ def test_generic_merge_uses_only_the_injected_sanitizer(tmp_path: Path) -> None:
     document = HwpxDocument.new()
     try:
         document.add_paragraph("student={{student}}")
-        document.save_to_path(template)
+        document.save(template)
     finally:
         document.close()
 
@@ -225,7 +225,7 @@ def test_merge_template_rows_does_not_use_a_deprecated_internal_api(tmp_path: Pa
         table = template.add_table(rows=1, cols=1)
         table.cell(0, 0).text = "cell: {{dept}}"
         template_path = tmp_path / "template.hwpx"
-        template.save_to_path(template_path)
+        template.save(template_path)
     finally:
         template.close()
 

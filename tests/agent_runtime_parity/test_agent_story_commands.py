@@ -200,8 +200,8 @@ def test_body_table_header_batch_preserves_structure_and_even_mirror(
     source_data = source.read_bytes()
     with HwpxDocument.open(source_data) as document:
         section = document.sections[0]
-        both = section.properties.get_header("BOTH")
-        even = section.properties.get_header("EVEN")
+        both = section.properties.header("BOTH")
+        even = section.properties.header("EVEN")
         assert both is not None and even is not None
         both_id = both.id
         both_structure = _header_structure(both)
@@ -263,8 +263,8 @@ def test_body_table_header_batch_preserves_structure_and_even_mirror(
     )
     with HwpxDocument.open(output) as reopened:
         section = reopened.sections[0]
-        both = section.properties.get_header("BOTH")
-        even = section.properties.get_header("EVEN")
+        both = section.properties.header("BOTH")
+        even = section.properties.header("EVEN")
         assert both is not None and even is not None
         assert both.text == "S-080 머리글"
         assert both.id == both_id
@@ -341,7 +341,7 @@ def test_native_id_header_story_path_applies_and_remains_stable(tmp_path: Path) 
     output = tmp_path / "output.hwpx"
     _copy_seed(source)
     with HwpxDocument.open(source) as document:
-        header = document.sections[0].properties.get_header("BOTH")
+        header = document.sections[0].properties.header("BOTH")
         assert header is not None and header.id is not None
         header_id = header.id
     path = f'/section[1]/header[@id="{header_id}"]'
@@ -366,7 +366,7 @@ def test_native_id_header_story_path_applies_and_remains_stable(tmp_path: Path) 
     assert result.command_results[0]["stableId"] == f"header:{header_id}"
     assert result.verification_report["storyPreservation"]["stories"][0]["path"] == path
     with HwpxDocument.open(output) as reopened:
-        updated = reopened.sections[0].properties.get_header("BOTH")
+        updated = reopened.sections[0].properties.header("BOTH")
         assert updated is not None and updated.id == header_id
         assert updated.text == "ID 경로 수정"
 
@@ -435,7 +435,7 @@ def test_header_story_idempotency_stale_revision_and_alias_stability(
     assert replay.verification_report["idempotency"]["replayed"] is True
     assert output.read_bytes() == output_after_first
     with HwpxDocument.open(output) as reopened:
-        header = reopened.sections[0].properties.get_header("BOTH")
+        header = reopened.sections[0].properties.header("BOTH")
         assert header is not None and header.text == "최종 수정"
 
     conflict_request = copy.deepcopy(request)
@@ -475,7 +475,7 @@ def test_header_story_rejects_non_set_missing_ambiguous_and_rich_content(
         assert missing.value.code == "not_found"
 
         section = document.sections[0]
-        both = section.properties.get_header("BOTH")
+        both = section.properties.header("BOTH")
         assert both is not None and both.apply_element is not None
         duplicate = copy.deepcopy(both.element)
         duplicate.set("id", "duplicate-header-id")
@@ -526,7 +526,7 @@ def test_header_story_rejects_non_set_missing_ambiguous_and_rich_content(
     rich_source = tmp_path / "rich.hwpx"
     rich_output = tmp_path / "rich-output.hwpx"
     with HwpxDocument.open(source) as document:
-        header = document.sections[0].properties.get_header("BOTH")
+        header = document.sections[0].properties.header("BOTH")
         assert header is not None
         header.add_run("추가 서식 런", bold=True)
         rich_source.write_bytes(document.to_bytes())
@@ -552,7 +552,7 @@ def test_header_story_rejects_non_set_missing_ambiguous_and_rich_content(
     mirror_output = tmp_path / "ambiguous-mirror-output.hwpx"
     with HwpxDocument.open(source) as document:
         section = document.sections[0]
-        header = section.properties.get_header("BOTH")
+        header = section.properties.header("BOTH")
         assert header is not None and header.id is not None
         header.set_simple_text_preserving("mirrored")
         target_control = next(
@@ -629,8 +629,8 @@ def test_multisection_header_edit_preserves_other_section_and_story(
     after_members = _members(output.read_bytes())
     assert after_members["Contents/section1.xml"] == before_members["Contents/section1.xml"]
     with HwpxDocument.open(output) as reopened:
-        first_header = reopened.sections[0].properties.get_header("BOTH")
-        second_header = reopened.sections[1].properties.get_header("BOTH")
+        first_header = reopened.sections[0].properties.header("BOTH")
+        second_header = reopened.sections[1].properties.header("BOTH")
         assert first_header is not None and first_header.text == "첫 섹션만 수정"
         assert second_header is not None and second_header.text == "둘째 섹션 머리글"
         assert reopened.sections[1].paragraphs[0].text == "둘째 섹션 본문"

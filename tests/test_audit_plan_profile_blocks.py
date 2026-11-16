@@ -95,7 +95,7 @@ def test_quality_reports_plan_blocks_that_were_not_carried(tmp_path: Path) -> No
     target = tmp_path / "bare.hwpx"
     doc = HwpxDocument.new()
     doc.add_paragraph("1. 개요 H1MARK")
-    doc.save_to_path(str(target))
+    doc.save(str(target))
     doc.close()
 
     report = authoring.inspect_document_authoring_quality(target, plan=_plan(None))

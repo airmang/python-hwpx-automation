@@ -282,13 +282,14 @@ def merge_template_rows(
                     if (not fit_result.ok) or fit_result.overflow_detected:
                         fit_fields.append(_fit_field_report(key, fit_result))
                 replaced_count += _replace_token(document, token, apply_value)
-            document.save_to_path(out_path)
+            receipt = document.save(out_path)
         finally:
             document.close()
 
-        # python-hwpx 6.x reused the report its save had reached for these bytes (a private
-        # attribute of the package); the public check gives the same report for the same file.
-        open_safety = validate_editor_open_safety(out_path).to_dict()
+        # The save's receipt carries the editor-open safety report it reached for the bytes it
+        # wrote (python-hwpx 7.0); the file is checked again only when the receipt has none.
+        safety = receipt.editor_open_safety
+        open_safety = (safety if safety is not None else validate_editor_open_safety(out_path)).to_dict()
         unresolved = _unresolved_placeholders(out_path)
         reasons: list[str] = []
         if missing_keys:
@@ -419,7 +420,7 @@ def _template_text(document: HwpxDocument) -> str:
 
     parts = [*document.oxml.sections, *document.oxml.master_pages]
     lines_of: dict[int, list[str]] = {id(part.element): [] for part in parts}
-    for place in document.text.paragraphs():
+    for place in document.text.iter_paragraphs():
         if place.where == "memo":
             continue
         # A paragraph's text is its own runs only: nested paragraphs come on their own.

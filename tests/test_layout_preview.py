@@ -104,7 +104,7 @@ _RULE_CASES = [("0", _TABLE_MARGIN), (None, _TABLE_MARGIN), ("1", _CELL_MARGIN)]
 def test_the_layout_preview_pads_cells_with_the_effective_margins(has_margin, expected) -> None:
     doc, _, _ = _cell_with_two_margins(has_margin)
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
 
     left, right, top, bottom = (_fmt_mm(_hwp_to_mm(value)) for value in expected)
     assert f"padding:{top} {right} {bottom} {left}" in render_layout_preview(
@@ -120,7 +120,7 @@ def test_a_landscape_page_previews_wider_than_tall(tmp_path: Path) -> None:
     document.page.setup(paper_size="A4", orientation="LANDSCAPE", margin_left_mm=20, margin_right_mm=20)
     document.add_table(1, 2)
     path = tmp_path / "landscape.hwpx"
-    document.save_to_path(path)
+    document.save(path)
 
     page = render_layout_preview(path).pages[0]
     assert page.width_mm > page.height_mm

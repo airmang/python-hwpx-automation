@@ -58,7 +58,7 @@ def _write(path: Path) -> None:
         kept.element.set("id", "704")
         _cache(kept, 0)
         first.section.mark_dirty()
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _caches(path: Path) -> dict[str, list[str]]:

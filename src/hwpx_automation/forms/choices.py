@@ -128,7 +128,6 @@ class _Mark:
 @dataclass(slots=True)
 class _Group:
     paragraph: Any  # the paragraph object (hwpx.model.Paragraph)
-    owner: Any  # the object to mark dirty (a table or a section)
     marks: list[_Mark]
     label: str = ""
     location: dict[str, int] = field(default_factory=dict)
@@ -273,7 +272,6 @@ def _collect(document: HwpxDocument) -> list[_Group]:
             groups.append(
                 _Group(
                     paragraph=paragraph,
-                    owner=paragraph.section,
                     marks=marks,
                     label=_label_text(before),
                     location={"paragraph_index": paragraph_index},
@@ -298,7 +296,6 @@ def _collect(document: HwpxDocument) -> list[_Group]:
                     groups.append(
                         _Group(
                             paragraph=cell_paragraph,
-                            owner=table,
                             marks=marks,
                             label=label,
                             location={"table_index": table_ref.table_index, "row": row, "col": col},
@@ -485,8 +482,8 @@ def choose(doc: HwpxDocument, selections: Mapping[str, ChoiceSelection]) -> Choo
             _write(mark, _replacement(mark.char, want_checked, group, pairings))
             changed += 1
         if changed:
+            # python-hwpx 7.0: clearing the cache after an .element edit also marks the part changed.
             group.paragraph.clear_layout_cache()
-            group.owner.mark_dirty()
         applied.append(
             {
                 "path": path,

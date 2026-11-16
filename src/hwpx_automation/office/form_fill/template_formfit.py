@@ -138,7 +138,9 @@ def apply_template_formfit(
             # Funnel the write through the single SavePipeline and keep its uniform
             # report (plan §2 Phase B). The serialized bytes reach disk only via the
             # pipeline; the os.replace below merely publishes that gated temp.
-            visual_complete = doc.save_report(tmp_path)
+            from ..rendering import save_gate_report
+
+            visual_complete = save_gate_report(doc, tmp_path)
         finally:
             doc.close()
 

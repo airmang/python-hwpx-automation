@@ -408,7 +408,7 @@ def _style_token_usage(document: HwpxDocument) -> dict[str, Any]:
         "callout",
     ]
     used_ids: set[str] = set()
-    for run in document.text.runs():
+    for run in document.text.iter_runs():
         style_id = run.element.get("charPrIDRef")
         if style_id:
             used_ids.add(str(style_id))

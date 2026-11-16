@@ -41,7 +41,7 @@ def _plain_source(tmp_path: Path) -> Path:
     source = tmp_path / "plain.hwpx"
     document = HwpxDocument.new()
     document.add_paragraph("Preview title")
-    document.save_to_path(source)
+    document.save(source)
     return source
 
 

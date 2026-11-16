@@ -294,7 +294,7 @@ def test_place_seal_output_passes_open_safety(tmp_path):
 
     source = tmp_path / "sealed.hwpx"
     repaired = tmp_path / "sealed.repaired.hwpx"
-    document.save_to_path(source)
+    document.save(source)
     repair_repack(source, repaired)
     assert validate_package(repaired).ok
 
@@ -349,7 +349,7 @@ def test_mac_seal_placement_lands_on_anchor_smoke(tmp_path):
         return doc
 
     blank = tmp_path / "seal_blank.hwpx"
-    build().save_to_path(str(blank))
+    build().save(str(blank))
     boxes, _, _ = wb.render_glyph_boxes(str(blank), oracle=oracle, out_pdf=str(tmp_path / "b.pdf"))
     anchor = seal.find_seal_anchor(boxes, SENDER)
     assert anchor is not None
@@ -361,7 +361,7 @@ def test_mac_seal_placement_lands_on_anchor_smoke(tmp_path):
     )
     assert placement.placed
     filled = tmp_path / "seal_filled.hwpx"
-    doc.save_to_path(str(filled))
+    doc.save(str(filled))
 
     boxes2, _, _ = wb.render_glyph_boxes(str(filled), oracle=oracle, out_pdf=str(tmp_path / "f.pdf"))
     seal_rects = wb.extract_image_boxes(str(tmp_path / "f.pdf"))

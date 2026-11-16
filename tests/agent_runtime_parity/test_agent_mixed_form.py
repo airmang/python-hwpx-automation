@@ -145,7 +145,7 @@ def _write_mixed_form_fixture(
                 name="대표학생",
                 value="미입력",
             )
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _canonical_teacher_path(source: Path) -> str:
