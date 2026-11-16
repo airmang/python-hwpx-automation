@@ -30,7 +30,6 @@ _PLACEHOLDER_RE = re.compile(
     rf"|(?P<angle><<\s*(?P<angle_key>{_KEY})\s*>>)"
 )
 _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9가-힣._ -]+")
-_HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 ValueSanitizer = Callable[[str], str]
 
@@ -421,20 +420,21 @@ def _template_text(document: HwpxDocument) -> str:
     parts = [*document.oxml.sections, *document.oxml.master_pages]
     # A section and a master page object is the same object wherever it is reached from.
     lines_of: dict[int, list[str]] = {id(part): [] for part in parts}
+    rubies_of: dict[int, list[str]] = {id(part): [] for part in parts}
     for place in document.text.iter_paragraphs():
+        part = id(place.paragraph.section)
+        # A 덧말 in a memo body counts too (it is in the part); the memo's own text does not.
+        for ruby in place.paragraph.rubies:
+            rubies_of[part].extend(text for text in (ruby.text, ruby.ruby_text) if text)
         if place.where == "memo":
             continue
         # A paragraph's text is its own runs only: nested paragraphs come on their own.
-        lines_of[id(place.paragraph.section)].append(place.paragraph.text)
+        lines_of[part].append(place.paragraph.text)
 
     lines: list[str] = []
     for part in parts:
         lines.extend(lines_of[id(part)])
-        # TODO: python-hwpx has no public read of a 덧말's main/sub text; read the XML.
-        for dutmal in part.element.iter(f"{_HP}dutmal"):
-            for piece in (dutmal.find(f"{_HP}mainText"), dutmal.find(f"{_HP}subText")):
-                if piece is not None and piece.text:
-                    lines.append(piece.text)
+        lines.extend(rubies_of[id(part)])
     return "\n".join(lines)
 
 
@@ -474,14 +474,17 @@ def _replace_token(document: HwpxDocument, token: str, value: str) -> int:
     """
 
     count = document.text.replace(token, value, everywhere=True)
-    for section in document.oxml.sections:
-        # TODO: python-hwpx has no public write of a 덧말's main/sub text; write the XML.
-        for dutmal in section.element.iter(f"{_HP}dutmal"):
-            for part in (dutmal.find(f"{_HP}mainText"), dutmal.find(f"{_HP}subText")):
-                if part is not None and part.text and token in part.text:
-                    count += part.text.count(token)
-                    part.text = part.text.replace(token, value)
-                    section.mark_dirty()
+    sections = {id(section) for section in document.oxml.sections}
+    for place in document.text.iter_paragraphs():
+        if id(place.paragraph.section) not in sections:  # as before: sections, not master pages
+            continue
+        for ruby in place.paragraph.rubies:
+            if token in ruby.text:
+                count += ruby.text.count(token)
+                ruby.text = ruby.text.replace(token, value)
+            if token in ruby.ruby_text:
+                count += ruby.ruby_text.count(token)
+                ruby.ruby_text = ruby.ruby_text.replace(token, value)
     return int(count)
 
 
