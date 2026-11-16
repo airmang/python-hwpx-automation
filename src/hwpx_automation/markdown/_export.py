@@ -2,8 +2,10 @@
 """Rich HWPX → Markdown converter (``to_markdown(doc, rich=True)``).
 
 Moved from ``hwpx.tools.markdown_export`` (python-hwpx 6.x). Reads the document
-through the engine's public API: ``doc.oxml`` elements, ``doc.package``,
-``doc.styles.char_properties``, ``hwpx.tools.exporter.ListLabels``.
+through the engine's public API: ``section.blocks``, ``paragraph.runs`` and
+``run.content`` (a run's pieces in file order), ``paragraph.iter_objects`` and
+``shape.iter_paragraphs``, ``doc.page``, ``doc.package``, ``doc.styles.char_properties``,
+``hwpx.tools.exporter.ListLabels``. It reads no XML element itself.
 
 Preserves:
 - 인라인 서식 (bold/italic/color/shade) via run charPrIDRef diff
@@ -28,10 +30,7 @@ from typing import Union
 
 from hwpx import HwpxDocument
 from hwpx.errors import HwpxTypeError, HwpxValueError
-from hwpx.oxml.hyperlink_form import hyperlink_target
-from hwpx.oxml.namespaces import tag_local_name
 from hwpx.oxml.paragraph_heading import outline_style_level
-from hwpx.oxml.run import text_element_content
 from hwpx.tools.exporter import ListLabels, table_grid_text
 
 from ._plain_export import HEADING_MAX_CHARS, _markdown_cell, escape_line_starts, escape_markdown
@@ -49,31 +48,6 @@ ARABIC_HEAD = re.compile(r"^\s*\d+\.\s+[가-힣A-Za-z].+")
 # ──────────────────────────────────────────────────────────────────
 # 인라인 서식
 # ──────────────────────────────────────────────────────────────────
-def _local_name(element) -> str:
-    return tag_local_name(str(element.tag))
-
-
-# 이름으로 고르는 순회는 lxml(과 ElementTree)의 ``{*}이름`` 태그 지정 순회로 한다. 모든 요소의
-# 이름을 파이썬에서 꺼내 비교하면 큰 표(5천 행)에서 수백만 번 불린다.
-def _direct_children(element, local_name: str):
-    return element.findall("{*}" + local_name)
-
-
-def _descendants(element, local_name: str):
-    return [child for child in element.iter("{*}" + local_name) if child is not element]
-
-
-def _first_descendant(element, local_name: str):
-    for child in element.iter("{*}" + local_name):
-        if child is not element:
-            return child
-    return None
-
-
-def _has_descendant(element, local_name: str) -> bool:
-    return _first_descendant(element, local_name) is not None
-
-
 #: 지금 쓰는 자리: ``""`` 문단(Markdown), ``"pipe"`` 파이프 표 칸(Markdown, ``|`` 이스케이프),
 #: ``"html"`` HTML 표 칸(HTML 블록 안에서는 Markdown 서식이 읽히지 않으므로 HTML로 쓴다),
 #: ``"html_inline"`` 파이프 칸 안에 든 HTML 표의 칸(서식은 HTML로 쓰되, 둘레가 Markdown 줄이라
@@ -272,20 +246,6 @@ def _build_image_map(
     return mapping
 
 
-def _element_caption_text(el) -> str | None:
-    """이 개체(hp:pic/hp:tbl/도형)의 hp:caption 텍스트, 없으면 None.
-
-    markdown_export는 raw ElementTree를 순회하므로 ``hwpx.oxml.objects``의
-    ``Caption`` 라이브 객체(section 참조가 필요) 대신 이 모듈 자체의
-    ``_descendants``/``_direct_children`` 관용구로 직접 읽는다."""
-
-    captions = _direct_children(el, "caption")
-    if not captions:
-        return None
-    text = "".join("".join(t.itertext()) for t in _descendants(captions[0], "t")).strip()
-    return text or None
-
-
 #: ``run.content``에서 개체로 읽는 조각의 종류(``doc.text.iter_objects()``의 이름).
 _OBJECT_KINDS = frozenset({"table", "picture", "equation", "ole", "chart", "video", "textart", "shape", "form"})
 #: ``hp:t`` 안 조각 가운데 글자로 세는 것(글리프·표시는 빼고). 모르는 요소는 그 안의 글이다.
@@ -439,7 +399,7 @@ def _caption_line(text: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────
-# Paragraph element → markdown (재귀 진입점)
+# 문단 → markdown (재귀 진입점)
 # ──────────────────────────────────────────────────────────────────
 @dataclass
 class _MdParagraphState:
@@ -530,41 +490,19 @@ def _md_push_text(state: _MdParagraphState, cpr, text) -> None:
         state.items.append((cpr, text))
 
 
-def _md_handle_ctrl_child(child, state: _MdParagraphState, base_cp, chars, doc=None, notes_out=None) -> None:
-    for gc in child:
-        gctag = _local_name(gc)
-        if gctag == "fieldBegin" and gc.get("type") == "HYPERLINK":
-            _md_flush_items(state, base_cp, chars)
-            state.link_url = hyperlink_target(gc)
-        elif gctag == "fieldBegin" and gc.get("type") == "MEMO":
-            _md_handle_memo(gc, state, base_cp, chars, doc, notes_out)
-        elif gctag == "fieldEnd":
-            _md_flush_link(state, base_cp, chars)
-            marker = state.pending_memos.pop(gc.get("beginIDRef") or "", None)
-            if marker:
-                _md_flush_items(state, base_cp, chars)
-                state.output.append(marker)
-        elif gctag in ("footNote", "endNote"):
-            # 실한컴 계약: 각주/미주는 run 안 <hp:ctrl>에 래핑되어 있다.
-            _md_handle_note_child(gc, gctag, state, base_cp, chars, doc, notes_out)
-
-
-def _md_handle_memo(field_begin, state: _MdParagraphState, base_cp, chars, doc, notes_out: list | None) -> None:
-    """메모(``fieldBegin type="MEMO"``)를 각주처럼 싣는다: 메모가 걸린 글 뒤에 표시, 내용은 부록.
+def _md_handle_memo(memo, field_id: str, state: _MdParagraphState, base_cp, chars, doc, notes_out: list | None) -> None:
+    """메모(``fieldBegin type="MEMO"``, 글을 품은 것은 ``item.object``)를 각주처럼 싣는다: 메모가 걸린 글
+    뒤에 표시, 내용은 부록.
 
     메모를 모으지 않는 호출(``memos=False``)과 각주·메모 안쪽(``notes_out is None``)에서는 건너뛴다.
     """
 
-    if notes_out is None or not getattr(notes_out, "memos", False):
+    if notes_out is None or not getattr(notes_out, "memos", False) or memo is None:
         return
-    body_parts = _note_body(
-        [memo_p for sub_list in _direct_children(field_begin, "subList") for memo_p in _descendants(sub_list, "p")],
-        doc,
-    )
+    body_parts = _note_body(_paragraphs_within(memo.paragraphs), doc)
     if not body_parts:
         return
-    field_id = field_begin.get("id") or ""
-    inst_id, first = notes_out.key(field_begin) if isinstance(notes_out, _Notes) else (f"{field_id}#{len(notes_out)}", True)
+    inst_id, first = notes_out.key(memo) if isinstance(notes_out, _Notes) else (f"{field_id}#{len(notes_out)}", True)
     marker = f"[^memo{inst_id}]"
     if first:
         notes_out.append(("memo", inst_id, "메모: " + " ".join(body_parts)))
@@ -575,14 +513,12 @@ def _md_handle_memo(field_begin, state: _MdParagraphState, base_cp, chars, doc, 
         state.output.append(marker)
 
 
-def _md_handle_note_child(
-    child, tag: str, state: _MdParagraphState, base_cp, chars, doc, notes_out: list | None
+def _md_handle_note(
+    note, kind: str, inst_id: str, state: _MdParagraphState, base_cp, chars, doc, notes_out: list | None
 ) -> None:
-    inst_id = child.get("instid") or child.get("instId", "")
-    kind = "fn" if tag == "footNote" else "en"
     first = True
     if isinstance(notes_out, _Notes):
-        inst_id, first = notes_out.key(child)
+        inst_id, first = notes_out.key(note)
     marker = f"[^{kind}{inst_id}]"
     if state.link_url is not None:
         _md_flush_link(state, base_cp, chars)
@@ -590,71 +526,133 @@ def _md_handle_note_child(
         _md_flush_items(state, base_cp, chars)
     state.output.append(marker)
     if notes_out is not None and first:
-        notes_out.append((kind, inst_id, " ".join(_note_body(_descendants(child, "p"), doc))))
+        notes_out.append((kind, inst_id, " ".join(_note_body(_paragraphs_within(note.paragraphs), doc))))
 
 
 def _note_body(paragraphs, doc) -> list[str]:
     """각주·메모의 문단들을 부록 한 줄에 실을 Markdown으로. 표 칸 안 각주라도 부록은 문단 자리다."""
     token = _CELL.set("")
     try:
-        parts = [_p_element_to_md(p, doc, None).strip() for p in paragraphs]
+        parts = [_paragraph_to_md(p, doc, None).strip() for p in paragraphs]
     finally:
         _CELL.reset(token)
     return [" ".join(part.split("\n")) for part in parts if part]
 
 
-def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
+def _md_equation(script: str, state: _MdParagraphState, base_cp, chars) -> None:
+    rendered = equation_markdown(script)
+    mode = _CELL.get()
+    if mode in ("pipe", "html_inline"):
+        rendered = rendered.replace("|", "\\|")
+    elif mode == "html":
+        rendered = html_escape(rendered, quote=False)
+    if rendered:
+        if state.link_url is not None:
+            _md_flush_link(state, base_cp, chars)
+        else:
+            _md_flush_items(state, base_cp, chars)
+        state.output.append(rendered)
+
+
+#: 각주·미주 조각: ``run.content``의 종류, 그리고 python-hwpx 5.4 전이 런에 바로 쓴 각주(모르는 요소).
+_NOTE_KINDS = {"footnote": "fn", "endnote": "en"}
+_LEGACY_NOTE_NAMES = {"footNote": "footnote", "endNote": "endnote"}
+
+
+class _ParagraphNotes:
+    """문단의 각주·미주를 차례대로(``paragraph.footnotes``·``endnotes``). 런에 바로 쓴 옛 각주는
+    ``run.content``가 모르는 요소로 주므로, 같은 차례의 각주 객체를 여기서 꺼낸다."""
+
+    def __init__(self, paragraph) -> None:
+        self._paragraph = paragraph
+        self._queues: dict[str, list] = {}
+
+    def next(self, kind: str):
+        queue = self._queues.get(kind)
+        if queue is None:
+            notes = self._paragraph.footnotes if kind == "footnote" else self._paragraph.endnotes
+            queue = self._queues[kind] = list(reversed(notes))
+        return queue.pop() if queue else None
+
+
+def _md_handle_item(item, cpr, state: _MdParagraphState, base_cp, chars, doc, notes_out, notes: _ParagraphNotes) -> None:
+    """``hp:t`` 밖 조각 하나: 덧말, 필드 시작·끝(하이퍼링크·메모), 각주·미주, 수식."""
+
+    kind = item.kind
+    if kind == "ruby":
+        # 덧말은 평문 내보내기처럼 본말 뒤에 (덧말:…)로 싣는다.
+        main, sub = item.object.text, item.object.ruby_text
+        text = f"{main}(덧말:{sub})" if sub else main
+        if text:
+            _md_push_text(state, cpr, text)
+    elif kind == "field_begin" and item.attribute("type") == "HYPERLINK":
+        _md_flush_items(state, base_cp, chars)
+        state.link_url = item.object.url
+    elif kind == "field_begin" and item.attribute("type") == "MEMO":
+        _md_handle_memo(item.object, item.attribute("id") or "", state, base_cp, chars, doc, notes_out)
+    elif kind == "field_end":
+        _md_flush_link(state, base_cp, chars)
+        marker = state.pending_memos.pop(item.attribute("beginIDRef") or "", None)
+        if marker:
+            _md_flush_items(state, base_cp, chars)
+            state.output.append(marker)
+    elif kind in _NOTE_KINDS or (kind == "unknown" and item.container == "run" and item.name in _LEGACY_NOTE_NAMES):
+        # 한/글은 각주·미주를 런 안 <hp:ctrl>에 둔다. 런에 바로 둔 것(5.4 이전 자사 방출)도 읽는다.
+        note_kind = _NOTE_KINDS.get(kind) or _NOTE_KINDS[_LEGACY_NOTE_NAMES[item.name]]
+        note = notes.next("footnote" if note_kind == "fn" else "endnote")
+        if note is not None:
+            inst_id = item.attribute("instid") or item.attribute("instId") or ""
+            _md_handle_note(note, note_kind, inst_id, state, base_cp, chars, doc, notes_out)
+    elif kind == "equation" and _EQUATIONS.get():
+        _md_equation(item.object.script, state, base_cp, chars)
+
+
+def _paragraph_to_md(paragraph, doc, notes_out: list | None = None) -> str:
+    """문단의 글을 Markdown으로(런마다 ``run.content``를 적힌 차례대로)."""
+
     chars = doc.styles.char_properties
     base_cp = chars.get("0")
     state = _MdParagraphState()
+    runs = [(run.char_pr_id_ref or "0", run.content) for run in paragraph.runs]
     if getattr(notes_out, "memos", False):
         state.field_ends = frozenset(
-            end.get("beginIDRef") or ""
-            for run in _direct_children(p_el, "run")
-            for ctrl in _direct_children(run, "ctrl")
-            for end in _direct_children(ctrl, "fieldEnd")
+            item.attribute("beginIDRef") or "" for _, content in runs for item in content if item.kind == "field_end"
         )
-
-    for run in _direct_children(p_el, "run"):
-        cpr = run.get("charPrIDRef", "0")
-        for child in run:
-            tag = _local_name(child)
-            if tag == "t":
-                # 한/글의 하이픈(hp:hyphen)은 보이는 붙임표다(평문 내보내기와 같다).
-                text = text_element_content(child).replace("\xad", "-")
-                if text:
-                    _md_push_text(state, cpr, text)
-            elif tag == "dutmal":
-                # 덧말은 평문 내보내기처럼 본말 뒤에 (덧말:…)로 싣는다.
-                main = "".join("".join(c.itertext()) for c in _direct_children(child, "mainText"))
-                sub = "".join("".join(c.itertext()) for c in _direct_children(child, "subText"))
-                text = f"{main}(덧말:{sub})" if sub else main
-                if text:
-                    _md_push_text(state, cpr, text)
-            elif tag == "ctrl":
-                _md_handle_ctrl_child(child, state, base_cp, chars, doc, notes_out)
-            elif tag == "equation" and _EQUATIONS.get():
-                script = next(iter(_direct_children(child, "script")), None)
-                rendered = equation_markdown("".join(script.itertext())) if script is not None else ""
-                mode = _CELL.get()
-                if mode in ("pipe", "html_inline"):
-                    rendered = rendered.replace("|", "\\|")
-                elif mode == "html":
-                    rendered = html_escape(rendered, quote=False)
-                if rendered:
-                    if state.link_url is not None:
-                        _md_flush_link(state, base_cp, chars)
-                    else:
-                        _md_flush_items(state, base_cp, chars)
-                    state.output.append(rendered)
-            elif tag in ("footNote", "endNote"):
-                # 구식(5.4 이전 자사 방출) 호환: run 직속 각주도 계속 읽는다.
-                _md_handle_note_child(child, tag, state, base_cp, chars, doc, notes_out)
+    notes = _ParagraphNotes(paragraph)
+    for cpr, content in runs:
+        text: list[str] = []
+        for item in content:
+            if item.container == "t":
+                text.append(item.text)
+                continue
+            if text:
+                _md_push_run_text(state, cpr, text)
+            if item.container == "run" and item.kind in _TEXT_PIECE_KINDS:
+                continue  # 런에 바로 쓴 탭·줄 바꿈은 평문 내보내기만 싣는다
+            _md_handle_item(item, cpr, state, base_cp, chars, doc, notes_out, notes)
+        if text:
+            _md_push_run_text(state, cpr, text)
 
     _md_flush_items(state, base_cp, chars)
     _md_flush_link(state, base_cp, chars)
     state.output.extend(state.pending_memos.values())
     return "".join(state.output)
+
+
+#: ``hp:t`` 안에 쓰이는 글리프·표시의 종류(런에 바로 쓴 것은 싣지 않는다).
+_TEXT_PIECE_KINDS = frozenset(
+    {"tab", "line_break", "nb_space", "fw_space", "hyphen", "markpen_begin", "markpen_end", "title_mark",
+     "insert_begin", "insert_end", "delete_begin", "delete_end"}
+)
+
+
+def _md_push_run_text(state: _MdParagraphState, cpr, text: list[str]) -> None:
+    """런의 ``hp:t`` 조각(글자와 글리프)을 이어 싣는다. 한/글의 하이픈은 보이는 붙임표다."""
+
+    joined = "".join(text).replace("\xad", "-")
+    text.clear()
+    if joined:
+        _md_push_text(state, cpr, joined)
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -687,7 +685,7 @@ def _shape_paragraphs(paragraph, seen: set):
 def _shape_text_lines(paragraph, doc, notes_out: list | None = None) -> list[str]:
     lines: list[str] = []
     for sub_p in _shape_paragraphs(paragraph, set()):
-        md = _labelled_md(_p_element_to_md(sub_p.element, doc, notes_out).strip(), sub_p, block=False)
+        md = _labelled_md(_paragraph_to_md(sub_p, doc, notes_out).strip(), sub_p, block=False)
         if md:
             lines.append(md)
     return lines
@@ -728,7 +726,7 @@ def _labelled_md(md: str, paragraph, *, block: bool) -> str:
 def _cell_to_md(cell, doc, mapping, depth: int = 0, notes_out: list | None = None) -> str:
     chunks: list[str] = []
     for cp in cell.paragraphs:
-        md = _labelled_md(_p_element_to_md(cp.element, doc, notes_out).strip(), cp, block=False)
+        md = _labelled_md(_paragraph_to_md(cp, doc, notes_out).strip(), cp, block=False)
         imgs = _paragraph_images(cp, mapping)
         shape_lines = _shape_text_lines(cp, doc, notes_out)
         if md:
@@ -926,7 +924,7 @@ def _export_shape_lines(p, doc, notes) -> list[str]:
     shape_lines: list[str] = []
     seen_p = {nested for table in p.tables for nested in _object_paragraphs(table)}
     for sub_p in _shape_paragraphs(p, seen_p):
-        sub_md = _p_element_to_md(sub_p.element, doc, notes).strip()
+        sub_md = _paragraph_to_md(sub_p, doc, notes).strip()
         sub_md = _labelled_md(escape_line_starts(sub_md), sub_p, block=True)
         if sub_md:
             shape_lines.append(sub_md)
@@ -980,7 +978,7 @@ class _HeadingPlan:
 def _export_paragraph_lines(p, doc, mapping, notes, plan: _HeadingPlan) -> list[str]:
     cache = _LABELS.get()
     label = cache.get(p)[0] if cache is not None else ""  # 문단 번호를 칸 안 문단보다 먼저 센다
-    md = _p_element_to_md(p.element, doc, notes).strip()
+    md = _paragraph_to_md(p, doc, notes).strip()
     imgs = _paragraph_images(p, mapping)
     tables = [_table_to_md(t, doc, mapping, 0, notes) for t in p.tables]
 
@@ -1062,7 +1060,7 @@ def _page_text_lines(section, tag: str, doc, seen: set[tuple[str, str]]) -> list
     lines: list[str] = []
     stories = doc.page.headers(section=section) if tag == "header" else doc.page.footers(section=section)
     for story in stories:
-        parts = [_p_element_to_md(p.element, doc, None).strip() for p in _nested_paragraphs(story.paragraphs)]
+        parts = [_paragraph_to_md(p, doc, None).strip() for p in _nested_paragraphs(story.paragraphs)]
         text = " ".join(" ".join(part.split("\n")) for part in parts if part)
         if not text or (tag, text) in seen:
             continue
@@ -1083,7 +1081,7 @@ def _unanchored_memo_lines(section, doc, notes) -> list[str]:
     lines: list[str] = []
     group = section.memo_group
     for memo in group.memos if group is not None else ():
-        parts = [_p_element_to_md(p.element, doc, None).strip() for p in memo.paragraphs]
+        parts = [_paragraph_to_md(p, doc, None).strip() for p in memo.paragraphs]
         text = "메모: " + " ".join(" ".join(part.split("\n")) for part in parts if part)
         if text == "메모: " or text in anchored:
             continue
