@@ -37,7 +37,9 @@ EXPECTED_SERVICE_LINES = {
     # 8.0: python-hwpx 7.0 has no public border-fill id allocator, so the next
     # free id is computed here with core's own rule (core's private helper is
     # no longer called).
-    "_border_fill.py": 300,
+    # 8.0: "no lines" is the document's no-line border fill (Hancom's id 1), not an undefined
+    # id "0" (300 -> 313).
+    "_border_fill.py": 313,
     # WP-F: add_equation/add_chart/set_header_footer/set_page_number now
     # dispatch to the page/shapes namespaces and .to_dict() the returned
     # living views before this op's dict-mutation contract (result.update()).
@@ -92,7 +94,9 @@ EXPECTED_SERVICE_LINES = {
     # allocator call moved into _border_fill.py (539 -> 534).
     # 8.0: the new table's index comes from table objects being equal per element
     # (python-hwpx 7.0 #762) instead of an id() loop (534 -> 531).
-    "tables.py": 531,
+    # 8.0: column widths go through table.set_column_width and the border fills through
+    # the table/cell setters (531 -> 512).
+    "tables.py": 512,
     # 8.0: fill_by_path is hwpx_automation.forms.fill_by_path(doc, ...) now that
     # python-hwpx 7.0 moved it here (617 -> 618).
     "transactions.py": 618,
@@ -188,7 +192,7 @@ EXPECTED_C901 = (
     # render-pdf is dispatched ahead of the frozen parser (one branch) so the
     # parser's help and choice errors stay byte-identical to core's golden.
     ("src/hwpx_automation/office/agent/cli.py", "main", 15),
-    ("src/hwpx_automation/office/agent/commands.py", "_add", 16),
+    ("src/hwpx_automation/office/agent/commands.py", "_add", 15),  # 8.0: rows and paragraphs go in through python-hwpx
     ("src/hwpx_automation/office/agent/commands.py", "_move", 12),  # 8.0: the memo move branch went away (15 -> 12)
     ("src/hwpx_automation/office/agent/commands.py", "_refresh_copy_identities", 13),
     ("src/hwpx_automation/office/agent/commands.py", "_remove", 12),
@@ -247,7 +251,6 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/ops_services/read_query.py", "get_paragraphs", 11),
     ("src/hwpx_automation/ops_services/read_query.py", "read_text", 12),
     ("src/hwpx_automation/ops_services/save_policy.py", "_rotate_and_backup_exact", 12),
-    ("src/hwpx_automation/ops_services/tables.py", "_auto_fit_table_columns", 16),
     ("src/hwpx_automation/ops_services/transactions.py", "_apply_transaction_operation", 20),
     ("src/hwpx_automation/ops_services/transactions.py", "byte_preserving_patch", 23),
     ("src/hwpx_automation/ops_services/transactions.py", "undo_last_edit", 20),

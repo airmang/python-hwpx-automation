@@ -391,7 +391,12 @@ def test_add_table_border_style_none_uses_empty_border(ops_with_sample):
     for paragraph in refreshed.paragraphs:
         refreshed_tables.extend(paragraph.tables)
 
-    assert refreshed_tables[index].element.get("borderFillIDRef") == "0"
+    # Hancom writes "no lines" as a border fill whose four sides are NONE, never an undefined id "0".
+    reference = refreshed_tables[index].border_fill_id_ref
+    assert reference != "0"
+    info = refreshed.styles.border_fill(reference)
+    assert info is not None and info.fill is None
+    assert {side.type for side in (info.left, info.right, info.top, info.bottom)} == {"NONE"}
 
 
 def test_add_table_custom_border_fill_reuses_definition(ops_with_sample):

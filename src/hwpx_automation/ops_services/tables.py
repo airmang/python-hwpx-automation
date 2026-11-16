@@ -10,7 +10,6 @@ from xml.etree import ElementTree as ET
 
 from ..upstream import (
     HH_NS,
-    HP_NS,
     HwpxDocument,
     HwpxOxmlTable,
     default_cell_width,
@@ -125,27 +124,10 @@ class TableService:
             ] * column_count
             total_width = sum(column_widths)
 
-        size_element = table.element.find(f"{HP_NS}sz")
-        if size_element is not None:
-            size_element.set("width", str(total_width))
-
-        for position in table.iter_grid():
-            if not position.is_anchor:
-                continue
-            span = max(1, position.col_span)
-            start = position.column
-            width_value = 0
-            for offset in range(span):
-                column_index = start + offset
-                if 0 <= column_index < column_count:
-                    width_value += column_widths[column_index]
-            if width_value <= 0:
-                continue
-            cell_size = position.cell.element.find(f"{HP_NS}cellSz")
-            if cell_size is not None:
-                cell_size.set("width", str(width_value))
-
-        table.mark_dirty()
+        # python-hwpx gives each grid column its width: every cell crossing it (a merged cell
+        # gets the sum of its columns) and the table change by the difference, as Hancom does.
+        for column_index, width in enumerate(column_widths):
+            table.set_column_width(column_index, width)
         return column_widths
 
     def _ensure_table_border_fill(
@@ -279,17 +261,16 @@ class TableService:
             fill_color=fill_color,
         )
 
-        table.element.set("borderFillIDRef", border_fill)
-        anchor_elements: set[int] = set()
+        table.border_fill_id_ref = border_fill
+        anchor_cells: set[Any] = set()
         for position in table.iter_grid():
             if getattr(position, "is_anchor", False):
-                cell_element = position.cell.element
-                cell_element.set("borderFillIDRef", border_fill)
-                anchor_elements.add(id(cell_element))
+                position.cell.border_fill_id_ref = border_fill
+                anchor_cells.add(position.cell)
 
         table.mark_dirty()
         self._save._save_document(document, resolved)
-        return {"borderFillIDRef": border_fill, "anchorCells": len(anchor_elements)}
+        return {"borderFillIDRef": border_fill, "anchorCells": len(anchor_cells)}
 
     def get_table_cell_map(
         self,

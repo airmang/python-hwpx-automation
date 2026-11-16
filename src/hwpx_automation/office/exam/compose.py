@@ -176,9 +176,12 @@ class ComposeResult:
 
 
 def _insert_break(section, head_index: int, kind: str) -> None:
-    attr = "pageBreak" if kind == "page" else "columnBreak"
-    section.paragraphs[head_index].element.set(attr, "1")
-    section.mark_dirty()
+    # python-hwpx's setters also drop that paragraph's line cache: Hancom lays it out again.
+    paragraph = section.paragraphs[head_index]
+    if kind == "page":
+        paragraph.page_break = True
+    else:
+        paragraph.column_break = True
 
 
 def compose_exam_into_form(
