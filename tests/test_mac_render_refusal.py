@@ -88,7 +88,7 @@ def test_render_pdf_reports_hancom_refused(
     from hwpx_automation.office.rendering import cli as render_cli
 
     source = tmp_path / "in.hwpx"
-    HwpxDocument.new().save_to_path(str(source))
+    HwpxDocument.new().save(str(source))
 
     class _Refusing(oracle.MacHancomOracle):
         def available(self) -> bool:
@@ -123,7 +123,7 @@ def test_mac_session_raises_a_refusal(tmp_path: Path, monkeypatch: pytest.Monkey
     from hwpx import HwpxDocument
 
     source = tmp_path / "in.hwpx"
-    HwpxDocument.new().save_to_path(str(source))
+    HwpxDocument.new().save(str(source))
 
     class _Oracle:
         last_refusal: str | None = None

@@ -228,7 +228,7 @@ def _move(
     # A direction crosses the current physical cell's edge. Moving one grid
     # slot could otherwise stay inside a merged label and overwrite the label.
     if grid is None:
-        grid = table.get_cell_map()
+        grid = table.cell_map
     current = grid[row_index][col_index]
     anchor_row, anchor_col = current.anchor
     row_delta, col_delta = _direction_delta(direction)
@@ -498,7 +498,7 @@ def form_slots(doc: HwpxDocument, *, min_width_mm: float = 5.0) -> TableFormSlot
     backwards: tuple[tuple[SearchDirection, PathDirection], ...] = (("right", "left"), ("down", "up"))
     for table_ref in tables:
         table = table_ref.table
-        grid = table.get_cell_map()
+        grid = table.cell_map
         texts: dict[tuple[int, int], str] = {}
         widths: dict[tuple[int, int], float | None] = {}
         blanks: list[tuple[int, int]] = []
@@ -620,7 +620,7 @@ def fill_by_path(
         candidate = candidates[0]
         grid = grids.get(candidate.table_index)
         if grid is None:
-            grid = grids[candidate.table_index] = candidate.table.get_cell_map()
+            grid = grids[candidate.table_index] = candidate.table.cell_map
         current_row = candidate.row
         current_col = candidate.col
         navigation_failed = False

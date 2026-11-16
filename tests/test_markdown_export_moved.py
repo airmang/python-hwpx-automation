@@ -45,7 +45,7 @@ def _payload_doc(body: str) -> HwpxDocument:
 
 def _reopened(doc: HwpxDocument) -> HwpxDocument:
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     return HwpxDocument.open(buffer.getvalue())
 
 
@@ -186,7 +186,7 @@ def _numbered(count: int) -> HwpxDocument:
     document = HwpxDocument.new(empty_first_line=True)
     for index in range(1, count + 1):
         document.add_paragraph(f"항목{index}")
-    document.styles.apply_list_format(paragraph_indexes=list(range(1, count + 1)), kind="number")
+    document.styles.apply_list_format(paragraphs=list(range(1, count + 1)), kind="number")
     return document
 
 

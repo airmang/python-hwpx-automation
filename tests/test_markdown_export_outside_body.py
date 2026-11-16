@@ -15,12 +15,12 @@ def _document() -> HwpxDocument:
     doc = HwpxDocument.new()
     doc.add_paragraph("본문 첫 문단입니다.")
     reviewed = doc.add_paragraph("검토가 필요한 문장입니다.")
-    doc.notes.add_memo("근거 자료를 붙여 주세요", anchor=reviewed)
+    doc.notes.add_memo("근거 자료를 붙여 주세요", paragraph=reviewed)
     doc.notes.add_memo("자리 없는 메모")
     doc.page.set_header(text="2026학년도 운영 계획")
     doc.page.set_footer(text="가나고등학교")
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     return HwpxDocument.open(buffer.getvalue())
 
 

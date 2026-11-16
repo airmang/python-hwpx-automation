@@ -258,7 +258,7 @@ def test_document_plan_creation_save_reopen_and_open_safety_match_frozen_core(
     mcp_document = mcp_authoring.create_document_from_plan(_plan())
     try:
         assert mcp_document.text.plain() == GOLDEN["planDocument"]["exportText"]
-        mcp_document.save_to_path(mcp_path)
+        mcp_document.save(mcp_path)
     finally:
         mcp_document.close()
 
@@ -287,7 +287,7 @@ def test_builder_lowering_and_computed_fields_match_frozen_core(
     mcp_document = mcp_plan.lower()
     try:
         assert mcp_document.text.plain() == GOLDEN["builderDocument"]["exportText"]
-        mcp_document.save_to_path(mcp_path)
+        mcp_document.save(mcp_path)
     finally:
         mcp_document.close()
 
@@ -303,7 +303,7 @@ def test_design_profile_registry_matches_frozen_core_and_template_analysis_is_ex
     source = tmp_path / "source.hwpx"
     document = mcp_authoring.create_document_from_plan(_plan())
     try:
-        document.save_to_path(source)
+        document.save(source)
     finally:
         document.close()
 

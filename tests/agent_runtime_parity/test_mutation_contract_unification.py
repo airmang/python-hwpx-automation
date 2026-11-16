@@ -5,8 +5,9 @@ S-089 shipped ``as_mutation_report()`` on four write-result models. P2 fixes the
 *unification*: the public mutation-write surface is a closed set, and every path
 in it projects onto ``hwpx.mutation-report/v1``. This locks two things:
 
-1. The native save path (``save_to_path``/``save_to_stream`` with
-   ``return_report=True``) returns a :class:`MutationReport` directly.
+1. The native save path (``doc.save(path or stream)``, which python-hwpx 7.0
+   made of 6.x ``save_to_path``/``save_to_stream(return_report=True)``) returns a
+   :class:`MutationReport` directly.
 2. Every byte-write result model (carrying ``data``/``changed_parts``/
    ``open_safety``) exposes ``as_mutation_report``. A future 5th byte-write model
    added without a projection breaks this test on purpose — the survey found no
@@ -96,7 +97,7 @@ def test_agent_batch_result_exposes_projection() -> None:
 def test_save_to_path_return_report_is_mutation_report(tmp_path: Path) -> None:
     document = HwpxDocument.new()
 
-    report = document.save_to_path(tmp_path / "unified.hwpx", return_report=True)
+    report = document.save(tmp_path / "unified.hwpx")
 
     assert isinstance(report, MutationReport)
     assert report.to_dict()["schemaVersion"] == MUTATION_REPORT_SCHEMA
@@ -106,7 +107,7 @@ def test_save_to_stream_return_report_is_mutation_report() -> None:
     document = HwpxDocument.new()
     stream = BytesIO()
 
-    report = document.save_to_stream(stream, return_report=True)
+    report = document.save(stream)
 
     assert isinstance(report, MutationReport)
     assert report.to_dict()["schemaVersion"] == MUTATION_REPORT_SCHEMA

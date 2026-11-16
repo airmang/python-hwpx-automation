@@ -147,7 +147,7 @@ def resolve_header_story(document: Any, path: HeaderStoryPath) -> HeaderStoryBin
             matches = [header for header in headers if header.id == path.value]
         else:
             matches = [
-                header for header in headers if header.apply_page_type == path.value
+                header for header in headers if header.page_type == path.value
             ]
     except (AttributeError, TypeError, ValueError) as exc:
         raise AgentContractError(
@@ -168,7 +168,7 @@ def resolve_header_story(document: Any, path: HeaderStoryPath) -> HeaderStoryBin
     header = matches[0]
     try:
         native_id = header.id
-        page_type = header.apply_page_type
+        page_type = header.page_type
         text = header.text
     except (AttributeError, TypeError, ValueError) as exc:
         raise AgentContractError(

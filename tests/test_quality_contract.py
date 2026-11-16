@@ -181,9 +181,15 @@ def test_quality_gate_error_carries_codes_and_retry():
 def test_save_through_pipeline_raises_quality_gate_error_on_gate_fail(tmp_path: Path):
     report = _failing_report()
 
+    from hwpx.errors import SaveError
+
     class FakeDoc:
-        def save_report(self, output_path, quality=None):
-            return report
+        # python-hwpx 7.0's doc.save(target, quality=...): a refused archive is not
+        # written and raises SaveError("quality-gate-failed") carrying the report.
+        def save(self, target, *, quality=None):
+            refusal = SaveError("Document save failed the quality gate", code="quality-gate-failed")
+            refusal.report = report
+            raise refusal
 
     with pytest.raises(Q.QualityGateError) as excinfo:
         Q.save_through_pipeline(FakeDoc(), tmp_path / "x.hwpx", quality="strict")

@@ -82,7 +82,7 @@ def _write_fixture(path: Path, *, merged: bool = False) -> None:
         end_run.append(end_control)
         second.element.append(end_run)
         second.section.mark_dirty()
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _batch(
@@ -137,7 +137,7 @@ def test_mixed_run_text_edit_preserves_other_run_and_refuses_cross_style(tmp_pat
         run.append(text)
         paragraph.element.append(run)
         paragraph.section.mark_dirty()
-        document.save_to_path(source)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         target = next(record for record in agent.records if record.kind == "paragraph" and record.native.text == "alphabeta")
     command = {"commandId": "edit", "op": "set", "path": target.path,
@@ -187,8 +187,8 @@ def test_existing_field_value_has_package_wide_preservation_proof(tmp_path: Path
     output = tmp_path / "edited.hwpx"
     _write_fixture(source)
     with HwpxDocument.open(source) as document:
-        document.fields.fill("old value", field_index=0)
-        document.save_to_path(source)
+        document.fields.fill("old value", index=0)
+        document.save(source)
     with HwpxAgentDocument.open(source) as agent:
         field = _record(agent, "form-field", "601")
     command = {"commandId": "field", "op": "set", "path": field.path,
@@ -1262,7 +1262,7 @@ def test_copy_footnote_refreshes_real_corpus_instid(tmp_path: Path) -> None:
         note.element.set("instid", "777")
         destination = document.add_paragraph("붙일 곳")
         destination.element.set("id", "900")
-        document.save_to_path(source)
+        document.save(source)
 
     with HwpxAgentDocument.open(source) as agent:
         footnote = _record(agent, "footnote", "777")

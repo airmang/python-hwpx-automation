@@ -130,7 +130,7 @@ def test_insert_and_replace_picture_tools_preserve_safe_asset_graph(tmp_path: Pa
     refreshed = open_doc(str(target))
     assert not refreshed.package.has_part("BinData/BIN0001.png")
     assert refreshed.package.has_part("BinData/BIN0002.png")
-    assert refreshed.media.picture_references()[0].binary_item_id_ref == "BIN0002"
+    assert refreshed.media.pictures[0].item_id == "BIN0002"
 
 
 def test_replace_picture_accepts_workspace_image_file(tmp_path: Path):
@@ -157,7 +157,7 @@ def test_replace_picture_accepts_workspace_image_file(tmp_path: Path):
     assert result["openSafety"]["ok"] is True
     assert result["replacement"]["geometryPreserved"] is True
     with open_doc(str(target)) as document:
-        ref = document.media.picture_references()[0]
+        ref = document.media.pictures[0]
         assert (ref.width, ref.height) == (11111, 22222)
 
     with pytest.raises(ValueError, match="exactly one"):

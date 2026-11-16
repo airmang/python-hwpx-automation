@@ -233,7 +233,7 @@ def test_paragraph_patch_reports_no_applied_edit_when_all_are_discarded(
     document = HwpxDocument.new()
     document.add_paragraph("원래 문단")
     source = tmp_path / "src.hwpx"
-    document.save_to_path(str(source))
+    document.save(str(source))
     output = tmp_path / "out.hwpx"
 
     result = paragraph_patch(

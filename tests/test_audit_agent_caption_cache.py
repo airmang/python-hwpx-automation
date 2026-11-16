@@ -44,7 +44,7 @@ def _fixture(path: Path) -> None:
     caption = table.set_caption("원래 캡션")
     _add_cache(caption.paragraphs[0].element)
     doc.add_paragraph("끝 문단")
-    doc.save_to_path(str(path))
+    doc.save(str(path))
     doc.close()
 
 

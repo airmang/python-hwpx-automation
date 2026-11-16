@@ -39,7 +39,7 @@ def test_inspect_official_document_style_from_file_returns_revision(tmp_path: Pa
     doc.add_paragraph("가. 기본 방향")
     doc.add_paragraph("일시: 2026. 6. 11.")
     doc.add_paragraph("끝.")
-    doc.save_to_path(target)
+    doc.save(target)
     doc.close()
 
     result = server.inspect_official_document_style(filename=str(target))

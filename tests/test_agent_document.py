@@ -30,7 +30,7 @@ def _fixture(path: Path) -> None:
         table.element.set("id", "201")
         table.rows[0].cells[0].text = "항목"
         table.rows[0].cells[1].text = "내용"
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _multi_story_fixture(path: Path) -> tuple[str, str]:
@@ -45,7 +45,7 @@ def _multi_story_fixture(path: Path) -> tuple[str, str]:
             section=section,
             page_type="BOTH",
         )
-        document.save_to_path(path)
+        document.save(path)
     with HwpxAgentDocument.open(path) as view:
         body_path = next(
             record.path
@@ -245,7 +245,7 @@ def test_apply_document_commands_routes_body_table_header_transaction_once(
     ]
     assert result["verificationReport"]["openSafety"]["ok"] is True
     with HwpxDocument.open(output) as reopened:
-        header = reopened.sections[0].properties.get_header("BOTH")
+        header = reopened.sections[0].properties.header("BOTH")
         assert header is not None and header.text == "S-080 MCP 머리글 수정"
     with HwpxAgentDocument.open(output) as view:
         texts = {
@@ -322,7 +322,7 @@ def test_blueprint_dump_and_replay_are_thin_stateless_core_facades(tmp_path: Pat
     _fixture(source)
     with HwpxDocument.new() as document:
         document.sections[0].paragraphs[0].text = "TARGET"
-        document.save_to_path(target)
+        document.save(target)
 
     dumped = server.dump_document_blueprint(
         str(source),

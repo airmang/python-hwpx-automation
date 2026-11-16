@@ -38,7 +38,7 @@ def _sample(path: Path) -> Path:
     table.set_cell_text(0, 1, "내용")
     table.set_cell_text(1, 0, "기간")
     table.set_cell_text(1, 1, "2026. 3.")
-    doc.save_to_path(path)
+    doc.save(path)
     return path
 
 

@@ -231,16 +231,16 @@ class MemoStyleService:
         memo_shape_id_ref: str | None = None,
     ) -> Dict[str, Any]:
         document, resolved = self._context._open_document(path)
-        # notes.add_memo(anchor=...) replaces add_memo_with_anchor (design
-        # §2.6) but anchor= must resolve to an *existing* paragraph — unlike
-        # 5.x, it has no "create one for me" mode (anchor=None routes to the
+        # notes.add_memo(paragraph=...) (6.x anchor=) replaces add_memo_with_anchor
+        # (design §2.6) but paragraph= must resolve to an *existing* paragraph — unlike
+        # 5.x, it has no "create one for me" mode (paragraph=None routes to the
         # no-anchor path instead). Create the host paragraph explicitly
         # through the public add_paragraph, exactly mirroring what 5.x did
         # internally when its own paragraph= argument was omitted.
         paragraph = document.add_paragraph("", section=section_index)
         memo = document.notes.add_memo(
             text,
-            anchor=paragraph,
+            paragraph=paragraph,
             section=section_index,
             memo_shape_id_ref=memo_shape_id_ref,
         )

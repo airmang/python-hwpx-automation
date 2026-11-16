@@ -137,7 +137,7 @@ def test_convert_hwp_to_hwpx_preserves_existing_output_when_open_safety_fails(
     monkeypatch,
 ) -> None:
     output = hwp_source.with_name("existing.hwpx")
-    HwpxDocument.new().save_to_path(output)
+    HwpxDocument.new().save(output)
     original_output = output.read_bytes()
     monkeypatch.setattr(
         "hwpx_automation.storage.build_hwpx_open_safety_report",

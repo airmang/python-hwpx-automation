@@ -328,7 +328,7 @@ def apply_form_fill_workflow(
                 # instead of the old after_value/style_before/... dict keys.
                 fill_result = doc.fields.fill(
                     str(mapping.get("value", "")),
-                    field_index=int(mapping["field_index"]),
+                    index=int(mapping["field_index"]),
                 )
                 _before_ff = before_field.get("current_value", "") if before_field else ""
                 applied.append(

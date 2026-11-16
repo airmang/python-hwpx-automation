@@ -279,5 +279,6 @@ def test_an_hwp_file_gets_a_conversion_hint(tmp_path: Path, capsys: pytest.Captu
 
     text = _one_line(capsys)
     assert code != 0 and len(text.splitlines()) == 1
-    assert "HWP 5.0" in text and "save_to_path" in text
+    # python-hwpx 7.0's conversion hint names doc.save() (6.x: save_to_path()).
+    assert "HWP 5.0" in text and ".save(" in text
     assert "zip" not in text.lower()

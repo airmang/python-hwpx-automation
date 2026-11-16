@@ -77,7 +77,7 @@ def _document(path: Path, paragraphs: list[str]) -> None:
     doc = HwpxDocument.new()
     for text in paragraphs:
         doc.add_paragraph(text)
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
 

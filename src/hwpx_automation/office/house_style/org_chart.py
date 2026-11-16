@@ -23,7 +23,7 @@ _BOX_ROW_HEIGHT = 1100
 _CONNECTOR_ROW_HEIGHT = 360
 _BOX_COLUMN_WEIGHT = 3.0
 _GAP_COLUMN_WEIGHT = 1.0
-_BORDER_WIDTH = "0.12 mm"
+_BORDER_WIDTH_MM = 0.12
 _BORDER_COLOR = "#000000"
 
 
@@ -232,7 +232,7 @@ def lower_boxed_org_chart(
     for (row, col), sides in sorted(spec.cell_sides.items()):
         fill = document.styles.ensure_border_fill(
             border_color=_BORDER_COLOR,
-            border_width=_BORDER_WIDTH,
+            border_width_mm=_BORDER_WIDTH_MM,
             active_borders=sorted(sides),
         )
         table.set_cell_border_fill(row, col, fill)
@@ -241,7 +241,7 @@ def lower_boxed_org_chart(
         merged = table.merge_cells(box.row, box.col_start, box.row, box.col_end)
         box_fill = document.styles.ensure_border_fill(
             border_color=_BORDER_COLOR,
-            border_width=_BORDER_WIDTH,
+            border_width_mm=_BORDER_WIDTH_MM,
             fill_color=box.fill_color,
         )
         table.set_cell_border_fill(box.row, box.col_start, box_fill)

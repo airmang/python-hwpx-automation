@@ -298,10 +298,10 @@ def set_paragraph_format(
     # (design §2.4) rather than a dict — .to_dict() keeps this handler's own
     # dict-shaped response (filename merged below) unchanged.
     result = doc.styles.apply_paragraph_format(
-        paragraph_index=paragraph_index,
-        paragraph_indexes=paragraph_indexes,
+        paragraph=paragraph_index,
+        paragraphs=paragraph_indexes,
         alignment=alignment,
-        line_spacing_percent=line_spacing_percent,
+        line_spacing=line_spacing_percent,
         indent_left_mm=indent_left_mm,
         indent_right_mm=indent_right_mm,
         first_line_indent_mm=first_line_indent_mm,
@@ -458,7 +458,7 @@ def set_page_number(
         target=target,
         page_type=page_type,
         format=format,
-        align=align,
+        alignment=align,
         position=position,
         prefix=prefix,
         suffix=suffix,
@@ -501,8 +501,8 @@ def set_list_format(
     # rather than a dict — .to_dict() keeps this handler's own dict-shaped
     # response (filename merged below) unchanged.
     result = doc.styles.apply_list_format(
-        paragraph_index=paragraph_index,
-        paragraph_indexes=paragraph_indexes,
+        paragraph=paragraph_index,
+        paragraphs=paragraph_indexes,
         kind=kind,
         level=level,
         bullet_char=bullet_char,

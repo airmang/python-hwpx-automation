@@ -111,8 +111,8 @@ def test_fastmcp_format_edit_tools_roundtrip(tmp_path: Path) -> None:
     drawn_width = page_size.width if page_size.orientation == "WIDELY" else page_size.height
     assert drawn_width == _mm(297)
     assert reopened.sections[0].properties.page_margins.left == _mm(20)
-    assert reopened.sections[0].properties.get_header().text == "Confidential"
-    assert reopened.sections[0].properties.get_footer().element.find(f".//{HP}pageNum") is not None
+    assert reopened.sections[0].properties.header().text == "Confidential"
+    assert reopened.sections[0].properties.footer().element.find(f".//{HP}pageNum") is not None
 
 
 def test_format_tools_are_bound_to_canonical_callables_and_schemas() -> None:

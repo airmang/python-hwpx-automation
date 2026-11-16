@@ -88,7 +88,7 @@ def test_changed_bytes_are_always_validated_again(tmp_path: Path, counted) -> No
 
     doc = HwpxDocument.open(str(target))
     doc.add_paragraph("밖에서 고친 문단")
-    doc.save_to_path(str(target))
+    doc.save(str(target))
     doc.close()
 
     get_document_info(str(target))

@@ -73,8 +73,8 @@ def test_format_text_persists_run_level_style_changes(tmp_path: Path):
     accent_style = runs[1].style
     assert plain_style is not None
     assert accent_style is not None
-    assert plain_style.text_color() == "#000000"
-    assert accent_style.text_color() == "#FF0000"
+    assert plain_style.color == "#000000"
+    assert accent_style.color == "#FF0000"
     assert "bold" not in plain_style.child_attributes
     assert "bold" in accent_style.child_attributes
     assert accent_style.attributes.get("height") == "1400"
@@ -135,7 +135,7 @@ def test_create_custom_style_creates_distinct_style_and_name_resolves_on_insert(
 
     char_style = doc.styles.char_property(style.char_pr_id_ref)
     assert char_style is not None
-    assert char_style.text_color() == "#FF0000"
+    assert char_style.color == "#FF0000"
     assert "bold" in char_style.child_attributes
     assert char_style.attributes.get("height") == "1400"
 
@@ -188,9 +188,10 @@ def test_save_doc_uses_atomic_write_on_failure(tmp_path: Path, monkeypatch: pyte
             Path(path).write_text("not-a-valid-hwpx", encoding="utf-8")
         raise RuntimeError("forced save failure")
 
-    # Phase F routes saves through the SavePipeline (save_report), so inject the
-    # failure there to exercise the storage's atomic-write-on-failure path.
-    monkeypatch.setattr(doc, "save_report", flaky_save)
+    # Phase F routes saves through the SavePipeline (doc.save(..., quality=) in
+    # python-hwpx 7.0), so inject the failure there to exercise the storage's
+    # atomic-write-on-failure path.
+    monkeypatch.setattr(doc, "save", flaky_save)
 
     with pytest.raises(RuntimeError, match="forced save failure"):
         save_doc(doc, str(target))

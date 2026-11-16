@@ -1104,7 +1104,7 @@ def test_mac_form_fill_overflow0_layout_stable_smoke(tmp_path):
         result = contact.set_cell_text(row, col, value, fit=FitPolicy.keep())
         assert result is not None and result.ok and not result.overflow_detected
     filled = tmp_path / "public_official_filled.hwpx"
-    doc.save_to_path(str(filled))
+    doc.save(str(filled))
 
     # one comprehensive verdict: overflow + layout-stability + differential overlap
     oracle = MacHancomOracle(timeout=120)

@@ -54,7 +54,7 @@ def test_agent_paragraph_text_with_tab_or_line_break_passes_verification(
     doc = HwpxDocument.new()
     doc.paragraphs[0].runs[0].text = "첫 문단"
     doc.add_paragraph("바꿀 문단")
-    doc.save_to_path(str(source))
+    doc.save(str(source))
     doc.close()
     with HwpxAgentDocument.open(source) as agent:
         target = next(

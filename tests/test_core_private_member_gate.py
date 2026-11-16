@@ -93,7 +93,7 @@ def test_blueprint_style_is_minted_through_core() -> None:
     assert element.get("nextStyleIDRef") == created["styleIDRef"]
     assert element.get("langID") == "0"
     assert element.get("lockForm") in ("1", "true")  # core writes the OWPML literal
-    assert doc.styles.paragraph_property(created["paraPrIDRef"]).align.horizontal == "CENTER"
+    assert doc.styles.paragraph_property(created["paraPrIDRef"]).alignment.horizontal == "CENTER"
 
     reopened = HwpxDocument.open(doc.to_bytes())
     assert reopened.styles.resolve("청사진").id == int(created["styleIDRef"])

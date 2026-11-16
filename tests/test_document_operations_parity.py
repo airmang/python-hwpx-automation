@@ -58,7 +58,7 @@ def _template(path: Path) -> None:
     document = HwpxDocument.new()
     try:
         document.add_paragraph("name={{name}} / phone={{phone}}")
-        document.save_to_path(path)
+        document.save(path)
     finally:
         document.close()
 
@@ -69,9 +69,9 @@ def _redline_pair(tmp_path: Path) -> tuple[Path, Path]:
     after = tmp_path / "after.hwpx"
     try:
         document.add_paragraph("baseline")
-        document.save_to_path(before)
+        document.save(before)
         author_demo_redline(document)
-        document.save_to_path(after)
+        document.save(after)
     finally:
         document.close()
     return before, after

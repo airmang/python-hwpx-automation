@@ -19,6 +19,7 @@ from ..storage import build_hwpx_open_safety_report, open_local_document
 from ..upstream import (
     HP_NS as _HP_NS,
     HwpxDocument,
+    border_width_mm,
     is_hwp5_source,
     is_hwp5_target,
     repair_pathological_text_spacing,
@@ -617,7 +618,7 @@ def _apply_table_border_fill(
     border_fill_id = doc.styles.ensure_border_fill(
         border_type=border_type or "SOLID",
         border_color=border_color or "#000000",
-        border_width=border_width or "0.12 mm",
+        border_width_mm=border_width_mm(border_width),
         fill_color=fill_color,
     )
     if row is not None:
@@ -932,7 +933,7 @@ def add_memo_to_doc(
     paragraph = resolved.paragraph
     memo_count_before = len(doc.notes.memos)
     try:
-        doc.notes.add_memo(text or "", anchor=paragraph)
+        doc.notes.add_memo(text or "", paragraph=paragraph)
     except Exception as exc:  # noqa: BLE001
         if not _looks_like_mixed_xml_type_error(exc):
             raise
@@ -986,7 +987,7 @@ def remove_memo_from_doc(
 
 def add_page_break_to_doc(doc: HwpxDocument) -> None:
     """문서 끝에 페이지 나누기를 추가한다."""
-    doc.add_paragraph("", pageBreak="1")
+    doc.add_paragraph("").page_break = True
 
 
 # ── 텍스트 수집 ───────────────────────────────────────

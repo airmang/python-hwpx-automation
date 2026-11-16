@@ -44,7 +44,7 @@ def test_render_preview_html_only_creates_manifest_and_visual_evidence(tmp_path:
     output_dir = tmp_path / "preview"
     document = HwpxDocument.new()
     document.add_paragraph("Preview title")
-    document.save_to_path(source)
+    document.save(source)
 
     call_result = server.render_preview(
         str(source),

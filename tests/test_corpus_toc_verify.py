@@ -44,7 +44,7 @@ def _toc_doc(path: Path, count: int = 3) -> Path:
     # dirty explicit: with ``headings`` given, python-hwpx after 6.5 defaults to
     # a clean TOC (Hancom would rebuild a dirty one from outline paragraphs).
     ta.add_native_toc(doc, headings=headings, dirty=True)
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
     return path
 
@@ -52,7 +52,7 @@ def _toc_doc(path: Path, count: int = 3) -> Path:
 def _plain_doc(path: Path) -> Path:
     doc = HwpxDocument.new()
     doc.add_paragraph("차례 없는 일반 문서입니다.")
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
     return path
 

@@ -2,6 +2,8 @@
 """MCP owns Hancom discovery and injection into the neutral core save gate."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from hwpx import HwpxDocument
 from hwpx.quality import QualityPolicy, SavePipeline
 from hwpx.quality.rendering import VisualReport
@@ -50,15 +52,19 @@ def test_quality_save_temporarily_binds_mcp_backend(monkeypatch, tmp_path) -> No
     original = document._save_pipeline
     seen: list[SavePipeline] = []
 
-    def _save_report(path, *, quality):
+    def _save(path, *, quality):
+        # python-hwpx 7.0's doc.save(path, quality=...) returns the MutationReport
+        # receipt with the gate's report in .quality.
         seen.append(document._save_pipeline)
-        return original.run(
-            document.to_bytes(),
-            output_path=path,
-            quality=QualityPolicy.transparent(),
+        return SimpleNamespace(
+            quality=original.run(
+                document.to_bytes(),
+                output_path=path,
+                quality=QualityPolicy.transparent(),
+            )
         )
 
-    monkeypatch.setattr(document, "save_report", _save_report)
+    monkeypatch.setattr(document, "save", _save)
     report = quality_contract.save_through_pipeline(
         document,
         tmp_path / "out.hwpx",

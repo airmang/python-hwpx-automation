@@ -20,7 +20,7 @@ def _narrow_cell_template(path: Path) -> None:
     # 가용폭이 그만큼 줄므로 "깨끗한 행"이 실제로 들어갈 폭을 준다.
     cell.set_size(width=4600)
     cell.set_text("{{name}}")
-    doc.save_to_path(str(path))
+    doc.save(str(path))
 
 
 def test_mail_merge_fit_mode_surfaces_needs_review(tmp_path):

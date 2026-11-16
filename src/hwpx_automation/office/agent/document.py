@@ -354,7 +354,7 @@ class HwpxAgentDocument:
         para_pr = self.document.styles.paragraph_property(para_pr_ref)
         values: dict[str, Any] = {}
         if para_pr is not None:
-            values["alignment"] = para_pr.align.horizontal if para_pr.align is not None else None
+            values["alignment"] = para_pr.alignment.horizontal if para_pr.alignment is not None else None
             values["breakBefore"] = (
                 para_pr.break_setting.page_break_before if para_pr.break_setting is not None else None
             )
@@ -386,7 +386,7 @@ class HwpxAgentDocument:
                 if style is not None and str(style.attributes.get("height", "")).isdigit()
                 else None
             ),
-            "color": style.text_color() if style is not None else None,
+            "color": style.color if style is not None else None,
         }
         self._run_style_memo[ref] = values
         return values

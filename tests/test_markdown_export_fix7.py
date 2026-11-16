@@ -110,8 +110,8 @@ def test_rich_markdown_carries_list_labels() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     for text in ("첫째", "둘째", "글머리"):
         document.add_paragraph(text)
-    document.styles.apply_list_format(paragraph_indexes=[1, 2], kind="number")
-    document.styles.apply_list_format(paragraph_indexes=[3], kind="bullet")
+    document.styles.apply_list_format(paragraphs=[1, 2], kind="number")
+    document.styles.apply_list_format(paragraphs=[3], kind="bullet")
     lines = to_markdown(document, rich=True, list_labels=True).split("\n")
     assert "1. 첫째" in lines and "2. 둘째" in lines and "- 글머리" in lines
     assert "1. 첫째" not in to_markdown(document, rich=True).split("\n")

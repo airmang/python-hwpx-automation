@@ -1243,7 +1243,7 @@ class _Writer:
             if span.note is not None:
                 self._used_notes.add(span.note)
                 note = "".join(chunk for chunk, _bold, _italic in parse_inline(self.refs.notes[span.note]))
-                self.doc.notes.add_footnote(note, paragraph)  # type: ignore[arg-type,unused-ignore]
+                self.doc.notes.add_footnote(note, paragraph=paragraph)
                 continue
             if span.image is not None:  # where a picture cannot stand: its description stands for it
                 self.lose("image-in-text", span.image)
@@ -1286,7 +1286,7 @@ class _Writer:
                     for name, line in zip(("left", "right", "top", "bottom"), sides)
                 }
             self._border_ids[key] = self.doc.styles.ensure_border_fill(
-                border_color=color, border_width=width, fill_color=fill, sides=lines
+                border_color=color, border_width_mm=float(width.split()[0]), fill_color=fill, sides=lines
             )
         return self._border_ids[key]
 
@@ -1352,7 +1352,7 @@ class _Writer:
             keep_with_next=True,
             bottom_border=title and self.style.title_rule,
             border_color="#000000",
-            border_width="0.4 mm",
+            border_width_mm=0.4,
         )
         self.outline(paragraph, block.level)
         return paragraph
@@ -1390,7 +1390,7 @@ class _Writer:
         table.set_cell_border_fill(1, 0, self.border_id(fill=style.banner_fill, sides=(None, None, None, None)))
         title = table.cell(1, 0).paragraphs[0]
         self.write_runs(title, block.text, bold=self.heading_bold(1), size=size, font=self.heading_font(1))
-        self.doc.styles.apply_paragraph_format(paragraphs=[title], alignment="center", line_spacing_percent=120)
+        self.doc.styles.apply_paragraph_format(paragraphs=[title], alignment="center", line_spacing=120)
         self.outline(title, 1)
         table.set_row_heights([_STRIP_HEIGHT, round(size * 100 * _BANNER_HEIGHT_EMS), _STRIP_HEIGHT])
         self.doc.styles.apply_paragraph_format(
@@ -1434,7 +1434,7 @@ class _Writer:
         heading = table.cell(0, 1 if number else 0).paragraphs[0]
         self.write_runs(heading, text, bold=self.heading_bold(2), size=size, font=self.heading_font(2), color=ink)
         self.doc.styles.apply_paragraph_format(
-            paragraphs=[heading], indent_left_mm=_BOX_TITLE_INDENT_MM, line_spacing_percent=130
+            paragraphs=[heading], indent_left_mm=_BOX_TITLE_INDENT_MM, line_spacing=130
         )
         self.outline(heading, 2)
         table.set_row_heights([round(size * 100 * _BOX_HEIGHT_EMS)])
@@ -1570,11 +1570,11 @@ class _Writer:
         height = max(1, round(width * height_px / width_px))
         self.stop_reusing()
         picture = self.doc.add_picture(
-            data, image_format, width=width, height=height, align="CENTER", para_pr_id_ref="0", style=0
+            data, image_format, width=width, height=height, alignment="CENTER", para_pr_id_ref="0", style=0
         )
         description = description.strip()
         if description:
-            picture.set_description(description)
+            picture.description = description
             picture.set_caption(description, side="BOTTOM")
 
     def code(self, block: _Code) -> None:
@@ -1660,7 +1660,7 @@ class _Writer:
             if width(spacing) <= room * (1 - _FIT_SPARE):
                 for run in runs:
                     run.char_pr_id_ref = self.doc.styles.ensure_run(
-                        base_char_pr_id=run.char_pr_id_ref, letter_spacing=spacing
+                        base_char_pr_id_ref=run.char_pr_id_ref, letter_spacing=spacing
                     )
                 return
 
@@ -1702,7 +1702,7 @@ class _Writer:
             key = (paragraph.para_pr_id_ref, item.kind, item.level, left)
             if key not in shapes:
                 shapes[key] = self.doc.styles.ensure_paragraph_format(
-                    base_para_pr_id=paragraph.para_pr_id_ref,
+                    base_para_pr_id_ref=paragraph.para_pr_id_ref,
                     heading=heads[(item.kind, item.level)],
                     margins={"left": round(left * _HWPUNIT_PER_MM)} if left > 0 else None,
                 )

@@ -158,7 +158,7 @@ def test_content_hwp_cannot_hold_is_refused_before_writing(tmp_path: Path) -> No
         etree.SubElement(combo, f"{hp}listItem", displayText=value, value=value)
     document.sections[0].mark_dirty()
     source = tmp_path / "combo.hwpx"
-    document.save_to_path(source)
+    document.save(source)
 
     target = tmp_path / "combo.hwp"
     payload = _refusal(lambda: server.copy_document(str(source), str(target)))

@@ -37,7 +37,7 @@ def test_picture_operations_preserve_a_safe_asset_graph(tmp_path):
     workdir = tmp_path / "workspace"
     workdir.mkdir()
     target = workdir / "picture.hwpx"
-    HwpxDocument.new().save_to_path(target)
+    HwpxDocument.new().save(target)
     ops = HwpxOps(base_directory=workdir, auto_backup=True)
 
     inserted = ops.insert_picture(
@@ -271,7 +271,7 @@ def test_ensure_char_style_applies_shared_color_style_logic(ops_with_sample):
     assert char_id is not None
     style = document.styles.char_property(char_id)
     assert style is not None
-    assert style.text_color() == "#FF0000"
+    assert style.color == "#FF0000"
     assert "bold" in style.child_attributes
     underline_attrs = style.child_attributes.get("underline") or {}
     assert underline_attrs.get("type") != "NONE"
@@ -559,7 +559,7 @@ def test_set_table_cell_supports_logical_and_split_flags(ops_with_sample):
     for paragraph in document.paragraphs:
         tables.extend(paragraph.tables)
     tables[index].merge_cells(0, 0, 1, 1)
-    document.save_to_path(path)
+    document.save(path)
 
     logical_result = ops.set_table_cell_text(
         str(path),
@@ -615,7 +615,7 @@ def test_replace_region_and_split_tool_handle_merged_cells(ops_with_sample):
         tables.extend(paragraph.tables)
     target_table = tables[index]
     target_table.merge_cells(0, 0, 1, 1)
-    document.save_to_path(path)
+    document.save(path)
 
     region_result = ops.replace_table_region(
         str(path),
@@ -642,7 +642,7 @@ def test_replace_region_and_split_tool_handle_merged_cells(ops_with_sample):
 
     # Merge a new column region and split it using the dedicated tool
     updated_table.merge_cells(0, 2, 1, 2)
-    updated_state.save_to_path(path)
+    updated_state.save(path)
 
     split_meta = ops.split_table_cell(str(path), table_index=index, row=0, col=2)
 
@@ -673,7 +673,7 @@ def test_get_table_cell_map_serializes_grid_with_merges(ops_with_sample):
             target_table.cell(row, col).text = f"R{row}C{col}"
     target_table.merge_cells(0, 0, 1, 1)
     target_table.merge_cells(0, 2, 2, 2)
-    document.save_to_path(path)
+    document.save(path)
 
     grid_info = ops.get_table_cell_map(str(path), table_index=index)
     grid = grid_info["grid"]
@@ -978,7 +978,7 @@ def test_get_tables_by_handle_reports_logical_column_count(tmp_path):
     target = workdir / "tables-handle.hwpx"
     document = HwpxDocument.new()
     document.add_table(rows=2, cols=3)
-    document.save_to_path(target)
+    document.save(target)
 
     ops = HwpxOps(base_directory=workdir, auto_backup=False)
     handle = ops._register_handle(

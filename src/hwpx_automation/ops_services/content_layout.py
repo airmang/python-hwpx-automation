@@ -269,7 +269,7 @@ class ContentLayoutService:
             col=col,
         )
         try:
-            document.shapes.add_equation(script, paragraph=paragraph, base_unit=base_unit)
+            document.shapes.add_equation(script, paragraph=paragraph, font_size=base_unit / 100)  # pt; core writes baseUnit
         except ValueError as exc:
             raise self._context._new_error(
                 "EQUATION_INPUT_INVALID", str(exc)
@@ -343,10 +343,10 @@ class ContentLayoutService:
         # (design §2.4) rather than a dict — .to_dict() keeps this service's
         # own dict-shaped op envelope (ok/filename merged below) unchanged.
         result = document.styles.apply_paragraph_format(
-            paragraph_index=paragraph_index,
-            paragraph_indexes=paragraph_indexes,
+            paragraph=paragraph_index,
+            paragraphs=paragraph_indexes,
             alignment=alignment,
-            line_spacing_percent=line_spacing_percent,
+            line_spacing=line_spacing_percent,
             indent_left_mm=indent_left_mm,
             indent_right_mm=indent_right_mm,
             first_line_indent_mm=first_line_indent_mm,
@@ -493,7 +493,7 @@ class ContentLayoutService:
             target=target,
             page_type=page_type,
             format=format,
-            align=align,
+            alignment=align,
             position=position,
             prefix=prefix,
             suffix=suffix,
@@ -533,8 +533,8 @@ class ContentLayoutService:
         # §2.4) rather than a dict — .to_dict() keeps this service's own
         # dict-shaped op envelope (ok/filename merged below) unchanged.
         result = document.styles.apply_list_format(
-            paragraph_index=paragraph_index,
-            paragraph_indexes=paragraph_indexes,
+            paragraph=paragraph_index,
+            paragraphs=paragraph_indexes,
             kind=kind,
             level=level,
             bullet_char=bullet_char,

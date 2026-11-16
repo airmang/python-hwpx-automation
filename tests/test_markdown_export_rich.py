@@ -382,7 +382,7 @@ class TestImages:
 class TestRoundtrip:
     def test_charpridref_preserved_after_replace(self, tmp_path, notes_doc):
         src = tmp_path / "src.hwpx"
-        notes_doc.save_to_path(str(src))
+        notes_doc.save(str(src))
 
         def snap(d):
             return [
@@ -396,7 +396,7 @@ class TestRoundtrip:
         doc = HwpxDocument.open(str(src))
         doc.text.replace("우주", "★우주★")
         dst = tmp_path / "dst.hwpx"
-        doc.save_to_path(str(dst))
+        doc.save(str(dst))
         after = snap(HwpxDocument.open(str(dst)))
 
         assert len(before) == len(after)
@@ -406,11 +406,11 @@ class TestRoundtrip:
 
     def test_modified_document_still_exports(self, tmp_path, notes_doc):
         src = tmp_path / "src.hwpx"
-        notes_doc.save_to_path(str(src))
+        notes_doc.save(str(src))
         doc = HwpxDocument.open(str(src))
         doc.text.replace("우주", "★우주★")
         dst = tmp_path / "dst.hwpx"
-        doc.save_to_path(str(dst))
+        doc.save(str(dst))
         # 라운드트립 후에도 markdown 변환 성공 + 각주/링크 보존
         md = export_markdown(HwpxDocument.open(str(dst)))
         assert "[^fn1]" in md

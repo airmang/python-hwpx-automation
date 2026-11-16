@@ -1201,7 +1201,7 @@ def _attach_profile_memos(document: HwpxDocument, memos: Sequence[tuple[str, str
                 "profile compose could not place a memo block: no paragraph holds "
                 f"its text {anchor_text[:40]!r}"
             )
-        document.notes.add_memo(memo_text, anchor=paragraphs[found])
+        document.notes.add_memo(memo_text, paragraph=paragraphs[found])
         cursor = found + 1
 
 
@@ -2689,7 +2689,7 @@ def _format_para(
     if alignment is not None:
         kwargs["alignment"] = alignment
     if line_spacing is not None:
-        kwargs["line_spacing_percent"] = line_spacing
+        kwargs["line_spacing"] = line_spacing
     if before_pt is not None:
         kwargs["spacing_before_pt"] = before_pt
     if after_pt is not None:
@@ -2701,7 +2701,7 @@ def _format_para(
         return
     try:
         index = document.paragraphs.index(paragraph)
-        document.styles.apply_paragraph_format(paragraph_index=index, **kwargs)
+        document.styles.apply_paragraph_format(paragraph=index, **kwargs)
     except (ValueError, KeyError):
         return
 
@@ -2725,7 +2725,7 @@ def _add_rich_runs(
             size=run.size,
             highlight=run.highlight,
             strike=run.strike,
-            base_char_pr_id=base_char_pr_id,
+            base_char_pr_id_ref=base_char_pr_id,
         )
         paragraph.add_run(str(run.text or ""), char_pr_id_ref=char_pr_id)
 
@@ -2810,10 +2810,10 @@ def _render_block(
             char_pr_id_ref=tokens["body"],
             inherit_style=False,
         )
-        document.notes.add_memo(str(block.data["memo"]), anchor=paragraph)
+        document.notes.add_memo(str(block.data["memo"]), paragraph=paragraph)
         return
     if isinstance(block, BuilderPageBreak):
-        document.add_paragraph("", pageBreak="1", inherit_style=False)
+        document.add_paragraph("", inherit_style=False).page_break = True
         return
     raise ValueError(f"unsupported builder block: {type(block).__name__}")
 
@@ -2964,7 +2964,7 @@ def _apply_plan_cell_styles(
         if style.text_color is not None:
             char_pr_id = document.styles.ensure_run(
                 color=style.text_color,
-                base_char_pr_id=base_char_pr_id,
+                base_char_pr_id_ref=base_char_pr_id,
             )
             for paragraph in cell.paragraphs:
                 paragraph.char_pr_id_ref = char_pr_id
@@ -3663,7 +3663,7 @@ def _camel_to_snake(value: str) -> str:
 
 
 def _iter_runs_deep(document: HwpxDocument) -> list[Any]:
-    runs = list(document.text.runs())
+    runs = list(document.text.iter_runs())
     for table in _iter_tables(document):
         for row in table.rows:
             for cell in row.cells:

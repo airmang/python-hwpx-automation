@@ -49,7 +49,7 @@ def test_inspect_reference_consistency_from_file_returns_revision(tmp_path: Path
     doc.add_paragraph("표 1. 예산")
     doc.add_paragraph("표 3. 누락")
     doc.add_paragraph("붙임 1. 세부계획서 1부.")
-    doc.save_to_path(target)
+    doc.save(target)
     doc.close()
 
     result = server.inspect_reference_consistency(filename=str(target))

@@ -115,7 +115,7 @@ def build_s079_korean_mixed_form_fixture(
             merged_table.rows[1].cells[1].text = ""
             merged_table.merge_cells("A2:B2")
 
-        document.save_to_path(path)
+        document.save(path)
 
 
 def _revision(path: Path) -> str:

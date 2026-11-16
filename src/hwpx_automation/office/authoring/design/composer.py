@@ -22,6 +22,7 @@ from hwpx.document import HwpxDocument
 from hwpx.quality import QualityPolicy
 
 import hwpx_automation.office.authoring.design._support as S
+from ...rendering import save_gate_report
 from .marked import OBJECT_TAGS, fill_placeholders, fragment_paragraphs, is_marked_profile
 from .plan import Block, DocumentPlan
 from .profile import Profile, load_profile
@@ -122,9 +123,9 @@ def compose(
 
         policy = quality or _default_policy()
         try:
-            report = doc.save_report(output_path, quality=policy)
+            report = save_gate_report(doc, output_path, quality=policy)
         except ValueError as exc:
-            # save_report raises (not returns) when the serialized bytes fail the
+            # The save raises (not returns) when the serialized bytes fail the
             # open-safety floor — convert to the structured ok=False contract.
             return ComposeResult(
                 ok=False, profile=prof.id, output_path=None, visual_complete=None,

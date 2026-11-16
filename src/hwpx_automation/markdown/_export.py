@@ -611,7 +611,7 @@ def _cell_to_md(cell, doc, mapping, depth: int = 0, notes_out: list | None = Non
 
 
 def _table_to_md(tbl, doc, mapping, depth: int = 0, notes_out: list | None = None) -> str:
-    grid = tbl.get_cell_map()
+    grid = tbl.cell_map
     rows, cols = tbl.row_count, tbl.column_count
     has_merge = any(not pos.is_anchor for row in grid for pos in row)
     caption_text = _element_caption_text(tbl.element)

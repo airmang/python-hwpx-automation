@@ -273,8 +273,8 @@ def _run_format_detail(
         "subscript": span.subscript,
         # legacy back-compat keys
         "textColor": span.color,
-        "underlineType": style.underline_type() if style is not None else None,
-        "underlineColor": style.underline_color() if style is not None else None,
+        "underlineType": style.underline_type if style is not None else None,
+        "underlineColor": style.underline_color if style is not None else None,
         "attributes": dict(getattr(style, "attributes", {}) or {}),
     }
 

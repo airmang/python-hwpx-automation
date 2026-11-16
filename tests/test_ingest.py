@@ -24,7 +24,7 @@ def _sample_hwpx(path: Path) -> Path:
     table.set_cell_text(0, 1, "내용")
     table.set_cell_text(1, 0, "기간")
     table.set_cell_text(1, 1, "2026. 3.")
-    doc.save_to_path(path)
+    doc.save(path)
     return path
 
 
@@ -77,7 +77,7 @@ def _rich_hwpx() -> bytes:
         doc.page.set_header(text="머리말 ZQ글")
         doc.page.set_footer(text="꼬리말 ZQ글")
         anchor = doc.add_paragraph("메모 달린 문단")
-        doc.notes.add_memo("메모 ZQ내용", anchor=anchor)
+        doc.notes.add_memo("메모 ZQ내용", paragraph=anchor)
         doc.shapes.add_equation("x = {-b +- sqrt {b^2 - 4ac}} over {2a}")
         doc.shapes.add_composed_character("가나")
         doc.fields.add_check_box(caption="체크ZQ캡션")

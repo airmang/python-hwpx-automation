@@ -128,10 +128,10 @@ def test_paths_are_deterministic_across_save_and_reopen(tmp_path: Path) -> None:
     first_path = tmp_path / "first.hwpx"
     second_path = tmp_path / "second.hwpx"
     with _build_semantic_document() as document:
-        document.save_to_path(first_path)
+        document.save(first_path)
     with HwpxAgentDocument.open(first_path) as first:
         paths_before = [record.path for record in first.records]
-        first.document.save_to_path(second_path)
+        first.document.save(second_path)
     with HwpxAgentDocument.open(second_path) as second:
         paths_after = [record.path for record in second.records]
 

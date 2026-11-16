@@ -69,18 +69,18 @@ def _outside_body_document() -> HwpxDocument:
     doc = HwpxDocument.new()
     doc.add_paragraph("본문 첫 문단입니다.")
     reviewed = doc.add_paragraph("검토가 필요한 문장입니다.")
-    doc.notes.add_memo("근거 자료를 붙여 주세요", anchor=reviewed)
+    doc.notes.add_memo("근거 자료를 붙여 주세요", paragraph=reviewed)
     doc.notes.add_memo("자리 없는 메모")
     doc.page.set_header(text="2026학년도 운영 계획")
     doc.page.set_footer(text="가나고등학교")
     buffer = io.BytesIO()
-    doc.save_to_stream(buffer)
+    doc.save(buffer)
     return HwpxDocument.open(buffer.getvalue())
 
 
 def test_ingest_carries_them_and_reports_nothing_left_out() -> None:
     buffer = io.BytesIO()
-    _outside_body_document().save_to_stream(buffer)
+    _outside_body_document().save(buffer)
     result = DocumentIngestor.default().convert(buffer.getvalue())
     for text in ("2026학년도 운영 계획", "가나고등학교", "근거 자료를 붙여 주세요", "자리 없는 메모"):
         assert text in result.markdown, text
@@ -90,7 +90,7 @@ def test_ingest_carries_them_and_reports_nothing_left_out() -> None:
 
 def test_ingest_can_still_be_asked_for_the_body_only() -> None:
     buffer = io.BytesIO()
-    _outside_body_document().save_to_stream(buffer)
+    _outside_body_document().save(buffer)
     result = DocumentIngestor.default().convert(
         buffer.getvalue(), markdown_options={"headers_and_footers": False, "memos": False}
     )
@@ -144,8 +144,8 @@ def test_ingest_carries_list_labels() -> None:
     document = HwpxDocument.new(empty_first_line=True)
     for text in ("첫째", "둘째", "글머리"):
         document.add_paragraph(text)
-    document.styles.apply_list_format(paragraph_indexes=[1, 2], kind="number")
-    document.styles.apply_list_format(paragraph_indexes=[3], kind="bullet")
+    document.styles.apply_list_format(paragraphs=[1, 2], kind="number")
+    document.styles.apply_list_format(paragraphs=[3], kind="bullet")
     assert "1. 첫째" not in to_markdown(document, rich=True).split("\n")
     assert "1. 첫째" in _ingest(document).markdown.split("\n")
 

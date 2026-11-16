@@ -719,14 +719,14 @@ def _apply_set_paragraph(document: HwpxDocument, native: Any, properties: Mappin
     if "alignment" in properties:
         format_kwargs["alignment"] = properties["alignment"]
     if "lineSpacingPercent" in properties:
-        format_kwargs["line_spacing_percent"] = properties["lineSpacingPercent"]
+        format_kwargs["line_spacing"] = properties["lineSpacingPercent"]
     if "keepWithNext" in properties:
         format_kwargs["keep_with_next"] = properties["keepWithNext"]
     if "breakBefore" in properties:
         format_kwargs["page_break_before"] = properties["breakBefore"]
     if format_kwargs:
         document.styles.apply_paragraph_format(
-            paragraph_index=_global_paragraph_index(document, native), **format_kwargs
+            paragraph=_global_paragraph_index(document, native), **format_kwargs
         )
 
 
@@ -766,7 +766,7 @@ def _apply_set_run(document: HwpxDocument, native: Any, properties: Mapping[str,
             color=properties.get("color"),
             font=requested_font,
             size=properties.get("fontSizePt"),
-            base_char_pr_id=native.char_pr_id_ref,
+            base_char_pr_id_ref=native.char_pr_id_ref,
         )
         native.char_pr_id_ref = style_id
 
@@ -804,7 +804,7 @@ def _apply_set_cell(native: Any, properties: Mapping[str, Any], record: NodeReco
 
 def _apply_set_form_field(document: HwpxDocument, native: Any, properties: Mapping[str, Any], record: NodeRecord) -> None:
     if "value" in properties:
-        document.fields.fill(properties["value"], field_index=int(native["index"]))
+        document.fields.fill(properties["value"], index=int(native["index"]))
     if "readOnly" in properties:
         runs = native.get("_runs") or []
         try:
