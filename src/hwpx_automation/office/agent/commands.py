@@ -21,7 +21,6 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlTable
-from hwpx.oxml.namespaces import HP
 from hwpx.quality import SavePipeline
 
 from ._batch_publication import BatchPublication
@@ -116,22 +115,6 @@ def _local_name(element: Any) -> str:
 def _tag_like(element: Any, local_name: str) -> str:
     tag = str(element.tag)
     return f"{tag.rsplit('}', 1)[0]}}}{local_name}" if "}" in tag else local_name
-
-
-def _section_memo_group(section: Any) -> Any:
-    """The section's ``hp:memogroup``, appended (empty) when it has none.
-
-    Uses the public ``section.memo_group``; core has no public verb that creates
-    the group alone, so it is appended here the way core appends it.
-    """
-
-    group = section.memo_group
-    if group is not None:
-        return group.element
-    element = section.element.makeelement(f"{HP}memogroup", {})
-    section.element.append(element)
-    section.mark_dirty()
-    return element
 
 
 def _element(native: Any) -> Any:
@@ -1043,10 +1026,9 @@ def _detach(view: HwpxAgentDocument, record: NodeRecord) -> Any:
             )
         table.element.remove(element)
         _refresh_table_rows(table)
-    elif record.kind == "memo":
-        record.native.group.element.remove(element)
-        record.native.group.section.mark_dirty()
     else:
+        # A memo is not movable: python-hwpx 7.0 keeps it in its paragraph's MEMO field
+        # (the node catalog lists no "move" for memo; copy makes a new memo there).
         raise AgentContractError("unsupported_operation", f"cannot detach {record.kind}")
     return element
 
@@ -1107,19 +1089,6 @@ def _move(
         fresh_view = HwpxAgentDocument.from_document(view.document, revision=view.revision)
         fresh_parent = _record_for_native(fresh_view, parent.native)
         _insert_inline(fresh_view, fresh_parent, source.kind, detached, synthetic_position)
-    elif source.kind == "memo":
-        group = _section_memo_group(parent.native)
-        if group is None:  # pragma: no cover
-            raise AgentContractError("invariant_violation", "memo group creation failed")
-        siblings = [memo.element for memo in parent.native.memos]
-        if position["mode"] == "append" or not siblings:
-            group.append(detached)
-        else:
-            fresh_view = HwpxAgentDocument.from_document(view.document, revision=view.revision)
-            fresh_parent = _record_for_native(fresh_view, parent.native)
-            index = _insertion_index(fresh_view, fresh_parent, "memo", position)
-            group.insert(index, detached)
-        parent.native.mark_dirty()
     return detached
 
 

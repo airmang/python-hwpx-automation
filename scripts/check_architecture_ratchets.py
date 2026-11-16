@@ -185,7 +185,7 @@ EXPECTED_C901 = (
     # parser's help and choice errors stay byte-identical to core's golden.
     ("src/hwpx_automation/office/agent/cli.py", "main", 15),
     ("src/hwpx_automation/office/agent/commands.py", "_add", 16),
-    ("src/hwpx_automation/office/agent/commands.py", "_move", 15),
+    ("src/hwpx_automation/office/agent/commands.py", "_move", 12),  # 8.0: the memo move branch went away (15 -> 12)
     ("src/hwpx_automation/office/agent/commands.py", "_refresh_copy_identities", 13),
     ("src/hwpx_automation/office/agent/commands.py", "_remove", 12),
     ("src/hwpx_automation/office/agent/document.py", "_project_paragraph", 13),
