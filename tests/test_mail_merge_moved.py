@@ -128,6 +128,18 @@ def test_load_rows_from_xlsx_coerces_cells_to_str_and_skips_blank_rows(tmp_path)
     assert rows == [{"name": "홍길동", "no": "7"}, {"name": "김영수", "no": "12"}]
 
 
+def test_xlsx_without_openpyxl_names_this_packages_extra(tmp_path, monkeypatch):
+    import sys
+
+    path = tmp_path / "roster3.xlsx"
+    path.write_bytes(b"PK\x03\x04")  # never opened: the import fails first
+    monkeypatch.setitem(sys.modules, "openpyxl", None)
+
+    with pytest.raises(ImportError) as raised:
+        load_mail_merge_rows(path)
+    assert 'pip install "python-hwpx-automation[xlsx]"' in str(raised.value)
+
+
 # --- from tests/test_export_text_boxes.py and tests/test_export_captions_dutmal.py
 
 

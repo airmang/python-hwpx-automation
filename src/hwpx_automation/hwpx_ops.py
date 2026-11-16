@@ -1400,7 +1400,7 @@ class HwpxOps:
 
         When *viewer* is true, the manifest also carries a self-contained
         scrollable document viewer under ``viewer`` (equations as native MathML
-        with ``python-hwpx[preview]``).
+        with ``python-hwpx-automation[preview]``).
         """
         return self._services.preview_export.render_preview(
             path,

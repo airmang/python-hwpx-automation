@@ -380,7 +380,7 @@ class PreviewExportService:
         the page as an inline image content block.
 
         When *viewer* is true, a self-contained scrollable document viewer
-        (equations rendered as native MathML when ``python-hwpx[preview]`` is
+        (equations rendered as native MathML when the ``[preview]`` extra is
         installed) is added to the manifest under ``viewer``. The viewer is
         orthogonal to rasterization; pair it with ``screenshot="off"`` for the
         lightweight text path.

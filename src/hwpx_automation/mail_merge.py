@@ -79,7 +79,8 @@ def _load_xlsx_rows(path: Path) -> list[dict[str, Any]]:
         from openpyxl import load_workbook
     except ImportError as exc:  # pragma: no cover - exercised only without openpyxl
         raise ImportError(
-            "reading .xlsx rosters requires openpyxl — install python-hwpx[xlsx]"
+            "reading .xlsx rosters requires openpyxl — "
+            'install it with: pip install "python-hwpx-automation[xlsx]"'
         ) from exc
 
     workbook = load_workbook(path, read_only=True, data_only=True)
