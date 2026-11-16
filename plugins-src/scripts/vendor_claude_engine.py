@@ -52,6 +52,131 @@ SKIPPED_TYPING_SUFFIXES = (".pyi",)
 # Claude plugin directory limits: larger files are not inspected.
 MAX_FILE_BYTES = 256 * 1024
 MAX_PLUGIN_FILES = 512
+# The engine serves only the chat path (chat-engine.md: ``import hwpx``,
+# ``hwpx_automation.api``). The MCP server never reads it: Claude starts the
+# server from ``server/uv.lock`` with ``uv run --frozen``. So the MCP server
+# layer, command-line entry points, the Hancom render worker and third-party
+# framework adapters are left out of the vendored copy. Core 7.0 + automation
+# 8.0 would otherwise need 517 files (> 512). Every entry is a wheel member path
+# prefix; check() fails when anything kept imports a module left out here.
+EXCLUDED_ENGINE_MEMBERS = (
+    # MCP server layer (tools, handlers, runtime, stdio entry points)
+    "hwpx_automation/handlers/",
+    "hwpx_automation/ops_services/",
+    "hwpx_automation/server.py",
+    "hwpx_automation/runtime.py",
+    "hwpx_automation/runtime_services.py",
+    "hwpx_automation/tool_bindings.py",
+    "hwpx_automation/hwpx_ops.py",
+    "hwpx_automation/mcp_cli.py",
+    "hwpx_automation/__main__.py",
+    # MCP workflow engine (durable workflows, render queue transport)
+    "hwpx_automation/workflow/service.py",
+    "hwpx_automation/workflow/adapters.py",
+    "hwpx_automation/workflow/render_transport.py",
+    "hwpx_automation/workflow/render_metrics.py",
+    "hwpx_automation/workflow/evidence_lineage.py",
+    # Hancom render worker and its command line (needs a desktop Hancom)
+    "hwpx_automation/office/rendering/__main__.py",
+    "hwpx_automation/office/rendering/cli.py",
+    "hwpx_automation/office/rendering/worker.py",
+    # (fixture_corpus, page_qa, qa_metrics stay: visual_qa imports them.)
+    "hwpx_automation/office/agent/cli.py",
+    # LangChain / LlamaIndex adapters (8.0; need those frameworks installed)
+    "hwpx_automation/integrations/",
+    # core command-line entry point
+    "hwpx/tools/text_extract_cli.py",
+)
+# Modules the chat path imports (chat-engine.md start block and W1-W5).
+CHAT_ROOTS = ("hwpx", "hwpx_automation", "hwpx_automation.api")
+
+
+def is_excluded(member: str) -> bool:
+    return member.startswith(EXCLUDED_ENGINE_MEMBERS)
+
+
+def static_closure(source_root: Path | list[Path], roots: tuple[str, ...] | None = CHAT_ROOTS) -> dict[str, set[str]]:
+    """Every engine module reachable from ``roots`` by any import statement.
+
+    Follows function-level (lazy) imports and ``import_module("literal")`` too,
+    so it over-approximates what the chat path can load. Returns
+    {module: names it imports that resolve to an hwpx/hwpx_automation module or
+    to an excluded member} for the reached modules.
+    """
+    import ast
+
+    modules: dict[str, Path] = {}
+    source_roots = source_root if isinstance(source_root, list) else [source_root]
+    for base, top in ((base, top) for base in source_roots for top in ("hwpx", "hwpx_automation")):
+        for path in (base / top).rglob("*.py"):
+            if is_excluded(path.relative_to(base).as_posix()):
+                continue  # forecast mode reads full sources; left-out modules are not engine modules
+            parts = list(path.relative_to(base).with_suffix("").parts)
+            if parts[-1] == "__init__":
+                parts = parts[:-1]
+            modules[".".join(parts)] = path
+    excluded = set()
+    for member in EXCLUDED_ENGINE_MEMBERS:
+        name = member.removesuffix("/").removesuffix(".py").replace("/", ".")
+        excluded.add(name.removesuffix(".__init__"))
+
+    def known(name: str) -> bool:
+        return name in modules or any(name == e or name.startswith(e + ".") for e in excluded)
+
+    def imports(module: str) -> set[str]:
+        path = modules[module]
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names: set[str] = set()
+        package = module.split(".") if path.name == "__init__.py" else module.split(".")[:-1]
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                base = node.module or ""
+                if node.level:
+                    stem = package[: len(package) - (node.level - 1)]
+                    base = ".".join(stem + ([base] if base else []))
+                names.add(base)
+                names.update(f"{base}.{alias.name}" for alias in node.names)
+            elif (isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant)
+                  and isinstance(node.args[0].value, str)
+                  and getattr(node.func, "attr", getattr(node.func, "id", "")) == "import_module"):
+                names.add(node.args[0].value)
+        found: set[str] = set()
+        for name in names:
+            parts = name.split(".")
+            for index in range(1, len(parts) + 1):
+                prefix = ".".join(parts[:index])
+                if known(prefix):
+                    found.add(prefix)
+        return found
+
+    reached: dict[str, set[str]] = {}
+    stack = [root for root in (modules if roots is None else roots) if root in modules]
+    while stack:
+        module = stack.pop()
+        if module in reached:
+            continue
+        reached[module] = imports(module)
+        stack.extend(name for name in reached[module] if name in modules and name not in reached)
+    return reached
+
+
+def excluded_imports(source_root: Path | list[Path]) -> list[str]:
+    """``module -> excluded`` edges from any module the engine keeps.
+
+    Every kept module is a root, not only the chat entry points: a kept module
+    that imports a left-out one would fail at import time (found that way for
+    the render-QA modules), so the build refuses it.
+    """
+    problems = []
+    for module, names in sorted(static_closure(source_root, roots=None).items()):
+        for name in sorted(names):
+            member_py = name.replace(".", "/") + ".py"
+            member_pkg = name.replace(".", "/") + "/"
+            if is_excluded(member_py) or is_excluded(member_pkg):
+                problems.append(f"{module} imports {name}, which the engine leaves out")
+    return problems
 # Windows without long-path support stops at 260 characters; the host's plugin cache
 # prefix (user profile, marketplace, plugin, version string) takes about 100 of them.
 MAX_RELATIVE_PATH = 140
@@ -111,6 +236,8 @@ def wheel_members(data: bytes) -> dict[str, bytes]:
             if parts[0].endswith(".dist-info") and parts[-1] in SKIPPED_METADATA:
                 continue
             if parts[-1] in SKIPPED_TYPING_MARKERS or parts[-1].endswith(SKIPPED_TYPING_SUFFIXES):
+                continue
+            if is_excluded(name):
                 continue
             if ".." in parts or name.startswith("/"):
                 raise SystemExit(f"unsafe wheel member: {name}")
@@ -175,6 +302,10 @@ def check() -> list[str]:
         data = (ENGINE / rel).read_bytes()
         if sha256_bytes(data) != recorded[rel]:
             problems.append(f"engine file changed: {rel}")
+    present = sorted(rel for rel in actual if is_excluded(rel))
+    if present:
+        problems.append(f"engine carries members it must leave out: {present[:5]}")
+    problems.extend(excluded_imports(ENGINE))
     bundle_files = [p for p in BUNDLE.rglob("*") if p.is_file() and "__pycache__" not in p.parts
                     and "examples/out" not in p.as_posix()]
     if len(bundle_files) > MAX_PLUGIN_FILES:
