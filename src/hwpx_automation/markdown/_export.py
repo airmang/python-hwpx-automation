@@ -660,20 +660,36 @@ def _p_element_to_md(p_el, doc, notes_out: list | None = None) -> str:
 # ──────────────────────────────────────────────────────────────────
 # 도형 / 셀 / 표
 # ──────────────────────────────────────────────────────────────────
-def _shape_text_lines(scope_el, doc, notes_out: list | None = None) -> list[str]:
+def _text_shapes(paragraph) -> list:
+    """문단 안(칸·글상자 속까지)의 사각형·타원·다각형을 종류 차례로(사각형 모두, 타원 모두, 다각형 모두).
+
+    ``paragraph.iter_objects(kinds="shape")``가 문서 차례로 준다. 묶음·글상자는 이들의 자식이라 따로
+    보지 않는다(같은 문단을 두 번 싣는다)."""
+
+    shapes = [place.object for place in paragraph.iter_objects(kinds="shape") if place.object.shape_type in SHAPE_TAGS]
+    if len(shapes) < 2:
+        return shapes
+    return [shape for tag in SHAPE_TAGS for shape in shapes if shape.shape_type == tag]
+
+
+def _shape_paragraphs(paragraph, seen: set):
+    """문단 안 도형의 문단(``shape.iter_paragraphs()``)을 한 번씩. *seen* 에 있는 문단은 건너뛴다."""
+
+    for shape in _text_shapes(paragraph):
+        for place in shape.iter_paragraphs():
+            inner = place.paragraph
+            if inner in seen:
+                continue
+            seen.add(inner)
+            yield inner
+
+
+def _shape_text_lines(paragraph, doc, notes_out: list | None = None) -> list[str]:
     lines: list[str] = []
-    # 요소 자체를 담아 둔다: id()는 풀린 lxml 프록시의 번호를 다른 요소가 다시 받아
-    # 처음 보는 문단을 본 것으로 여길 수 있다.
-    seen_p = set()
-    for tag in SHAPE_TAGS:
-        for shape in _descendants(scope_el, tag):
-            for sub_p in _descendants(shape, "p"):
-                if sub_p in seen_p:
-                    continue
-                seen_p.add(sub_p)
-                md = _labelled_md(_p_element_to_md(sub_p, doc, notes_out).strip(), sub_p, block=False)
-                if md:
-                    lines.append(md)
+    for sub_p in _shape_paragraphs(paragraph, set()):
+        md = _labelled_md(_p_element_to_md(sub_p.element, doc, notes_out).strip(), sub_p.element, block=False)
+        if md:
+            lines.append(md)
     return lines
 
 
@@ -714,7 +730,7 @@ def _cell_to_md(cell, doc, mapping, depth: int = 0, notes_out: list | None = Non
     for cp in cell.paragraphs:
         md = _labelled_md(_p_element_to_md(cp.element, doc, notes_out).strip(), cp.element, block=False)
         imgs = _paragraph_images(cp, mapping)
-        shape_lines = _shape_text_lines(cp.element, doc, notes_out)
+        shape_lines = _shape_text_lines(cp, doc, notes_out)
         if md:
             chunks.append(md)
         chunks.extend(shape_lines)
@@ -890,39 +906,30 @@ def _export_dedupe_md(md: str, p) -> str:
 
     # 중복 가드 2: 문단 자신의 글이 품은 도형의 글과 같을 때만 뺀다. 도형을 품은
     # 문단도 대개 제 글을 따로 가진다.
-    if md and any(_has_descendant(p.element, tag) for tag in SHAPE_TAGS):
-        own = "".join((p.text or "").split())
-        if own and own in "".join(_shape_plain_text(p.element).split()):
-            md = ""
+    if md:
+        shapes = _text_shapes(p)
+        if shapes:
+            own = "".join((p.text or "").split())
+            if own and own in "".join(_shape_plain_text(shapes).split()):
+                md = ""
     return md
 
 
-def _shape_plain_text(p_el) -> str:
-    return "".join(
-        "".join(t.itertext())
-        for tag in SHAPE_TAGS
-        for shape in _descendants(p_el, tag)
-        for t in _descendants(shape, "t")
-    )
+def _shape_plain_text(shapes) -> str:
+    """도형들 안 문단의 ``hp:t`` 글자(도형마다, 안쪽 도형의 글은 바깥 도형에서도 한 번 더)."""
+
+    return "".join(_t_text(place.paragraph) for shape in shapes for place in shape.iter_paragraphs())
 
 
 def _export_shape_lines(p, doc, notes) -> list[str]:
     # 도형 내부 paragraph 추출 (표 안 도형은 cell_to_md에서 처리됨)
     shape_lines: list[str] = []
-    seen_p = set()  # 요소 자체(id()는 풀린 lxml 프록시 번호가 되풀이될 수 있다)
-    for sub in p.tables:
-        for nested_p in _descendants(sub.element, "p"):
-            seen_p.add(nested_p)
-    for tag in SHAPE_TAGS:
-        for shape in _descendants(p.element, tag):
-            for sub_p in _descendants(shape, "p"):
-                if sub_p in seen_p:
-                    continue
-                seen_p.add(sub_p)
-                sub_md = _p_element_to_md(sub_p, doc, notes).strip()
-                sub_md = _labelled_md(escape_line_starts(sub_md), sub_p, block=True)
-                if sub_md:
-                    shape_lines.append(sub_md)
+    seen_p = {nested for table in p.tables for nested in _object_paragraphs(table)}
+    for sub_p in _shape_paragraphs(p, seen_p):
+        sub_md = _p_element_to_md(sub_p.element, doc, notes).strip()
+        sub_md = _labelled_md(escape_line_starts(sub_md), sub_p.element, block=True)
+        if sub_md:
+            shape_lines.append(sub_md)
     return shape_lines
 
 
