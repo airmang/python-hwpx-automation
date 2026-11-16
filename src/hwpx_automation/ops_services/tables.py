@@ -19,6 +19,7 @@ from ..upstream import (
 from ._border_fill import (
     _build_border_fill_element,
     _find_matching_border_fill,
+    _next_border_fill_id,
     _resolve_border_fill_spec,
     _shortcut_border_fill_id,
 )
@@ -203,15 +204,9 @@ class TableService:
         if matched is not None:
             return matched
 
-        # Upstream still does not expose a public border-fill creation API.
-        # Keep the private helper usage isolated here until python-hwpx offers one.
-        if not hasattr(header, "_allocate_border_fill_id"):
-            raise self._context._new_error(
-                "STYLE_ID_ALLOCATOR_MISSING",
-                "header does not expose ID allocation helpers",
-            )
-
-        new_id = header._allocate_border_fill_id(border_fills_element)
+        # doc.styles.ensure_border_fill cannot express this spec (its diagonal and
+        # matching differ), so the element is built here with the next free id.
+        new_id = _next_border_fill_id(border_fills_element)
         _build_border_fill_element(border_fills_element, new_id, spec)
 
         count = len(border_fills_element.findall(f"{HH_NS}borderFill"))
