@@ -96,7 +96,7 @@ def forecast(bundle: Path, engine_sources: list[Path]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     parser.add_argument("--bundle", type=Path, default=BUNDLE)
     parser.add_argument("--engine-src", type=Path, action="append", default=[],
                         help="package directory to forecast (hwpx/, hwpx_automation/)")

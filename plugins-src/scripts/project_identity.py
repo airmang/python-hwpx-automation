@@ -36,13 +36,14 @@ import copy
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 try:  # Python 3.11+
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - 3.10
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib  # type: ignore[no-redef, unused-ignore]
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = PLUGIN_ROOT.parent
@@ -191,7 +192,7 @@ def project_json_template(text: str, pointer: str, value: str) -> str:
 
 def project_launcher(text: str, c: dict[str, Any], pi: dict[str, Any]) -> str:
     for name, value in _launcher_lines(c, pi).items():
-        text, count = re.subn(rf'^{name}="[^"\n]*"$', f'{name}="{value}"', text, flags=re.M)
+        text, count = re.subn(rf'^{name}="[^"\n]*"$', f'{name}="{value}"', text, flags=re.MULTILINE)
         if count != 1:
             raise SystemExit(f"{LAUNCHER}: expected one {name}= line, found {count}")
     text, count = re.subn(
@@ -224,7 +225,7 @@ def plan(identity: dict[str, Any], plugin_root: Path = PLUGIN_ROOT) -> dict[Path
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     parser.add_argument("--check", action="store_true", help="fail when a projected file differs")
     parser.add_argument("--identity", type=Path, default=IDENTITY)
     args = parser.parse_args(argv)
