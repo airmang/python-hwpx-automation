@@ -286,6 +286,66 @@ def _element_caption_text(el) -> str | None:
     return text or None
 
 
+#: ``run.content``에서 개체로 읽는 조각의 종류(``doc.text.iter_objects()``의 이름).
+_OBJECT_KINDS = frozenset({"table", "picture", "equation", "ole", "chart", "video", "textart", "shape", "form"})
+#: ``hp:t`` 안 조각 가운데 글자로 세는 것(글리프·표시는 빼고). 모르는 요소는 그 안의 글이다.
+_TEXT_PIECES = frozenset({"text", "unknown"})
+
+
+def _paragraphs_within(paragraphs):
+    """*paragraphs* 와 그 안(표 칸·글상자·캡션·묶음, 각주·미주·메모)의 문단을 문서 차례로.
+
+    머리말·꼬리말 컨트롤의 문단은 넣지 않는다(그 글은 ``doc.page``로 따로 싣는다)."""
+
+    for paragraph in paragraphs:
+        yield paragraph
+        for run in paragraph.runs:
+            for item in run.content:
+                obj = item.object
+                if obj is None:
+                    continue
+                if item.kind in _OBJECT_KINDS:
+                    yield from _object_paragraphs(obj)
+                elif item.kind in ("footnote", "endnote", "field_begin") and hasattr(obj, "paragraphs"):
+                    yield from _paragraphs_within(obj.paragraphs)
+
+
+def _object_paragraphs(obj):
+    """개체 *obj* 안의 문단을 문서 차례로(캡션, 표 칸, 글상자, 묶음 구성원)."""
+
+    if hasattr(obj, "iter_paragraphs"):  # 도형: python-hwpx가 글상자·캡션·구성원·안쪽 표까지 걷는다
+        for place in obj.iter_paragraphs():
+            yield place.paragraph
+        return
+    caption = getattr(obj, "caption", None)
+    if caption is not None and hasattr(caption, "paragraphs"):
+        yield from _paragraphs_within(caption.paragraphs)
+    for row in getattr(obj, "rows", ()):
+        for cell in row.cells:
+            yield from _paragraphs_within(cell.paragraphs)
+
+
+def _t_text(paragraph) -> str:
+    """문단의 ``hp:t`` 글자만(탭·줄 바꿈 같은 글리프와 표시는 빼고) 이은 글."""
+
+    return "".join(
+        item.text
+        for run in paragraph.runs
+        for item in run.content
+        if item.container == "t" and item.kind in _TEXT_PIECES
+    )
+
+
+def _caption_text(obj) -> str | None:
+    """개체 *obj* 의 캡션 글(캡션 안 문단의 ``hp:t`` 글자를 이음), 없으면 None."""
+
+    caption = getattr(obj, "caption", None)
+    if caption is None or not hasattr(caption, "paragraphs"):
+        return None
+    text = "".join(_t_text(paragraph) for paragraph in _paragraphs_within(caption.paragraphs)).strip()
+    return text or None
+
+
 def _table_caption_text(table) -> str | None:
     """표의 캡션 글(``table.caption``의 문단 글을 이어 붙임), 없으면 None."""
 
@@ -296,55 +356,78 @@ def _table_caption_text(table) -> str | None:
     return text or None
 
 
-def _in_written_table_cell(element, p_el) -> bool:
-    """*element* 가 *p_el* 의 표 칸 안에 있고, 그 표를 내보내기가 표로 쓰는가.
+def _picture_item_id(obj) -> str | None:
+    """그림 *obj* 가 보여 주는 바이너리 항목(``picture.item_id``).
+
+    ``paragraph.iter_objects()``는 그림을 일반 개체로 주므로, 그 그림을 담은 문단의 그림
+    (``paragraph.pictures``, 묶음 구성원은 ``shape.members``)에서 같은 그림을 찾아 읽는다."""
+
+    if hasattr(obj, "item_id"):
+        return obj.item_id
+    found = _find_picture(obj, obj.paragraph.objects)
+    return found.item_id if found is not None else None
+
+
+def _find_picture(target, objects):
+    for candidate in objects:
+        if candidate == target and hasattr(candidate, "item_id"):
+            return candidate
+        members = getattr(candidate, "members", None)
+        if members:
+            found = _find_picture(target, members)
+            if found is not None:
+                return found
+    return None
+
+
+def _cell_pictures(paragraph, places) -> set:
+    """*paragraph* 가 표로 쓰는 칸(이 문단이 품은 표의 칸, 글상자 밖) 안의 그림.
 
     문단의 표는 칸마다 제 문단의 그림을 싣는다. 글상자 안 표는 표로 쓰지 않는다(글상자의
-    문단 글만 싣는다). 그래서 칸과 *p_el* 사이에 글상자(``hp:drawText``)가 없을 때만 참이다.
-    """
+    문단 글만 싣는다)."""
 
-    in_cell = False
-    node = element.getparent()
-    while node is not None and node is not p_el:
-        name = _local_name(node)
-        if name == "tc":
-            in_cell = True
-        elif name == "drawText":
-            in_cell = False
-        node = node.getparent()
-    return in_cell
+    inside: set = set()
+    for place in places:
+        if place.kind != "table" or place.object.paragraph != paragraph:
+            continue
+        for row in place.object.rows:
+            for cell in row.cells:
+                for cell_paragraph in cell.paragraphs:
+                    inside.update(found.object for found in cell_paragraph.iter_objects(kinds="picture"))
+    return inside
 
 
-def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
-    """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인.
+def _paragraph_images(paragraph, mapping: dict[str, str]) -> list[str]:
+    """문단 안 모든 그림(칸·글상자 속까지, ``paragraph.iter_objects``) → markdown 이미지(+캡션) 라인.
 
     그림을 꺼내지 않아(``mapping``이 비어) 이미지 줄을 쓰지 않을 때에도 캡션은 쓴다.
     캡션은 문서의 글이다."""
-    out = []
+    out: list[str] = []
+    places = list(paragraph.iter_objects())
+    if not places:
+        return out
     html = _html_cell()
-    for pic in _descendants(p_el, "pic"):
-        if _in_written_table_cell(pic, p_el):
-            continue  # 그 칸이 제 자리에서 싣는다(두 번 싣지 않는다)
-        img = _first_descendant(pic, "img")
-        ref = img.get("binaryItemIDRef") if img is not None else None
+    in_cells = _cell_pictures(paragraph, places)
+    for place in places:
+        if place.kind != "picture" or place.object in in_cells:
+            continue  # 칸 안 그림은 그 칸이 제 자리에서 싣는다(두 번 싣지 않는다)
+        ref = _picture_item_id(place.object)
         if ref and mapping:
             rel = mapping.get(ref, f"BinData/{ref}").translate(_LINK_ESCAPES)
             out.append(f'<img src="{html_escape(rel)}" alt="image">' if html else f"![image]({rel})")
-        caption_text = _element_caption_text(pic)
+        caption_text = _caption_text(place.object)
         if caption_text:
             out.append(_caption_line(caption_text))
     # 그림·표 밖 개체(묶음 개체·도형·OLE 등)의 캡션도 문서의 글이다. 이 문단 자신의 것만 싣는다
-    # (칸·글상자 안 문단의 캡션은 그 문단에서 싣는다).
-    for caption in _descendants(p_el, "caption"):
-        owner = caption.getparent()
-        if owner is None or _local_name(owner) in ("pic", "tbl", *SHAPE_TAGS):
-            continue  # 그림·표는 위와 표에서, 도형 캡션 문단은 도형 글에서 싣는다
-        parent = owner
-        while parent is not None and parent is not p_el and _local_name(parent) != "p":
-            parent = parent.getparent()
-        if parent is not p_el:
+    # (칸·글상자 안 문단의 캡션은 그 문단에서 싣는다). 그림·표는 위와 표에서, 사각형·타원·
+    # 다각형의 캡션 문단은 도형 글에서 싣는다.
+    for place in places:
+        obj = place.object
+        if place.kind in ("picture", "table") or obj.paragraph != paragraph:
             continue
-        caption_text = _element_caption_text(owner)
+        if place.kind == "shape" and obj.shape_type in SHAPE_TAGS:
+            continue
+        caption_text = _caption_text(obj)
         if caption_text:
             out.append(_caption_line(caption_text))
     return out
@@ -630,7 +713,7 @@ def _cell_to_md(cell, doc, mapping, depth: int = 0, notes_out: list | None = Non
     chunks: list[str] = []
     for cp in cell.paragraphs:
         md = _labelled_md(_p_element_to_md(cp.element, doc, notes_out).strip(), cp.element, block=False)
-        imgs = _paragraph_images(cp.element, mapping)
+        imgs = _paragraph_images(cp, mapping)
         shape_lines = _shape_text_lines(cp.element, doc, notes_out)
         if md:
             chunks.append(md)
@@ -891,7 +974,7 @@ def _export_paragraph_lines(p, doc, mapping, notes, plan: _HeadingPlan) -> list[
     cache = _LABELS.get()
     label = cache.get(p.element)[0] if cache is not None else ""  # 문단 번호를 칸 안 문단보다 먼저 센다
     md = _p_element_to_md(p.element, doc, notes).strip()
-    imgs = _paragraph_images(p.element, mapping)
+    imgs = _paragraph_images(p, mapping)
     tables = [_table_to_md(t, doc, mapping, 0, notes) for t in p.tables]
 
     md = _export_dedupe_md(md, p)
