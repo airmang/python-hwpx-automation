@@ -55,11 +55,10 @@ list item does not hand its outline or list numbering to the paragraph after it.
 
 from __future__ import annotations
 
-import builtins
 import os
 import re
 import warnings
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -967,34 +966,16 @@ def _blocks(lines: list[str]) -> Iterator[object]:
 # Writing
 
 
-def _local(element: Any) -> str:
-    tag = element.tag
-    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+def _outline_numbering(document: HwpxDocument) -> tuple[str, dict[int, str]] | None:
+    """The numbering the last section numbers its outline with: its id and each level's number pattern."""
 
-
-def _outline_heads(document: HwpxDocument) -> dict[int, Any]:
-    """The heads (``hh:paraHead``) of the numbering the last section numbers its outline with, by level."""
-
-    sections = document.oxml.sections
-    headers = document.oxml.headers
-    if not sections or not headers:
-        return {}
-    sec_pr = next((node for node in sections[-1].element.iter() if _local(node) == "secPr"), None)
-    shape = sec_pr.get("outlineShapeIDRef") if sec_pr is not None else None
-    numbering = next(
-        (node for node in headers[0].element.iter() if _local(node) == "numbering" and node.get("id") == shape),
-        None,
-    )
-    if numbering is None:
-        return {}
-    heads: dict[int, Any] = {}
-    for head in numbering:
-        if _local(head) == "paraHead":
-            try:
-                heads[int(head.get("level") or 0)] = head
-            except ValueError:  # pragma: no cover - defensive
-                continue
-    return heads
+    if not document.sections:
+        return None
+    outline = document.sections[-1].properties.outline_shape_id_ref
+    info = document.styles.numbering(outline) if outline is not None else None
+    if outline is None or info is None:
+        return None
+    return outline, {level.level: level.text or "" for level in info.levels}
 
 
 def _unnumber_outline(document: HwpxDocument) -> None:
@@ -1005,13 +986,12 @@ def _unnumber_outline(document: HwpxDocument) -> None:
     an outline number drawn as well would show each number twice.
     """
 
-    # TODO(core-7.0-formats): the engine reads numbering definitions (doc.styles.numbering_info) but has no
-    # public write for a level's paraHead text yet; the heads are emptied in the header XML directly.
-    heads = _outline_heads(document)
-    for head in heads.values():
-        head.text = None
-    if heads:
-        document.oxml.headers[0].mark_dirty()
+    found = _outline_numbering(document)
+    if found is None:
+        return
+    outline, patterns = found
+    for level in patterns:
+        document.styles.set_numbering_level(outline, level, text="")
 
 
 #: How many of each loss the warning names by example.
@@ -1086,10 +1066,11 @@ class _Writer:
         self.losses: dict[str, list[str]] = {}
         self._used_notes: set[str] = set()
         self._outline_styles = self._find_outline_styles()
-        heads = _outline_heads(document)
+        found = _outline_numbering(document)
+        patterns = found[1] if found is not None else {}
         #: The outline levels the document draws no number for: a heading there can be an outline paragraph.
         self._silent_outline = {
-            level for level in range(1, _HEADING_LEVELS + 1) if level in heads and not (heads[level].text or "").strip()
+            level for level in range(1, _HEADING_LEVELS + 1) if level in patterns and not patterns[level].strip()
         }
         self._text_width: int | None = None
         self._looks: dict[tuple[object, ...], tuple[Any, float]] = {}
@@ -1712,17 +1693,17 @@ class _Writer:
                 for paragraph in paragraphs:
                     self.fit_on_one_line(paragraph)
 
-    def list_heads(self, heads: dict[tuple[str, int], dict[str, str]], kind: str, refs: builtins.list[str]) -> None:
+    def list_heads(
+        self, heads: dict[tuple[str, int], dict[str, str]], kind: str, refs: Sequence[str]
+    ) -> None:
         """The list head (``hh:heading``) of each depth of a *kind* list, from its paragraph shapes *refs*."""
 
         for level, ref in enumerate(refs, start=1):
-            # the shapes were just made with a heading, so neither the shape nor its heading is None
-            heading = self.doc.styles.paragraph_property(ref).heading  # pyright: ignore[reportOptionalMemberAccess]
-            heads[(kind, level)] = {
-                "type": str(heading.type),  # pyright: ignore[reportOptionalMemberAccess]
-                "idRef": str(heading.id_ref),  # pyright: ignore[reportOptionalMemberAccess]
-                "level": str(level - 1),
-            }
+            shape = self.doc.styles.paragraph_property(ref)
+            heading = shape.heading if shape is not None else None
+            if heading is None:  # pragma: no cover - ensure_numbering makes each shape with a heading
+                raise RuntimeError(f"list paragraph shape {ref!r} has no heading")
+            heads[(kind, level)] = {"type": str(heading.type), "idRef": str(heading.id_ref), "level": str(level - 1)}
 
     def table(self, block: _Table) -> None:
         if not block.rows:
