@@ -30,10 +30,11 @@ from hwpx import HwpxDocument
 from hwpx.errors import HwpxTypeError, HwpxValueError
 from hwpx.oxml.hyperlink_form import hyperlink_target
 from hwpx.oxml.namespaces import tag_local_name
+from hwpx.oxml.paragraph_heading import outline_style_level
 from hwpx.oxml.run import text_element_content
 from hwpx.tools.exporter import ListLabels, table_grid_text
 
-from ._plain_export import HEADING_MAX_CHARS, _Headings, _header_xml, _markdown_cell, escape_line_starts, escape_markdown
+from ._plain_export import HEADING_MAX_CHARS, _markdown_cell, escape_line_starts, escape_markdown
 
 __all__ = ["ARABIC_HEAD", "ROMAN_HEAD", "SHAPE_TAGS", "equation_markdown", "export_markdown"]
 
@@ -821,6 +822,38 @@ def _export_shape_lines(p, doc, notes) -> list[str]:
     return shape_lines
 
 
+class _OutlineLevels:
+    """Which paragraphs are headings, and their level, from the document's own structure.
+
+    A paragraph is a heading of level L when its paragraph shape numbers it as outline
+    level L (``paragraph.outline_level``), else when its style is an outline style
+    (``개요 L`` / ``Outline L``). Levels deeper than 6 are not headings.
+    """
+
+    def __init__(self, doc: HwpxDocument) -> None:
+        self._styles: dict[str, int] = {}
+        for style in doc.styles.values():
+            for name in (style.name or "", style.eng_name or ""):
+                style_level = outline_style_level(name)
+                if style_level is not None:
+                    self._styles[str(style.raw_id if style.raw_id is not None else style.id)] = style_level
+                    break
+
+    def level(self, paragraph) -> int | None:
+        level: int | None = paragraph.outline_level or None
+        if level is None:
+            level = self._styles.get(paragraph.style_id_ref or "")
+        return level if level is not None and 1 <= level <= 6 else None
+
+    def any_in(self, doc: HwpxDocument) -> bool:
+        """Whether a body paragraph (one placed in a section) that holds text is a heading."""
+        for section in doc.sections:
+            for paragraph in section.paragraphs:
+                if self.level(paragraph) is not None and any((run.text or "").strip() for run in paragraph.runs):
+                    return True
+        return False
+
+
 @dataclass
 class _HeadingPlan:
     """제목을 어떻게 정하는가.
@@ -829,7 +862,7 @@ class _HeadingPlan:
     *detector* 가 있으면 글 모양으로 짐작한다(문단·1×1 표 칸의 Markdown → 제목 줄 또는 None).
     """
 
-    structure: "_Headings | None" = None
+    structure: "_OutlineLevels | None" = None
     detector: Callable[[str], str | None] | None = None
 
 
@@ -844,7 +877,7 @@ def _export_paragraph_lines(p, doc, mapping, notes, plan: _HeadingPlan) -> list[
     shape_lines = _export_shape_lines(p, doc, notes)
 
     promoted = None
-    level = plan.structure.level(p.element) if plan.structure is not None else None
+    level = plan.structure.level(p) if plan.structure is not None else None
     text = _plain_heading_text(md) if level is not None else ""
     if level is not None and md and len(re.sub(r"\\(.)", r"\1", text)) <= HEADING_MAX_CHARS:
         # 문서가 정한 제목: 개요 수준이 곧 제목 수준이다. 아주 긴 문단은 개요 수준에 둔 본문이다.
@@ -1037,7 +1070,6 @@ def export_markdown(
         )
     doc = _export_resolve_doc(source)
     mapping = _build_image_map(doc, Path(image_dir) if image_dir else None, image_ref_prefix)
-    header = _header_xml(doc)
     plan = _HeadingPlan()
     if detect_headings:
         if heading_detector is not None:
@@ -1045,8 +1077,8 @@ def export_markdown(
         elif heading_source == "text":
             plan.detector = _legacy_detect_heading
         else:
-            structure = _Headings(header)
-            if heading_source == "outline" or structure.any_in([s.element for s in doc.sections]):
+            structure = _OutlineLevels(doc)
+            if heading_source == "outline" or structure.any_in(doc):
                 plan.structure = structure
             else:
                 plan.detector = _detect_heading
