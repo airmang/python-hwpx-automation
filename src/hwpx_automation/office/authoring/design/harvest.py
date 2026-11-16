@@ -26,6 +26,7 @@ from pathlib import Path
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
 
 from hwpx.document import HwpxDocument
+from hwpx.errors import HwpxValueError
 from hwpx.oxml.namespaces import OPF_NS
 
 import hwpx_automation.office.authoring.design._support as S
@@ -62,7 +63,7 @@ def _text_paragraphs(doc):
         out.append(
             {
                 "index": index,
-                "para": para.element.get("paraPrIDRef"),
+                "para": para.para_pr_id_ref,
                 "char": cref,
                 "h": _font_height(doc, cref),
                 "len": len(text),
@@ -165,19 +166,15 @@ def _build_skeleton(source: Path, out_path: Path) -> dict:
     # into every composed document with the source's text.
     _drop_later_sections(doc)
     section = doc.sections[0]
-    secpr = S.find_secpr(section.element)
-    if secpr is None:
+    # python-hwpx blanks the section down to its page setup: the first paragraph's
+    # section settings (and its columns), no header or footer, no body.
+    try:
+        section.clear_body(keep_headers=False, on_control_content="strip")
+    except HwpxValueError as exc:
         doc.close()
-        raise ValueError("template has no secPr (page setup)")
-    secpr = deepcopy(secpr)
-
-    empty = etree.SubElement(section.element, S.hp(section.element, "p"))
-    run = etree.SubElement(empty, S.hp(section.element, "run"), {"charPrIDRef": "0"})
-    etree.SubElement(run, S.hp(section.element, "t")).text = ""
-    section.element.remove(empty)  # detach; replace_section_body re-inserts
-    S.replace_section_body(section.element, [empty])
-    S.move_secpr_into(empty, secpr)
-    section.mark_dirty()
+        if exc.code == "section-clear-no-section-properties":
+            raise ValueError("template has no secPr (page setup)") from exc
+        raise
 
     stripped = _strip_binaries(doc)
     _scrub_metadata(doc)
