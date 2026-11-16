@@ -458,7 +458,7 @@ class HwpxAgentDocument:
     def _run_style_summary(self, run: Any) -> dict[str, Any]:
         """The style part of a run summary, once per ``charPrIDRef``."""
 
-        ref = run.element.get("charPrIDRef")
+        ref = run.char_pr_id_ref
         try:
             return self._run_style_memo[ref]
         except KeyError:
@@ -480,11 +480,11 @@ class HwpxAgentDocument:
         return values
 
     def _paragraph_summary(self, paragraph: Any) -> tuple[dict[str, Any], dict[str, str]]:
-        style_ref = paragraph.element.get("styleIDRef")
+        style_ref = paragraph.style_id_ref
         style_name, style_type = self._style_name_and_type(style_ref)
         summary: dict[str, Any] = {"text": _bounded_text(paragraph.text), "style": style_name}
         # A fresh dict per record: summaries are handed out and may be edited by callers.
-        summary.update(self._paragraph_property_summary(paragraph.element.get("paraPrIDRef")))
+        summary.update(self._paragraph_property_summary(paragraph.para_pr_id_ref))
         attributes = {
             "id": paragraph.element.get("id", ""),
             "style": style_name or "",

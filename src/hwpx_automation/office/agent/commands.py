@@ -930,7 +930,7 @@ def _add(
                 (int(child.get("width", "0")) for child in table.element if _local_name(child) == "sz"),
                 None,
             ),
-            border_fill_id_ref=table.element.get("borderFillIDRef") or "0",
+            border_fill_id_ref=table.border_fill_id_ref or "0",
         )
         created = next(child for child in sample if _local_name(child) == "tr")
         if type(created) is not type(table.element):

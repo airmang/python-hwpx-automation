@@ -1435,7 +1435,7 @@ def inspect_document_authoring_quality(
         page_break_count = sum(
             1
             for paragraph in document.paragraphs
-            if paragraph.element.get("pageBreak") == "1"
+            if paragraph.page_break
         )
         gates = (
             normalized_plan.quality_gates
@@ -3011,7 +3011,7 @@ def _style_plan_table(
         border_color=_TABLE_BORDER_COLOR,
         fill_color=header_fill,
     )
-    table.element.set("borderFillIDRef", border_fill_id)
+    table.border_fill_id_ref = border_fill_id
     center_para_pr_id: str | None = None
     if header_rows and document.oxml.headers:
         center_para_pr_id = document.oxml.headers[0].ensure_paragraph_format(alignment="center")

@@ -117,7 +117,7 @@ def _numbering_properties(agent: HwpxAgentDocument, record: NodeRecord) -> dict[
     if record.kind != "paragraph":
         return None
     paragraph = record.native
-    para_pr = agent.document.styles.paragraph_property(paragraph.element.get("paraPrIDRef"))
+    para_pr = agent.document.styles.paragraph_property(paragraph.para_pr_id_ref)
     heading = para_pr.heading if para_pr is not None else None
     if heading is None or not heading.type or str(heading.type).upper() == "NONE":
         return None
@@ -185,7 +185,7 @@ def _semantic_element(node: Any) -> dict[str, Any]:
 def _style_dependency(agent: HwpxAgentDocument, record: NodeRecord) -> dict[str, Any] | None:
     if record.kind == "paragraph":
         paragraph = record.native
-        style = agent.document.styles.get(paragraph.element.get("styleIDRef"))
+        style = agent.document.styles.get(paragraph.style_id_ref)
         properties = {
             "category": "paragraph",
             "name": record.summary.get("style"),

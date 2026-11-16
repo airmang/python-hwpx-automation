@@ -585,14 +585,8 @@ def split_cell_in_table(doc: HwpxDocument, table_index: int, row: int, col: int)
         raise ValueError(f"유효하지 않은 col: {col}")
 
     cell = table.rows[row].cells[col]
-    span = cell.element.find(f"{_HP_NS}cellSpan")
-    if span is None:
-        return {"rowSpan": 1, "colSpan": 1}
-
-    original = {
-        "rowSpan": int(span.get("rowSpan", "1")),
-        "colSpan": int(span.get("colSpan", "1")),
-    }
+    row_span, col_span = cell.span
+    original = {"rowSpan": row_span, "colSpan": col_span}
 
     if original["rowSpan"] <= 1 and original["colSpan"] <= 1:
         return original
@@ -621,7 +615,7 @@ def _apply_table_border_fill(
     if row is not None:
         table.set_cell_border_fill(row, col, border_fill_id)
         return border_fill_id
-    table.element.set("borderFillIDRef", str(border_fill_id))
+    table.border_fill_id_ref = border_fill_id
     for table_row in table.rows:
         for cell in table_row.cells:
             cell.element.set("borderFillIDRef", str(border_fill_id))
