@@ -146,14 +146,14 @@ class MemoStyleService:
             if "charPrIDRef" in filters and filters["charPrIDRef"]:
                 filter_args["char_pr_id_ref"] = filters["charPrIDRef"]
         runs = document.text.find_runs(**filter_args)
-        paragraph_index_map: Dict[int, int] = {}
+        paragraph_index_map: Dict[Any, int] = {}
         paragraphs = self._context._iter_paragraphs(document)
         for index, paragraph in enumerate(paragraphs):
-            paragraph_index_map[id(paragraph.element)] = index
+            paragraph_index_map[paragraph] = index
         results: List[Dict[str, Any]] = []
         for run in runs[:max_results]:
             paragraph = run.paragraph
-            para_index = paragraph_index_map.get(id(paragraph.element), -1)
+            para_index = paragraph_index_map.get(paragraph, -1)
             style = {}
             if run.style is not None:
                 style_data = run.style
@@ -192,11 +192,8 @@ class MemoStyleService:
         field_id = memo.field_id
         paragraphs = self._context._iter_paragraphs(document)
         paragraph_index = len(paragraphs) - 1
-        paragraph_element_id = id(paragraph.element)
-        for idx, candidate in enumerate(paragraphs):
-            if id(candidate.element) == paragraph_element_id:
-                paragraph_index = idx
-                break
+        if paragraph in paragraphs:  # paragraph objects are equal per element
+            paragraph_index = paragraphs.index(paragraph)
         self._save._save_document(document, resolved)
         return {
             "memoId": memo.id,

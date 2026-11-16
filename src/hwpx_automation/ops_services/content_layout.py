@@ -80,11 +80,8 @@ class ContentLayoutService:
         )
         paragraphs = self._context._iter_paragraphs(document)
         index = len(paragraphs) - 1
-        element_id = id(paragraph.element)
-        for idx, candidate in enumerate(paragraphs):
-            if id(candidate.element) == element_id:
-                index = idx
-                break
+        if paragraph in paragraphs:  # paragraph objects are equal per element
+            index = paragraphs.index(paragraph)
         self._save._save_document(document, resolved)
         return {"paragraphIndex": index}
 

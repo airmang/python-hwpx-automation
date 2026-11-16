@@ -1756,10 +1756,9 @@ class _Writer:
             table.set_row_heights([round(self.style.table_row_height_mm * _HWPUNIT_PER_MM)] * len(block.rows))
         if block.header and len(block.rows) > 1:
             # Hancom draws the header row again at the top of each page a long table runs onto.
-            # table.set_header_rows(1) would also write header="0" on every other cell and drop the
-            # line cache, so only the cells go through the public is_header; repeatHeader has no
-            # setter of its own in python-hwpx 7.0.
-            table.element.set("repeatHeader", "1")
+            # table.set_header_rows(1) would also write header="0" on every other cell, so the
+            # title cells and the repeat are set one by one.
+            table.repeat_header = True
             for col_index in range(cols):
                 table.cell(0, col_index).is_header = True
             table.mark_dirty()

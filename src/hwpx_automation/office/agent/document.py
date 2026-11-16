@@ -284,7 +284,7 @@ class HwpxAgentDocument:
             paragraph_index = int(match["paragraph_index_in_section"])
             paragraph = match.get("_paragraph")
             if paragraph is not None:
-                self._form_fields_by_paragraph[paragraph.element].append(match)
+                self._form_fields_by_paragraph[paragraph].append(match)
             self._form_control_positions.add(
                 (
                     section_index,
@@ -486,7 +486,7 @@ class HwpxAgentDocument:
         # A fresh dict per record: summaries are handed out and may be edited by callers.
         summary.update(self._paragraph_property_summary(paragraph.para_pr_id_ref))
         attributes = {
-            "id": paragraph.element.get("id", ""),
+            "id": paragraph.id or "",
             "style": style_name or "",
             "type": style_type,
         }
@@ -501,7 +501,7 @@ class HwpxAgentDocument:
         section_index: int,
         paragraph_index_in_section: int | None = None,
     ) -> None:
-        identity = _identity(paragraph.element, "id")
+        identity = (paragraph.id or "").strip() or None
         segment, stable_id, stability = self._segment_for(kind="paragraph", index=index, identity=identity)
         if identity and stability == "positional":
             self._register_ambiguous_relative(parent, "paragraph", identity)
@@ -524,7 +524,7 @@ class HwpxAgentDocument:
             if local not in {"run", "lineSegArray", "linesegarray"}:
                 record.mark_unsupported(local)
         fields_by_position: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
-        for match in self._form_fields_by_paragraph[paragraph.element]:
+        for match in self._form_fields_by_paragraph[paragraph]:
             fields_by_position[(int(match["run_index"]), int(match["child_index"]))].append(match)
 
         object_indexes: Counter[str] = Counter()

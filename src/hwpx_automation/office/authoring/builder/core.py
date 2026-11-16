@@ -920,24 +920,24 @@ def _anchor_resolve(document: HwpxDocument) -> None:
             start = before[index] if index < len(before) else 0
             paragraphs = section.paragraphs
             if len(paragraphs) > start:
-                sink[position] = (key, before, paragraphs[start].element)
+                sink[position] = (key, before, paragraphs[start])
                 break
 
 
 def _anchor_positions(
     document: HwpxDocument, sink: Sequence[_AnchorEntry]
 ) -> dict[str, dict[str, int]]:
-    positions: dict[int, dict[str, int]] = {}
+    positions: dict[Any, dict[str, int]] = {}  # paragraph objects are equal per element
     for section_index, section in enumerate(document.oxml.sections):
         for paragraph_index, paragraph in enumerate(section.paragraphs):
-            positions[id(paragraph.element)] = {
+            positions[paragraph] = {
                 "section": section_index,
                 "paragraph": paragraph_index,
             }
     return {
-        key: dict(positions[id(element)])
-        for key, _before, element in sink
-        if element is not None and id(element) in positions
+        key: dict(positions[paragraph])
+        for key, _before, paragraph in sink
+        if paragraph is not None and paragraph in positions
     }
 
 

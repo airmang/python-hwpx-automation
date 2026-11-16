@@ -14,7 +14,6 @@ from .. import forms
 from ..compat import patch_python_hwpx
 from ..storage import build_hwpx_open_safety_report, open_local_document
 from ..upstream import (
-    HP_NS as _HP_NS,
     HwpxDocument,
     border_width_mm,
     is_hwp5_source,
@@ -618,7 +617,7 @@ def _apply_table_border_fill(
     table.border_fill_id_ref = border_fill_id
     for table_row in table.rows:
         for cell in table_row.cells:
-            cell.element.set("borderFillIDRef", str(border_fill_id))
+            cell.border_fill_id_ref = border_fill_id
     table.mark_dirty()
     return border_fill_id
 
@@ -714,71 +713,6 @@ def _require_open_safe_hwpx(path: Path, role: str) -> None:
 
 # ── 메모 ──────────────────────────────────────────────
 
-def _extract_memo_id_from_field_begin(field_begin: Any) -> str | None:
-    command = (field_begin.get("command") or "")
-    if "memoId=" in command:
-        memo_id = command.split("memoId=", 1)[1].split(";", 1)[0].strip()
-        if memo_id:
-            return memo_id
-
-    parameters = field_begin.find(f"{_HP_NS}parameters")
-    if parameters is None:
-        return None
-    for item in parameters.findall(f"{_HP_NS}stringParam"):
-        if (item.get("name") or "").strip().lower() != "id":
-            continue
-        memo_id = (item.text or "").strip()
-        if memo_id:
-            return memo_id
-    return None
-
-
-def _memo_anchor_runs(paragraph: Any, memo_ids: set[str]) -> list[Any]:
-    if not memo_ids:
-        return []
-
-    field_ids: set[str] = set()
-    runs_to_remove: list[Any] = []
-
-    for run_element in list(paragraph.element.findall(f"{_HP_NS}run")):
-        for ctrl in run_element.findall(f"{_HP_NS}ctrl"):
-            field_begin = ctrl.find(f"{_HP_NS}fieldBegin")
-            if field_begin is None:
-                continue
-            memo_id = _extract_memo_id_from_field_begin(field_begin)
-            if memo_id not in memo_ids:
-                continue
-            field_id = (field_begin.get("id") or field_begin.get("fieldid") or "").strip()
-            if field_id:
-                field_ids.add(field_id)
-            runs_to_remove.append(run_element)
-            break
-
-    if not field_ids:
-        return runs_to_remove
-
-    for run_element in list(paragraph.element.findall(f"{_HP_NS}run")):
-        for ctrl in run_element.findall(f"{_HP_NS}ctrl"):
-            field_end = ctrl.find(f"{_HP_NS}fieldEnd")
-            if field_end is None:
-                continue
-            begin_id = (field_end.get("beginIDRef") or field_end.get("fieldid") or "").strip()
-            if begin_id not in field_ids:
-                continue
-            runs_to_remove.append(run_element)
-            break
-
-    unique_runs: list[Any] = []
-    seen: set[int] = set()
-    for run_element in runs_to_remove:
-        marker = id(run_element)
-        if marker in seen:
-            continue
-        seen.add(marker)
-        unique_runs.append(run_element)
-    return unique_runs
-
-
 def get_paragraph_text_from_doc(
     doc: HwpxDocument,
     paragraph_index: int | None = None,
@@ -821,26 +755,10 @@ def remove_memo_from_doc(
     resolved = resolve_paragraph_reference(doc, paragraph_index=paragraph_index, location=location)
     paragraph = resolved.paragraph
 
-    memo_ids: set[str] = set()
-    for run in paragraph.runs:
-        for ctrl in run.element.findall(f"{_HP_NS}ctrl"):
-            field_begin = ctrl.find(f"{_HP_NS}fieldBegin")
-            if field_begin is None:
-                continue
-            memo_id = _extract_memo_id_from_field_begin(field_begin)
-            if memo_id:
-                memo_ids.add(memo_id)
-
-    for memo in list(doc.notes.memos):
-        if memo.id in memo_ids:
-            doc.notes.remove_memo(memo)
-
-    removed_anchor = False
-    for run_element in _memo_anchor_runs(paragraph, memo_ids):
-        paragraph.element.remove(run_element)
-        removed_anchor = True
-    if removed_anchor and paragraph.section is not None:
-        paragraph.section.mark_dirty()
+    # doc.notes.remove_memo drops the memo with its MEMO field (python-hwpx 7.0); a 6.x memo kept
+    # in hp:memogroup goes with the field that anchors it here.
+    for memo in [memo for memo in doc.notes.memos if memo.paragraph == paragraph]:
+        doc.notes.remove_memo(memo)
     return {"memo_removed": True, "location": resolved.location}
 
 
