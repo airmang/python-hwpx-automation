@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from hwpx.oxml.namespaces import OPF_NS
+from hwpx.oxml.namespaces import HH, OPF_NS
 
 from ..catalog import catalog_hash
 from ..document import HwpxAgentDocument, NodeRecord
@@ -128,17 +128,58 @@ def _numbering_properties(agent: HwpxAgentDocument, record: NodeRecord) -> dict[
     ref = heading.id_ref
     if ref is not None and agent.document.oxml.headers:
         styles = agent.document.styles
-        definitions: list[Any] = []
-        if str(heading.type).upper() == "BULLET" and styles.bullets:
-            definitions = list(styles.bullets.values())
-        elif styles.numberings:
-            definitions = list(styles.numberings.values())
-        for definition in definitions:
-            raw_id = getattr(definition, "attributes", {}).get("id")
-            if raw_id is not None and str(raw_id) == str(ref):
-                properties["definition"] = _semantic_generic(definition)
-                break
+        if str(heading.type).upper() == "BULLET":
+            for bullet in styles.bullets.values():
+                raw_id = getattr(bullet, "attributes", {}).get("id")
+                if raw_id is not None and str(raw_id) == str(ref):
+                    properties["definition"] = _semantic_generic(bullet)
+                    break
+        else:
+            numbering = _numbering_element(agent, str(ref))
+            if numbering is not None:
+                properties["definition"] = _semantic_element(numbering)
     return properties
+
+
+def _numbering_element(agent: HwpxAgentDocument, ref: str) -> Any | None:
+    """The first header's ``hh:numbering`` whose id is *ref* as written, else ``None``.
+
+    python-hwpx 7.0 reads ``doc.styles.numberings`` as typed ``NumberingInfo`` values
+    (6.x: the parsed XML elements), which no longer carry the definition's attributes
+    and children; the blueprint keeps describing the definition as it is written, so
+    it reads the header XML here.
+    """
+
+    numberings = agent.document.oxml.headers[0].element.find(f"{HH}refList/{HH}numberings")
+    if numberings is None:
+        return None
+    return next(
+        (
+            child
+            for child in numberings
+            if _local_name(child) == "numbering" and child.get("id") is not None and str(child.get("id")) == ref
+        ),
+        None,
+    )
+
+
+def _semantic_element(node: Any) -> dict[str, Any]:
+    """:func:`_semantic_generic` of an XML element as written (local names, no native IDs)."""
+
+    attributes = {
+        str(key): str(item)
+        for key, item in sorted(node.attrib.items())
+        if "id" not in str(key).casefold() and "ref" not in str(key).casefold()
+    }
+    result: dict[str, Any] = {"kind": _local_name(node)}
+    if attributes:
+        result["properties"] = attributes
+    if node.text:
+        result["text"] = str(node.text)[:16_384]
+    children = [_semantic_element(child) for child in node if isinstance(child.tag, str)]
+    if children:
+        result["children"] = children
+    return result
 
 
 def _style_dependency(agent: HwpxAgentDocument, record: NodeRecord) -> dict[str, Any] | None:

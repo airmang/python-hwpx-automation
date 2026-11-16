@@ -76,7 +76,7 @@ def _write_supported_fixture(path: Path, *, paragraph_id: str = "102") -> str:
         end_run.append(end_ctrl)
         paragraph.element.append(end_run)
         paragraph.section.mark_dirty()
-        document.save_to_path(path)
+        document.save(path)
     with HwpxAgentDocument.open(path) as agent:
         return next(
             record.path
@@ -91,7 +91,7 @@ def _write_unsupported_fixture(path: Path) -> str:
         paragraph = document.sections[0].paragraphs[0]
         paragraph.runs[0].element.append(paragraph.runs[0].element.makeelement(f"{HP}mysteryObject", {}))
         paragraph.section.mark_dirty()
-        document.save_to_path(path)
+        document.save(path)
     return root_path
 
 
@@ -153,7 +153,7 @@ def test_dump_includes_unprojected_group_picture_asset_without_replay_claim(tmp_
             container.append(picture.find(f"{HP}{name}"))
         picture.set("groupLevel", "1")
         paragraph.section.mark_dirty()
-        document.save_to_path(source)
+        document.save(source)
 
     result = dump_document_blueprint(source, path="/", require_replayable=False)
     assert len(result.assets) == 2
@@ -352,3 +352,53 @@ def test_hostile_matrix_has_an_enforced_p2_disposition() -> None:
         "catalog-version-skew",
     }
     assert set(matrix) - p2_enforced == {"required-oracle-unavailable"}
+
+
+def test_numbering_dependency_keeps_the_definition_it_points_to(tmp_path: Path) -> None:
+    """python-hwpx 7.0 reads ``doc.styles.numberings`` as ``NumberingInfo`` values, which
+    carry no XML attributes; matching on them dropped every numbered paragraph's
+    ``definition`` without an error. The definition is read from the header again."""
+
+    from hwpx.oxml.namespaces import HH
+
+    from hwpx_automation.office.agent.blueprint.dump import _numbering_properties
+
+    source = tmp_path / "lists.hwpx"
+    with HwpxDocument.new() as document:
+        one, two, dot = (document.add_paragraph(text) for text in ("하나", "둘", "점"))
+        document.styles.apply_list_format(paragraphs=[one, two], kind="number")
+        document.styles.apply_list_format(paragraphs=[dot], kind="bullet")
+        document.save(source)
+
+    with HwpxAgentDocument.open(source) as agent:
+        found = {
+            record.native.text: _numbering_properties(agent, record)
+            for record in agent.records
+            if record.kind == "paragraph" and record.native.text in ("하나", "둘", "점")
+        }
+        numberings = agent.document.oxml.headers[0].element.find(f"{HH}refList/{HH}numberings")
+        heads_by_id = {
+            numbering.get("id"): [head for head in numbering if head.tag == f"{HH}paraHead"]
+            for numbering in numberings
+        }
+
+    number = found["하나"]
+    assert number is not None and number["type"] == "NUMBER"
+    definition = number["definition"]
+    assert definition["kind"] == "numbering"
+    heads = next(heads for heads in heads_by_id.values() if len(heads) == len(definition["children"]))
+    assert [child["kind"] for child in definition["children"]] == ["paraHead"] * len(heads)
+    assert [child.get("text") for child in definition["children"]] == [head.text or None for head in heads]
+    assert all(
+        "id" not in key.casefold() and "ref" not in key.casefold()
+        for child in [definition, *definition["children"]]
+        for key in child.get("properties", {})
+    )
+    assert found["둘"]["definition"] == definition
+
+    bullet = found["점"]
+    assert bullet is not None and bullet["type"] == "BULLET"
+    assert bullet["definition"]["properties"]["char"]
+
+    dumped = dump_document_blueprint(source, mode="portable", require_replayable=False)
+    assert any("definition" in item["properties"] for item in dumped.manifest["numbering"])
