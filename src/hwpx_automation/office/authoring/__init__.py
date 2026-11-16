@@ -13,7 +13,8 @@ from typing import Any, Literal, Mapping, Sequence, cast, overload
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HP as _HP
 from hwpx.tools.package_validator import validate_package
-from hwpx.tools.report_utils import (
+
+from ..utilities.report_utils import (
     calculate_age,
     calculate_ratios,
     format_delta,
@@ -22,8 +23,7 @@ from hwpx.tools.report_utils import (
     format_number_commas,
     normalize_korean_date,
 )
-from hwpx.tools.table_cleanup import normalize_cell_text
-
+from ..utilities.table_cleanup import normalize_cell_text
 from .advanced_generators import build_image_grid
 from .builder import (
     Bullet as BuilderBullet,

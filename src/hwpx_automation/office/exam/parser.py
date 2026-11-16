@@ -7,8 +7,7 @@ from __future__ import annotations
 
 import re
 
-from hwpx.tools.table_cleanup import normalize_cell_text
-
+from ..utilities.table_cleanup import normalize_cell_text
 from .ir import ExamDoc, Placeholder, Question, QuestionSet
 
 _TITLE_RE = re.compile(r"^#\s+(?P<t>.*\S)\s*$")

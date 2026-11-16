@@ -1,0 +1,20 @@
+{
+  "source_repo": "https://github.com/neolord0/hwpxlib",
+  "license": "Apache-2.0",
+  "pinned_ref": "3bbaaa90bdb1f14c58fd2f87c80105bc8fd37473",
+  "count": 2,
+  "samples": [
+    {
+      "file": "reader_writer__PageSize_Margin.hwpx",
+      "source_path": "testFile/reader_writer/PageSize_Margin.hwpx",
+      "feature": "page_size_margin",
+      "sha256": "7ac9b4db7bb901b1039bf97685db56392358aa545847ffaddb949cc4ad594e4d"
+    },
+    {
+      "file": "reader_writer__SimpleTable.hwpx",
+      "source_path": "testFile/reader_writer/SimpleTable.hwpx",
+      "feature": "table",
+      "sha256": "502d75c289813ce4b99648ecbc3cbe333bd8acd78e9f4b4b370566f308c1e6de"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 from hwpx_automation.office.authoring import DOCUMENT_PLAN_V2_SCHEMA_VERSION
-from hwpx.tools.table_cleanup import normalize_cell_text  # core primitive
+from hwpx_automation.office.utilities.table_cleanup import normalize_cell_text
 
 _MARKDOWN_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 _ROMAN_HEADING_RE = re.compile(r"^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+\.\s*.+$")

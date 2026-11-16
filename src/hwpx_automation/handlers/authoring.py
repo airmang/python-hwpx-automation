@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from hwpx.tools import report_utils as hwpx_report_utils
+from ..office.utilities import report_utils as hwpx_report_utils
 from ..office.authoring.report_parser import (
     parse_government_report_text as parse_hwpx_government_report_text,
 )
@@ -504,11 +504,9 @@ def compute_report_value(
     values: list | dict = None,  # type: ignore[assignment]  # Frozen ToolSpec default.
 ) -> dict:
     """정부보고서 표/문장에 넣을 계산값을 python-hwpx report_utils로 계산합니다."""
-    if hwpx_report_utils is None:
-        raise RuntimeError("installed python-hwpx does not provide report_utils")
-
     normalized = str(operation or "").strip().lower().replace("-", "_")
     args, kwargs = _report_values(values)
+    value: Any
     try:
         if normalized in {"krw_hangul", "hangul_krw"}:
             value = hwpx_report_utils.format_krw_hangul(args[0])
