@@ -1,2 +1,5 @@
 # Repository QA is exercised before release; it is not part of the runtime sdist.
 prune tests
+# The hwpx-plugins source lives in this repository but ships as plugin bundles
+# on the plugins-dist branch, never inside the automation wheel or sdist.
+prune plugins-src

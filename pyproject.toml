@@ -162,6 +162,9 @@ include = ["hwpx_automation*"]
 # exercise, and their tests import them by bare name.
 pythonpath = ["src", "scripts"]
 addopts = "-q"
+# plugins-src/ (the moved hwpx-plugins source) has its own pytest.ini and is
+# run from that directory; a bare `pytest` here collects only tests/.
+testpaths = ["tests"]
 # WP-F (core 6.0 namespace adaptation, design §9): any DeprecationWarning this
 # package's own code triggers by calling core's pre-7.0 legacy shim surface is
 # a real regression -- error by default, and name each known non-automation
