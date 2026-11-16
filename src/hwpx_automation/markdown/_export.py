@@ -1020,19 +1020,19 @@ def _export_paragraph_lines(p, doc, mapping, notes, plan: _HeadingPlan) -> list[
     return out
 
 
-def _section_table_lines(element) -> list[str]:
-    """구역에 바로 놓인 표(문단 밖 표, 한/글이 아닌 프로그램이 쓴다)를 파이프 표로.
+def _section_table_lines(table) -> list[str]:
+    """구역에 바로 놓인 표(문단 밖 표, 한/글이 아닌 프로그램이 쓴다, ``section.blocks``)를 파이프 표로.
 
-    이런 표는 칸 주소·병합 정보가 빠진 일이 많아 표 모델로 읽지 않고(읽으면 문서를 고친다)
-    평문 Markdown 내보내기처럼 칸 주소대로 글만 싣는다.
+    이런 표는 칸 주소·병합 정보가 빠진 일이 많아 표 모델의 칸 지도로 읽지 않고(읽으면 문서를
+    고친다) 평문 Markdown 내보내기처럼 칸 주소대로 글만 싣는다(``table_grid_text``).
     """
-    rows = table_grid_text(element)
+    rows = table_grid_text(table)
     if not rows:
         return []
     lines = ["| " + " | ".join(_markdown_cell(cell) for cell in rows[0]) + " |"]
     lines.append("| " + " | ".join("---" for _ in rows[0]) + " |")
     lines.extend("| " + " | ".join(_markdown_cell(cell) for cell in row) + " |" for row in rows[1:])
-    caption = _element_caption_text(element)
+    caption = _caption_text(table)
     return ([f"**{escape_markdown(caption)}**"] if caption else []) + ["\n".join(lines)]
 
 
@@ -1218,14 +1218,12 @@ def _export_markdown(
         if headers_and_footers:
             lines.extend(_page_text_lines(section, "header", doc, seen_outside))
             footers = _page_text_lines(section, "footer", doc, seen_outside)
-        paragraphs = {p.element: p for p in section.paragraphs}
-        for child in section.element:
-            p = paragraphs.get(child)
-            if p is not None:
-                lines.extend(_export_paragraph_lines(p, doc, mapping, notes, plan))
-            elif _local_name(child) == "tbl":
+        for block in section.blocks:
+            if hasattr(block, "rows"):
                 # 구역에 바로 놓인 표(문단 밖)의 글도 문서의 글이다.
-                lines.extend(_section_table_lines(child))
+                lines.extend(_section_table_lines(block))
+            else:
+                lines.extend(_export_paragraph_lines(block, doc, mapping, notes, plan))
         if memos:
             lines.extend(_unanchored_memo_lines(section, doc, notes))
         lines.extend(footers)
