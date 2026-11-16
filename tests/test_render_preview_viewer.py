@@ -32,11 +32,6 @@ from hwpx_automation.ops_services.preview_export import (
 from hwpx_automation.tool_contract import bound_tool_registry
 from hwpx_automation.workspace import WorkspacePathError
 
-pytest.importorskip(
-    "hwpx.tools.document_viewer",
-    reason="viewer requires python-hwpx >= 3.8.0 (runtime degrades typed without it)",
-)
-
 _EQUATION_FIXTURE = (
     Path(__file__).resolve().parent / "fixtures" / "equation_preview" / "equation_p0.hwpx"
 )

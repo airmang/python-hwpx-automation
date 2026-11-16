@@ -14,6 +14,9 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 
 from ..configuration import absolute_executable, env_value, find_executable
 from ..hwp_converter import HwpConversionError, convert_hwp_to_hwpx
+from ..preview import latex2mathml_available as _latex2mathml_available
+from ..preview import render_document_viewer as render_hwpx_document_viewer
+from ..preview import render_layout_preview as render_hwpx_layout_preview
 from ..upstream import (
     export_document,
 )
@@ -21,31 +24,6 @@ from ..upstream import (
 from .context import DocumentContext
 
 logger = logging.getLogger("hwpx_automation.hwpx_ops")
-
-try:  # python-hwpx >= layout preview feature
-    from hwpx.tools.layout_preview import (
-        render_layout_preview as render_hwpx_layout_preview,
-    )
-except Exception as exc:  # pragma: no cover - depends on installed python-hwpx
-    render_hwpx_layout_preview = None
-    _LAYOUT_PREVIEW_IMPORT_ERROR: Exception | None = exc
-else:
-    _LAYOUT_PREVIEW_IMPORT_ERROR = None
-
-try:  # python-hwpx >= document viewer feature ([preview] extra for MathML)
-    from hwpx.tools.document_viewer import (
-        render_document_viewer as render_hwpx_document_viewer,
-    )
-except Exception as exc:  # pragma: no cover - depends on installed python-hwpx
-    render_hwpx_document_viewer = None
-    _DOCUMENT_VIEWER_IMPORT_ERROR: Exception | None = exc
-else:
-    _DOCUMENT_VIEWER_IMPORT_ERROR = None
-
-try:  # optional MathML converter (python-hwpx[preview])
-    from hwpx.equation import latex2mathml_available as _latex2mathml_available
-except Exception:  # pragma: no cover - depends on installed python-hwpx
-    _latex2mathml_available = None
 
 _PREVIEW_SCHEMA_VERSION = "hwpx.render-preview.v1"
 _VISUAL_REVIEW_SCHEMA_VERSION = "hwpx.visual-review.v1"
@@ -349,13 +327,6 @@ class PreviewExportService:
         when it exceeds *max_viewer_bytes* (default
         ``_DEFAULT_MAX_VIEWER_HTML_BYTES``) so a response cannot balloon.
         """
-        if render_hwpx_document_viewer is None:
-            raise self._context._new_error(
-                "RENDER_PREVIEW_VIEWER_UNAVAILABLE",
-                "Installed python-hwpx does not expose hwpx.tools.document_viewer.",
-                details={"importError": str(_DOCUMENT_VIEWER_IMPORT_ERROR)},
-                hint="Install python-hwpx[preview] and restart the MCP server.",
-            )
         cap = (
             max_viewer_bytes
             if max_viewer_bytes is not None
@@ -370,7 +341,7 @@ class PreviewExportService:
         viewer_path.write_text(html, encoding="utf-8")
 
         equation_rendering = _count_equation_modes(html)
-        library_available = bool(_latex2mathml_available and _latex2mathml_available())
+        library_available = _latex2mathml_available()
         block: Dict[str, Any] = {
             "viewerPath": self._context._relative_path(viewer_path),
             "byteSize": byte_size,
@@ -416,13 +387,6 @@ class PreviewExportService:
         """
         if embed_images and max_image_bytes is None:
             max_image_bytes = _DEFAULT_MAX_PREVIEW_IMAGE_BYTES
-        if render_hwpx_layout_preview is None:
-            raise self._context._new_error(
-                "RENDER_PREVIEW_UNAVAILABLE",
-                "Installed python-hwpx does not expose hwpx.tools.layout_preview.",
-                details={"importError": str(_LAYOUT_PREVIEW_IMPORT_ERROR)},
-                hint="Install the matching python-hwpx checkout/release and restart the MCP server.",
-            )
         if mode not in {"pages", "long"}:
             raise self._context._new_error(
                 "RENDER_PREVIEW_INVALID_MODE",
