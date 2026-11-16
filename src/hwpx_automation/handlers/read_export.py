@@ -15,7 +15,6 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
-from hwpx.ingest import DocumentIngestError, DocumentIngestor
 from hwpx.tools import read_fidelity as _read_fidelity
 
 from ..configuration import env_float, env_int
@@ -30,6 +29,7 @@ from ..core.formatting import (
     outline_style_levels,
 )
 from ..core.search import find_in_doc
+from ..ingest import DocumentIngestError, DocumentIngestor
 from ..network_policy import NetworkPolicy, NetworkPolicyError, open_url
 from ..office.compliance import DEFAULT_POLICY, mask_pii
 from ..runtime_services import RUNTIME_SERVICES
@@ -673,7 +673,7 @@ def _build_conversion_meta(
 def _ingest_local_document(filename: str):
     if DocumentIngestor is None:
         raise RuntimeError("installed python-hwpx does not provide document ingest")
-    from ..ingest_adapters import MarkItDownAdapter, MissingMarkItDownDependency
+    from ..ingest import MarkItDownAdapter, MissingMarkItDownDependency
 
     path = resolve_path(filename)
     ingestor = DocumentIngestor.default()
