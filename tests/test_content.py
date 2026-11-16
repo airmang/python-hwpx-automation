@@ -1700,6 +1700,28 @@ def test_format_table_border_and_shading(tmp_path: Path):
     assert any(child.get("type") == "DASH" for child in dash)
 
 
+def test_format_table_border_width_keeps_the_6x_nearest_hancom_width(tmp_path: Path):
+    """python-hwpx 7.0 refuses a width off Hancom's list; the tool keeps 6.x drawing the nearest."""
+    from hwpx_automation.upstream import border_width_mm
+
+    assert border_width_mm("0.45 mm") == 0.5  # halfway: the thicker, as 6.x
+    assert border_width_mm("1mm") == 1.0 and border_width_mm(0.12) == 0.12
+    assert border_width_mm(None) == 0.12 and border_width_mm("") == 0.12
+    assert border_width_mm("wide") == "wide"  # passed on for core's own refusal
+
+    target = tmp_path / "table_fmt_width.hwpx"
+    create_document(str(target))
+    add_table(str(target), 1, 1, [["x"]])
+    result = format_table(str(target), 0, border_width="0.45 mm")
+    doc = open_doc(str(target))
+    HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
+    fill = next(
+        bf for header in doc.parts.headers for bf in header.element.iter(f"{HH}borderFill")
+        if bf.get("id") == result["border_fill_id"]
+    )
+    assert {side.get("width") for side in fill if side.get("width")} == {"0.5 mm"}
+
+
 def test_format_table_typed_refusals(tmp_path: Path):
     target = tmp_path / "table_fmt2.hwpx"
     create_document(str(target))

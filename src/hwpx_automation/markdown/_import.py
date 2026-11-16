@@ -1263,7 +1263,7 @@ class _Writer:
             lines = None
             if sides is not None:
                 lines = {
-                    name: None if line is None else {"type": line[0], "width": line[1]}
+                    name: None if line is None else {"type": line[0], "width_mm": float(line[1].split()[0])}
                     for name, line in zip(("left", "right", "top", "bottom"), sides)
                 }
             self._border_ids[key] = self.doc.styles.ensure_border_fill(

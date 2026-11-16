@@ -151,24 +151,43 @@ def export_document(document: HwpxDocument, output_format: Literal["text", "html
     raise ValueError(f"unsupported export format: {output_format}")
 
 
+#: Hancom's line widths in mm (the ``hc:LineWidth`` list python-hwpx writes).
+_HANCOM_LINE_WIDTHS_MM = (
+    "0.1", "0.12", "0.15", "0.2", "0.25", "0.3", "0.4", "0.5",
+    "0.6", "0.7", "1.0", "1.5", "2.0", "3.0", "4.0", "5.0",
+)
+
+
 def border_width_mm(width: Any) -> Any:
     """A 6.x border width (``"0.12 mm"``, ``"1mm"``, a number) as the millimetres python-hwpx
-    7.0 takes (``border_width_mm=``): the number before ``mm``. Core writes the nearest of
-    Hancom's widths for it, as it did for the string. ``None`` or ``""`` is the 0.12 mm 6.x
-    fell back to; a string that is not a width is passed on as it is, so core refuses it
-    with ``style-line-width-invalid`` as before.
+    7.0 takes (``border_width_mm=``).
+
+    6.x wrote a width that is not one of Hancom's as the nearest of them (the thicker when
+    halfway: ``"0.45 mm"`` drew 0.5 mm); 7.0 refuses such a width, so the nearest is taken
+    here and the tools keep drawing what they drew. ``None`` or ``""`` is the 0.12 mm 6.x
+    fell back to; a value that is not a positive width in mm is passed on as it is, so core
+    refuses it with ``style-line-width-invalid`` as before.
     """
+
+    from decimal import Decimal, InvalidOperation
 
     if width is None or width == "":
         return 0.12
-    if isinstance(width, bool) or isinstance(width, (int, float)):
+    if isinstance(width, bool):
         return width
     text = str(width).strip().lower()
     number = (text[:-2] if text.endswith("mm") else text).strip()
     try:
-        return float(number)
-    except ValueError:
+        millimetres = Decimal(number)
+    except InvalidOperation:
         return width
+    if not millimetres.is_finite() or millimetres <= 0:
+        return width
+    nearest = min(
+        (Decimal(listed) for listed in _HANCOM_LINE_WIDTHS_MM),
+        key=lambda listed: (abs(listed - millimetres), -listed),
+    )
+    return float(nearest)
 
 
 def section_index_of(document: HwpxDocument, section: Any) -> int | None:

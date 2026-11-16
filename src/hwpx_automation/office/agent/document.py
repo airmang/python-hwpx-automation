@@ -90,6 +90,13 @@ def _identity(element: Any, *names: str) -> str | None:
 _INSTRUCTION_PARAMETERS = frozenset({"instruction", "guide", "help", "description", "desc"})
 
 
+def _run_paragraph(text_node: Any) -> Any | None:
+    """The ``hp:p`` holding the run that holds *text_node* (an lxml ``hp:t``), else ``None``."""
+
+    run = text_node.getparent()
+    return run.getparent() if run is not None else None
+
+
 def _form_field_matches(document: HwpxDocument) -> list[dict[str, Any]]:
     """Every form field of *document* in document order, as the binding dict the agent's
     records keep as their native (``record.native``).
@@ -104,7 +111,7 @@ def _form_field_matches(document: HwpxDocument) -> list[dict[str, Any]]:
 
     matches: list[dict[str, Any]] = []
     for index, form_field in enumerate(document.fields.all):
-        begin = form_field.element
+        begin: Any = form_field.element  # an lxml element (getparent)
         location = form_field.location
         paragraph = form_field.paragraph
         own = paragraph.element if paragraph is not None else None
@@ -146,9 +153,7 @@ def _form_field_matches(document: HwpxDocument) -> list[dict[str, Any]]:
                 "_begin_run_index": location.run_index,
                 "_end_run_index": end.run_index if same_paragraph_end and end is not None else None,
                 "_text_nodes": [
-                    node
-                    for node in form_field.text_elements
-                    if own is not None and node.getparent() is not None and node.getparent().getparent() is own
+                    node for node in form_field.text_elements if own is not None and _run_paragraph(node) is own
                 ],
             }
         )
