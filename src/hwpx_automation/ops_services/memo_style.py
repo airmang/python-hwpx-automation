@@ -5,7 +5,6 @@ from __future__ import annotations
 import dataclasses
 import logging
 from dataclasses import asdict
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from ..upstream import (
@@ -170,65 +169,12 @@ class MemoStyleService:
             )
         return {"runs": results}
 
-    def add_memo(
-        self,
-        path: str,
-        text: str,
-        *,
-        section_index: Optional[int] = None,
-        author: str | None = None,
-        timestamp: str | None = None,
-    ) -> Dict[str, Any]:
-        document, resolved = self._context._open_document(path)
-        memo = document.notes.add_memo(
-            text,
-            section=section_index,
-            attributes={
-                "author": author or "",
-                "createDateTime": timestamp
-                or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            },
-        )
-        self._save._save_document(document, resolved)
-        return {"memoId": memo.id}
-
-    def attach_memo_field(
-        self,
-        path: str,
-        paragraph_index: int,
-        memo_id: str,
-    ) -> Dict[str, Any]:
-        document, resolved = self._context._open_document(path)
-        paragraphs = self._context._iter_paragraphs(document)
-        try:
-            paragraph = paragraphs[paragraph_index]
-        except IndexError as exc:
-            raise self._context._new_error(
-                "PARAGRAPH_INDEX_OUT_OF_RANGE",
-                "paragraphIndex out of range",
-                details={"paragraphIndex": paragraph_index},
-            ) from exc
-        memo = self._find_memo(document, memo_id)
-        if memo is None:
-            raise self._context._new_error(
-                "MEMO_NOT_FOUND",
-                f"memo '{memo_id}' not found",
-                details={"memoId": memo_id},
-            )
-        # notes.attach now returns the anchored Memo itself rather than a
-        # bare field-id str (design §2.6) — .field_id (oxml/memo.py) resolves
-        # it live by searching the section for the anchor field.
-        attached_memo = document.notes.attach(paragraph, memo)
-        self._save._save_document(document, resolved)
-        return {"fieldId": attached_memo.field_id}
-
     def add_memo_with_anchor(
         self,
         path: str,
         *,
         text: str,
         section_index: Optional[int] = None,
-        memo_shape_id_ref: str | None = None,
     ) -> Dict[str, Any]:
         document, resolved = self._context._open_document(path)
         # notes.add_memo(paragraph=...) (6.x anchor=) replaces add_memo_with_anchor
@@ -242,7 +188,6 @@ class MemoStyleService:
             text,
             paragraph=paragraph,
             section=section_index,
-            memo_shape_id_ref=memo_shape_id_ref,
         )
         field_id = memo.field_id
         paragraphs = self._context._iter_paragraphs(document)
@@ -258,6 +203,24 @@ class MemoStyleService:
             "paragraphIndex": paragraph_index,
             "fieldId": field_id,
         }
+
+    def set_memo_shape(
+        self,
+        path: str,
+        memo_shape_id_ref: str | int | None,
+        *,
+        section_index: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Set the memo shape of a section: every memo of it is drawn so.
+
+        python-hwpx 7.0 keeps the shape per section (``hp:secPr@memoShapeIDRef``), as
+        Hancom does; ``None`` is Hancom's default shape. No section: the last one.
+        """
+        document, resolved = self._context._open_document(path)
+        document.notes.set_memo_shape(memo_shape_id_ref, section=section_index)
+        self._save._save_document(document, resolved)
+        index = len(document.sections) - 1 if section_index is None else section_index
+        return {"sectionIndex": index, "memoShapeIDRef": document.sections[index].properties.memo_shape_id_ref}
 
     def remove_memo(
         self,

@@ -61,7 +61,7 @@ def _write_fixture(path: Path, *, merged: bool = False, editable: str | None = "
         table.rows[1].cells[1].text = "D"
         if merged:
             table.rows[0].cells[0].set_span(2, 1)
-        document.sections[0].add_memo("검토 메모", memo_id="301")
+        document.notes.add_memo("검토 메모", paragraph=third, memo_id="301")
 
         field_run = second.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
         control = field_run.makeelement(f"{HP}ctrl", {"type": "FORM"})
@@ -940,6 +940,11 @@ def test_copy_run_memo_notes_picture_and_shape_matrix(tmp_path: Path) -> None:
         assert len([record for record in agent.records if record.kind == "memo"]) == 2
         assert len([record for record in agent.records if record.kind == "picture"]) == 2
         assert len([record for record in agent.records if record.kind == "shape"]) == 2
+    # python-hwpx 7.0 keeps a memo only in its MEMO field: the copy is a second field, no hp:memogroup.
+    with zipfile.ZipFile(output) as package:
+        section_xml = package.read("Contents/section0.xml").decode("utf-8")
+    assert "memogroup" not in section_xml
+    assert section_xml.count('type="MEMO"') == 2
 
 
 def test_copy_paragraph_preserves_merged_subtree_but_refreshes_ids(tmp_path: Path) -> None:

@@ -72,9 +72,11 @@ def _drawn_page_size(page_size: Any) -> tuple[int, int]:
     """Width and height as Hancom draws the page: as stored for
     ``landscape="WIDELY"`` (portrait), turned otherwise (``NARROWLY``)."""
 
+    # python-hwpx 7.0 reads a page with no hp:pagePr as None; 6.x read it as 0.
+    width, height = page_size.width or 0, page_size.height or 0
     if page_size.orientation == "WIDELY":
-        return page_size.width, page_size.height
-    return page_size.height, page_size.width
+        return width, height
+    return height, width
 
 
 def _first_child(element: Any, local_name: str) -> Any | None:
@@ -456,7 +458,7 @@ class HwpxAgentDocument:
     def _run_style_summary(self, run: Any) -> dict[str, Any]:
         """The style part of a run summary, once per ``charPrIDRef``."""
 
-        ref = run.element.get("charPrIDRef")
+        ref = run.char_pr_id_ref
         try:
             return self._run_style_memo[ref]
         except KeyError:
@@ -478,11 +480,11 @@ class HwpxAgentDocument:
         return values
 
     def _paragraph_summary(self, paragraph: Any) -> tuple[dict[str, Any], dict[str, str]]:
-        style_ref = paragraph.element.get("styleIDRef")
+        style_ref = paragraph.style_id_ref
         style_name, style_type = self._style_name_and_type(style_ref)
         summary: dict[str, Any] = {"text": _bounded_text(paragraph.text), "style": style_name}
         # A fresh dict per record: summaries are handed out and may be edited by callers.
-        summary.update(self._paragraph_property_summary(paragraph.element.get("paraPrIDRef")))
+        summary.update(self._paragraph_property_summary(paragraph.para_pr_id_ref))
         attributes = {
             "id": paragraph.element.get("id", ""),
             "style": style_name or "",

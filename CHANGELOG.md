@@ -24,6 +24,16 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   지웠습니다. python-hwpx 7.0에는 그 속성이 없어 끼워도 렌더링되지 않습니다. 한/글로 렌더링하는 저장 관문은
   `doc.save(path, quality=policy, pipeline=hancom_save_pipeline())`(`hwpx_automation.office.hancom_save_pipeline`)로 줍니다.
   한/글은 정책이 렌더링할 때만 찾습니다.
+- `HwpxOps.add_memo`·`attach_memo_field`를 지웠습니다. python-hwpx 7.0은 메모를 한/글 2024처럼 문단의 메모 누름틀
+  안에만 두고, 문단에 걸지 않은 새 메모가 든 문서는 저장하지 않습니다. 그래서 "메모만 만들고 나중에 건다"는 두 단계는
+  늘 저장이 거부됩니다. 문단에 거는 `HwpxOps.add_memo_with_anchor`를 씁니다. 옛 이름을 부르면 그렇게 알려 주는
+  `AttributeError`가 납니다. MCP 도구 `add_memo`·`add_memo_by_anchor`는 원래 문단에 걸므로 그대로입니다.
+- `HwpxOps.add_memo_with_anchor`가 `memo_shape_id_ref=`를 받지 않습니다. python-hwpx 7.0은 한/글처럼 메모 모양을
+  메모가 아니라 구역에 둡니다. 구역의 메모 모양은 새 `HwpxOps.set_memo_shape(path, memo_shape_id_ref,
+  section_index=...)`로 따로 정합니다.
+- `HwpxOps.add_shape`·`add_control`을 지웠습니다. python-hwpx 7.0에서 계약 밖 탈출구가 된 `doc.shapes.add_raw`·
+  `add_control`을 불러 크기·내용이 없는 빈 요소를 만들었고, 그런 문서는 열기 안전성 검사로 저장이 거부됩니다.
+  python-hwpx의 `doc.shapes.add_rectangle`·`add_ellipse`·`add_line`·`add_container` 등을 씁니다(옛 이름은 안내 오류).
 
 ### Added
 
@@ -55,6 +65,10 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 - `document_to_markdown`·`document_extract_json`, `create_from_markdown`, 양식·메일 머지·미리보기·점검 도구가 이 패키지로
   옮겨 온 구현을 씁니다. 출력 모양은 그대로입니다. `hwpx_automation.ingest_adapters`는 8.x 동안
   `hwpx_automation.ingest`의 MarkItDown 어댑터를 다시 내보냅니다.
+- python-hwpx 7.0이 저장을 거부한 경우(문단에 걸지 않은 메모 `note-memo-unanchored`, 어느 구역에도 잇지 않은 새
+  바탕쪽 `master-page-unlinked`, 열기 안전성 검사 실패 `open-safety-failed`) MCP 도구는 `INVALID_ARGUMENT`·
+  `TOOL_EXECUTION_FAILED` 대신 `DOCUMENT_SAVE_FAILED`와 그 사유를 돌려주고 `details.coreCode`에 엔진의 code를 싣습니다.
+  `HwpxOps`의 저장 실패(`DOCUMENT_SAVE_FAILED`)에도 같은 `details.coreCode`가 붙습니다.
 - 선택 의존성이 없을 때의 안내가 `pip install "python-hwpx-automation[preview]"`·`[xlsx]`를 가리킵니다.
 - `apply_document_commands`로 누름틀의 `readOnly`를 바꾸면 한/글처럼 `editable="0"`/`"1"`을 씁니다(전에는
   `"false"`/`"true"`). 예전 표기로 쓴 문서도 같은 뜻으로 읽습니다.
@@ -76,6 +90,9 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   `blueprintHash`가 실행마다 달라지던 것. 이제 `#comment`·`#processing-instruction`으로 적습니다.
 - `format_table` 등에 한/글 굵기 목록에 없는 선 굵기를 주면 python-hwpx 7.0이 거부하던 것을, 6.x처럼 가장 가까운 목록
   값으로 그립니다.
+- `apply_document_commands`의 메모 `copy`가 구역의 `hp:memogroup`에 누름틀 시작 요소(`hp:fieldBegin`)를 그대로 넣어,
+  한/글이 읽지 못하는 구역을 쓰던 것. 이제 원본 메모가 걸린 문단에 같은 글·작성자의 메모를 하나 더 겁니다(다른 구역을
+  부모로 주면 `incompatible_parent`, 문단에 걸리지 않은 메모는 `unsupported_content`).
 
 ## [7.5.0] - 2026-11-11
 

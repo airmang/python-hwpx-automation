@@ -85,8 +85,8 @@ def _target_dependency_indexes(
         if dependency is not None:
             if record.kind == "paragraph":
                 identity = {
-                    "styleIDRef": str(record.native.element.get("styleIDRef") or "0"),
-                    "paraPrIDRef": str(record.native.element.get("paraPrIDRef") or "0"),
+                    "styleIDRef": str(record.native.style_id_ref or "0"),
+                    "paraPrIDRef": str(record.native.para_pr_id_ref or "0"),
                     "name": str(record.summary.get("style") or ""),
                 }
             else:
@@ -96,7 +96,7 @@ def _target_dependency_indexes(
         if properties is not None:
             dependency = _dependency("numbering", properties, name=str(properties["type"]))
             numbering.setdefault(str(dependency["signature"]), []).append(
-                {"paraPrIDRef": str(record.native.element.get("paraPrIDRef") or "0")}
+                {"paraPrIDRef": str(record.native.para_pr_id_ref or "0")}
             )
     for item in document.package.manifest_tree().findall(f"./{{{OPF_NS}}}manifest/{{{OPF_NS}}}item"):
         media_type = str(item.get("media-type") or "").casefold()

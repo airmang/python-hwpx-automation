@@ -21,7 +21,6 @@ from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxm
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlTable
-from hwpx.oxml.namespaces import HP
 from hwpx.quality import SavePipeline
 
 from ._batch_publication import BatchPublication
@@ -116,22 +115,6 @@ def _local_name(element: Any) -> str:
 def _tag_like(element: Any, local_name: str) -> str:
     tag = str(element.tag)
     return f"{tag.rsplit('}', 1)[0]}}}{local_name}" if "}" in tag else local_name
-
-
-def _section_memo_group(section: Any) -> Any:
-    """The section's ``hp:memogroup``, appended (empty) when it has none.
-
-    Uses the public ``section.memo_group``; core has no public verb that creates
-    the group alone, so it is appended here the way core appends it.
-    """
-
-    group = section.memo_group
-    if group is not None:
-        return group.element
-    element = section.element.makeelement(f"{HP}memogroup", {})
-    section.element.append(element)
-    section.mark_dirty()
-    return element
 
 
 def _element(native: Any) -> Any:
@@ -947,7 +930,7 @@ def _add(
                 (int(child.get("width", "0")) for child in table.element if _local_name(child) == "sz"),
                 None,
             ),
-            border_fill_id_ref=table.element.get("borderFillIDRef") or "0",
+            border_fill_id_ref=table.border_fill_id_ref or "0",
         )
         created = next(child for child in sample if _local_name(child) == "tr")
         if type(created) is not type(table.element):
@@ -1043,10 +1026,9 @@ def _detach(view: HwpxAgentDocument, record: NodeRecord) -> Any:
             )
         table.element.remove(element)
         _refresh_table_rows(table)
-    elif record.kind == "memo":
-        record.native.group.element.remove(element)
-        record.native.group.section.mark_dirty()
     else:
+        # A memo is not movable: python-hwpx 7.0 keeps it in its paragraph's MEMO field
+        # (the node catalog lists no "move" for memo; copy makes a new memo there).
         raise AgentContractError("unsupported_operation", f"cannot detach {record.kind}")
     return element
 
@@ -1107,19 +1089,6 @@ def _move(
         fresh_view = HwpxAgentDocument.from_document(view.document, revision=view.revision)
         fresh_parent = _record_for_native(fresh_view, parent.native)
         _insert_inline(fresh_view, fresh_parent, source.kind, detached, synthetic_position)
-    elif source.kind == "memo":
-        group = _section_memo_group(parent.native)
-        if group is None:  # pragma: no cover
-            raise AgentContractError("invariant_violation", "memo group creation failed")
-        siblings = [memo.element for memo in parent.native.memos]
-        if position["mode"] == "append" or not siblings:
-            group.append(detached)
-        else:
-            fresh_view = HwpxAgentDocument.from_document(view.document, revision=view.revision)
-            fresh_parent = _record_for_native(fresh_view, parent.native)
-            index = _insertion_index(fresh_view, fresh_parent, "memo", position)
-            group.insert(index, detached)
-        parent.native.mark_dirty()
     return detached
 
 
@@ -1261,16 +1230,38 @@ def _copy_node(
     elif source.kind in _INLINE_KINDS:
         _insert_inline(view, parent, source.kind, clone, position)
     elif source.kind == "memo":
-        group = _section_memo_group(parent.native)
-        if group is None:  # pragma: no cover
-            raise AgentContractError("invariant_violation", "memo group creation failed")
-        siblings = [memo.element for memo in parent.native.memos]
-        index = _insertion_index(view, parent, "memo", position, siblings=siblings)
-        group.insert(index, clone)
-        parent.native.mark_dirty()
+        return _copy_memo(document, source, parent)
     else:
         raise AgentContractError("unsupported_operation", f"copy is unsupported for {source.kind}")
     return clone, identity_map
+
+
+def _copy_memo(
+    document: HwpxDocument, source: NodeRecord, parent: NodeRecord
+) -> tuple[Any, list[dict[str, str]]]:
+    """Copy a memo as a new memo on the same paragraph.
+
+    python-hwpx 7.0 keeps a memo only in its MEMO field (as Hancom 2024 does) and
+    refuses to save one that is not anchored, so a copy is a second memo field on
+    the source memo's paragraph, made by ``doc.notes.add_memo``. The 6.x copy, an
+    ``hp:memogroup`` entry with no field, is one Hancom drops on its next save.
+    """
+
+    memo = source.native
+    anchor = memo.paragraph
+    if anchor is None:
+        raise AgentContractError(
+            "unsupported_content", "a memo that is not anchored to a paragraph cannot be copied", target=source.path
+        )
+    if anchor.section.element is not parent.native.element:
+        raise AgentContractError(
+            "incompatible_parent", "a memo copy stays in the section of its paragraph", target=parent.path
+        )
+    attributes = memo.attributes
+    author = attributes.get("Author") or attributes.get("author") or None
+    copied = document.notes.add_memo(memo.text, paragraph=anchor, author=author)
+    identity_map = [{"kind": "memo", "attribute": "id", "old": str(memo.id or ""), "new": str(copied.id or "")}]
+    return copied.element, identity_map
 
 
 def _dispatch_command_op(

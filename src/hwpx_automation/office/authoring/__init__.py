@@ -1435,7 +1435,7 @@ def inspect_document_authoring_quality(
         page_break_count = sum(
             1
             for paragraph in document.paragraphs
-            if paragraph.element.get("pageBreak") == "1"
+            if paragraph.page_break
         )
         gates = (
             normalized_plan.quality_gates
@@ -2978,8 +2978,9 @@ def _flow_oversized_authored_table(table: Any) -> None:
     margins = section.properties.page_margins
     # Hancom turns every page but landscape="WIDELY", so a landscape page's
     # drawn height is its stored width.
-    drawn_height = page.height if page.orientation == "WIDELY" else page.width
-    body_height = drawn_height - margins.top - margins.bottom
+    drawn_height = (page.height if page.orientation == "WIDELY" else page.width) or 0
+    # python-hwpx 7.0 reads an unwritten margin as None; 6.x read it as 0.
+    body_height = drawn_height - (margins.top or 0) - (margins.bottom or 0)
     if body_height > 0 and table.height > body_height:
         table.set_treat_as_char(False)
 
@@ -3010,7 +3011,7 @@ def _style_plan_table(
         border_color=_TABLE_BORDER_COLOR,
         fill_color=header_fill,
     )
-    table.element.set("borderFillIDRef", border_fill_id)
+    table.border_fill_id_ref = border_fill_id
     center_para_pr_id: str | None = None
     if header_rows and document.oxml.headers:
         center_para_pr_id = document.oxml.headers[0].ensure_paragraph_format(alignment="center")

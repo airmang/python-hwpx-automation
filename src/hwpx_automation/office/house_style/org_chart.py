@@ -224,7 +224,7 @@ def lower_boxed_org_chart(
     table = document.add_table(spec.rows, spec.cols, section=section_index)
 
     invisible = document.styles.ensure_border_fill(active_borders=[])
-    table.element.set("borderFillIDRef", str(invisible))
+    table.border_fill_id_ref = invisible
     for row in range(spec.rows):
         for col in range(spec.cols):
             table.set_cell_border_fill(row, col, invisible)

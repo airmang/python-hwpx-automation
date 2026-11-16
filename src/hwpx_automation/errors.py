@@ -198,6 +198,31 @@ class HwpDocumentError(RuntimeError):
         )
 
 
+#: python-hwpx 7.0 refuses these saves before writing anything (``HwpxError.code``).
+#: They are not bad tool arguments: the document as edited cannot be saved as is.
+CORE_SAVE_REFUSALS: Dict[str, str] = {
+    "note-memo-unanchored": "문단에 걸지 않은 메모가 있어 저장하지 않았습니다. 한/글은 메모를 문단의 메모 누름틀 안에만 둡니다.",
+    "master-page-unlinked": "어느 구역에도 잇지 않은 새 바탕쪽이 있어 저장하지 않았습니다. 한/글은 그런 바탕쪽을 버립니다.",
+    "open-safety-failed": "만든 문서가 한/글 열기 안전성 검사를 통과하지 못해 저장하지 않았습니다.",
+}
+
+
+def core_save_refusal_payload(exc: BaseException) -> Optional[Dict[str, Any]]:
+    """The MCP error for a save python-hwpx refused (see ``CORE_SAVE_REFUSALS``); None otherwise.
+
+    Matched by the core error's ``code`` so this module needs no core import.
+    """
+
+    core_code = getattr(exc, "code", None)
+    if not isinstance(core_code, str) or core_code not in CORE_SAVE_REFUSALS:
+        return None
+    return build_error_payload(
+        code="DOCUMENT_SAVE_FAILED",
+        message=CORE_SAVE_REFUSALS[core_code],
+        details={"coreCode": core_code},
+    )
+
+
 _HWP5_ENCRYPTED_CODES = frozenset({"hwp5-password", "hwp5-distribution", "hwp5-drm"})
 
 

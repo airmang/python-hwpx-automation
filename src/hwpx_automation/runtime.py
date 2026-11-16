@@ -21,6 +21,7 @@ from .configuration import env_value
 from .errors import (
     HwpDocumentError,
     build_error_payload,
+    core_save_refusal_payload,
     hwp5_error_payload,
     mcp_code_for_error,
 )
@@ -95,6 +96,9 @@ def _document_error_payload(item: BaseException) -> dict[str, Any] | None:
     hwp5_payload = hwp5_error_payload(item)
     if hwp5_payload is not None:
         return hwp5_payload
+    refusal_payload = core_save_refusal_payload(item)
+    if refusal_payload is not None:
+        return refusal_payload
     if isinstance(item, zipfile.BadZipFile):
         return build_error_payload(
             code="HWPX_PACKAGE_REQUIRED",

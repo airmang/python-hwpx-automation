@@ -59,11 +59,16 @@ EXPECTED_SERVICE_LINES = {
     # 8.0: python-hwpx 7.0 dropped doc.media.picture_references(); the 6.x
     # payload is rebuilt once in upstream.picture_reference_payloads, so the
     # local rebuilding went away (208 -> 199).
-    "media.py": 199,
+    # 8.0: add_shape/add_control went away (python-hwpx 7.0 refuses to save the
+    # bare elements they appended) (199 -> 169).
+    "media.py": 169,
     # WP-F: add_memo/fill now create the host paragraph explicitly before
     # calling notes.add_memo(anchor=...), which has no auto-create fallback
     # (unlike 5.x's add_memo_with_anchor(paragraph=None)).
-    "memo_style.py": 367,
+    # 8.0: python-hwpx 7.0 refuses to save a memo on no paragraph and keeps the
+    # memo shape per section: add_memo/attach_memo_field and the memo_shape_id_ref=
+    # argument went away, set_memo_shape came in (367 -> 330).
+    "memo_style.py": 330,
     "package_validation.py": 164,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
@@ -75,7 +80,9 @@ EXPECTED_SERVICE_LINES = {
     # domain payload's preservation claim verbatim, so an incoherent payload
     # printed a byteIdentical receipt onto a rewritten document. The seam now
     # refuses the impossible combination rather than forwarding it.
-    "save_policy.py": 619,
+    # 8.0: a save python-hwpx 7.0 refuses carries its code as details.coreCode
+    # (619 -> 624).
+    "save_policy.py": 624,
     # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
     # hasattr fallback (equivalent direct itemCnt computation) is now the only
     # branch, so the dead private call went away.
@@ -88,7 +95,9 @@ EXPECTED_SERVICE_LINES = {
 }
 
 EXPECTED_FACADE_LINES = {
-    "hwpx_ops.py": 1526,
+    # 8.0: add_memo, attach_memo_field, add_shape, add_control went away (a
+    # __getattr__ names their replacements); set_memo_shape came in (1526 -> 1512).
+    "hwpx_ops.py": 1512,
     # S-108: shared identity/config helpers replaced duplicated MCP-era parsing.
     # +3: --profile minimal (#198); the option and the server choice live in
     # minimal_profile.py, the facade only wires them.
@@ -176,7 +185,7 @@ EXPECTED_C901 = (
     # parser's help and choice errors stay byte-identical to core's golden.
     ("src/hwpx_automation/office/agent/cli.py", "main", 15),
     ("src/hwpx_automation/office/agent/commands.py", "_add", 16),
-    ("src/hwpx_automation/office/agent/commands.py", "_move", 15),
+    ("src/hwpx_automation/office/agent/commands.py", "_move", 12),  # 8.0: the memo move branch went away (15 -> 12)
     ("src/hwpx_automation/office/agent/commands.py", "_refresh_copy_identities", 13),
     ("src/hwpx_automation/office/agent/commands.py", "_remove", 12),
     ("src/hwpx_automation/office/agent/document.py", "_project_paragraph", 13),

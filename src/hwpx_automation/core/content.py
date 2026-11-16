@@ -3,15 +3,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
 import os
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
-from xml.etree import ElementTree as ET
 
 from .. import forms
 from ..compat import patch_python_hwpx
@@ -588,14 +585,8 @@ def split_cell_in_table(doc: HwpxDocument, table_index: int, row: int, col: int)
         raise ValueError(f"유효하지 않은 col: {col}")
 
     cell = table.rows[row].cells[col]
-    span = cell.element.find(f"{_HP_NS}cellSpan")
-    if span is None:
-        return {"rowSpan": 1, "colSpan": 1}
-
-    original = {
-        "rowSpan": int(span.get("rowSpan", "1")),
-        "colSpan": int(span.get("colSpan", "1")),
-    }
+    row_span, col_span = cell.span
+    original = {"rowSpan": row_span, "colSpan": col_span}
 
     if original["rowSpan"] <= 1 and original["colSpan"] <= 1:
         return original
@@ -624,7 +615,7 @@ def _apply_table_border_fill(
     if row is not None:
         table.set_cell_border_fill(row, col, border_fill_id)
         return border_fill_id
-    table.element.set("borderFillIDRef", str(border_fill_id))
+    table.border_fill_id_ref = border_fill_id
     for table_row in table.rows:
         for cell in table_row.cells:
             cell.element.set("borderFillIDRef", str(border_fill_id))
@@ -723,124 +714,6 @@ def _require_open_safe_hwpx(path: Path, role: str) -> None:
 
 # ── 메모 ──────────────────────────────────────────────
 
-def _looks_like_mixed_xml_type_error(exc: BaseException) -> bool:
-    current: BaseException | None = exc
-    while current is not None:
-        message = str(current)
-        if "lxml.etree._Element" in message and "ElementTree.Element" in message:
-            return True
-        if "SubElement() argument 1 must be" in message and "xml.etree.ElementTree.Element" in message:
-            return True
-        current = current.__cause__
-    return False
-
-
-def _append_child_element(parent: Any, tag: str, attrs: dict[str, str] | None = None) -> Any:
-    payload = dict(attrs or {})
-    try:
-        return ET.SubElement(parent, tag, payload)
-    except TypeError:
-        maker = getattr(parent, "makeelement", None)
-        if not callable(maker):
-            raise
-        child = maker(tag, payload)
-        parent.append(child)
-        return child
-
-
-def _make_element_like(parent: Any, tag: str, attrs: dict[str, str] | None = None) -> Any:
-    payload = dict(attrs or {})
-    maker = getattr(parent, "makeelement", None)
-    if callable(maker):
-        return maker(tag, payload)
-    return ET.Element(tag, payload)
-
-
-def _add_memo_with_anchor_fallback(paragraph: Any, text: str) -> None:
-    section = paragraph.section
-    section_element = section.element
-    memo_group = section_element.find(f"{_HP_NS}memogroup")
-    if memo_group is None:
-        memo_group = _append_child_element(section_element, f"{_HP_NS}memogroup")
-
-    memo_id = uuid4().hex[:10]
-    memo_element = _append_child_element(memo_group, f"{_HP_NS}memo", {"id": memo_id})
-    para_list = _append_child_element(memo_element, f"{_HP_NS}paraList")
-    memo_para = _append_child_element(
-        para_list,
-        f"{_HP_NS}p",
-        {
-            "id": f"memo-{memo_id}-p",
-            "paraPrIDRef": "0",
-            "styleIDRef": "0",
-            "pageBreak": "0",
-            "columnBreak": "0",
-            "merged": "0",
-        },
-    )
-
-    char_ref = str(paragraph.char_pr_id_ref or "0")
-    memo_run = _append_child_element(memo_para, f"{_HP_NS}run", {"charPrIDRef": char_ref})
-    _append_child_element(memo_run, f"{_HP_NS}t").text = text
-
-    field_id = uuid4().hex
-    created = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    run_begin = _make_element_like(paragraph.element, f"{_HP_NS}run", {"charPrIDRef": char_ref})
-    ctrl_begin = _append_child_element(run_begin, f"{_HP_NS}ctrl")
-    field_begin = _append_child_element(
-        ctrl_begin,
-        f"{_HP_NS}fieldBegin",
-        {
-            "id": field_id,
-            "type": "MEMO",
-            "editable": "true",
-            "dirty": "false",
-            "fieldid": field_id,
-            "command": f"memoId={memo_id};",
-        },
-    )
-
-    parameters = _append_child_element(field_begin, f"{_HP_NS}parameters", {"count": "5", "name": ""})
-    _append_child_element(parameters, f"{_HP_NS}stringParam", {"name": "ID"}).text = memo_id
-    _append_child_element(parameters, f"{_HP_NS}integerParam", {"name": "Number"}).text = "1"
-    _append_child_element(parameters, f"{_HP_NS}stringParam", {"name": "CreateDateTime"}).text = created
-    _append_child_element(parameters, f"{_HP_NS}stringParam", {"name": "Author"}).text = ""
-    _append_child_element(parameters, f"{_HP_NS}stringParam", {"name": "MemoShapeID"}).text = ""
-
-    sub_list = _append_child_element(
-        field_begin,
-        f"{_HP_NS}subList",
-        {
-            "id": f"memo-field-{memo_id}",
-            "textDirection": "HORIZONTAL",
-            "lineWrap": "BREAK",
-            "vertAlign": "TOP",
-        },
-    )
-    sub_para = _append_child_element(
-        sub_list,
-        f"{_HP_NS}p",
-        {
-            "id": f"memo-field-{memo_id}-p",
-            "paraPrIDRef": "0",
-            "styleIDRef": "0",
-            "pageBreak": "0",
-            "columnBreak": "0",
-            "merged": "0",
-        },
-    )
-    sub_run = _append_child_element(sub_para, f"{_HP_NS}run", {"charPrIDRef": char_ref})
-    _append_child_element(sub_run, f"{_HP_NS}t").text = memo_id
-
-    run_end = _make_element_like(paragraph.element, f"{_HP_NS}run", {"charPrIDRef": char_ref})
-    ctrl_end = _append_child_element(run_end, f"{_HP_NS}ctrl")
-    _append_child_element(ctrl_end, f"{_HP_NS}fieldEnd", {"beginIDRef": field_id, "fieldid": field_id})
-
-    paragraph.element.insert(0, run_begin)
-    paragraph.element.append(run_end)
-    section.mark_dirty()
-
-
 def _extract_memo_id_from_field_begin(field_begin: Any) -> str | None:
     command = (field_begin.get("command") or "")
     if "memoId=" in command:
@@ -931,22 +804,10 @@ def add_memo_to_doc(
         create=True,
     )
     paragraph = resolved.paragraph
-    memo_count_before = len(doc.notes.memos)
-    try:
-        doc.notes.add_memo(text or "", paragraph=paragraph)
-    except Exception as exc:  # noqa: BLE001
-        if not _looks_like_mixed_xml_type_error(exc):
-            raise
-        # Clean up any partially-created memo from the failed native call
-        current_memos = doc.notes.memos
-        while len(current_memos) > memo_count_before:
-            try:
-                doc.notes.remove_memo(current_memos[-1])
-            except Exception:  # noqa: BLE001
-                break
-            current_memos = doc.notes.memos
-        logger.warning("메모 추가 중 혼합 XML 타입 충돌 감지, fallback 경로 사용: %s", exc)
-        _add_memo_with_anchor_fallback(paragraph, text or "")
+    # python-hwpx 7.0 writes the memo into the paragraph's MEMO field, as Hancom 2024 does.
+    # (The XML fallback that wrote a 6.x hp:memogroup memo for an lxml/ElementTree mix-up
+    # went away: compat.patch_python_hwpx already makes that call work.)
+    doc.notes.add_memo(text or "", paragraph=paragraph)
     return {"memo_added": True, "location": resolved.location}
 
 

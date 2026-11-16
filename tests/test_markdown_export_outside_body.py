@@ -6,9 +6,32 @@ Moved from python-hwpx tests/test_markdown_export_outside_body.py (the two inges
 from __future__ import annotations
 
 import io
+import zipfile
+
+from lxml import etree
 
 from hwpx import HwpxDocument
 from hwpx_automation.markdown._export import export_markdown
+
+
+def _with_unplaced_memo(package: bytes, memogroup_xml: str) -> bytes:
+    """*package* with a memo kept only in ``hp:memogroup`` (no MEMO field), as python-hwpx 6.x wrote.
+
+    python-hwpx 7.0 refuses to save a memo it made without a paragraph
+    (``note-memo-unanchored``), so the 6.x shape is written into the section part here.
+    """
+
+    source = zipfile.ZipFile(io.BytesIO(package))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            data = source.read(info)
+            if info.filename == "Contents/section0.xml":
+                text = data.decode("utf-8")
+                end = text.rindex("</hs:sec>")
+                data = (text[:end] + memogroup_xml + text[end:]).encode("utf-8")
+            target.writestr(info, data)
+    return out.getvalue()
 
 
 def _document() -> HwpxDocument:
@@ -16,12 +39,14 @@ def _document() -> HwpxDocument:
     doc.add_paragraph("본문 첫 문단입니다.")
     reviewed = doc.add_paragraph("검토가 필요한 문장입니다.")
     doc.notes.add_memo("근거 자료를 붙여 주세요", paragraph=reviewed)
-    doc.notes.add_memo("자리 없는 메모")
+    unplaced = doc.notes.add_memo("자리 없는 메모")
+    memogroup_xml = etree.tostring(doc.sections[0].memo_group.element, encoding="unicode")
+    doc.notes.remove_memo(unplaced)
     doc.page.set_header(text="2026학년도 운영 계획")
     doc.page.set_footer(text="가나고등학교")
     buffer = io.BytesIO()
     doc.save(buffer)
-    return HwpxDocument.open(buffer.getvalue())
+    return HwpxDocument.open(_with_unplaced_memo(buffer.getvalue(), memogroup_xml))
 
 
 def test_the_default_export_is_the_body_only() -> None:

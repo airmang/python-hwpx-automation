@@ -28,7 +28,7 @@ def _build_semantic_document() -> HwpxDocument:
     table.rows[0].cells[1].text = "내용"
     table.rows[1].cells[0].text = "평가"
     table.rows[1].cells[1].text = "프로젝트"
-    document.sections[0].add_memo("검토 메모", memo_id="301", attributes={"author": "검토자"})
+    document.notes.add_memo("검토 메모", paragraph=first, memo_id="301", author="검토자")
 
     field_run = second.element.makeelement(f"{HP}run", {"charPrIDRef": "0"})
     control = field_run.makeelement(f"{HP}ctrl", {"type": "FORM"})

@@ -1532,7 +1532,10 @@ class _Writer:
         if self._text_width is None:
             try:
                 size, margins = self.doc.page.size(), self.doc.page.margins()
-                self._text_width = int(size.width - margins.left - margins.right)
+                if size.width is None:  # no hp:pagePr: the fallback below
+                    raise ValueError("page width is not written")
+                # python-hwpx 7.0 reads an unwritten margin as None; 6.x read it as 0.
+                self._text_width = int(size.width - (margins.left or 0) - (margins.right or 0))
             except Exception:  # pragma: no cover - a page the facade cannot read
                 self._text_width = _FALLBACK_TEXT_WIDTH
             if self._text_width <= 0:  # pragma: no cover - defensive
@@ -1753,10 +1756,12 @@ class _Writer:
             table.set_row_heights([round(self.style.table_row_height_mm * _HWPUNIT_PER_MM)] * len(block.rows))
         if block.header and len(block.rows) > 1:
             # Hancom draws the header row again at the top of each page a long table runs onto.
-            # TODO(core-7.0-tables): use the engine's header-row repeat API once it lands.
+            # table.set_header_rows(1) would also write header="0" on every other cell and drop the
+            # line cache, so only the cells go through the public is_header; repeatHeader has no
+            # setter of its own in python-hwpx 7.0.
             table.element.set("repeatHeader", "1")
             for col_index in range(cols):
-                table.cell(0, col_index).element.set("header", "1")
+                table.cell(0, col_index).is_header = True
             table.mark_dirty()
 
     def ruled_border(self, row: int, col: int, rows: int, cols: int, header: bool) -> str:
