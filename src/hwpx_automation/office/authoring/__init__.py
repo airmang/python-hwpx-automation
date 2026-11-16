@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, Callable, Literal, Mapping, Sequence, cast, overload
 
 from hwpx.document import HwpxDocument
-from hwpx.oxml.namespaces import HP as _HP
 from hwpx.tools.package_validator import validate_package
 
 from ..utilities.report_utils import (
@@ -2954,12 +2953,9 @@ def _apply_plan_cell_styles(
     for style in cell_styles:
         cell = table.cell(row_offset + style.row, style.col)
         if style.fill_color is not None:
-            cell.element.set(
-                "borderFillIDRef",
-                document.styles.ensure_border_fill(
-                    border_color=_TABLE_BORDER_COLOR,
-                    fill_color=style.fill_color,
-                ),
+            cell.border_fill_id_ref = document.styles.ensure_border_fill(
+                border_color=_TABLE_BORDER_COLOR,
+                fill_color=style.fill_color,
             )
         if style.text_color is not None:
             char_pr_id = document.styles.ensure_run(
@@ -3019,25 +3015,14 @@ def _style_plan_table(
     for row_index, row in enumerate(table.rows):
         for cell in row.cells:
             is_header = row_index < header_rows
-            cell.element.set("borderFillIDRef", header_fill_id if is_header else border_fill_id)
-            cell.element.set("hasMargin", "1")
-            _set_cell_margin(cell)
-            sublist = cell.element.find(f"{_HP}subList")
-            if sublist is not None:
-                sublist.set("vertAlign", "CENTER")
+            cell.border_fill_id_ref = header_fill_id if is_header else border_fill_id
+            margin = int(_TABLE_CELL_MARGIN)
+            cell.set_margins(left=margin, right=margin, top=margin, bottom=margin)
+            cell.vertical_alignment = "CENTER"
             if is_header and center_para_pr_id is not None:
                 for paragraph in cell.paragraphs:
                     paragraph.para_pr_id_ref = center_para_pr_id
     table.mark_dirty()
-
-
-def _set_cell_margin(cell: Any) -> None:
-    margin = cell.element.find(f"{_HP}cellMargin")
-    if margin is None:
-        margin = cell.element.makeelement(f"{_HP}cellMargin", {})
-        cell.element.append(margin)
-    for side in ("left", "right", "top", "bottom"):
-        margin.set(side, _TABLE_CELL_MARGIN)
 
 
 def _apply_column_widths(table: Any, columns: list[dict[str, Any]]) -> None:

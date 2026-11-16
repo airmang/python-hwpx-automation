@@ -41,7 +41,8 @@ EXPECTED_SERVICE_LINES = {
     # WP-F: add_equation/add_chart/set_header_footer/set_page_number now
     # dispatch to the page/shapes namespaces and .to_dict() the returned
     # living views before this op's dict-mutation contract (result.update()).
-    "content_layout.py": 547,
+    # 8.0: the paragraph index uses paragraph objects being equal (#762) (547 -> 544).
+    "content_layout.py": 544,
     # .hwp documents: python-hwpx opens and writes HWP 5.0 itself, so services
     # route .hwp through it and refuse it where they patch HWPX package bytes.
     "context.py": 259,
@@ -68,7 +69,8 @@ EXPECTED_SERVICE_LINES = {
     # 8.0: python-hwpx 7.0 refuses to save a memo on no paragraph and keeps the
     # memo shape per section: add_memo/attach_memo_field and the memo_shape_id_ref=
     # argument went away, set_memo_shape came in (367 -> 330).
-    "memo_style.py": 330,
+    # 8.0: paragraph objects are dict keys and list.index targets (#762) (330 -> 327).
+    "memo_style.py": 327,
     "package_validation.py": 164,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
@@ -88,7 +90,9 @@ EXPECTED_SERVICE_LINES = {
     # branch, so the dead private call went away.
     # 8.0: section_index= became section=, and the private border-fill id
     # allocator call moved into _border_fill.py (539 -> 534).
-    "tables.py": 534,
+    # 8.0: the new table's index comes from table objects being equal per element
+    # (python-hwpx 7.0 #762) instead of an id() loop (534 -> 531).
+    "tables.py": 531,
     # 8.0: fill_by_path is hwpx_automation.forms.fill_by_path(doc, ...) now that
     # python-hwpx 7.0 moved it here (617 -> 618).
     "transactions.py": 618,

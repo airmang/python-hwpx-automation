@@ -893,7 +893,7 @@ def _table_cell_record(
         record
         for record in agent.records
         if record.kind == "cell"
-        and record.native.table.element is table.native.element
+        and record.native.table == table.native
         and tuple(record.native.address) == (target.row, target.col)
     ]
     if not matches:

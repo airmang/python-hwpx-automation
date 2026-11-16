@@ -419,16 +419,17 @@ def _template_text(document: HwpxDocument) -> str:
     """
 
     parts = [*document.oxml.sections, *document.oxml.master_pages]
-    lines_of: dict[int, list[str]] = {id(part.element): [] for part in parts}
+    # A section and a master page object is the same object wherever it is reached from.
+    lines_of: dict[int, list[str]] = {id(part): [] for part in parts}
     for place in document.text.iter_paragraphs():
         if place.where == "memo":
             continue
         # A paragraph's text is its own runs only: nested paragraphs come on their own.
-        lines_of[id(place.paragraph.section.element)].append(place.paragraph.text)
+        lines_of[id(place.paragraph.section)].append(place.paragraph.text)
 
     lines: list[str] = []
     for part in parts:
-        lines.extend(lines_of[id(part.element)])
+        lines.extend(lines_of[id(part)])
         # TODO: python-hwpx has no public read of a 덧말's main/sub text; read the XML.
         for dutmal in part.element.iter(f"{_HP}dutmal"):
             for piece in (dutmal.find(f"{_HP}mainText"), dutmal.find(f"{_HP}subText")):

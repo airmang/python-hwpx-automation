@@ -244,12 +244,9 @@ class TableService:
         if auto_fit:
             self._auto_fit_table_columns(table)
         tables = self._context._iter_tables(document)
-        element_id = id(table.element)
         index = len(tables) - 1
-        for idx, candidate in enumerate(tables):
-            if id(candidate.element) == element_id:
-                index = idx
-                break
+        if table in tables:  # table objects are equal per element
+            index = tables.index(table)
         self._save._save_document(document, resolved)
         return {"tableIndex": index, "cellCount": rows * cols}
 

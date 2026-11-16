@@ -449,7 +449,7 @@ class TypedNativeBridge:
         )
         _move_to_host_run(paragraph, picture, host_run)
         if properties.get("altText"):
-            picture.element.set("altText", str(properties["altText"]))
+            picture.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
         if properties.get("name"):
             picture.element.set("name", str(properties["name"]))
         self.created[node_id] = CreatedBinding("picture", picture)
@@ -475,7 +475,7 @@ class TypedNativeBridge:
             raise AgentContractError("unsupported_content", "shape type is not replayable", target=node_id)
         _move_to_host_run(paragraph, shape, host_run)
         if properties.get("altText"):
-            shape.element.set("altText", str(properties["altText"]))
+            shape.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
         if properties.get("name"):
             shape.element.set("name", str(properties["name"]))
         self.created[node_id] = CreatedBinding("shape", shape)

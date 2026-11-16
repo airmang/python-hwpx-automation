@@ -558,10 +558,10 @@ def _table_caption(table: Any, value: str) -> None:
 
 
 def _global_paragraph_index(document: HwpxDocument, paragraph: Any) -> int:
-    for index, candidate in enumerate(document.paragraphs):
-        if candidate.element is paragraph.element:
-            return index
-    raise AgentContractError("not_found", "paragraph is detached")
+    try:
+        return document.paragraphs.index(paragraph)  # paragraph objects are equal per element
+    except ValueError:
+        raise AgentContractError("not_found", "paragraph is detached") from None
 
 
 def _style_id(document: HwpxDocument, value: str) -> str:
@@ -1253,7 +1253,7 @@ def _copy_memo(
         raise AgentContractError(
             "unsupported_content", "a memo that is not anchored to a paragraph cannot be copied", target=source.path
         )
-    if anchor.section.element is not parent.native.element:
+    if anchor.section is not parent.native:
         raise AgentContractError(
             "incompatible_parent", "a memo copy stays in the section of its paragraph", target=parent.path
         )

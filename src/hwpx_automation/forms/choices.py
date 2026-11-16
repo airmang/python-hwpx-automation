@@ -251,7 +251,7 @@ def _neighbour_label(table: Any, row: int, col: int, cell: Any) -> str:
                 other = table.cell(r, c)
             except (IndexError, ValueError):
                 break
-            if other.element is not cell.element:
+            if other != cell:
                 text = other.text
                 if text.strip() and not _is_choice_text(text):
                     return _label_text(text)

@@ -93,6 +93,8 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 - `apply_document_commands`의 메모 `copy`가 구역의 `hp:memogroup`에 누름틀 시작 요소(`hp:fieldBegin`)를 그대로 넣어,
   한/글이 읽지 못하는 구역을 쓰던 것. 이제 원본 메모가 걸린 문단에 같은 글·작성자의 메모를 하나 더 겁니다(다른 구역을
   부모로 주면 `incompatible_parent`, 문단에 걸리지 않은 메모는 `unsupported_content`).
+- 문서 설계도 재생(`replay_document_blueprint`)이 그림·도형의 대체 글을 OWPML에 없는 `altText` 속성으로 쓰던 것. 이제
+  `apply_document_commands`의 `set`처럼 한/글의 대체 글 자리인 `hp:shapeComment`에 씁니다.
 
 ## [7.5.0] - 2026-11-11
 
