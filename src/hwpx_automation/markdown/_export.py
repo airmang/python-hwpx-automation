@@ -285,6 +285,16 @@ def _element_caption_text(el) -> str | None:
     return text or None
 
 
+def _table_caption_text(table) -> str | None:
+    """표의 캡션 글(``table.caption``의 문단 글을 이어 붙임), 없으면 None."""
+
+    caption = table.caption
+    if caption is None:
+        return None
+    text = "".join(paragraph.text or "" for paragraph in caption.paragraphs).strip()
+    return text or None
+
+
 def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
     """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인.
 
@@ -614,7 +624,7 @@ def _table_to_md(tbl, doc, mapping, depth: int = 0, notes_out: list | None = Non
     grid = tbl.cell_map
     rows, cols = tbl.row_count, tbl.column_count
     has_merge = any(not pos.is_anchor for row in grid for pos in row)
-    caption_text = _element_caption_text(tbl.element)
+    caption_text = _table_caption_text(tbl)
 
     if has_merge or depth > 0:
         # 병합 셀 또는 중첩 — HTML. 칸 안은 HTML로 쓴다(HTML 블록 안의 Markdown 서식은 읽히지 않는다).
