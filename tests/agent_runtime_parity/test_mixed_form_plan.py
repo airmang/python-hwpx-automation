@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from hwpx import HwpxDocument, validate_editor_open_safety
+from hwpx_automation.forms import find_cell_by_label
 from hwpx_automation.office.agent import (
     AGENT_BATCH_SCHEMA,
     MIXED_FORM_COMPILED_PLAN_SCHEMA,
@@ -230,7 +231,7 @@ def test_success_preserves_untouched_members_and_reopens(tmp_path: Path) -> None
     assert validate_editor_open_safety(output).ok
     with HwpxDocument.open(output) as document:
         assert document.fields.all[0].value == "AI 수업 나눔의 날"
-        matches = document.tables.find_cell_by_label("담당 부서", direction="right")
+        matches = find_cell_by_label(document, "담당 부서", direction="right")
         match = matches["matches"][0]
         assert match["target_cell"]["text"] == "교육연구부"
     with HwpxAgentDocument.open(output) as agent:

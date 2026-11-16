@@ -42,7 +42,12 @@ else:
     _REPAIR_REPACK_IMPORT_ERROR = None
 
 from . import quality as quality_contract
-from .core.content import get_table_data, get_table_map_in_doc, set_cell_text
+from .core.content import (
+    find_cell_by_label_in_doc,
+    get_table_data,
+    get_table_map_in_doc,
+    set_cell_text,
+)
 from .core.document import open_doc
 from .core.formatting import list_styles_in_doc
 from .storage import build_hwpx_open_safety_report
@@ -614,7 +619,7 @@ def _build_mapping_analysis(doc: Any, canonical_input: dict[str, Any]) -> dict[s
             if native_mapping is not None:
                 resolved.append(native_mapping)
                 continue
-            matches = doc.tables.find_cell_by_label(label, direction=direction).get("matches", [])
+            matches = find_cell_by_label_in_doc(doc, label, direction=direction).get("matches", [])
             if len(matches) == 1:
                 match = matches[0]
                 cell = match["target_cell"]

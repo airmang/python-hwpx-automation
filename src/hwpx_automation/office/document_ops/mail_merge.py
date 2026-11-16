@@ -7,11 +7,10 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hwpx.tools.mail_merge import (
+from ...mail_merge import (
     inspect_mail_merge_placeholders as inspect_core_placeholders,
 )
-from hwpx.tools.mail_merge import merge_template_rows
-
+from ...mail_merge import merge_template_rows
 from ..form_fill.fit import FitMode, FitPolicy
 
 if TYPE_CHECKING:

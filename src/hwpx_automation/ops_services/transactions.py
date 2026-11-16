@@ -14,6 +14,7 @@ from ..core.content import (
     add_paragraph_to_doc,
     add_table_to_doc,
     delete_paragraph_from_doc,
+    fill_by_path_in_doc,
     insert_paragraph_to_doc,
     set_cell_text,
 )
@@ -199,7 +200,7 @@ class TransactionService:
             mappings = self._operation_value(operation, "mappings")
             if not isinstance(mappings, dict):
                 raise ValueError("fill_by_path requires mappings")
-            result = document.tables.fill_by_path(mappings)
+            result = fill_by_path_in_doc(document, mappings)
             return {"type": op_type, **result}
 
         if op_type == "add_page_break":
