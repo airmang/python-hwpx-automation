@@ -8,8 +8,6 @@ supplies only renderer-neutral contracts and deterministic geometry helpers.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from hwpx.quality import SavePipeline
@@ -116,23 +114,20 @@ def resolve_hancom_oracle(*, dpi: int = 150, **_options: Any) -> Any:
     return _runtime_export("resolve_oracle")(dpi=dpi)
 
 
-@contextmanager
-def bind_document_rendering(document: Any) -> Iterator[None]:
-    """Temporarily bind automation-owned rendering to one core document save."""
+def hancom_save_pipeline() -> SavePipeline:
+    """A core ``SavePipeline`` whose renderer is Hancom, found only when a policy renders.
 
-    sentinel = object()
-    previous = getattr(document, "_save_pipeline", sentinel)
-    document._save_pipeline = SavePipeline(oracle_factory=resolve_hancom_backend)
-    try:
-        yield
-    finally:
-        if previous is sentinel:
-            delattr(document, "_save_pipeline")
-        else:
-            document._save_pipeline = previous
+    Pass it to ``doc.save(..., pipeline=)`` (python-hwpx 7.0) or to
+    :func:`save_gate_report`. The backend factory is called lazily by core, once,
+    and only when the quality policy renders (``render_check != "off"``).
+    """
+
+    return SavePipeline(oracle_factory=resolve_hancom_backend)
 
 
-def save_gate_report(document: Any, target: Any, *, quality: Any = None) -> Any:
+def save_gate_report(
+    document: Any, target: Any, *, quality: Any = None, pipeline: SavePipeline | None = None
+) -> Any:
     """Save *document* to *target* (a path or a binary stream) through its SavePipeline
     gate and return the gate's ``VisualCompleteReport``, written or refused.
 
@@ -144,7 +139,9 @@ def save_gate_report(document: Any, target: Any, *, quality: Any = None) -> Any:
     *quality* ``None`` is the transparent policy ``save_report`` defaulted to. The
     name of the target picks the format as before (``.hwp`` is HWP 5.0); the
     warning 7.0 adds for HWPX written to another name is not repeated, since the
-    callers stage under names of their own.
+    callers stage under names of their own. *pipeline* is the gate core runs
+    (``doc.save(..., pipeline=)``); ``None`` is core's own, which does not render
+    (:func:`hancom_save_pipeline` renders with Hancom).
     """
 
     import warnings
@@ -157,7 +154,7 @@ def save_gate_report(document: Any, target: Any, *, quality: Any = None) -> Any:
             warnings.filterwarnings(
                 "ignore", message="Saving HWPX data to a file named", category=UserWarning
             )
-            receipt = document.save(target, quality=policy)
+            receipt = document.save(target, quality=policy, pipeline=pipeline)
     except Exception as error:  # SaveError("quality-gate-failed") carries the refused report
         refused = getattr(error, "report", None)
         if getattr(error, "code", None) == "quality-gate-failed" and refused is not None:
@@ -174,8 +171,8 @@ __all__ = [
     "RenderBackend",
     "RenderOracle",
     "WindowsComOracle",
-    "bind_document_rendering",
     "hancom_desktop_lock",
+    "hancom_save_pipeline",
     "resolve_hancom_backend",
     "resolve_hancom_oracle",
     "resolve_oracle",

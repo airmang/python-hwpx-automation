@@ -10,8 +10,8 @@
   },
   "canonical": {
     "pythonFiles": 15,
-    "loc": 5279,
-    "manifestSha256": "59e559c6e0d54652fdda941fba655f89f68ecf02926eafbbebfcfa809245b35b",
+    "loc": 5281,
+    "manifestSha256": "74466b56237e3f1622722f632517ecf316210cde9e9d2ba2fef77708994f1efc",
     "nomenclatureRefrozenFrom": {
       "loc": 5060,
       "manifestSha256": "9da1c81298ca242f05b81f17cfac3dbe3fc5235a1a74b14f0d00be726dda70f5",
@@ -19,9 +19,14 @@
     },
     "refrozenNote": "WP-F (core 6.0 namespace adaptation): seal.py's document.add_image(...) call and template_formfit.py's doc.export_text() call moved to document.media.add_image(...)/doc.text.plain() (design §2.6). Same line counts, no behavior change.",
     "refrozenFrom": {
-      "loc": 5122,
-      "manifestSha256": "fa3cbf6cafb6378d4accd04be7ba80aff903c30bd21d253398242683f1b0bc89",
-      "reason": "security fixes merged with main after #211"
+      "loc": 5279,
+      "manifestSha256": "59e559c6e0d54652fdda941fba655f89f68ecf02926eafbbebfcfa809245b35b",
+      "reason": "8.0: python-hwpx 7.0의 저장 통합(#730) — save_report·save_to_path 대신 doc.save를 쓰고, 품질 게이트 저장은 office.rendering.save_gate_report가 맡는다(rendering·template_formfit·exam/compose). 출력은 같다.",
+      "previous": {
+        "loc": 5122,
+        "manifestSha256": "fa3cbf6cafb6378d4accd04be7ba80aff903c30bd21d253398242683f1b0bc89",
+        "reason": "security fixes merged with main after #211"
+      }
     },
     "boundaryRefrozenFrom": {
       "loc": 5085,

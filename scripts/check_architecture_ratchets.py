@@ -56,7 +56,10 @@ EXPECTED_SERVICE_LINES = {
     # WP-F: insert_picture/replace_picture rebuild the picture-reference and
     # replacement payload shapes from PictureRef/PictureReplacement, whose own
     # to_dict() keys do not match this op's established contract.
-    "media.py": 208,
+    # 8.0: python-hwpx 7.0 dropped doc.media.picture_references(); the 6.x
+    # payload is rebuilt once in upstream.picture_reference_payloads, so the
+    # local rebuilding went away (208 -> 199).
+    "media.py": 199,
     # WP-F: add_memo/fill now create the host paragraph explicitly before
     # calling notes.add_memo(anchor=...), which has no auto-create fallback
     # (unlike 5.x's add_memo_with_anchor(paragraph=None)).

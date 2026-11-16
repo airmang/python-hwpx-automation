@@ -36,8 +36,21 @@ _SHAPE_KINDS = frozenset({"line", "rect", "ellipse", "arc", "polygon", "curve", 
 _IGNORED_INLINE_KINDS = frozenset({"t", "tab", "lineBreak", "secPr", "fieldEnd"})
 
 
+#: lxml gives comments, processing instructions and entities a factory
+#: function as ``tag``; its repr carries a memory address, so name them the
+#: way XPath does instead (stable across processes).
+_NON_ELEMENT_NAMES = {
+    "Comment": "#comment",
+    "ProcessingInstruction": "#processing-instruction",
+    "PI": "#processing-instruction",
+    "Entity": "#entity",
+}
+
+
 def _local_name(element: Any) -> str:
     tag = getattr(element, "tag", "")
+    if callable(tag):
+        return _NON_ELEMENT_NAMES.get(getattr(tag, "__name__", ""), "#node")
     return str(tag).rsplit("}", 1)[-1]
 
 
