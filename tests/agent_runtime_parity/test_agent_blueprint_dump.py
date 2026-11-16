@@ -402,3 +402,53 @@ def test_numbering_dependency_keeps_the_definition_it_points_to(tmp_path: Path) 
 
     dumped = dump_document_blueprint(source, mode="portable", require_replayable=False)
     assert any("definition" in item["properties"] for item in dumped.manifest["numbering"])
+
+
+def _with_section_comment(tmp_path: Path) -> Path:
+    """A document whose section holds an XML comment and a processing instruction.
+
+    python-hwpx drops both when it saves, so they are written into the package
+    afterwards, the way a hand-edited or third-party file carries them."""
+
+    staged = io.BytesIO()
+    with HwpxDocument.new() as document:
+        document.add_paragraph("본문")
+        document.save(staged)
+    source = tmp_path / "commented.hwpx"
+    with zipfile.ZipFile(io.BytesIO(staged.getvalue())) as package, zipfile.ZipFile(source, "w") as rewritten:
+        for info in package.infolist():
+            data = package.read(info)
+            if info.filename == "Contents/section0.xml":
+                text = data.decode("utf-8")
+                start = text.index(">", text.index("<hs:sec")) + 1
+                data = (text[:start] + "<!-- note --><?probe x?>" + text[start:]).encode("utf-8")
+            rewritten.writestr(info, data)
+    return source
+
+
+def test_comment_nodes_get_a_stable_kind_and_the_blueprint_hash_repeats(tmp_path: Path) -> None:
+    """lxml gives a comment the ``Comment`` factory as its tag; its repr carries a memory
+    address, so ``unsupported[].kind`` and ``blueprintHash`` changed between processes."""
+
+    import subprocess
+    import sys
+
+    source = _with_section_comment(tmp_path)
+    first = dump_document_blueprint(source, mode="portable", require_replayable=False).to_dict()
+    second = dump_document_blueprint(source, mode="portable", require_replayable=False).to_dict()
+
+    kinds = sorted(item["kind"] for item in first["unsupported"])
+    assert kinds == ["#comment", "#processing-instruction"]
+    assert second["blueprintHash"] == first["blueprintHash"]
+
+    script = (
+        "import sys\n"
+        "from hwpx_automation.office.agent.blueprint import dump_document_blueprint\n"
+        "result = dump_document_blueprint(sys.argv[1], mode='portable', require_replayable=False)\n"
+        "print(result.to_dict()['blueprintHash'])\n"
+    )
+    other_process = subprocess.run(
+        [sys.executable, "-c", script, str(source)],
+        capture_output=True, check=True, encoding="utf-8",
+    )
+    assert other_process.stdout.strip() == first["blueprintHash"]
