@@ -1151,6 +1151,7 @@ class HwpxOps:
         section_index: Optional[int] = None,
         dry_run: bool = True,
     ) -> Dict[str, Any]:
+        """Escape hatch: python-hwpx 7.0 ``doc.shapes.add_raw`` (outside its contract; bare element)."""
         return self._services.media.add_shape(
             path, shape_type=shape_type, section_index=section_index, dry_run=dry_run
         )
@@ -1163,6 +1164,7 @@ class HwpxOps:
         section_index: Optional[int] = None,
         dry_run: bool = True,
     ) -> Dict[str, Any]:
+        """Escape hatch: python-hwpx 7.0 ``doc.shapes.add_control`` (outside its contract; bare element)."""
         return self._services.media.add_control(
             path,
             control_type=control_type,

@@ -92,7 +92,8 @@ EXPECTED_SERVICE_LINES = {
 }
 
 EXPECTED_FACADE_LINES = {
-    "hwpx_ops.py": 1526,
+    # 8.0: add_shape/add_control say they call python-hwpx 7.0's escape hatches (+2).
+    "hwpx_ops.py": 1528,
     # S-108: shared identity/config helpers replaced duplicated MCP-era parsing.
     # +3: --profile minimal (#198); the option and the server choice live in
     # minimal_profile.py, the facade only wires them.
