@@ -30,10 +30,11 @@ from hwpx import HwpxDocument
 from hwpx.errors import HwpxTypeError, HwpxValueError
 from hwpx.oxml.hyperlink_form import hyperlink_target
 from hwpx.oxml.namespaces import tag_local_name
+from hwpx.oxml.paragraph_heading import outline_style_level
 from hwpx.oxml.run import text_element_content
 from hwpx.tools.exporter import ListLabels, table_grid_text
 
-from ._plain_export import HEADING_MAX_CHARS, _Headings, _header_xml, _markdown_cell, escape_line_starts, escape_markdown
+from ._plain_export import HEADING_MAX_CHARS, _markdown_cell, escape_line_starts, escape_markdown
 
 __all__ = ["ARABIC_HEAD", "ROMAN_HEAD", "SHAPE_TAGS", "equation_markdown", "export_markdown"]
 
@@ -282,6 +283,16 @@ def _element_caption_text(el) -> str | None:
     if not captions:
         return None
     text = "".join("".join(t.itertext()) for t in _descendants(captions[0], "t")).strip()
+    return text or None
+
+
+def _table_caption_text(table) -> str | None:
+    """표의 캡션 글(``table.caption``의 문단 글을 이어 붙임), 없으면 None."""
+
+    caption = table.caption
+    if caption is None:
+        return None
+    text = "".join(paragraph.text or "" for paragraph in caption.paragraphs).strip()
     return text or None
 
 
@@ -614,7 +625,7 @@ def _table_to_md(tbl, doc, mapping, depth: int = 0, notes_out: list | None = Non
     grid = tbl.cell_map
     rows, cols = tbl.row_count, tbl.column_count
     has_merge = any(not pos.is_anchor for row in grid for pos in row)
-    caption_text = _element_caption_text(tbl.element)
+    caption_text = _table_caption_text(tbl)
 
     if has_merge or depth > 0:
         # 병합 셀 또는 중첩 — HTML. 칸 안은 HTML로 쓴다(HTML 블록 안의 Markdown 서식은 읽히지 않는다).
@@ -811,6 +822,38 @@ def _export_shape_lines(p, doc, notes) -> list[str]:
     return shape_lines
 
 
+class _OutlineLevels:
+    """Which paragraphs are headings, and their level, from the document's own structure.
+
+    A paragraph is a heading of level L when its paragraph shape numbers it as outline
+    level L (``paragraph.outline_level``), else when its style is an outline style
+    (``개요 L`` / ``Outline L``). Levels deeper than 6 are not headings.
+    """
+
+    def __init__(self, doc: HwpxDocument) -> None:
+        self._styles: dict[str, int] = {}
+        for style in doc.styles.values():
+            for name in (style.name or "", style.eng_name or ""):
+                style_level = outline_style_level(name)
+                if style_level is not None:
+                    self._styles[str(style.raw_id if style.raw_id is not None else style.id)] = style_level
+                    break
+
+    def level(self, paragraph) -> int | None:
+        level: int | None = paragraph.outline_level or None
+        if level is None:
+            level = self._styles.get(paragraph.style_id_ref or "")
+        return level if level is not None and 1 <= level <= 6 else None
+
+    def any_in(self, doc: HwpxDocument) -> bool:
+        """Whether a body paragraph (one placed in a section) that holds text is a heading."""
+        for section in doc.sections:
+            for paragraph in section.paragraphs:
+                if self.level(paragraph) is not None and any((run.text or "").strip() for run in paragraph.runs):
+                    return True
+        return False
+
+
 @dataclass
 class _HeadingPlan:
     """제목을 어떻게 정하는가.
@@ -819,7 +862,7 @@ class _HeadingPlan:
     *detector* 가 있으면 글 모양으로 짐작한다(문단·1×1 표 칸의 Markdown → 제목 줄 또는 None).
     """
 
-    structure: "_Headings | None" = None
+    structure: "_OutlineLevels | None" = None
     detector: Callable[[str], str | None] | None = None
 
 
@@ -834,7 +877,7 @@ def _export_paragraph_lines(p, doc, mapping, notes, plan: _HeadingPlan) -> list[
     shape_lines = _export_shape_lines(p, doc, notes)
 
     promoted = None
-    level = plan.structure.level(p.element) if plan.structure is not None else None
+    level = plan.structure.level(p) if plan.structure is not None else None
     text = _plain_heading_text(md) if level is not None else ""
     if level is not None and md and len(re.sub(r"\\(.)", r"\1", text)) <= HEADING_MAX_CHARS:
         # 문서가 정한 제목: 개요 수준이 곧 제목 수준이다. 아주 긴 문단은 개요 수준에 둔 본문이다.
@@ -886,37 +929,55 @@ _PAGE_TEXT_LABELS = {"header": "머리말", "footer": "꼬리말"}
 _PAGE_TYPE_LABELS = {"EVEN": "짝수 쪽", "ODD": "홀수 쪽"}
 
 
-def _page_text_lines(section_el, tag: str, doc, seen: set[tuple[str, str]]) -> list[str]:
+def _nested_paragraphs(paragraphs):
+    """*paragraphs* 와 그 안(표 칸·글상자 등 개체)의 문단을 문서 차례로."""
+
+    for paragraph in paragraphs:
+        yield paragraph
+        for obj in paragraph.objects:
+            if hasattr(obj, "rows"):
+                for row in obj.rows:
+                    for cell in row.cells:
+                        yield from _nested_paragraphs(cell.paragraphs)
+            else:
+                inner = getattr(obj, "paragraphs", None)
+                if inner:
+                    yield from _nested_paragraphs(inner)
+
+
+def _page_text_lines(section, tag: str, doc, seen: set[tuple[str, str]]) -> list[str]:
     """구역의 머리말(또는 꼬리말)을 ``> 머리말: 글`` 줄로. 이미 실은 글(*seen*)은 건너뛴다."""
 
     lines: list[str] = []
-    for element in _descendants(section_el, tag):
-        parts = [_p_element_to_md(p, doc, None).strip() for p in _descendants(element, "p")]
+    stories = doc.page.headers(section=section) if tag == "header" else doc.page.footers(section=section)
+    for story in stories:
+        parts = [_p_element_to_md(p.element, doc, None).strip() for p in _nested_paragraphs(story.paragraphs)]
         text = " ".join(" ".join(part.split("\n")) for part in parts if part)
         if not text or (tag, text) in seen:
             continue
         seen.add((tag, text))
         label = _PAGE_TEXT_LABELS[tag]
-        page_type = _PAGE_TYPE_LABELS.get(element.get("applyPageType") or "")
+        page_type = _PAGE_TYPE_LABELS.get(story.page_type or "")
         if page_type:
             label = f"{label}({page_type})"
         lines.append(f"> {label}: {text}")
     return lines
 
 
-def _unanchored_memo_lines(section_el, doc, notes) -> list[str]:
-    """구역의 메모 목록(``hp:memogroup``) 가운데 본문에 걸린 자리가 없는 메모를 ``> 메모: 글`` 줄로."""
+def _unanchored_memo_lines(section, doc, notes) -> list[str]:
+    """구역의 메모 목록(``hp:memogroup``, ``section.memo_group``) 가운데 본문에 걸린 자리가 없는
+    메모를 ``> 메모: 글`` 줄로."""
 
     anchored = {text for kind, _, text in notes if kind == "memo"}
     lines: list[str] = []
-    for group in _descendants(section_el, "memogroup"):
-        for memo in _direct_children(group, "memo"):
-            parts = [_p_element_to_md(p, doc, None).strip() for p in _descendants(memo, "p")]
-            text = "메모: " + " ".join(" ".join(part.split("\n")) for part in parts if part)
-            if text == "메모: " or text in anchored:
-                continue
-            anchored.add(text)
-            lines.append(f"> {text}")
+    group = section.memo_group
+    for memo in group.memos if group is not None else ():
+        parts = [_p_element_to_md(p.element, doc, None).strip() for p in memo.paragraphs]
+        text = "메모: " + " ".join(" ".join(part.split("\n")) for part in parts if part)
+        if text == "메모: " or text in anchored:
+            continue
+        anchored.add(text)
+        lines.append(f"> {text}")
     return lines
 
 
@@ -1009,7 +1070,6 @@ def export_markdown(
         )
     doc = _export_resolve_doc(source)
     mapping = _build_image_map(doc, Path(image_dir) if image_dir else None, image_ref_prefix)
-    header = _header_xml(doc)
     plan = _HeadingPlan()
     if detect_headings:
         if heading_detector is not None:
@@ -1017,8 +1077,8 @@ def export_markdown(
         elif heading_source == "text":
             plan.detector = _legacy_detect_heading
         else:
-            structure = _Headings(header)
-            if heading_source == "outline" or structure.any_in([s.element for s in doc.sections]):
+            structure = _OutlineLevels(doc)
+            if heading_source == "outline" or structure.any_in(doc):
                 plan.structure = structure
             else:
                 plan.detector = _detect_heading
@@ -1045,8 +1105,8 @@ def _export_markdown(
     for section in doc.sections:
         footers: list[str] = []
         if headers_and_footers:
-            lines.extend(_page_text_lines(section.element, "header", doc, seen_outside))
-            footers = _page_text_lines(section.element, "footer", doc, seen_outside)
+            lines.extend(_page_text_lines(section, "header", doc, seen_outside))
+            footers = _page_text_lines(section, "footer", doc, seen_outside)
         paragraphs = {p.element: p for p in section.paragraphs}
         for child in section.element:
             p = paragraphs.get(child)
@@ -1056,7 +1116,7 @@ def _export_markdown(
                 # 구역에 바로 놓인 표(문단 밖)의 글도 문서의 글이다.
                 lines.extend(_section_table_lines(child))
         if memos:
-            lines.extend(_unanchored_memo_lines(section.element, doc, notes))
+            lines.extend(_unanchored_memo_lines(section, doc, notes))
         lines.extend(footers)
 
     body = "\n\n".join(lines)
