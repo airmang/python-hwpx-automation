@@ -1261,16 +1261,38 @@ def _copy_node(
     elif source.kind in _INLINE_KINDS:
         _insert_inline(view, parent, source.kind, clone, position)
     elif source.kind == "memo":
-        group = _section_memo_group(parent.native)
-        if group is None:  # pragma: no cover
-            raise AgentContractError("invariant_violation", "memo group creation failed")
-        siblings = [memo.element for memo in parent.native.memos]
-        index = _insertion_index(view, parent, "memo", position, siblings=siblings)
-        group.insert(index, clone)
-        parent.native.mark_dirty()
+        return _copy_memo(document, source, parent)
     else:
         raise AgentContractError("unsupported_operation", f"copy is unsupported for {source.kind}")
     return clone, identity_map
+
+
+def _copy_memo(
+    document: HwpxDocument, source: NodeRecord, parent: NodeRecord
+) -> tuple[Any, list[dict[str, str]]]:
+    """Copy a memo as a new memo on the same paragraph.
+
+    python-hwpx 7.0 keeps a memo only in its MEMO field (as Hancom 2024 does) and
+    refuses to save one that is not anchored, so a copy is a second memo field on
+    the source memo's paragraph, made by ``doc.notes.add_memo``. The 6.x copy, an
+    ``hp:memogroup`` entry with no field, is one Hancom drops on its next save.
+    """
+
+    memo = source.native
+    anchor = memo.paragraph
+    if anchor is None:
+        raise AgentContractError(
+            "unsupported_content", "a memo that is not anchored to a paragraph cannot be copied", target=source.path
+        )
+    if anchor.section.element is not parent.native.element:
+        raise AgentContractError(
+            "incompatible_parent", "a memo copy stays in the section of its paragraph", target=parent.path
+        )
+    attributes = memo.attributes
+    author = attributes.get("Author") or attributes.get("author") or None
+    copied = document.notes.add_memo(memo.text, paragraph=anchor, author=author)
+    identity_map = [{"kind": "memo", "attribute": "id", "old": str(memo.id or ""), "new": str(copied.id or "")}]
+    return copied.element, identity_map
 
 
 def _dispatch_command_op(

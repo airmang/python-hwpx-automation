@@ -63,7 +63,9 @@ EXPECTED_SERVICE_LINES = {
     # WP-F: add_memo/fill now create the host paragraph explicitly before
     # calling notes.add_memo(anchor=...), which has no auto-create fallback
     # (unlike 5.x's add_memo_with_anchor(paragraph=None)).
-    "memo_style.py": 367,
+    # 8.0: python-hwpx 7.0 keeps the memo shape per section, so
+    # add_memo_with_anchor(memo_shape_id_ref=) sets it there (367 -> 371).
+    "memo_style.py": 371,
     "package_validation.py": 164,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.

@@ -242,8 +242,12 @@ class MemoStyleService:
             text,
             paragraph=paragraph,
             section=section_index,
-            memo_shape_id_ref=memo_shape_id_ref,
         )
+        if memo_shape_id_ref is not None:
+            # python-hwpx 7.0 keeps the memo shape per section (hp:secPr@memoShapeIDRef),
+            # as Hancom does; a memo's own memoShapeIDRef= is gone. Every memo of
+            # that section takes this shape.
+            document.notes.set_memo_shape(memo_shape_id_ref, section=section_index)
         field_id = memo.field_id
         paragraphs = self._context._iter_paragraphs(document)
         paragraph_index = len(paragraphs) - 1
