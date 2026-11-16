@@ -53,7 +53,7 @@ class MediaService:
         dry_run: bool = True,
     ) -> Dict[str, Any]:
         document, resolved = self._context._open_document(path)
-        shape = document.shapes.add_raw(shape_type, section_index=section_index)
+        shape = document.shapes.add_raw(shape_type, section=section_index)
         if not dry_run:
             self._save._save_document(document, resolved)
         return {"objectId": shape.element.get("id")}
@@ -68,7 +68,7 @@ class MediaService:
     ) -> Dict[str, Any]:
         document, resolved = self._context._open_document(path)
         control = document.shapes.add_control(
-            control_type=control_type, section_index=section_index
+            control_type=control_type, section=section_index
         )
         if not dry_run:
             self._save._save_document(document, resolved)
@@ -102,7 +102,7 @@ class MediaService:
             height=height,
             width_mm=width_mm,
             height_mm=height_mm,
-            section_index=section_index,
+            section=section_index,
             align=align,
         )
         # media.picture_references now returns tuple[PictureRef, ...] rather

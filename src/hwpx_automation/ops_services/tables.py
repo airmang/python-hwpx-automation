@@ -243,7 +243,7 @@ class TableService:
         table = document.add_table(
             rows,
             cols,
-            section_index=section_index,
+            section=section_index,
             border_fill_id_ref=border_fill,
         )
         if auto_fit:

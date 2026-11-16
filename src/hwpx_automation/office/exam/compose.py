@@ -132,15 +132,15 @@ def replace_body_region(
     for spec in specs:
         style = profile.role_styles.get(spec.role) or profile.role_styles["normal"]
         para_pr_id = _keep_para_pr(doc, style, spec.keep_with_next, cache)
-        temp.append(
-            section.add_paragraph(  # appended to tail; cloned into body below, then removed
-                spec.text,
-                para_pr_id_ref=para_pr_id,
-                style_id_ref=style.style_id,
-                char_pr_id_ref=style.char_pr_id,
-                inherit_style=False,
-            )
+        added = section.add_paragraph(  # appended to tail; cloned into body below, then removed
+            spec.text,
+            para_pr_id_ref=para_pr_id,
+            char_pr_id_ref=style.char_pr_id,
+            inherit_style=False,
         )
+        if style.style_id is not None:
+            added.style_id_ref = style.style_id  # label only (core 7.0 style= also applies shapes)
+        temp.append(added)
 
     section.insert_paragraphs(start, temp)  # deep-clone into the body
     for wrapper in reversed(temp):

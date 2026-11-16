@@ -786,7 +786,7 @@ def insert_picture(
         height=height,
         width_mm=width_mm,
         height_mm=height_mm,
-        section_index=section_index,
+        section=section_index,
         align=align,
     )
     # media.picture_references now returns tuple[PictureRef, ...] rather

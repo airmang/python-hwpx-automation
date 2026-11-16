@@ -33,7 +33,7 @@ def _document() -> bytes:
     outer.cell(1, 1).add_table(1, 2).cell(0, 1).text = "안쪽"
     doc.add_paragraph("끝")
     doc.add_section()
-    doc.add_paragraph("둘째 구역", section_index=1)
+    doc.add_paragraph("둘째 구역", section=1)
     return doc.to_bytes()
 
 

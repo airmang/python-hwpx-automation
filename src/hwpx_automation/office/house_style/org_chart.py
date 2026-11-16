@@ -221,7 +221,7 @@ def lower_boxed_org_chart(
     """Render the chart into *document* using generic core primitives only."""
 
     spec = compose_boxed_org_chart(hierarchy, accent_color=accent_color)
-    table = document.add_table(spec.rows, spec.cols, section_index=section_index)
+    table = document.add_table(spec.rows, spec.cols, section=section_index)
 
     invisible = document.styles.ensure_border_fill(active_borders=[])
     table.element.set("borderFillIDRef", str(invisible))

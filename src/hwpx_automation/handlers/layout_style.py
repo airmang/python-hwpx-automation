@@ -363,7 +363,7 @@ def set_page_setup(
         gutter_mm=gutter_mm,
         columns=columns,
         column_gap_mm=column_gap_mm,
-        section_index=section_index,
+        section=section_index,
     ).to_dict()
     result["filename"] = filename
     if dry_run:
@@ -412,14 +412,14 @@ def set_header_footer(
         wrapper = doc.page.set_header(
             text=text,
             content=content,
-            section_index=section_index,
+            section=section_index,
             page_type=page_type,
         )
     elif normalized_kind == "footer":
         wrapper = doc.page.set_footer(
             text=text,
             content=content,
-            section_index=section_index,
+            section=section_index,
             page_type=page_type,
         )
     else:
@@ -463,7 +463,7 @@ def set_page_number(
         prefix=prefix,
         suffix=suffix,
         format_type=format_type,
-        section_index=section_index,
+        section=section_index,
     )
     result = {
         "filename": filename,
