@@ -188,6 +188,8 @@ def test_6_0_delta_receipt_chains_into_the_6_1_baseline() -> None:
 
 SOURCE_CORE_FLOOR_HASH = "c3f17979a7b9a38d"
 AUDIT_DELTA = "tool-contract-delta-source-audit-2026-11.json"
+AUDIT_HASH = "71622c28a07913d1"
+CORE_FLOOR_7_DELTA = "tool-contract-delta-source-core-floor-7.json"
 
 
 def test_source_core_floor_delta_is_the_recorded_predecessor() -> None:
@@ -199,14 +201,26 @@ def test_source_core_floor_delta_is_the_recorded_predecessor() -> None:
     assert delta["releaseStatus"] == "unreleased-source"
 
 
-def test_source_audit_delta_matches_live_contract() -> None:
+def test_source_audit_delta_is_the_recorded_predecessor() -> None:
+    """The audit delta is history now; the core 7.0 floor delta builds on it."""
+
     delta = _load(AUDIT_DELTA)
-    contract = _load("tool-contract.generated.json")
     assert delta["releaseStatus"] == "unreleased-source"
     assert delta["baseline"]["contractHash"] == SOURCE_CORE_FLOOR_HASH
+    assert delta["target"]["contractHash"] == AUDIT_HASH
+    assert delta["target"]["defaultToolCount"] == 128
+    assert delta["target"]["advancedToolCount"] == 136
+    assert delta["target"]["skillRequiredToolCount"] == 29
+
+
+def test_source_core_floor_7_delta_matches_live_contract() -> None:
+    delta = _load(CORE_FLOOR_7_DELTA)
+    contract = _load("tool-contract.generated.json")
+    assert delta["releaseStatus"] == "unreleased-source"
+    assert delta["baseline"]["contractHash"] == AUDIT_HASH
     assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "71622c28a07913d1"
-    assert contract["minPythonHwpx"] == "6.10.0"
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "1b572e4ed5e410e6"
+    assert contract["minPythonHwpx"] == delta["floors"]["minPythonHwpx"] == "7.0.0"
     assert delta["target"]["defaultToolCount"] == 128
     assert delta["target"]["advancedToolCount"] == 136
     assert delta["target"]["skillRequiredToolCount"] == 29
@@ -215,6 +229,28 @@ def test_source_audit_delta_matches_live_contract() -> None:
 def _payload_hash(payload: dict) -> str:
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _with_core_floor(payload: dict, floor: str) -> dict:
+    """The payload with the python-hwpx floor (top level and per tool) set to *floor*."""
+
+    restored = copy.deepcopy(payload)
+    restored["minPythonHwpx"] = floor
+    for tool in restored["tools"] + restored["baselineClassification"]["tools"]:
+        requirement = tool["availabilityRequirement"]
+        if requirement is not None and requirement["dependency"] == "python-hwpx":
+            requirement["minimumVersion"] = floor
+    return restored
+
+
+def _before_core_floor_7() -> dict:
+    """The live payload with the core 7.0 floor delta undone."""
+
+    return _with_core_floor(contract_payload(), "6.10.0")
+
+
+def test_core_floor_7_delta_changes_only_the_core_dependency_floor() -> None:
+    assert _payload_hash(_before_core_floor_7()) == AUDIT_HASH
 
 
 def _without_audit_delta(payload: dict) -> dict:
@@ -241,14 +277,9 @@ def _without_audit_delta(payload: dict) -> dict:
 def test_source_audit_delta_changes_only_its_listed_tools() -> None:
     """Undoing the listed changes reproduces the predecessor hash exactly."""
 
-    assert _payload_hash(_without_audit_delta(contract_payload())) == SOURCE_CORE_FLOOR_HASH
+    assert _payload_hash(_without_audit_delta(_before_core_floor_7())) == SOURCE_CORE_FLOOR_HASH
 
 
 def test_source_delta_changes_only_the_core_dependency_floor() -> None:
-    baseline = _without_audit_delta(contract_payload())
-    baseline["minPythonHwpx"] = "6.5.0"
-    for tool in baseline["tools"] + baseline["baselineClassification"]["tools"]:
-        requirement = tool["availabilityRequirement"]
-        if requirement is not None and requirement["dependency"] == "python-hwpx":
-            requirement["minimumVersion"] = "6.5.0"
+    baseline = _with_core_floor(_without_audit_delta(_before_core_floor_7()), "6.5.0")
     assert _payload_hash(baseline) == "5e5c23651f92785a"

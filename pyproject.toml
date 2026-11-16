@@ -24,14 +24,16 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # 6.10.0 is the floor, not a preference: the delegated template analyzer and
-    # the public style APIs this package calls first shipped there. The lower
+    # 7.0 is the floor, not a preference: python-hwpx 7.0 keeps the engine only
+    # and the conversion and guessing features (Markdown, ingest, forms, mail
+    # merge, preview, format rules) live in this package from 8.0, so a 6.x core
+    # would ship them twice and declare `hwpx-check-format` twice. The lower
     # bound has been at or above 6.0 since this package took over the `hwpx`
     # console name (core stopped declaring it at 5.0), which is what makes "no
     # valid install has two declarers" true rather than hopeful. The bounded
-    # major (<7) keeps the next core major from silently breaking an
+    # major (<8) keeps the next core major from silently breaking an
     # already-published automation line.
-    "python-hwpx>=6.10.0,<7", # HWPX object model, OXML/OPC, format-native primitives
+    "python-hwpx>=7.0,<8", # HWPX object model, OXML/OPC, format-native primitives
 
     "pydantic>=2.11,<3",
     # cryptography (workflow store only) is the [workflow] extra and anyio is
