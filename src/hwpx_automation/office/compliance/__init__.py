@@ -5,6 +5,10 @@ from .official_lint import (
     OFFICIAL_DOCUMENT_STYLE_REPORT_VERSION,
     inspect_official_document_style,
 )
+from .reference_consistency import (
+    REFERENCE_CONSISTENCY_REPORT_VERSION,
+    inspect_reference_consistency,
+)
 from .pii import (
     DEFAULT_POLICY,
     Confidence,
@@ -28,9 +32,11 @@ __all__ = [
     "PIISpan",
     "PiiLogFilter",
     "Pseudonymizer",
+    "REFERENCE_CONSISTENCY_REPORT_VERSION",
     "deidentify",
     "detect_pii",
     "inspect_official_document_style",
+    "inspect_reference_consistency",
     "mask_pii",
     "mask_value",
     "minimize_fields",

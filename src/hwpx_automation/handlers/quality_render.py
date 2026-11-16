@@ -14,9 +14,6 @@ import mcp.types as mcp_types
 from hwpx import (
     doc_diff as build_hwpx_doc_diff,
 )
-from hwpx import (
-    inspect_reference_consistency as inspect_hwpx_reference_consistency,
-)
 
 from ..configuration import env_float, env_value
 from ..identity import product_identity
@@ -29,6 +26,9 @@ from ..office.authoring.presets import (
 )
 from ..office.compliance import (
     inspect_official_document_style as inspect_hwpx_official_document_style,
+)
+from ..office.compliance import (
+    inspect_reference_consistency as inspect_hwpx_reference_consistency,
 )
 from ..preview_output_models import RenderPreviewOutput
 from ..runtime_services import RUNTIME_SERVICES
@@ -147,10 +147,6 @@ def inspect_reference_consistency(
     document_plan: dict = None,
 ) -> dict:
     """붙임 참조와 표/그림 번호 연속성의 의미 수준 정합성을 검사합니다."""
-    if inspect_hwpx_reference_consistency is None:
-        raise RuntimeError(
-            "installed python-hwpx does not provide reference consistency lint"
-        )
     if filename:
         path = resolve_path(filename)
         return _with_document_state(inspect_hwpx_reference_consistency(path), path)
