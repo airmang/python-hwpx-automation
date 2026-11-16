@@ -9,7 +9,7 @@
       "canonicalAutomation": "8.0.0",
       "compatibilityDistribution": "hwpx-mcp-server",
       "compatibility": "8.0.0",
-      "plugin": "2.4.0",
+      "plugin": "8.0.0",
       "contractHash": "1b572e4ed5e410e6"
     },
     "currentPublic": {
@@ -80,8 +80,8 @@
       "repository": "hwpx-plugins",
       "installedPluginId": "hwpx-plugin",
       "installedSkillName": "hwpx",
-      "currentVersion": "2.4.0",
-      "minimumCompatibleVersion": "2.0.0",
+      "currentVersion": "8.0.0",
+      "minimumCompatibleVersion": "8.0.0",
       "maturity": "not-declared"
     }
   },
@@ -108,7 +108,7 @@
   "verifiedStack": {
     "pythonHwpx": "7.0.0",
     "automation": "8.0.0",
-    "plugin": "2.4.0",
+    "plugin": "8.0.0",
     "contractHash": "1b572e4ed5e410e6",
     "verifiedAt": "2026-09-28"
   },

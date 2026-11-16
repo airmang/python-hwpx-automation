@@ -12,7 +12,7 @@
       "env": {
         "HWPX_PLUGIN_ROOT": "${CLAUDE_PLUGIN_ROOT}",
         "HWPX_AUTOMATION_AUTOBACKUP": "1",
-        "HWPX_SKILL_VERSION": "2.4.0"
+        "HWPX_SKILL_VERSION": "8.0.0"
       }
     }
   }
