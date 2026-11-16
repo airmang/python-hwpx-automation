@@ -296,6 +296,25 @@ def _table_caption_text(table) -> str | None:
     return text or None
 
 
+def _in_written_table_cell(element, p_el) -> bool:
+    """*element* 가 *p_el* 의 표 칸 안에 있고, 그 표를 내보내기가 표로 쓰는가.
+
+    문단의 표는 칸마다 제 문단의 그림을 싣는다. 글상자 안 표는 표로 쓰지 않는다(글상자의
+    문단 글만 싣는다). 그래서 칸과 *p_el* 사이에 글상자(``hp:drawText``)가 없을 때만 참이다.
+    """
+
+    in_cell = False
+    node = element.getparent()
+    while node is not None and node is not p_el:
+        name = _local_name(node)
+        if name == "tc":
+            in_cell = True
+        elif name == "drawText":
+            in_cell = False
+        node = node.getparent()
+    return in_cell
+
+
 def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
     """paragraph element 안 모든 <hp:pic> → markdown 이미지(+캡션) 라인.
 
@@ -304,6 +323,8 @@ def _paragraph_images(p_el, mapping: dict[str, str]) -> list[str]:
     out = []
     html = _html_cell()
     for pic in _descendants(p_el, "pic"):
+        if _in_written_table_cell(pic, p_el):
+            continue  # 그 칸이 제 자리에서 싣는다(두 번 싣지 않는다)
         img = _first_descendant(pic, "img")
         ref = img.get("binaryItemIDRef") if img is not None else None
         if ref and mapping:

@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from hwpx.document import HwpxDocument
 
-from hwpx_automation.office.form_fill import template_formfit
 from hwpx_automation.office.form_fill.template_formfit import apply_template_formfit
 
 BODY = "새로 넣은 본문 문장"
@@ -167,12 +166,11 @@ def test_unverified_insert_is_not_reported_as_success(
 ) -> None:
     source, destination = tmp_path / "t.hwpx", tmp_path / "out.hwpx"
     _template_with_empty_line(source)
-    real = template_formfit._paragraph_clone_with_text
-    monkeypatch.setattr(
-        template_formfit,
-        "_paragraph_clone_with_text",
-        lambda template, text: real(template, ""),
-    )
+    # The value paragraphs come from python-hwpx's insert_after(text); make it lose the text.
+    from hwpx.oxml import HwpxOxmlParagraph
+
+    real = HwpxOxmlParagraph.insert_after
+    monkeypatch.setattr(HwpxOxmlParagraph, "insert_after", lambda self, text=None: real(self, ""))
 
     result = apply_template_formfit(
         source=source, baseline=_baseline(), content={"body": BODY},

@@ -89,6 +89,9 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   - `compose_exam`의 쪽·단 나누기는 `paragraph.page_break`·`column_break`로 켜며, 그 문단의 줄 배치 캐시를 지웁니다.
   - "선 없음" 표 테두리(`border_style="none"`)는 정의되지 않은 id `"0"` 대신 문서의 선 없는 테두리 정의(한/글 문서의
     1번)를 가리킵니다. 없으면 하나 만듭니다.
+  - 디자인 프로필 뼈대를 만들 때(`harvest`) 원본 구역을 python-hwpx의 `section.clear_body(keep_headers=False)`로
+    비웁니다. 뼈대의 빈 첫 문단이 원본 첫 문단의 문단 모양·스타일과 단 정의(`hp:colPr`)를 그대로 지닙니다(전에는 속성
+    없는 빈 문단). 구역 설정(`hp:secPr`)은 같아, 프로필로 짓는 문서는 달라지지 않습니다.
 
 ### Fixed
 
@@ -107,6 +110,9 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   `apply_document_commands`의 `set`처럼 한/글의 대체 글 자리인 `hp:shapeComment`에 씁니다.
 - `insert_paragraph`(과 `apply_edits`의 문단 넣기)로 구역의 맨 앞에 문단을 넣으면 구역 설정(`hp:secPr`: 용지·여백·단)이
   둘째 문단에 남던 것. 한/글 저장본처럼 새 첫 문단의 첫 런으로 옮깁니다(python-hwpx의 `paragraph.move_before`).
+- Markdown 내보내기(`to_markdown(rich=True)`, `document_to_markdown`): 표 칸 안 그림의 캡션(그림을 꺼낼 때는 그림 줄도)이
+  표 앞에 한 번, 칸 안에 또 한 번 나오던 것. 이제 칸 안 제자리에만 나옵니다.
+- 디자인 프로필 뼈대의 빈 첫 문단이 구역 이름공간(`hs:p`)으로 쓰이던 것. 이제 `hp:p`입니다.
 
 ## [7.5.0] - 2026-11-11
 
