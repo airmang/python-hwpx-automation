@@ -25,7 +25,7 @@ from hwpx.opc.security import (
 )
 
 from ..markdown import to_markdown
-from .base import DocumentIngestResult, DocumentSourceInfo
+from ._types import DocumentIngestResult, DocumentSourceInfo
 
 
 class HwpxMarkdownConverter:

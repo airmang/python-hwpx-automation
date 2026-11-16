@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from .base import (
+from ._types import (
     DocumentIngestError,
     DocumentIngestResult,
     DocumentSourceInfo,
