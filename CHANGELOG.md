@@ -2,20 +2,76 @@
 
 ## [Unreleased]
 
+python-hwpx 7.0이 "파일에 적힌 대로 읽고 쓰는" 엔진만 남기면서 내보낸 기능(Markdown·HTML 변환, 색인용 변환, 이름표로
+칸 찾기와 선택 칸, 메일 머지, 미리보기, 서식 규칙 검사, 표 정리·보고서 수치 도우미, 참조 일관성 검사)을 이 패키지가
+받습니다. 인자와 결과는 python-hwpx 6.x와 같습니다(본체 시험 문서와 공개 견본 1,298개로 옛 경로와 새 경로를 견줬습니다).
+MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python-hwpx 하한만 7.0.0으로 올라 해시가 `1b572e4ed5e410e6`이
+됩니다(`docs/tool-contract-delta-source-core-floor-7.json`).
+
+### Breaking
+
+- python-hwpx 7.0 이상이 필요합니다(`python-hwpx>=7.0,<8`). 6.x 엔진과는 설치되지 않고, 그보다 낮은 엔진이 깔려 있으면
+  쓰기 도구가 버전 불일치(`CAPABILITY_SKEW`)로 거부합니다.
+- 옮겨 온 기능의 옛 경로(`hwpx.tools.markdown_import`, `doc.text.markdown()`·`html()`·`append_markdown()`,
+  `hwpx.ingest`·`hwpx.HwpxMarkdownConverter`, `hwpx.integrations.*`, `doc.tables.find_cell_by_label`·`fill_by_path`·
+  `form_slots`, `doc.fields.choices()`·`choose()`, `hwpx.tools.mail_merge`, `hwpx.experimental`의 미리보기 이름,
+  `hwpx.tools.format_rules`·`table_cleanup`·`report_utils`, `inspect_reference_consistency`)는 python-hwpx 7.0에 없습니다.
+  아래 새 경로를 씁니다. 문서의 메서드였던 것은 문서를 첫 인자로 받는 함수가 됐습니다.
+- 기본 설치가 `cryptography`와 `anyio`를 끌어오지 않습니다. 파이썬에서 워크플로 저장소(`WorkflowStore`)를 직접 쓰려면
+  `[workflow]` extra를 함께 설치합니다(`[mcp]`에는 들어 있습니다). 없을 때 저장소를 만들면 디스크를 건드리기 전에
+  `WorkflowStoreDependencyError`가 설치 명령을 알려 줍니다.
+
 ### Added
 
+- `hwpx_automation.markdown`: `from_markdown(md)`, `append_markdown(doc, md)`, `to_markdown(doc)`(`rich=True`면 서식·각주·
+  그림·수식까지), `to_html(doc)`, `equation_markdown`, `MarkdownStyle`. 6.x의 `hwpx.tools.markdown_import`,
+  `doc.text.markdown()`·`html()`·`append_markdown()`와 같은 결과를 냅니다.
+- `hwpx_automation.ingest`: `DocumentIngestor.default().convert("계획.hwpx")`가 `.hwpx`·`.hwp`를 Markdown·메타데이터·경고·
+  손실 정도로 바꿉니다(`HwpxMarkdownConverter`, `MarkItDownAdapter` 포함). LangChain 로더
+  `hwpx_automation.integrations.langchain.HwpxLoader`와 LlamaIndex 리더 `hwpx_automation.integrations.llama_index.HwpxReader`.
+- `hwpx_automation.forms`: `find_cell_by_label(doc, …)`, `form_slots(doc, …)`, `fill_by_path(doc, …)`, `form_choices(doc)`,
+  `choose(doc, …)`.
+- `hwpx_automation.mail_merge`: `merge_template_rows`, `load_mail_merge_rows`, `inspect_mail_merge_placeholders`,
+  `MAIL_MERGE_REPORT_VERSION`.
+- `hwpx_automation.preview`: `render_layout_preview`, `render_document_viewer`, 수식 그리기(`render_equation`,
+  `latex_to_mathml`).
+- `hwpx_automation.format_rules`(`check_format`)와 명령 `hwpx-check-format`. 표 정리·보고서 수치 도우미는
+  `hwpx_automation.office.utilities`(`table_cleanup`, `report_utils`)에, 참조 일관성 검사는
+  `hwpx_automation.office.compliance.inspect_reference_consistency`에 있습니다.
+- extra `preview`(latex2mathml), `xlsx`(openpyxl), `langchain`(langchain-core), `llamaindex`(llama-index-core). 옮겨 온
+  미리보기 수식, 메일 머지 엑셀 명부, LangChain·LlamaIndex 어댑터가 이 패키지의 extra로 깔립니다.
 - 최소 프로필(`--profile minimal`)의 `create_from_markdown`이 `byline`(200자까지)을 받습니다. 제목 아래에 오른쪽 정렬로 쓰는
-  부서·날짜 줄이고, `"\n"`은 줄바꿈입니다. `from_markdown`이 `byline`을 받는 python-hwpx가 있어야 쓸 수 있습니다.
-  6.12.0은 받지 않습니다. 그런 python-hwpx에서 `byline`을 주면 문서를 만들지 않고 `DEPENDENCY_MISSING`으로 답합니다.
-  `byline`을 주지 않으면 이전과 똑같이 동작합니다. 파이썬의 `hwpx_automation.office.compact.create_from_markdown`도
-  같은 `byline` 인수를 받습니다.
+  부서·날짜 줄이고, `"\n"`은 줄바꿈입니다. `byline`을 주지 않으면 이전과 똑같이 동작합니다. 파이썬의
+  `hwpx_automation.office.compact.create_from_markdown`도 같은 `byline` 인수를 받습니다.
 
 ### Changed
 
+- python-hwpx 7.0의 이름과 저장 API를 씁니다(`doc.save`, `alignment=`, `paragraph(s)=`, `section=`, `*_mm` 굵기 등).
+  도구 이름·인자·출력은 그대로입니다.
+- `document_to_markdown`·`document_extract_json`, `create_from_markdown`, 양식·메일 머지·미리보기·점검 도구가 이 패키지로
+  옮겨 온 구현을 씁니다. 출력 모양은 그대로입니다. `hwpx_automation.ingest_adapters`는 8.x 동안
+  `hwpx_automation.ingest`의 MarkItDown 어댑터를 다시 내보냅니다.
+- 선택 의존성이 없을 때의 안내가 `pip install "python-hwpx-automation[preview]"`·`[xlsx]`를 가리킵니다.
+- `apply_document_commands`로 누름틀의 `readOnly`를 바꾸면 한/글처럼 `editable="0"`/`"1"`을 씁니다(전에는
+  `"false"`/`"true"`). 예전 표기로 쓴 문서도 같은 뜻으로 읽습니다.
+- `.hwp`를 `.hwpx`로 바꾸는 `convert_hwp_to_hwpx`와 `.hwp` 글 읽기가 python-hwpx의 HWP 5.0 읽기를 씁니다. 외부 명령
+  `hwp5proc`가 없어도 변환되고 서식이 남으며, 글 읽기는 미리보기 글(1KB 남짓에서 잘림) 대신 문서 전체 글을 돌려줍니다.
+  `[hwp]` extra는 아무것도 깔지 않고 이름만 남습니다.
 - 양식 채움(`apply_form_fill`)과 메일 머지(`mail_merge`)가 문서에 값을 준 그대로 씁니다. 이전에는 전화번호·이메일·
   주민등록번호를 가린 값(`010-****-****`)이 문서에 들어갔습니다. 양식 채움의 `mask`(기본 켬)는 이제 응답에 되돌려 주는
   `applied`·`touched`만 가리고, 응답의 `responseMasked`로 가렸는지 알립니다. 메일 머지 보고에는 값이 실리지 않으므로
   가릴 것이 없고, `maskedFields`는 빈 목록입니다.
+
+### Fixed
+
+- `document_to_markdown`·`document_extract_json`: python-hwpx가 열지 못한 `.hwp`·`.hwpx`(HWP 3.x, 암호, 깨진 파일)를
+  MarkItDown이 받아 파일 바이트를 Markdown으로 돌려주며 성공으로 끝나던 것을, 그 사유를 담은 실패로 끝냅니다.
+- 경로 없이 넘긴 문서를 MarkItDown으로 바꿀 때 만든 임시 파일을 지웁니다(실패할 때도).
+- 문서 설계도(`dump_document_blueprint`): 번호 문단 의존성에서 번호 정의(`definition`)가 오류 없이 빠지던 것.
+- 문서 설계도: 구역에 XML 주석이나 처리 지시가 있는 문서의 `unsupported[].kind`에 메모리 주소가 든 이름이 적혀
+  `blueprintHash`가 실행마다 달라지던 것. 이제 `#comment`·`#processing-instruction`으로 적습니다.
+- `format_table` 등에 한/글 굵기 목록에 없는 선 굵기를 주면 python-hwpx 7.0이 거부하던 것을, 6.x처럼 가장 가까운 목록
+  값으로 그립니다.
 
 ## [7.5.0] - 2026-11-11
 
