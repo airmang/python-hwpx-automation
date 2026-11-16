@@ -186,7 +186,8 @@ def test_save_through_pipeline_raises_quality_gate_error_on_gate_fail(tmp_path: 
     class FakeDoc:
         # python-hwpx 7.0's doc.save(target, quality=...): a refused archive is not
         # written and raises SaveError("quality-gate-failed") carrying the report.
-        def save(self, target, *, quality=None):
+        # The automation hands its Hancom gate over as pipeline= (#745).
+        def save(self, target, *, quality=None, pipeline=None):
             refusal = SaveError("Document save failed the quality gate", code="quality-gate-failed")
             refusal.report = report
             raise refusal
