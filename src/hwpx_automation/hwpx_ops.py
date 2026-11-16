@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, cast
 
 from .core.plan import PlanManager
 from .core.locator import RegisteredHandle
@@ -64,6 +64,27 @@ class HwpxHandleNotFoundError(HwpxOperationError):
     """등록되지 않은 핸들 조회 시 사용하는 예외."""
 
 
+#: HwpxOps methods 8.0 removed, each with where to go instead (python-hwpx 7.0 refuses to save
+#: what they made: a memo on no paragraph, a bare shape or control element).
+_REMOVED_IN_8: Dict[str, str] = {
+    "add_memo": (
+        "python-hwpx 7.0 keeps a memo only in a paragraph's MEMO field and refuses to save one on no "
+        "paragraph. Use add_memo_with_anchor(path, text=...)."
+    ),
+    "attach_memo_field": (
+        "a memo is made on its paragraph now. Use add_memo_with_anchor(path, text=...)."
+    ),
+    "add_shape": (
+        "it appended a bare shape element python-hwpx 7.0 refuses to save. Use doc.shapes.add_rectangle, "
+        "add_ellipse, add_line, add_polygon, add_container ... of python-hwpx."
+    ),
+    "add_control": (
+        "it appended an empty hp:ctrl python-hwpx 7.0 refuses to save. Use the typed doc.shapes.add_* "
+        "calls of python-hwpx."
+    ),
+}
+
+
 class HwpxOps:
     """MCP 도구에서 활용하는 안전한 고수준 헬퍼 모음."""
 
@@ -102,6 +123,14 @@ class HwpxOps:
         self.paging_limit = context.paging_limit
         self._plan_manager = self._services.planning.plan_manager
         self._registered_handles = context.registered_handles
+
+    if not TYPE_CHECKING:  # runtime only: type checkers keep flagging unknown names
+
+        def __getattr__(self, name: str) -> Any:
+            hint = _REMOVED_IN_8.get(name)
+            if hint is None:
+                raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+            raise AttributeError(f"HwpxOps.{name} was removed in python-hwpx-automation 8.0: {hint}")
 
     @property
     def plan_manager(self) -> PlanManager:
@@ -1143,35 +1172,6 @@ class HwpxOps:
             auto_fit=auto_fit,
         )
 
-    def add_shape(
-        self,
-        path: str,
-        *,
-        shape_type: str = "RECTANGLE",
-        section_index: Optional[int] = None,
-        dry_run: bool = True,
-    ) -> Dict[str, Any]:
-        """Escape hatch: python-hwpx 7.0 ``doc.shapes.add_raw`` (outside its contract; bare element)."""
-        return self._services.media.add_shape(
-            path, shape_type=shape_type, section_index=section_index, dry_run=dry_run
-        )
-
-    def add_control(
-        self,
-        path: str,
-        *,
-        control_type: str = "TEXTBOX",
-        section_index: Optional[int] = None,
-        dry_run: bool = True,
-    ) -> Dict[str, Any]:
-        """Escape hatch: python-hwpx 7.0 ``doc.shapes.add_control`` (outside its contract; bare element)."""
-        return self._services.media.add_control(
-            path,
-            control_type=control_type,
-            section_index=section_index,
-            dry_run=dry_run,
-        )
-
     def insert_picture(
         self,
         path: str,
@@ -1224,42 +1224,26 @@ class HwpxOps:
             dry_run=dry_run,
         )
 
-    def add_memo(
-        self,
-        path: str,
-        text: str,
-        *,
-        section_index: Optional[int] = None,
-        author: str | None = None,
-        timestamp: str | None = None,
-    ) -> Dict[str, Any]:
-        return self._services.memo_style.add_memo(
-            path, text, section_index=section_index, author=author, timestamp=timestamp
-        )
-
-    def attach_memo_field(
-        self,
-        path: str,
-        paragraph_index: int,
-        memo_id: str,
-    ) -> Dict[str, Any]:
-        return self._services.memo_style.attach_memo_field(
-            path, paragraph_index, memo_id
-        )
-
     def add_memo_with_anchor(
         self,
         path: str,
         *,
         text: str,
         section_index: Optional[int] = None,
-        memo_shape_id_ref: str | None = None,
     ) -> Dict[str, Any]:
         return self._services.memo_style.add_memo_with_anchor(
-            path,
-            text=text,
-            section_index=section_index,
-            memo_shape_id_ref=memo_shape_id_ref,
+            path, text=text, section_index=section_index
+        )
+
+    def set_memo_shape(
+        self,
+        path: str,
+        memo_shape_id_ref: str | int | None,
+        *,
+        section_index: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        return self._services.memo_style.set_memo_shape(
+            path, memo_shape_id_ref, section_index=section_index
         )
 
     def remove_memo(

@@ -127,8 +127,6 @@ OWNER_METHODS = {
     "media": (
         "_decode_image_base64",
         "_id_integrity_payload",
-        "add_shape",
-        "add_control",
         "insert_picture",
         "replace_picture",
     ),
@@ -136,9 +134,8 @@ OWNER_METHODS = {
         "_normalize_color",
         "_ensure_char_style",
         "find_runs_by_style",
-        "add_memo",
-        "attach_memo_field",
         "add_memo_with_anchor",
+        "set_memo_shape",
         "remove_memo",
         "_find_memo",
         "ensure_run_style",
@@ -235,9 +232,9 @@ def test_facade_has_one_explicit_delegate_for_every_baselined_method() -> None:
     }
 
     assert len(OWNER_METHODS) == 12
-    assert len(owned) == 126
+    assert len(owned) == 123  # 8.0: -add_memo, -attach_memo_field, -add_shape, -add_control, +set_memo_shape
     assert set(methods) == {"__init__", *owned}
-    assert sum(not name.startswith("_") for name in methods) == 85
+    assert sum(not name.startswith("_") for name in methods) == 82
 
     for method_name, owner in owned.items():
         expression = _single_return_expression(methods[method_name])

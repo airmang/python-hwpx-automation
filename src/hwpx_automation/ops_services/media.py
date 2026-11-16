@@ -46,36 +46,6 @@ class MediaService:
             "ignored": [str(item) for item in report.ignored],
         }
 
-    def add_shape(
-        self,
-        path: str,
-        *,
-        shape_type: str = "RECTANGLE",
-        section_index: Optional[int] = None,
-        dry_run: bool = True,
-    ) -> Dict[str, Any]:
-        document, resolved = self._context._open_document(path)
-        shape = document.shapes.add_raw(shape_type, section=section_index)
-        if not dry_run:
-            self._save._save_document(document, resolved)
-        return {"objectId": shape.element.get("id")}
-
-    def add_control(
-        self,
-        path: str,
-        *,
-        control_type: str = "TEXTBOX",
-        section_index: Optional[int] = None,
-        dry_run: bool = True,
-    ) -> Dict[str, Any]:
-        document, resolved = self._context._open_document(path)
-        control = document.shapes.add_control(
-            control_type=control_type, section=section_index
-        )
-        if not dry_run:
-            self._save._save_document(document, resolved)
-        return {"objectId": control.element.get("id")}
-
     def insert_picture(
         self,
         path: str,

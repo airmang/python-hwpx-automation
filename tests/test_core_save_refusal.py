@@ -39,12 +39,12 @@ def test_other_errors_are_not_save_refusals() -> None:
 
 
 def test_ops_save_failure_carries_the_core_code(tmp_path: Path) -> None:
-    source = tmp_path / "in.hwpx"
+    target = tmp_path / "out.hwpx"
     doc = HwpxDocument.new()
     doc.add_paragraph("본문")
-    doc.save(source)
+    doc.notes.add_memo("걸지 않은 메모")
     ops = HwpxOps(base_directory=tmp_path)
     with pytest.raises(HwpxOperationError) as refused:
-        ops.add_memo(str(source), "걸지 않은 메모")
+        ops._services.save._save_document(doc, target)
     assert refused.value.code == "DOCUMENT_SAVE_FAILED"
     assert (refused.value.details or {}).get("coreCode") == "note-memo-unanchored"

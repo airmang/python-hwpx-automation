@@ -59,13 +59,16 @@ EXPECTED_SERVICE_LINES = {
     # 8.0: python-hwpx 7.0 dropped doc.media.picture_references(); the 6.x
     # payload is rebuilt once in upstream.picture_reference_payloads, so the
     # local rebuilding went away (208 -> 199).
-    "media.py": 199,
+    # 8.0: add_shape/add_control went away (python-hwpx 7.0 refuses to save the
+    # bare elements they appended) (199 -> 169).
+    "media.py": 169,
     # WP-F: add_memo/fill now create the host paragraph explicitly before
     # calling notes.add_memo(anchor=...), which has no auto-create fallback
     # (unlike 5.x's add_memo_with_anchor(paragraph=None)).
-    # 8.0: python-hwpx 7.0 keeps the memo shape per section, so
-    # add_memo_with_anchor(memo_shape_id_ref=) sets it there (367 -> 371).
-    "memo_style.py": 371,
+    # 8.0: python-hwpx 7.0 refuses to save a memo on no paragraph and keeps the
+    # memo shape per section: add_memo/attach_memo_field and the memo_shape_id_ref=
+    # argument went away, set_memo_shape came in (367 -> 330).
+    "memo_style.py": 330,
     "package_validation.py": 164,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
@@ -92,8 +95,9 @@ EXPECTED_SERVICE_LINES = {
 }
 
 EXPECTED_FACADE_LINES = {
-    # 8.0: add_shape/add_control say they call python-hwpx 7.0's escape hatches (+2).
-    "hwpx_ops.py": 1528,
+    # 8.0: add_memo, attach_memo_field, add_shape, add_control went away (a
+    # __getattr__ names their replacements); set_memo_shape came in (1526 -> 1512).
+    "hwpx_ops.py": 1512,
     # S-108: shared identity/config helpers replaced duplicated MCP-era parsing.
     # +3: --profile minimal (#198); the option and the server choice live in
     # minimal_profile.py, the facade only wires them.
