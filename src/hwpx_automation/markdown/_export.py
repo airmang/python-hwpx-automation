@@ -896,18 +896,35 @@ _PAGE_TEXT_LABELS = {"header": "머리말", "footer": "꼬리말"}
 _PAGE_TYPE_LABELS = {"EVEN": "짝수 쪽", "ODD": "홀수 쪽"}
 
 
-def _page_text_lines(section_el, tag: str, doc, seen: set[tuple[str, str]]) -> list[str]:
+def _nested_paragraphs(paragraphs):
+    """*paragraphs* 와 그 안(표 칸·글상자 등 개체)의 문단을 문서 차례로."""
+
+    for paragraph in paragraphs:
+        yield paragraph
+        for obj in paragraph.objects:
+            if hasattr(obj, "rows"):
+                for row in obj.rows:
+                    for cell in row.cells:
+                        yield from _nested_paragraphs(cell.paragraphs)
+            else:
+                inner = getattr(obj, "paragraphs", None)
+                if inner:
+                    yield from _nested_paragraphs(inner)
+
+
+def _page_text_lines(section, tag: str, doc, seen: set[tuple[str, str]]) -> list[str]:
     """구역의 머리말(또는 꼬리말)을 ``> 머리말: 글`` 줄로. 이미 실은 글(*seen*)은 건너뛴다."""
 
     lines: list[str] = []
-    for element in _descendants(section_el, tag):
-        parts = [_p_element_to_md(p, doc, None).strip() for p in _descendants(element, "p")]
+    stories = doc.page.headers(section=section) if tag == "header" else doc.page.footers(section=section)
+    for story in stories:
+        parts = [_p_element_to_md(p.element, doc, None).strip() for p in _nested_paragraphs(story.paragraphs)]
         text = " ".join(" ".join(part.split("\n")) for part in parts if part)
         if not text or (tag, text) in seen:
             continue
         seen.add((tag, text))
         label = _PAGE_TEXT_LABELS[tag]
-        page_type = _PAGE_TYPE_LABELS.get(element.get("applyPageType") or "")
+        page_type = _PAGE_TYPE_LABELS.get(story.page_type or "")
         if page_type:
             label = f"{label}({page_type})"
         lines.append(f"> {label}: {text}")
@@ -1056,8 +1073,8 @@ def _export_markdown(
     for section in doc.sections:
         footers: list[str] = []
         if headers_and_footers:
-            lines.extend(_page_text_lines(section.element, "header", doc, seen_outside))
-            footers = _page_text_lines(section.element, "footer", doc, seen_outside)
+            lines.extend(_page_text_lines(section, "header", doc, seen_outside))
+            footers = _page_text_lines(section, "footer", doc, seen_outside)
         paragraphs = {p.element: p for p in section.paragraphs}
         for child in section.element:
             p = paragraphs.get(child)
