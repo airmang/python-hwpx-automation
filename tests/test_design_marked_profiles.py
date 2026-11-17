@@ -317,3 +317,9 @@ def test_harvest_writes_the_same_parts_for_the_same_template(tmp_path: Path) -> 
         return found
 
     assert parts(tmp_path / "a") == parts(tmp_path / "b")
+
+
+def test_harvested_skeleton_keeps_a_column_definition(tmp_path: Path) -> None:
+    _harvest(tmp_path)
+    xml = _section_xml((tmp_path / "p" / "report" / "template.hwpx").read_bytes())
+    assert "<hp:secPr" in xml and "<hp:colPr" in xml

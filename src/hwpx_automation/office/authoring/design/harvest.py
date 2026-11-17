@@ -203,6 +203,8 @@ def _build_skeleton(source: Path, out_path: Path) -> dict:
         if getattr(exc, "code", None) == "section-clear-no-section-properties":
             raise ValueError("template has no secPr (page setup)") from exc
         raise
+    # Hancom drops the page settings of a section whose first paragraph has no column definition.
+    S.ensure_section_columns(doc, section.paragraphs[0])
 
     stripped = _strip_binaries(doc)
     _scrub_metadata(doc)

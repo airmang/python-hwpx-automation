@@ -221,3 +221,18 @@ def test_report_document_type_takes_the_report_look_unless_a_profile_is_named(tm
     assert authoring._resolve_design_profile(named) == "report"
     with pytest.raises(ValueError, match="designProfile"):
         authoring._resolve_design_profile({**plan, "designProfile": "no-such-form"})
+
+
+@pytest.mark.parametrize("doc_type", ["공문", "가정통신문"])
+def test_composed_first_paragraph_keeps_a_column_definition(tmp_path: Path, doc_type: str) -> None:
+    """Hancom opened every profile document on its default margins: the skeletons' first paragraph
+    had hp:secPr but no hp:ctrl/hp:colPr next to it (8.0 14차, seen in Hancom's re-saves)."""
+
+    plan = {"schemaVersion": "hwpx.document_plan.v1", "title": "T", "metadata": {"document_type": doc_type},
+            "blocks": [{"type": "paragraph", "text": "본문"}]}
+    target = tmp_path / "cols.hwpx"
+    create_document_from_plan(str(target), plan)
+    root = etree.fromstring(_section_xml(target).encode("utf-8"))
+    first_run = root.find(_HP + "p").find(_HP + "run")
+    assert [child.tag for child in first_run][:2] == [_HP + "secPr", _HP + "ctrl"]
+    assert first_run[1][0].tag == _HP + "colPr"
