@@ -31,6 +31,12 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 - `HwpxOps.add_memo_with_anchor`가 `memo_shape_id_ref=`를 받지 않습니다. python-hwpx 7.0은 한/글처럼 메모 모양을
   메모가 아니라 구역에 둡니다. 구역의 메모 모양은 새 `HwpxOps.set_memo_shape(path, memo_shape_id_ref,
   section_index=...)`로 따로 정합니다.
+- 디자인 프로필 형식이 `hwpx.design.profile.v2`가 됩니다. 조각(제목·본문·표 등)을 XML 파일 대신 작은 한/글 문서
+  `fragments.hwpx`에 담고, 문서를 지을 때 python-hwpx의 문단 복사(`paragraph.copy_to`)로 끼웁니다. 조각이 쓰는 글자·문단
+  모양이 그 정의째 옮겨 가므로, 정의 번호와 `header.xml`은 전과 다를 수 있습니다. 글·구조·서식의 내용은 같습니다.
+  패키지에 든 프로필 4개는 v2로 다시 만들었습니다. 사용자가 이미 뽑아 둔 v1 프로필은 8.x 동안 그대로 읽어 씁니다(파일은
+  고치지 않습니다). 파이썬의 `Profile.fragment(role)`은 남고 `Profile.fragment_paragraphs`·`fragment_place`·`schema`가
+  더해집니다. 같은 계획은 같은 문서로 지어집니다(조각의 새 id는 고정 시드에서 나옵니다).
 - `HwpxOps.add_shape`·`add_control`을 지웠습니다. python-hwpx 7.0에서 계약 밖 탈출구가 된 `doc.shapes.add_raw`·
   `add_control`을 불러 크기·내용이 없는 빈 요소를 만들었고, 그런 문서는 열기 안전성 검사로 저장이 거부됩니다.
   python-hwpx의 `doc.shapes.add_rectangle`·`add_ellipse`·`add_line`·`add_container` 등을 씁니다(옛 이름은 안내 오류).

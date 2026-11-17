@@ -59,12 +59,17 @@ def test_harvest_names_roles_and_slots_from_placeholders(tmp_path: Path) -> None
     assert manifest["ignored_static_paragraphs"] == 1
     assert manifest["skeleton_open_safe"] is True
     assert sorted(profile.roles) == ["1단계", "2단계", "띠"]
-    # The blank line above each role travels with it (spacing is cloned too).
-    for role in profile.roles:
-        assert len(profile.fragment(role)) == 2
-    # The page setup on the template's first paragraph is not part of a role.
-    band = profile.fragment("띠")
-    assert not [e for e in band.iter() if str(e.tag).endswith("}secPr")]
+    assert manifest["schemaVersion"] == "hwpx.design.profile.v2"
+    assert (tmp_path / "p" / "report" / "fragments.hwpx").is_file()
+    with HwpxDocument.open(profile.fragments_bytes) as fragments:
+        # The blank line above each role travels with it (spacing is cloned too).
+        for role in profile.roles:
+            assert len(profile.fragment_paragraphs(fragments, role)) == 2
+        # The page setup on the template's first paragraph is not part of a role.
+        from lxml import etree
+
+        band = profile.fragment_paragraphs(fragments, "띠")
+        assert not any(b"secPr" in etree.tostring(paragraph.element) for paragraph in band)
 
 
 def test_compose_clones_roles_fills_slots_and_keeps_band_fill(tmp_path: Path) -> None:
@@ -225,27 +230,27 @@ def test_cloned_click_here_fields_keep_their_own_begin_end_pair(tmp_path: Path) 
         reopened.close()
 
 
-def test_connector_follows_its_shapes_new_instance_id() -> None:
+def test_connector_follows_its_shapes_new_instance_id(tmp_path: Path) -> None:
+    def connected(doc: HwpxDocument) -> None:
+        para = doc.add_paragraph("{{연결}}")
+        left = doc.shapes.add_rectangle(width=3000, height=2000, paragraph=para, treat_as_char=False)
+        right = doc.shapes.add_rectangle(width=3000, height=2000, paragraph=para, treat_as_char=False)
+        right.set_position(horizontal_offset=8000)
+        doc.shapes.add_connector(left, right, paragraph=para)
+
+    _, profile = _harvest(tmp_path, extra=connected)
+    data, result = compose_bytes(_plan({"role": "연결", "text": "갑"}, {"role": "연결", "text": "을"}), profile=profile)
+
+    assert result.ok, result.errors
     from lxml import etree
 
-    from hwpx_automation.office.authoring.design.composer import _reassign_object_ids
-
-    hp = "http://www.hancom.co.kr/hwpml/2011/paragraph"
-    clone = (
-        f'<hp:p xmlns:hp="{hp}" id="0"><hp:run>'
-        '<hp:rect id="7" instid="70"/><hp:connectLine id="8" instid="80">'
-        '<hp:startPt subjectIDRef="70"/></hp:connectLine></hp:run></hp:p>'
-    )
-    paragraphs = [etree.fromstring(clone), etree.fromstring(clone)]
-
-    _reassign_object_ids(paragraphs)
-
-    instance_ids = [e.get("instid") for p in paragraphs for e in p.iter() if e.get("instid")]
-    assert len(set(instance_ids)) == 4
-    for paragraph in paragraphs:
-        rect = next(e for e in paragraph.iter() if e.tag.endswith("}rect"))
-        start = next(e for e in paragraph.iter() if e.tag.endswith("}startPt"))
-        assert start.get("subjectIDRef") == rect.get("instid")
+    section = etree.fromstring(_section_xml(data).encode("utf-8"))
+    rects = [e.get("instid") for e in section.iter() if e.tag.endswith("}rect")]
+    assert len(rects) == 4 and len(set(rects)) == 4
+    for paragraph in (p for p in section if p.tag.endswith("}p") and any(e.tag.endswith("}connectLine") for e in p.iter())):
+        own = {e.get("instid") for e in paragraph.iter() if e.tag.endswith("}rect")}
+        subjects = {e.get("subjectIDRef") for e in paragraph.iter() if e.tag.endswith("Pt") and e.get("subjectIDRef")}
+        assert subjects and subjects <= own  # each copy's connector joins its own copy's shapes
 
 
 def test_value_with_no_placeholder_is_refused_in_production(tmp_path: Path) -> None:

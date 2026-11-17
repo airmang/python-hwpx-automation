@@ -1,12 +1,25 @@
 {
-  "schemaVersion": "hwpx.design.profile.v1",
+  "schemaVersion": "hwpx.design.profile.v2",
   "id": "official_notice",
   "template": "template.hwpx",
+  "fragments_document": "fragments.hwpx",
   "fragments": {
-    "title": "fragments/title.xml",
-    "heading": "fragments/heading.xml",
-    "body": "fragments/body.xml",
-    "info_table": "fragments/info_table.xml"
+    "title": {
+      "start": 1,
+      "count": 1
+    },
+    "heading": {
+      "start": 2,
+      "count": 1
+    },
+    "body": {
+      "start": 3,
+      "count": 1
+    },
+    "info_table": {
+      "start": 4,
+      "count": 1
+    }
   },
   "page": {
     "width": 59528,

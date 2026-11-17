@@ -8,10 +8,10 @@ Given a genuine ``.hwpx`` it writes, under ``profiles/<id>/``:
   (every style/font/borderFill) and the page setup survive untouched, so the
   committed artifact is small and carries no document content (no PII), yet is
   genuinely Hancom-derived — never imagined XML.
-* ``fragments/{title,heading,body,info_table}.xml`` — real ``<hp:p>`` / ``<hp:tbl>``
-  elements harvested from the source, with their text **sanitised to placeholders**
-  (the style is kept, the content dropped).
-* ``profile.json`` — the manifest the loader reads.
+* ``fragments.hwpx`` — the skeleton with the real paragraphs (and the paragraph holding
+  a table) harvested from the source copied in after its first paragraph, their text
+  **sanitised to placeholders** (the style is kept, the content dropped).
+* ``profile.json`` — the manifest the loader reads (``hwpx.design.profile.v2``).
 
 This is an authoring-time tool (run once per profile); the committed artifacts are
 what production uses.
@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -29,8 +29,9 @@ from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import OPF_NS
 
 import hwpx_automation.office.authoring.design._support as S
+from .profile import FRAGMENTS_DOCUMENT, PROFILE_SCHEMA_V2
 
-PROFILE_SCHEMA = "hwpx.design.profile.v1"
+PROFILE_SCHEMA = PROFILE_SCHEMA_V2
 
 _PLACEHOLDER = {
     "title": "{{title}}",
@@ -66,13 +67,14 @@ def _text_paragraphs(doc):
                 "char": cref,
                 "h": _font_height(doc, cref),
                 "len": len(text),
-                "element": para.element,
+                "paragraph": para,
             }
         )
     return out
 
 
-def _pick_fragments(doc) -> dict[str, etree._Element]:
+def _pick_fragments(doc) -> dict[str, Any]:
+    """The source paragraph picked for each role (``info_table``: the paragraph holding the table)."""
     tps = _text_paragraphs(doc)
     if not tps:
         raise ValueError("no text paragraphs to harvest")
@@ -91,14 +93,53 @@ def _pick_fragments(doc) -> dict[str, etree._Element]:
     heading = max(head_pool, key=lambda t: t["h"], default=title)
 
     picks = {"title": title, "heading": heading, "body": body}
-    fragments = {role: deepcopy(p["element"]) for role, p in picks.items()}
-    for role, frag in fragments.items():
-        S.set_paragraph_text(frag, _PLACEHOLDER[role])
+    fragments: dict[str, Any] = {role: p["paragraph"] for role, p in picks.items()}
 
     info = _pick_info_table(doc)
     if info is not None:
         fragments["info_table"] = info
     return fragments
+
+
+def _sanitise_fragment(role: str, paragraph: Any) -> None:
+    """Drop the source's content from a copied fragment: its text becomes the role placeholder
+    (a table's cells each ``{{cell}}``); the shapes stay."""
+
+    if role == "info_table":
+        for table in paragraph.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for cell_paragraph in cell.paragraphs:
+                        cell_paragraph.text = "{{cell}}"
+        return
+    paragraph.text = _PLACEHOLDER[role]
+
+
+def _write_fragments_document(
+    skeleton: Path,
+    groups: list[tuple[str, list[Any]]],
+    out_path: Path,
+    sanitise: Any = None,
+) -> dict[str, dict[str, int]]:
+    """Write ``fragments.hwpx``: the skeleton with each group's paragraphs copied in after its
+    page-setup paragraph (python-hwpx ``paragraph.copy_to``, which brings the shapes they use
+    along), and return ``{role: {"start": i, "count": n}}``."""
+
+    from ...rendering import save_gate_report
+
+    places: dict[str, dict[str, int]] = {}
+    with HwpxDocument.open(skeleton) as document:
+        last = document.sections[0].paragraphs[-1]
+        index = len(document.sections[0].paragraphs)
+        for role, paragraphs in groups:
+            places[role] = {"start": index, "count": len(paragraphs)}
+            for source in paragraphs:
+                last = source.copy_to(last)
+                if sanitise is not None:
+                    sanitise(role, last)
+                index += 1
+        save_gate_report(document, out_path)
+    return places
 
 
 def _references_binary(element: etree._Element) -> bool:
@@ -124,7 +165,7 @@ def _is_simple_grid(table_element: etree._Element) -> bool:
     return True
 
 
-def _pick_info_table(doc) -> etree._Element | None:
+def _pick_info_table(doc) -> Any | None:
     best = None
     for para in doc.sections[0].paragraphs:
         for table in getattr(para, "tables", []):
@@ -141,22 +182,9 @@ def _pick_info_table(doc) -> etree._Element | None:
     if best is None:
         return None
     # Harvest the *paragraph* that wraps the table — a table is not a valid
-    # section child on its own; it must ride inside an <hp:p>.
-    frag = deepcopy(best[1].paragraph.element)
-    # Sanitise every cell to a neutral placeholder; structure is what we keep.
-    for tc in S.iter_local(frag, "tc"):
-        sublist = _subList(tc)
-        for para in S.children_local(sublist if sublist is not None else tc, "p"):
-            S.set_paragraph_text(para, "{{cell}}")
-    S.strip_lineseg(frag)
-    return frag
-
-
-def _subList(tc: etree._Element):
-    for child in tc:
-        if S.ln(child.tag) == "subList":
-            return child
-    return None
+    # section child on its own; it must ride inside an <hp:p>. Its cells are
+    # sanitised to a neutral placeholder once copied (_sanitise_fragment).
+    return best[1].paragraph
 
 
 def _build_skeleton(source: Path, out_path: Path) -> dict:
@@ -308,26 +336,26 @@ def harvest_profile(source: str | Path, profile_id: str, out_root: str | Path) -
 
     source = Path(source)
     out_dir = Path(out_root) / profile_id
-    (out_dir / "fragments").mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Fragments first (reads the full source), then the skeleton (rewrites body).
-    doc = HwpxDocument.open(source)
-    fragments = _pick_fragments(doc)
-    doc.close()
-
-    roles = []
-    for role, frag in fragments.items():
-        path = out_dir / "fragments" / f"{role}.xml"
-        path.write_bytes(etree.tostring(frag, encoding="UTF-8"))
-        roles.append(role)
-
+    # The skeleton (a copy of the source blanked to its page setup), then the fragments:
+    # the picked source paragraphs copied into a copy of the skeleton, text sanitised.
     skel = _build_skeleton(source, out_dir / "template.hwpx")
+    with HwpxDocument.open(source) as doc:
+        fragments = _pick_fragments(doc)
+        places = _write_fragments_document(
+            out_dir / "template.hwpx",
+            [(role, [paragraph]) for role, paragraph in fragments.items()],
+            out_dir / FRAGMENTS_DOCUMENT,
+            sanitise=_sanitise_fragment,
+        )
 
     manifest = {
         "schemaVersion": PROFILE_SCHEMA,
         "id": profile_id,
         "template": "template.hwpx",
-        "fragments": {role: f"fragments/{role}.xml" for role in roles},
+        "fragments_document": FRAGMENTS_DOCUMENT,
+        "fragments": places,
         "page": skel["page"],
         "char_pr_count": skel["char_pr_count"],
         "style_coverage_threshold": 0.98,
