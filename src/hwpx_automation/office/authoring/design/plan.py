@@ -30,6 +30,8 @@ class Block:
     values: dict[str, str] = field(default_factory=dict)
     #: Start this block on a new page (``pageBreak="1"`` on its first paragraph).
     page_break_before: bool = False
+    #: A table's first row is its column labels (``False``: the table has only the plan's rows).
+    show_header: bool = True
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Block":
@@ -41,6 +43,7 @@ class Block:
             rows=[[str(c) for c in row] for row in data.get("rows", [])],
             values={str(k): str(v) for k, v in (data.get("values") or {}).items()},
             page_break_before=bool(data.get("page_break_before", False)),
+            show_header=bool(data.get("show_header", data.get("showHeader", True))),
         )
 
 

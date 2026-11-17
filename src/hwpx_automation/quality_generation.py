@@ -291,6 +291,14 @@ def _normalize_content_spec(
     }
 
 
+def _bullet_shape(doc: Any) -> str:
+    """Hancom's own bullet (a ``hh:bullet`` definition) for a list item, not a typed ``•``."""
+
+    from .office.authoring import bullet_paragraph_shape
+
+    return bullet_paragraph_shape(doc)
+
+
 def _derive_title(raw_brief: str, outline: list[dict[str, Any]]) -> str:
     for item in outline:
         text = str(item.get("text") or "").strip()
@@ -543,7 +551,7 @@ def _create_quality_document_fallback(content_spec: Mapping[str, Any]) -> Any:
         for paragraph in _string_list(section.get("paragraphs") or []):
             doc.add_paragraph(paragraph, char_pr_id_ref=body_style)
         for bullet in _string_list(section.get("bullets") or []):
-            doc.add_paragraph(f"• {bullet}", char_pr_id_ref=body_style)
+            doc.add_paragraph(bullet, char_pr_id_ref=body_style, para_pr_id_ref=_bullet_shape(doc))
 
     budget_items = [item for item in content_spec.get("budget_items") or [] if isinstance(item, Mapping)]
     if budget_items:
@@ -561,7 +569,7 @@ def _create_quality_document_fallback(content_spec: Mapping[str, Any]) -> Any:
     if outcomes:
         doc.add_paragraph("기대 효과", char_pr_id_ref=heading_style)
         for outcome in outcomes:
-            doc.add_paragraph(f"• {outcome}", char_pr_id_ref=body_style)
+            doc.add_paragraph(outcome, char_pr_id_ref=body_style, para_pr_id_ref=_bullet_shape(doc))
 
     closing = str(content_spec.get("closing") or "")
     if closing:

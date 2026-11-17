@@ -54,21 +54,21 @@ def _section_xml(path: Path) -> str:
 
 @pytest.mark.parametrize("doc_type", ["보고서", "공문", "가정통신문"])
 def test_profile_route_carries_page_break_memo_and_line_break(tmp_path: Path, doc_type: str) -> None:
-    if authoring._resolve_design_profile(_plan(doc_type)) is None:
+    if authoring._resolve_design_profile({**_plan(doc_type), "designProfile": ""}) is None and doc_type != "보고서":
         pytest.skip(f"no committed design profile for {doc_type}")
     target = tmp_path / "plan.hwpx"
     plan = _plan(doc_type)
-    has_table = doc_type != "가정통신문"  # that profile has no table fragment and refuses one
-    if not has_table:
-        plan["blocks"] = [block for block in plan["blocks"] if block["type"] != "table"]
+    if doc_type == "보고서":  # a 보고서 takes the report look unless the plan names the profile (8.0)
+        plan["designProfile"] = "report"
 
     result = create_document_from_plan(str(target), plan, verbosity="full")
 
     assert result["created"] is True, result
+    # No table fragment (가정통신문) or one of another column count (3 columns, the plan's table 2):
+    # the table is written whole as a plain table, and the result says so.
+    assert any(w.startswith("PROFILE_TABLE_FALLBACK") for w in result["warnings"]), result
     xml = _section_xml(target)
     for mark in ("H1MARK", "P1MARK", "P1B", "B1MARK", "B2MARK", "MEMOTEXT", "H2MARK", "T1MARK", "P2MARK"):
-        if mark == "T1MARK" and not has_table:
-            continue
         assert mark in xml, mark
     # "\n" is an hp:lineBreak element, never a raw LF inside hp:t.
     root = etree.fromstring(xml.encode("utf-8"))
@@ -129,3 +129,126 @@ def test_set_paragraph_text_writes_marks_and_drops_control_characters() -> None:
     assert [(c.tag.rsplit("}", 1)[-1], c.tail) for c in text] == [("lineBreak", "다"), ("tab", "라")]
     assert paragraph.find(_HP + "linesegarray") is None
     assert paragraph.find(_HP + "run").get("charPrIDRef") == "3"
+
+
+def test_official_draft_blocks_compose_on_the_official_profile(tmp_path: Path) -> None:
+    """compose_official_draft's 결재란 (4 columns) and 결문 table (no header row) used to stop the
+    공문 profile with TABLE_COLUMN_MISMATCH; they are now written whole, the 결재란 as a plain table."""
+
+    from hwpx_automation.server import compose_official_draft
+
+    draft = getattr(compose_official_draft, "fn", compose_official_draft)(
+        {
+            "agency": "가상기관",
+            "subject": "점검 안내",
+            "recipient": "각 부서장",
+            "body": ["점검을 합니다."],
+            "sender": "가상기관장",
+            "approvers": [{"position": "담당", "name": "가"}, {"position": "과장", "name": "나", "mark": "전결"}],
+            "issued": "총무-1(2031. 1. 2.)",
+        }
+    )
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "점검 안내",
+        "metadata": {"document_type": "공문"},
+        "blocks": draft["blocks"],
+    }
+    target = tmp_path / "draft.hwpx"
+    result = create_document_from_plan(str(target), plan, verbosity="full")
+
+    assert result["created"] is True, result
+    assert any("4칸" in w for w in result["warnings"])
+    with HwpxDocument.open(str(target)) as doc:
+        tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+        texts = [[cell.text for cell in row.cells] for table in tables for row in table.rows]
+    assert ["담당", "가", "과장", "전결\n나"] in texts  # the 결재란, all four cells
+    assert not any("직위0" in cell or "구분" == cell for row in texts for cell in row)  # no label rows
+
+
+def test_official_plan_metadata_fills_the_dumun_and_gyeolmun(tmp_path: Path) -> None:
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "휴관 안내",
+        "metadata": {"document_type": "공문", "수신": "각 부서장", "발신": "가상도서관장", "시행": "자료-1(2031. 1. 2.)"},
+        "blocks": [{"type": "paragraph", "text": "휴관합니다.  끝."}],
+    }
+    target = tmp_path / "gongmun.hwpx"
+    result = create_document_from_plan(str(target), plan, verbosity="full")
+
+    with HwpxDocument.open(str(target)) as doc:
+        texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text]
+    assert texts[:3] == ["휴관 안내", "수신  각 부서장", "휴관합니다.  끝."]
+    assert "발신명의  가상도서관장" in texts and "시행일  자료-1(2031. 1. 2.)" in texts
+    # 공개구분 is still missing: the gate says so and points at the 일반기안문 tool.
+    assert result["quality"]["gongmun_structure"]["structure_pass"] is False
+    assert "compose_official_draft" in result["next_action"]
+
+
+@pytest.mark.parametrize("doc_type", [None, "공문"])
+def test_title_is_not_printed_twice_when_a_block_carries_it(tmp_path: Path, doc_type: str | None) -> None:
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "점검 안내",
+        "blocks": [{"type": "paragraph", "text": "가상기관"}, {"type": "paragraph", "text": "제목  점검 안내"}],
+    }
+    if doc_type:
+        plan["metadata"] = {"document_type": doc_type}
+    target = tmp_path / "title.hwpx"
+    create_document_from_plan(str(target), plan)
+    with HwpxDocument.open(str(target)) as doc:
+        texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text]
+    assert texts[:2] == ["가상기관", "제목  점검 안내"]
+
+
+def test_report_document_type_takes_the_report_look_unless_a_profile_is_named(tmp_path: Path) -> None:
+    """Owner, 2026-11-17: document_type 보고서 is written in the report look (from_markdown's);
+    the report design profile is used only when the plan names it in designProfile."""
+
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "결과 보고",
+        "metadata": {"document_type": "보고서"},
+        "blocks": [{"type": "heading", "level": 2, "text": "1. 개요"}, {"type": "paragraph", "text": "본문"}],
+    }
+    assert authoring._resolve_design_profile(plan) is None
+    look = tmp_path / "look.hwpx"
+    create_document_from_plan(str(look), plan)
+    with HwpxDocument.open(str(look)) as doc:
+        assert doc.paragraphs[0].tables  # the title banner of the report look is a table
+
+    named = {**plan, "designProfile": "report"}
+    assert authoring._resolve_design_profile(named) == "report"
+    with pytest.raises(ValueError, match="designProfile"):
+        authoring._resolve_design_profile({**plan, "designProfile": "no-such-form"})
+
+
+@pytest.mark.parametrize("doc_type", ["공문", "가정통신문"])
+def test_composed_first_paragraph_keeps_a_column_definition(tmp_path: Path, doc_type: str) -> None:
+    """Hancom opened every profile document on its default margins: the skeletons' first paragraph
+    had hp:secPr but no hp:ctrl/hp:colPr next to it (8.0 14차, seen in Hancom's re-saves)."""
+
+    plan = {"schemaVersion": "hwpx.document_plan.v1", "title": "T", "metadata": {"document_type": doc_type},
+            "blocks": [{"type": "paragraph", "text": "본문"}]}
+    target = tmp_path / "cols.hwpx"
+    create_document_from_plan(str(target), plan)
+    root = etree.fromstring(_section_xml(target).encode("utf-8"))
+    first_run = root.find(_HP + "p").find(_HP + "run")
+    assert [child.tag for child in first_run][:2] == [_HP + "secPr", _HP + "ctrl"]
+    assert first_run[1][0].tag == _HP + "colPr"
+
+
+def test_plain_table_sits_on_a_line_without_the_body_indents(tmp_path: Path) -> None:
+    """The 공문 body paragraph hangs its first line (intent -1384): a plain table put in a copy of it
+    crashed the native preview and drew wrongly in Hancom (8.0 14차). Its line has no indents."""
+
+    plan = {"schemaVersion": "hwpx.document_plan.v1", "title": "T", "metadata": {"document_type": "공문"},
+            "blocks": [{"type": "table", "showHeader": False,
+                        "columns": [{"key": "a", "label": "a"}, {"key": "b", "label": "b"}],
+                        "rows": [{"a": "1", "b": "2"}]}]}
+    target = tmp_path / "indent.hwpx"
+    create_document_from_plan(str(target), plan)
+    with HwpxDocument.open(str(target)) as doc:
+        host = next(paragraph for paragraph in doc.paragraphs if paragraph.tables)
+        margin = doc.styles.paragraph_property(host.para_pr_id_ref).margin
+        assert (int(margin.left), int(margin.right), int(margin.intent)) == (0, 0, 0)

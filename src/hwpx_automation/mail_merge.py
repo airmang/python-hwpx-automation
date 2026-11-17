@@ -34,6 +34,11 @@ _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9가-힣._ -]+")
 ValueSanitizer = Callable[[str], str]
 
 
+class MailMergeDataError(TypeError, ValueError):
+    """Mail-merge data of the wrong shape. A ``ValueError`` too, so the MCP tool reports it as an
+    argument error (``INVALID_ARGUMENT``); a ``TypeError`` as it always was for Python callers."""
+
+
 def load_mail_merge_rows(data: str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any]) -> list[dict[str, Any]]:
     """Load mail-merge rows from CSV, JSON, .xlsx/.xlsm, or in-memory mappings."""
 
@@ -57,10 +62,12 @@ def load_mail_merge_rows(data: str | Path | Sequence[Mapping[str, Any]] | Mappin
             raise ValueError("mail merge data mapping must contain rows or data")
         return load_mail_merge_rows(payload_rows)
 
+    if not isinstance(data, Sequence) or isinstance(data, (bytes, bytearray)):
+        raise MailMergeDataError("mail merge data must be rows (a list of mappings), a mapping or a file path")
     rows: list[dict[str, Any]] = []
     for index, row in enumerate(data):
         if not isinstance(row, Mapping):
-            raise TypeError(f"mail merge row {index} must be a mapping")
+            raise MailMergeDataError(f"mail merge row {index} must be a mapping")
         rows.append({str(key): value for key, value in row.items()})
     return rows
 

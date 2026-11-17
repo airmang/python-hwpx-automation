@@ -173,3 +173,35 @@ __all__ = [
     "move_secpr_into",
     "replace_section_body",
 ]
+
+
+#: Seeds for the ids python-hwpx makes for the new paragraphs and objects of a document this
+#: package writes (``HwpxDocument.open(seed=)``, python-hwpx #775): the same input writes the same
+#: bytes. A seed is used for new ids only; the ids a document already holds are kept.
+COMPOSE_SEED = 0x48575058  # "HWPX": a document composed from a profile
+HARVEST_SEED = 0x48415256  # "HARV": a profile's template.hwpx and fragments.hwpx
+
+
+def open_seeded(source: object, seed: int) -> object:
+    """``HwpxDocument.open(source, seed=seed)``; the clock (``now=``) is left alone."""
+
+    from hwpx.document import HwpxDocument
+
+    try:
+        return HwpxDocument.open(source, seed=seed)
+    except TypeError:  # a python-hwpx 7.0 development build before seed= on open (#775)
+        return HwpxDocument.open(source)
+
+
+def ensure_section_columns(document: object, first: object) -> None:
+    """Give the section's first paragraph the column definition (``hp:ctrl/hp:colPr``) Hancom keeps
+    next to ``hp:secPr``. Without it Hancom drops the section's page settings and opens the document
+    on its default margins (8.0 14차: every profile skeleton, harvested with its controls stripped,
+    lacked it). One column, as Hancom writes a new document's."""
+
+    if document is None or first is None:
+        return
+    for run in first.element:  # type: ignore[attr-defined]
+        if run.tag.endswith("}run") and any(node.tag.endswith("}colPr") for node in run.iter()):
+            return
+    document.page.set_columns(1, same_gap=0, paragraph=first)  # type: ignore[attr-defined]

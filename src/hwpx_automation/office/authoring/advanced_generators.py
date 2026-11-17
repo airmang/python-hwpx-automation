@@ -65,7 +65,7 @@ def build_organization_chart(
     rows: list[list[str]] = []
     for root in roots:
         if not isinstance(root, Mapping):
-            raise TypeError("organization chart nodes must be mappings")
+            raise ValueError("organization chart nodes must be mappings")
         rows.extend(_flatten_org_node(root, depth=depth))
     if not rows:
         raise ValueError("hierarchy must contain at least one node")
@@ -138,11 +138,11 @@ def _flatten_org_node(
         row.extend("" for _ in range(depth - len(row)))
         return [row]
     if not isinstance(children, Sequence) or isinstance(children, (str, bytes, bytearray)):
-        raise TypeError("organization chart children must be a sequence")
+        raise ValueError("organization chart children must be a sequence")
     rows: list[list[str]] = []
     for child in children:
         if not isinstance(child, Mapping):
-            raise TypeError("organization chart child nodes must be mappings")
+            raise ValueError("organization chart child nodes must be mappings")
         rows.extend(_flatten_org_node(child, depth=depth, prefix=current))
     return rows
 

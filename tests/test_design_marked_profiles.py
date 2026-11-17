@@ -297,3 +297,29 @@ def test_split_placeholder_leaves_the_other_runs_and_styles_alone(tmp_path: Path
     assert [text for _, text in filled] == ["값", " 뒤 문구"]
     # The fixed text after the placeholder keeps its own (bold) run.
     assert filled[0][0] != filled[1][0]
+
+
+def test_harvest_writes_the_same_parts_for_the_same_template(tmp_path: Path) -> None:
+    """New ids come from a fixed seed (python-hwpx open(seed=)); only the save time may differ."""
+
+    source = _template(tmp_path / "t.hwpx")
+
+    def parts(out: Path) -> dict[str, bytes]:
+        harvest_marked_profile(source, "report", out)
+        found: dict[str, bytes] = {}
+        for name in ("template.hwpx", "fragments.hwpx"):
+            with zipfile.ZipFile(out / "report" / name) as archive:
+                for part in archive.namelist():
+                    data = archive.read(part)
+                    if part.endswith("content.hpf"):
+                        data = re.sub(rb"\d{4}-\d{2}-\d{2}T[\d:.]+Z?", b"<time>", data)
+                    found[f"{name}/{part}"] = data
+        return found
+
+    assert parts(tmp_path / "a") == parts(tmp_path / "b")
+
+
+def test_harvested_skeleton_keeps_a_column_definition(tmp_path: Path) -> None:
+    _harvest(tmp_path)
+    xml = _section_xml((tmp_path / "p" / "report" / "template.hwpx").read_bytes())
+    assert "<hp:secPr" in xml and "<hp:colPr" in xml

@@ -62,6 +62,29 @@ def test_markdown_to_document_plan_warns_for_lossy_markdown_shapes() -> None:
     assert any("Ordered Markdown lists" in warning for warning in result["warnings"])
 
 
+def test_markdown_to_document_plan_reads_inline_marks_like_from_markdown() -> None:
+    result = server.markdown_to_document_plan(
+        "# Notes\n\nPlain **bold part** and *slanted* `code` [site](https://example.org).\n\n"
+        "- item with **bold**\n"
+    )
+
+    blocks = result["document_plan"]["blocks"]
+    assert blocks[0] == {
+        "type": "paragraph",
+        "text": "Plain bold part and slanted code site(https://example.org).",
+        "runs": [
+            {"text": "Plain "},
+            {"text": "bold part", "bold": True},
+            {"text": " and slanted code site(https://example.org)."},
+        ],
+    }
+    assert blocks[1] == {"type": "bullets", "items": ["item with bold"]}
+    assert not any("**" in str(block) for block in blocks)
+    warnings = " ".join(result["warnings"])
+    assert "italic" in warnings and "inline code" in warnings and "links" in warnings
+    assert "list item" in warnings
+
+
 def test_markdown_document_plan_can_create_hwpx(tmp_path: Path) -> None:
     target = tmp_path / "from_markdown.hwpx"
     result = server.markdown_to_document_plan(
@@ -77,3 +100,82 @@ def test_markdown_document_plan_can_create_hwpx(tmp_path: Path) -> None:
     assert "Name" in extracted["markdown"]
     assert "Value" in extracted["markdown"]
     assert "| A | 1 |" in extracted["markdown"]
+
+
+def test_heading_with_its_own_number_is_not_numbered_again(tmp_path: Path) -> None:
+    from hwpx import HwpxDocument
+
+    target = tmp_path / "numbered.hwpx"
+    plan = server.markdown_to_document_plan("# Report\n\n## 1. Overview\n\nText.\n\n## Details\n\nMore.")
+    del plan["document_plan"]["look"]  # the general layout, not the named report look
+    server.create_document_from_plan(str(target), plan["document_plan"])
+
+    with HwpxDocument.open(target) as doc:
+        heads = {
+            paragraph.text: doc.styles.paragraph_property(paragraph.para_pr_id_ref).heading
+            for paragraph in doc.paragraphs
+            if paragraph.text in {"1. Overview", "Details"}
+        }
+    # The writer's "1." stays and the outline draws no second number; an unnumbered heading keeps it.
+    assert heads["1. Overview"].type == "NONE"
+    assert heads["Details"].type == "OUTLINE"
+
+
+def test_bullet_items_use_hancom_bullets_not_a_typed_character(tmp_path: Path) -> None:
+    from hwpx import HwpxDocument
+
+    target = tmp_path / "bullets.hwpx"
+    plan = server.markdown_to_document_plan("# List\n\n- first\n- second\n")
+    del plan["document_plan"]["look"]  # the general layout, not the named report look
+    server.create_document_from_plan(str(target), plan["document_plan"])
+
+    with HwpxDocument.open(target) as doc:
+        items = [paragraph for paragraph in doc.paragraphs if paragraph.text in {"first", "second"}]
+        heads = {doc.styles.paragraph_property(item.para_pr_id_ref).heading.type for item in items}
+        assert len(items) == 2 and heads == {"BULLET"}
+        assert not any("•" in (paragraph.text or "") for paragraph in doc.paragraphs)
+
+
+def test_markdown_plan_is_written_in_the_report_look_from_markdown_writes(tmp_path: Path) -> None:
+    import re
+    import zipfile
+
+    from hwpx_automation.markdown import from_markdown
+
+    markdown = (
+        "# Club Report\n\n## 1. Overview\n\n- name: star club\n- members: 12\n\n"
+        "## 2. Work\n\nWe met **eight** times.\n\n| month | count |\n|---|---:|\n| 3 | 2 |\n"
+    )
+    result = server.markdown_to_document_plan(markdown)
+    assert result["document_plan"]["look"] == "report"
+    target = tmp_path / "look.hwpx"
+    created = server.create_document_from_plan(str(target), result["document_plan"])
+    assert created["handoff_status"] == "ready", created["quality"]["gaps"]
+
+    direct = tmp_path / "direct.hwpx"
+    with from_markdown(markdown) as doc:
+        doc.save(direct)
+
+    def parts(path: Path) -> dict[str, str]:
+        with zipfile.ZipFile(path) as archive:
+            return {
+                name: re.sub(r'\b(id|instid|zOrder)="\d+"', "", archive.read(name).decode("utf-8"))
+                for name in ("Contents/header.xml", "Contents/section0.xml")
+            }
+
+    # The same document as from_markdown writes, but for the new ids it draws.
+    assert parts(target) == parts(direct)
+
+
+def test_edited_look_plans_and_what_the_look_cannot_hold(tmp_path: Path) -> None:
+    from hwpx_automation.markdown_plan import plan_to_markdown
+
+    plan = server.markdown_to_document_plan("# T\n\ntext")["document_plan"]
+    plan["blocks"].append({"type": "paragraph", "text": "- not an item"})
+    assert "\\- not an item" in plan_to_markdown(plan)
+    plan["blocks"].append({"type": "page_break"})
+    assert plan_to_markdown(plan) is None  # the Markdown subset has no page break
+
+    target = tmp_path / "edited.hwpx"
+    created = server.create_document_from_plan(str(target), plan, verbosity="full")
+    assert any(w.startswith("LOOK_NOT_APPLIED") for w in created["warnings"])

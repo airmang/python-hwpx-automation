@@ -8,7 +8,7 @@ import re
 from ast import literal_eval as _literal
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Literal, Mapping, Sequence, cast, overload
+from typing import Any, Callable, Iterable, Literal, Mapping, Sequence, cast, overload
 
 from hwpx.document import HwpxDocument
 from hwpx.tools.package_validator import validate_package
@@ -1063,16 +1063,35 @@ def _plan_document_type(plan: Any) -> str:
     return ""
 
 
-def _resolve_design_profile(plan: Any) -> str | None:
-    """Return a committed design profile id for the plan's document_type, or None."""
+#: Document types written in the named report look (``from_markdown``'s), not from a profile: the
+#: report design profile is used only when the plan names it (``designProfile``). Owner, 2026-11-17.
+_REPORT_LOOK_DOCTYPES = frozenset({"보고서", "report"})
 
-    raw = _plan_document_type(plan)
-    if not raw:
-        return None
+
+def _resolve_design_profile(plan: Any) -> str | None:
+    """The committed design profile the plan is composed from, or None.
+
+    ``plan["designProfile"]`` names one outright (the user chose that form). Otherwise the plan's
+    document type picks the profile of its genre (공문, 가정통신문); a 보고서 takes no profile, it is
+    written in the report look (:func:`_write_in_named_look`).
+    """
+
     from .design import available_profiles
 
-    profile_id = _DOCTYPE_TO_PROFILE.get(raw)
-    if profile_id and profile_id in available_profiles():
+    if not isinstance(plan, Mapping):
+        return None
+    chosen = str(plan.get("designProfile") or "").strip()
+    if chosen:
+        if chosen not in available_profiles():
+            raise ValueError(
+                f"designProfile {chosen!r} is not a design profile; available: {sorted(available_profiles())}"
+            )
+        return chosen
+    raw = _plan_document_type(plan)
+    profile_id = _DOCTYPE_TO_PROFILE.get(raw) if raw else None
+    # The report profile is a form a user picks; no document type picks it. A government_report plan
+    # is written with its own style preset (create_government_report_document).
+    if profile_id and profile_id != "report" and profile_id in available_profiles():
         return profile_id
     return None
 
@@ -1137,22 +1156,83 @@ def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
                 f"profile {profile_id!r} cannot place blocks[{index}] of type "
                 f"{block_type!r}; remove metadata.document_type to use the general layout"
             )
-    for line in _gyeolmun_lines(plan):
+    official = profile_id == "official_notice"
+    blocks[:0] = [_Block(type="paragraph", role="body", text=line) for line in _dumun_lines(plan, official=official)]
+    for line in _gyeolmun_lines(plan, official=official):
         emit(_Block(type="paragraph", role="body", text=line))
     if pending_break:
         # A trailing page break still opens a new (empty) page, as in the general layout.
         emit(_Block(type="paragraph", role="body", text=""))
-    design_plan = _DesignPlan(profile=profile_id, title=str(plan.get("title") or ""), blocks=blocks)
+    title = _shown_title(
+        str(plan.get("title") or ""),
+        (str(raw.get("text") or "") for raw in plan.get("blocks") or [] if isinstance(raw, Mapping)),
+    )
+    design_plan = _DesignPlan(profile=profile_id, title=title, blocks=blocks)
     return design_plan, memos
 
 
-def _gyeolmun_lines(plan: Mapping[str, Any]) -> list[str]:
-    gyeolmun = plan.get("gyeolmun")
-    if not isinstance(gyeolmun, Mapping):
+def _shown_title(title: str, block_texts: Iterable[str]) -> str:
+    """The plan title to print above the blocks, or ``""`` when a block already prints it: as it is,
+    or as a 기안문's ``제목  <title>`` line (compose_official_draft), which is where a 공문 shows it."""
+
+    wanted = "".join(title.split())
+    if not wanted:
+        return ""
+    for text in block_texts:
+        compact = "".join(text.split())
+        if compact == wanted or compact == "제목" + wanted:
+            return ""
+    return title
+
+
+#: metadata keys a 공문 plan may give its 두문·결문 in, by the field they fill.
+_DUMUN_METADATA = (("수신", ("수신", "수신자", "recipient")), ("(경유)", ("경유", "via")))
+_GYEOLMUN_METADATA = {
+    "issuer": ("발신명의", "발신", "sender", "issuer"),
+    "productionNumber": ("생산등록번호", "productionNumber"),
+    "enforcementDate": ("시행", "시행일", "enforcementDate"),
+    "disclosure": ("공개구분", "공개 구분", "disclosure"),
+}
+
+
+def _plan_metadata(plan: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata = plan.get("metadata")
+    return metadata if isinstance(metadata, Mapping) else {}
+
+
+def _dumun_lines(plan: Mapping[str, Any], *, official: bool) -> list[str]:
+    """``수신  …``/``(경유)  …`` from a 공문 (*official*) plan's metadata, unless a block already
+    starts with it."""
+
+    if not official:
         return []
-    return [
-        f"{label}  {gyeolmun[key]}" for key, label in _GYEOLMUN_FIELDS if gyeolmun.get(key)
+    metadata = _plan_metadata(plan)
+    written = [
+        "".join(str(raw.get("text") or "").split())
+        for raw in plan.get("blocks") or []
+        if isinstance(raw, Mapping)
     ]
+    lines: list[str] = []
+    for label, keys in _DUMUN_METADATA:
+        value = next((str(metadata[key]).strip() for key in keys if str(metadata.get(key) or "").strip()), "")
+        bare = label.strip("()")
+        if value and not any(text.startswith(label) or text.startswith(bare) for text in written):
+            lines.append(f"{label}  {value}")
+    return lines
+
+
+def _gyeolmun_lines(plan: Mapping[str, Any], *, official: bool = False) -> list[str]:
+    """The 결문 lines of ``plan["gyeolmun"]``; for a 공문 (*official*) a field it leaves out is taken
+    from ``metadata`` (``발신명의``/``발신``, ``시행``, ``공개구분`` ...)."""
+
+    gyeolmun = plan.get("gyeolmun")
+    values = dict(gyeolmun) if isinstance(gyeolmun, Mapping) else {}
+    if official:
+        metadata = _plan_metadata(plan)
+        for field_name, keys in _GYEOLMUN_METADATA.items():
+            if not values.get(field_name):
+                values[field_name] = next((metadata[key] for key in keys if metadata.get(key)), "")
+    return [f"{label}  {values[key]}" for key, label in _GYEOLMUN_FIELDS if values.get(key)]
 
 
 def _bridge_table_block(raw: Mapping[str, Any], block_type: Any) -> Any:
@@ -1170,7 +1250,9 @@ def _bridge_table_block(raw: Mapping[str, Any], block_type: Any) -> Any:
     else:
         columns = [str(c) for c in raw_cols]
         rows = [[str(c) for c in row] for row in (raw.get("rows") or [])]
-    return block_type(type="table", role="info", columns=columns, rows=rows)
+    return block_type(
+        type="table", role="info", columns=columns, rows=rows, show_header=raw.get("showHeader") is not False
+    )
 
 
 def _attach_profile_memos(document: HwpxDocument, memos: Sequence[tuple[str, str]]) -> None:
@@ -1261,24 +1343,26 @@ def create_document_from_plan(
 ) -> HwpxDocument:
     """Create a formatted HWPX document from a declarative document plan."""
 
+    return _create_document_from_plan(plan, preset=preset, notices=None)
+
+
+def _create_document_from_plan(
+    plan: Mapping[str, Any] | DocumentPlan,
+    *,
+    preset: str | DocumentStylePreset | None,
+    notices: list[str] | None,
+) -> HwpxDocument:
+    """:func:`create_document_from_plan`; *notices*, a list, receives what the document was made
+    differently from the plan asked (a design profile with no fitting table fragment writes the
+    table as a plain table). The MCP tool reports them as ``warnings``."""
+
     if isinstance(plan, Mapping):
         profile_id = _resolve_design_profile(plan)
+        looked = _write_in_named_look(plan, profile_id, notices)
+        if looked is not None:
+            return looked
         if profile_id is not None:
-            from .design import compose_bytes
-
-            design_plan, memos = _bridge_to_design_plan(plan, profile_id)
-            data, result = compose_bytes(design_plan, production=True)
-            if not result.ok:
-                raise ValueError(
-                    f"profile compose failed for {profile_id!r}: {result.errors}"
-                )
-            document = HwpxDocument.open(data)
-            try:
-                _attach_profile_memos(document, memos)
-            except Exception:
-                document.close()
-                raise
-            return document
+            return _compose_from_profile(plan, profile_id, notices)
 
     normalized = normalize_document_plan(plan)
     if normalized.builder_document is not None:
@@ -1300,9 +1384,10 @@ def create_document_from_plan(
     tokens = style_preset.ensure_tokens(document)
     builder_document = _lower_plan_to_builder_document(normalized)
 
-    if normalized.title:
+    title = _shown_title(normalized.title, (str(block.data.get("text") or "") for block in normalized.blocks))
+    if title:
         paragraph = document.add_paragraph(
-            normalized.title,
+            title,
             char_pr_id_ref=tokens["title"],
             inherit_style=False,
         )
@@ -1343,6 +1428,60 @@ def create_document_from_plan(
     for block in builder_document.sections[0].children:
         _render_block(document, block, tokens, style_preset=style_preset)
 
+    return document
+
+
+def _write_in_named_look(
+    plan: Mapping[str, Any], profile_id: str | None, notices: list[str] | None
+) -> HwpxDocument | None:
+    """A plan that asks for a named Markdown look (``plan["look"]``, which
+    ``markdown_to_document_plan`` sets to ``"report"``), or whose document type is 보고서, is
+    written by ``from_markdown`` in that look, unless it is composed from a design profile (its
+    genre's, 공문 or 가정통신문, or one it names in ``designProfile``). ``None``: the plan goes the
+    profile or general way."""
+
+    from ...markdown_plan import LOOKS, plan_to_markdown
+
+    look = plan.get("look") or ("report" if _plan_document_type(plan) in _REPORT_LOOK_DOCTYPES else None)
+    if look not in LOOKS or profile_id is not None:
+        return None
+    markdown = plan_to_markdown(plan)
+    if markdown is None:
+        if notices is not None:
+            notices.append(
+                f"LOOK_NOT_APPLIED: 계획에 '{look}' 모양이 담지 못하는 블록(쪽 나눔·메모·색·칸 서식)이 있어 "
+                "일반 꼴로 지음"
+            )
+        return None
+    from ...markdown import from_markdown
+
+    metadata = plan.get("metadata")
+    byline = str(metadata.get("byline") or "").strip() if isinstance(metadata, Mapping) else ""
+    return from_markdown(markdown, style=str(look), byline=byline or None)
+
+
+def _compose_from_profile(
+    plan: Mapping[str, Any], profile_id: str, notices: list[str] | None
+) -> HwpxDocument:
+    from .design import compose_bytes
+    from .design.composer import TABLE_FALLBACK_NOTICE
+
+    design_plan, memos = _bridge_to_design_plan(plan, profile_id)
+    data, result = compose_bytes(design_plan, production=True)
+    if not result.ok:
+        raise ValueError(f"profile compose failed for {profile_id!r}: {result.errors}")
+    if notices is not None:
+        notices.extend(
+            warning
+            for warning in result.warnings
+            if warning.startswith(TABLE_FALLBACK_NOTICE) or warning.startswith("table column-count")
+        )
+    document = HwpxDocument.open(data)
+    try:
+        _attach_profile_memos(document, memos)
+    except Exception:
+        document.close()
+        raise
     return document
 
 
@@ -1446,7 +1585,9 @@ def inspect_document_authoring_quality(
             package_ok=bool(getattr(package_report, "ok", False)),
             document_ok=bool(getattr(document_report, "ok", False)),
             reopened=reopened,
-            non_empty_paragraph_count=len(non_empty_texts),
+            # Text in table cells counts too: a title banner, a boxed section heading or a
+            # nameplate sheet holds its paragraphs in a table.
+            non_empty_paragraph_count=len(non_empty_texts) + _non_empty_cell_paragraphs(document),
             table_count=table_count,
             full_text=full_text,
         )
@@ -2729,6 +2870,45 @@ def _add_rich_runs(
         paragraph.add_run(str(run.text or ""), char_pr_id_ref=char_pr_id)
 
 
+def _render_heading(
+    document: HwpxDocument,
+    block: Any,
+    tokens: Mapping[str, str],
+    *,
+    style_preset: DocumentStylePreset,
+) -> None:
+    refs = dict(_outline_style_refs(document, block.level))
+    # Core 7.0 dropped style_id_ref=; set the label only (style= would also apply shapes).
+    style_id = refs.pop("style_id_ref", None)
+    if "para_pr_id_ref" in refs and _heading_has_own_number(block.text):
+        # The outline shape draws Hancom's number ("1.", "가." ...) before the text; a heading that
+        # starts with the writer's own number would show two. The writer's number stays, as the
+        # design profiles and from_markdown keep it, and this heading's shape draws none.
+        refs["para_pr_id_ref"] = int(
+            document.styles.ensure_paragraph_format(
+                base_para_pr_id_ref=refs["para_pr_id_ref"],
+                heading={"type": "NONE", "idRef": "0", "level": "0"},
+            )
+        )
+    paragraph = document.add_paragraph(
+        block.text,
+        char_pr_id_ref=tokens["heading"],
+        inherit_style=False,
+        **cast(Any, refs),
+    )
+    if style_id is not None:
+        paragraph.style_id_ref = style_id
+    _format_para(
+        document,
+        paragraph,
+        line_spacing=150,
+        before_pt=14,
+        after_pt=4,
+        bottom_border=style_preset.heading_rule,
+        border_color=style_preset.rule_color,
+    )
+
+
 def _render_block(
     document: HwpxDocument,
     block: Any,
@@ -2737,26 +2917,7 @@ def _render_block(
     style_preset: DocumentStylePreset,
 ) -> None:
     if isinstance(block, BuilderHeading):
-        refs = dict(_outline_style_refs(document, block.level))
-        # Core 7.0 dropped style_id_ref=; set the label only (style= would also apply shapes).
-        style_id = refs.pop("style_id_ref", None)
-        paragraph = document.add_paragraph(
-            block.text,
-            char_pr_id_ref=tokens["heading"],
-            inherit_style=False,
-            **cast(Any, refs),
-        )
-        if style_id is not None:
-            paragraph.style_id_ref = style_id
-        _format_para(
-            document,
-            paragraph,
-            line_spacing=150,
-            before_pt=14,
-            after_pt=4,
-            bottom_border=style_preset.heading_rule,
-            border_color=style_preset.rule_color,
-        )
+        _render_heading(document, block, tokens, style_preset=style_preset)
         return
     if isinstance(block, BuilderParagraph):
         style = str(block.style or "body")
@@ -2792,10 +2953,12 @@ def _render_block(
         )
         return
     if isinstance(block, BuilderBullet):
+        bullet_shape = bullet_paragraph_shape(document)
         for item in block.items:
             paragraph = document.add_paragraph(
-                f"• {item}",
+                str(item),
                 char_pr_id_ref=tokens["bullet"],
+                para_pr_id_ref=bullet_shape,
                 inherit_style=False,
             )
             _format_para(document, paragraph, line_spacing=150, after_pt=2)
@@ -2815,6 +2978,24 @@ def _render_block(
         document.add_paragraph("", inherit_style=False).page_break = True
         return
     raise ValueError(f"unsupported builder block: {type(block).__name__}")
+
+
+def bullet_paragraph_shape(document: HwpxDocument, char: str = "•") -> str:
+    """The paragraph shape of a one-level bullet list whose bullet is *char*.
+
+    The bullet is Hancom's own (a ``hh:bullet`` definition the paragraph shape's heading points to), so
+    Hancom draws it and the item's text holds no bullet character. The same definition is reused.
+    """
+
+    return document.styles.ensure_numbering(kind="bullet", levels=[{"char": char}])[0]
+
+
+def _heading_has_own_number(text: str) -> bool:
+    """Whether a heading starts with a number its writer typed (``1.``, ``가.``, ``Ⅰ``, ``(1)`` ...)."""
+
+    from ...markdown._import import _OWN_NUMBER
+
+    return bool(_OWN_NUMBER.match(text.strip()))
 
 
 def _add_key_value_table(
@@ -3663,6 +3844,15 @@ def _iter_tables(document: HwpxDocument) -> list[Any]:
     for paragraph in document.paragraphs:
         tables.extend(getattr(paragraph, "tables", []))
     return tables
+
+
+def _non_empty_cell_paragraphs(document: HwpxDocument) -> int:
+    count = 0
+    for table in _iter_tables(document):
+        for row in table.rows:
+            for cell in row.cells:
+                count += sum(1 for paragraph in cell.paragraphs if (paragraph.text or "").strip())
+    return count
 
 
 def _can_reopen(path: Path | None, package_payload: bytes) -> bool:

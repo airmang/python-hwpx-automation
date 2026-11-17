@@ -83,6 +83,7 @@ def compose(
         # first composed paragraph at the end and goes (_Placer.finish).
         carrier = section.paragraphs[0]
         placed = _Placer(carrier)
+        placed.document = doc
 
         new_paragraphs: list[Any] = []
         marked = is_marked_profile(prof.manifest)
@@ -163,14 +164,11 @@ def compose_bytes(plan: DocumentPlan | dict, **kwargs: Any) -> tuple[bytes, Comp
 
 #: The ids the copied fragments get come from this seed, so the same plan composes to the
 #: same document (python-hwpx ``HwpxDocument.open(seed=)``).
-_COMPOSE_SEED = 0x48575058
+_COMPOSE_SEED = S.COMPOSE_SEED
 
 
 def _open_seeded(data: bytes) -> HwpxDocument:
-    try:
-        return HwpxDocument.open(data, seed=_COMPOSE_SEED)
-    except TypeError:  # a python-hwpx 7.0 development build before seed= on open (#775)
-        return HwpxDocument.open(data)
+    return S.open_seeded(data, _COMPOSE_SEED)  # type: ignore[return-value]
 
 
 def _default_policy() -> QualityPolicy:
@@ -197,6 +195,7 @@ class _Placer:
         self._carrier = carrier
         self._last = carrier
         self._first: Any | None = None
+        self.document: Any = None
 
     def copy(self, paragraphs: list[Any]) -> list[Any]:
         copies: list[Any] = []
@@ -220,6 +219,8 @@ class _Placer:
         text = next((run for run in runs if run.text), None)
         if settings is not None and text is not None and settings != text and not settings.text:
             settings.char_pr_id_ref = text.char_pr_id_ref
+        S.ensure_section_columns(self.document, self._first)
+
 
 
 def _fragment_for(
@@ -231,11 +232,27 @@ def _fragment_for(
     warnings: list[str],
 ) -> list[Any]:
     if block.type == "table":
+        width = len(block.columns) or max((len(row) for row in block.rows), default=0)
+        reason = ""
         if not prof.has_role("info_table"):
-            _forbid_fallback(production, f"profile {prof.id!r} has no info_table fragment", warnings)
-            return []
+            reason = f"'{prof.id}' 프로필에 표 조각이 없어 기본 표로 지음"
+        elif width != (grid := _fragment_table_columns(prof, fragments_doc)):
+            # More columns would be cut off, fewer would leave blank columns in the grid.
+            reason = f"'{prof.id}' 프로필의 표 조각은 {grid}칸이고 계획의 표는 {width}칸이라 기본 표로 지음"
+        if reason:
+            # The plan's table is written whole as a plain table in the profile's body paragraph,
+            # never cut down to the fragment's grid; the result says so.
+            if not prof.has_role("body"):
+                _forbid_fallback(production, f"profile {prof.id!r} has no table or body fragment", warnings)
+                return []
+            warnings.append(f"{TABLE_FALLBACK_NOTICE}: {reason}")
+            copies = placer.copy(prof.fragment_paragraphs(fragments_doc, "body"))
+            _plain_table(copies[0], block, prof, placer.document)
+            return copies[:1]
         copies = placer.copy(prof.fragment_paragraphs(fragments_doc, "info_table"))
         _fill_table(copies[0], block.columns, block.rows, prof.id, warnings, production)
+        if not block.show_header and len(list(copies[0].tables[0].rows)) > 1:
+            copies[0].tables[0].delete_rows([0])
         return copies
 
     role = block.role if prof.has_role(block.role) else "body"
@@ -296,6 +313,54 @@ def _forbid_fallback(production: bool, message: str, warnings: list[str]) -> Non
     if production:
         raise ProfileRequiredError("PROFILE_REQUIRED: " + message)
     warnings.append("debug fallback: " + message)
+
+
+#: Starts the warning that a plan table was written as a plain table (no fitting table fragment).
+TABLE_FALLBACK_NOTICE = "PROFILE_TABLE_FALLBACK"
+_PLAIN_TABLE_BORDER = "#000000"
+_PLAIN_TABLE_HEADER_FILL = "#F2F2F2"
+
+
+def _fragment_table_columns(prof: Profile, fragments_doc: Any) -> int:
+    paragraphs = prof.fragment_paragraphs(fragments_doc, "info_table")
+    tables = list(paragraphs[0].tables) if paragraphs else []
+    if not tables or not tables[0].rows:
+        return 0
+    return len(tables[0].rows[0].cells)
+
+
+def _plain_table(host: Any, block: Block, prof: Profile, document: HwpxDocument) -> None:
+    """Write *block* as a plain table (thin black lines, a shaded header row unless the plan hides
+    it) in *host*, a copy of the profile's body paragraph, as wide as the page's text."""
+
+    host.text = ""
+    runs = list(host.runs)
+    char_pr = runs[0].char_pr_id_ref if runs else None
+    columns = list(block.columns) or [""] * max((len(row) for row in block.rows), default=1)
+    rows = ([columns] if block.show_header else []) + [list(row) for row in block.rows]
+    if not rows:
+        rows = [columns]
+    page = prof.manifest.get("page") or {}
+    margins = page.get("margins") or {}
+    width = int(page.get("width") or 59528) - int(margins.get("left") or 0) - int(margins.get("right") or 0)
+    # The table sits alone on a line of its own: the body paragraph's indents (a hanging first line, a
+    # left margin) do not apply to it. Its shape keeps the rest of the body paragraph's.
+    host.para_pr_id_ref = document.styles.ensure_paragraph_format(
+        base_para_pr_id_ref=host.para_pr_id_ref, margins={"left": 0, "right": 0, "intent": 0}
+    )
+    line = document.styles.ensure_border_fill(border_color=_PLAIN_TABLE_BORDER, border_width_mm=0.12)
+    table = host.add_table(len(rows), len(columns), width=width, border_fill_id_ref=line, char_pr_id_ref=char_pr)
+    for row_index, values in enumerate(rows):
+        for col_index in range(len(columns)):
+            value = values[col_index] if col_index < len(values) else ""
+            table.cell(row_index, col_index).text = S.clean_text(str(value))
+    if block.show_header:
+        shaded = document.styles.ensure_border_fill(
+            border_color=_PLAIN_TABLE_BORDER, border_width_mm=0.12, fill_color=_PLAIN_TABLE_HEADER_FILL
+        )
+        for col_index in range(len(columns)):
+            table.cell(0, col_index).border_fill_id_ref = shaded
+        table.mark_dirty()
 
 
 # --------------------------------------------------------------------------- #
