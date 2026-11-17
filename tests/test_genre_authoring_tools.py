@@ -222,3 +222,29 @@ def test_boxed_org_chart_says_when_labels_cannot_fit(tmp_path: Path) -> None:
     doc.close()
     assert summary["fits"] is False
     assert "들지 않습니다" in summary["warnings"][0]
+
+
+def test_boxed_org_chart_levels_share_a_size_and_parents_widen_for_their_names() -> None:
+    """8.0 16차 (Hancom pictures): one level's boxes were set in different sizes, a long leaf name
+    wrapped one letter onto a line of its own, and the top box was a leaf's width, its second line
+    wrapped."""
+
+    from hwpx_automation.office.house_style.org_chart import _column_widths, _layout_labels, _split_even
+
+    tree = {"label": "관장", "sublabel": "가상시 평생학습관", "children": [
+        {"label": "운영지원과", "children": [{"label": "총무팀"}, {"label": "시설팀"}]},
+        {"label": "교육사업과", "children": [{"label": "인문팀"}, {"label": "디지털팀"}, {"label": "생활문화팀"}]},
+        {"label": "자료정보과", "children": [{"label": "자료팀"}, {"label": "열람팀"}]},
+    ]}
+    spec = compose_boxed_org_chart(tree)
+    layout = _layout_labels(spec, _column_widths(spec, 42520))
+    by_level: dict[int, set[float]] = {}
+    for box, placed in zip(spec.boxes, layout):
+        by_level.setdefault(box.level, set()).add(placed.size)
+        assert len(placed.name_lines) == 1 and len(placed.sub_lines) <= 1, (box.label, placed)
+    assert all(len(sizes) == 1 for sizes in by_level.values())
+    root = layout[0]
+    assert root.size > root.sub_size and root.col_end - root.col_start > spec.boxes[0].col_end - spec.boxes[0].col_start
+    # A name broken into lines is broken evenly, never one letter alone.
+    assert _split_even("생활문화팀", 2) == ("생활문", "화팀")
+    assert _split_even("가상시 평생 학습관", 2) == ("가상시", "평생 학습관")
