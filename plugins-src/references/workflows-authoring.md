@@ -4,7 +4,21 @@
 
 **핵심 도구:** `create_document_from_plan(filename, document_plan, verify_render=False)`.
 
-`document_plan.metadata.document_type` 가 **공문 / 보고서 / 가정통신문** 이면 실제 한컴-harvest 프로파일(opens-clean)로 생성됩니다. 그 외 유형은 제로베이스 빌더로 떨어집니다.
+`document_plan.metadata.document_type` 가 **공문 / 가정통신문** 이면 실제 한컴-harvest 프로파일(opens-clean)로,
+**보고서**이면 정해 둔 보고서 모양(제목 띠·번호 상자 절 제목·□ 글머리·머리 행 색 표·쪽 번호)으로 생성됩니다.
+그 외 유형은 제로베이스 빌더로 떨어집니다.
+
+> **보고서는 Markdown 길이 먼저다.** 보고서·결과 보고·일반 안내문은 Markdown으로 쓰고
+> `markdown_to_document_plan` → `create_document_from_plan`으로 지으면 정해 둔 보고서 모양이 된다
+> ([workflows-creation](workflows-creation.md) §2). 이 문서의 프로필 길은 공문·가정통신문처럼 장르
+> 양식이 있을 때, 또는 사용자가 양식을 고른 때에 쓴다.
+>
+> **양식 고르기**: 계획 최상위에 `"designProfile": "report"`(계획서 양식) · `"official_notice"` ·
+> `"home_notice"` · `"application_form"`. 주면 `document_type`·`look`보다 먼저다. 사용자가 그 양식을
+> 원한다고 말한 때만 넣는다.
+>
+> 프로필에 맞는 표 조각이 없으면(가정통신문) 표는 기본 표로 지어지고 응답 `warnings`에
+> `PROFILE_TABLE_FALLBACK`이 나온다. 사용자에게 그대로 알린다.
 
 ## 작성 루프
 
@@ -14,6 +28,10 @@
    - 두문: `blocks` 첫머리에 `{type: paragraph, text: "수신  <수신자>"}` (필요시 "(경유)").
    - 본문 마지막: `…  끝.` (붙임이 있으면 붙임 뒤).
    - 결문: `document_plan.gyeolmun = {issuer: "○○기관장", productionNumber: "처리과-번호", enforcementDate: "YYYY. M. D.", disclosure: "공개|부분공개|비공개"}`.
+   - `metadata`의 `수신`·`경유`·`발신명의`(`발신`)·`시행`·`공개구분`도 두문·결문 줄로 들어간다.
+   - **결재란·시행/접수·우편번호·전화까지 갖춘 기안문**은 `compose_official_draft`로 blocks를 만들어
+     그대로 넣는다(계획 `title`은 블록의 `제목` 줄과 같으면 한 번만 찍힌다). 구조 게이트가 실패하면
+     응답 `next_action`도 이 도구를 가리킨다.
 4. **생성:** `create_document_from_plan("out.hwpx", plan)`. 출력은 **HWPX 전용**(ODT 기안문·docx·pdf 미지원 → 거부).
 5. **응답 `quality` 확인:**
    - `gongmun_structure.structure_pass` — 공문 작성규정 **구조 hard-gate**(수신·발신명의·시행·공개구분·끝.). `false`면 빠진 요소를 보강해 재생성.

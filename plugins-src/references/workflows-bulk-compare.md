@@ -22,6 +22,8 @@ mail_merge(template_filename, data_rows=...|data_filename=..., output_dir=...,
 ```
 
 - 사전 점검: `inspect_mail_merge_placeholders(filename)`로 placeholder key를 확인한다.
+- 파일 이름: 기본값은 `001.hwpx`처럼 번호뿐이다. 명부에 이름 열이 있으면
+  `filename_pattern="{index:03d}_{이름}.hwpx"`처럼 그 열을 넣어 사용자가 파일을 찾기 쉽게 한다.
 - 확인할 응답 키: `createdCount`, `rowCount`, `rowsWithIssues`, `rows[].missingKeys`,
   `rows[].unresolvedPlaceholders`, `rows[].openSafety.ok`,
   `verification.openSafety.checkedCount`, `zip.entryCount`.
@@ -65,6 +67,8 @@ table_compute(table, value_columns=[...], operations=["subtotal", "sum", "averag
 
 - 입력: plan v2 table(`header`/`rows`), plan v1 table(`columns`/`rows`), list-of-dicts.
 - `value_columns` 생략 시 숫자 열 자동 탐지.
+- `get_table_text`로 읽은 행 목록(첫 행이 이름표)을 그대로 넣어도 된다. 첫 행은 머리 행으로 읽혀
+  계산에서 빠지고 결과 표 맨 위에 남는다. `value_columns`에 그 이름(예: `"금액(원)"`)을 써도 된다.
 - 응답 `computedTable`은 document-plan table block으로 재사용 가능. `evidence[]`에는
   operation, axis, sourceRowCount/sourceValueCount, result가 들어간다.
 

@@ -101,8 +101,8 @@ Codex 관리 런처가 시작 시 점검 간격(기본 24시간)이 지났으면
 | 생성/편집 후 레이아웃 확인 | `render_preview` self-check 루프 | [workflows-editing](references/workflows-editing.md) |
 | 한컴 없이 수식 포함 문서 스크롤 통독 검수 | `render_preview(viewer=true, screenshot="off")` | [workflows-preview](references/workflows-preview.md) |
 | 자연어 요청으로 새 문서 생성 | `validate_document_plan` → `create_document_from_plan` | [workflows-creation](references/workflows-creation.md) |
-| Markdown/비-HWPX 원본에서 HWPX 초안 생성 | `document_to_markdown` → `markdown_to_document_plan` → `create_document_from_plan` | [workflows-creation](references/workflows-creation.md) |
-| 공문·보고서·가정통신문 (유형별 한컴 양식 프로파일 + 공문 구조 hard-gate·결문 메타·맞춤법 정직보고) | `create_document_from_plan` (`metadata.document_type` + `gyeolmun`) | [workflows-authoring](references/workflows-authoring.md) |
+| **Markdown으로 보고서·일반 문서 만들기**(정해 둔 보고서 모양: 제목 띠·번호 상자 절 제목·□ 글머리·머리 행 색 표·쪽 번호) / 비-HWPX 원본에서 HWPX 초안 | (`document_to_markdown` →) `markdown_to_document_plan` → `create_document_from_plan` (계획의 `look`: 기본 `report`, 꾸밈 없이는 `plain`) | [workflows-creation](references/workflows-creation.md) |
+| 공문·가정통신문 (유형별 한컴 양식 프로파일 + 공문 구조 hard-gate·결문 메타·맞춤법 정직보고). 보고서(`document_type=보고서`)는 정해 둔 보고서 모양. 사용자가 고른 양식은 `designProfile` | `create_document_from_plan` (`metadata.document_type` + `gyeolmun`, 양식을 고르면 `designProfile`) | [workflows-authoring](references/workflows-authoring.md) |
 | 살아있는 목차(한컴이 재계산)·쪽 번호 상호참조 | `add_toc` · `add_cross_reference` · `verify_toc` | [workflows-toc](references/workflows-toc.md) |
 | 변경추적 redline 저작 (삽입/삭제/치환 + 코멘트, 사람이 한컴서 수락/거부) | `add_tracked_edit` (+ `add_memo_by_anchor`) | [workflows-redline](references/workflows-redline.md) |
 | 개인정보(PII) 탐지·마스킹 (읽기·추출 기본 마스킹, 쓰기 입력 사전 정제) | `scan_personal_info` · 읽기/추출 `mask` param | [workflows-pii](references/workflows-pii.md) |

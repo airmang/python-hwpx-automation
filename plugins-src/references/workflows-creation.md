@@ -42,14 +42,22 @@ MCP가 없으면 local Python에서 `validate_document_plan()` → `create_docum
    이 도구는 파일을 쓰지 않고 `document_plan`, `validation`, `can_create`, `warnings`를 반환한다.
 3. `ok=false`이면 `validation.issues[]`/`validation.repairHints[]`를 보고 Markdown 또는 plan을 고친다.
 4. `ok=true`이면 `create_document_from_plan(filename, document_plan)`으로 HWPX를 생성한다.
+   계획에는 `"look": "report"`가 들어 있어 **정해 둔 보고서 모양**(제목 띠, 번호 상자가 붙은 절 제목,
+   □ 글머리, 머리 행에 색이 든 표, 쪽 번호)으로 지어진다. 사용자가 꾸밈 없는 문서를 원하면
+   `look`을 `"plain"`으로 바꾼다. 작성 부서·날짜 줄은 `metadata.byline`(제목 아래 오른쪽).
+   계획 블록을 고쳐도 그 모양으로 지어진다. 쪽 나눔·메모·색 런·칸 서식을 넣으면 모양이 담지 못해
+   일반 꼴로 지어지고 응답 `warnings`에 `LOOK_NOT_APPLIED`가 나온다.
+   `metadata.document_type=보고서`여도 이 모양이다. 공문·가정통신문처럼 장르 양식이 있으면
+   `metadata.document_type`을 주어 그 프로필로 짓고, 사용자가 양식을 고르면 `designProfile`
+   ([workflows-authoring](workflows-authoring.md)).
 5. 결과는 `document_to_markdown(filename)` 또는 `get_document_text`/`get_table_text`로 readback한다.
 
 정직 라벨:
 
 - MarkItDown adapter 결과는 레이아웃 복원이 아니라 구조 읽기용 Markdown이다.
-- `markdown_to_document_plan`은 ATX heading(`#`), 문단, 불릿/번호 목록, GFM table을 보수적으로
-  `heading`/`paragraph`/`bullets`/`table` block으로 낮춘다. 번호 목록은 bullet로 바뀌며,
-  heading level 4 이상은 document-plan level 3으로 clamp될 수 있다.
+- `markdown_to_document_plan`은 보고서 모양을 짓는 Markdown 읽기와 같은 규칙으로 읽는다. 굵게(`**`)는
+  문단 runs의 bold로 남고, 기울임·코드·링크·각주는 글자로 남는다(응답 `warnings`에 적힘).
+  번호 목록은 bullet로 바뀌며, heading level 4 이상은 document-plan level 3으로 clamp될 수 있다.
 - 제출용 파일은 생성 후 기존 openSafety/visual-review evidence 계약을 그대로 따른다.
 
 ## 3. builder 조립 생성 (코드 수준 레이아웃 제어)
