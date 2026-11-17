@@ -1778,6 +1778,7 @@ def draw_table(
             text = row[col_index] if col_index < len(row) else ""
             cell = table.cell(row_index, col_index)
             write(cell.paragraphs[0], text, bool(is_header and resolved.table_header_bold), size, font)
+            _drop_blank_lead_run(cell.paragraphs[0])
             if ruled:
                 table.set_cell_border_fill(
                     row_index, col_index, _ruled_border(border, resolved, row_index, col_index, len(grid), cols, header)
@@ -1836,6 +1837,21 @@ def _pad_wrapping_rows(table: Any, grid: list[list[str]], cols: int, font_pt: fl
         if wraps:
             for col_index in range(cols):
                 table.cell(row_index, col_index).set_margins(top=WRAP_ROW_PADDING, bottom=WRAP_ROW_PADDING)
+
+
+def _drop_blank_lead_run(paragraph: Any) -> None:
+    """Remove the empty run a new cell starts with (in the document's first character shape) when
+    the cell's text was written after it. Left in, it is the run Hancom, and every tool writing into
+    the cell later, takes the cell's character shape from: text typed or set there came out in that
+    shape, not in the table's (8.0 17차: the sum written into a plugin-made table was smaller)."""
+
+    runs = list(paragraph.runs)
+    if len(runs) < 2:
+        return
+    lead = runs[0]
+    if lead.text or any(not child.tag.endswith("}t") or (child.text or len(child)) for child in lead.element):
+        return
+    lead.remove()
 
 
 def _ruled_border(

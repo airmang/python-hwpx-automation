@@ -925,3 +925,27 @@ def test_report_table_wrapping_cells_read_from_the_left_with_room_above_and_belo
         assert str(shape.alignment.horizontal).upper().endswith("LEFT")
     finally:
         doc.close()
+
+
+def test_text_set_later_in_a_report_table_cell_keeps_the_table_type(tmp_path, monkeypatch) -> None:
+    """8.0 17차 (Hancom picture of the table-total example): a sum written into a plugin-made table came
+    out smaller than its column. A new cell started with an empty run in the document's first character
+    shape, ahead of the run the table's text went into, and a later write took the first run's shape."""
+
+    import hwpx_automation.server as server
+    from hwpx import HwpxDocument
+
+    from hwpx_automation.markdown import from_markdown
+
+    source = tmp_path / "t.hwpx"
+    with from_markdown("# T\n\n| 항목 | 금액 |\n|---|---|\n| 가 | 10 |\n| 합계 |  |\n") as doc:
+        doc.save(source)
+    monkeypatch.setenv("HWPX_AUTOMATION_WORKSPACE_ROOTS", str(tmp_path))
+    write = getattr(server.set_table_cell_text, "fn", server.set_table_cell_text)
+    with HwpxDocument.open(source) as doc:
+        table_index = len([t for p in doc.paragraphs for t in p.tables]) - 1
+    write(str(source), table_index, 2, 1, "10")
+    with HwpxDocument.open(source) as doc:
+        table = [t for p in doc.paragraphs for t in p.tables][-1]
+        shapes = {run.char_pr_id_ref for row in (1, 2) for run in table.cell(row, 1).paragraphs[0].runs}
+    assert len(shapes) == 1
