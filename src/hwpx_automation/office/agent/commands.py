@@ -11,7 +11,6 @@ the normal :class:`~hwpx.quality.SavePipeline` exactly once.
 from __future__ import annotations
 
 import copy
-import hashlib
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -23,6 +22,7 @@ from hwpx.quality import SavePipeline
 
 from ._batch_publication import BatchPublication
 from ._text_scope import TextScope
+from ...upstream import content_seed
 from .catalog import catalog_hash
 from .document import HwpxAgentDocument, NodeRecord, TextRange, place
 from .model import (
@@ -1773,11 +1773,11 @@ def _result_place(view: HwpxAgentDocument, op: str, path: str, target_native: An
 
 
 def command_seed(data: bytes) -> int:
-    """The id seed a command batch opens its document with: the first 8 hex digits of the input's
-    sha256, as school's ``open_seeded`` takes it.  Same file, same commands, same bytes (the new
-    paragraphs', objects' and copies' ids come from it); the batch's order or content is not mixed in."""
+    """The id seed a command batch opens its document with: ``upstream.content_seed`` of the input
+    (the first 8 hex digits of its sha256, as school's ``open_seeded``).  Same file, same commands,
+    same bytes; the batch's order or content is not mixed in."""
 
-    return int(hashlib.sha256(data).hexdigest()[:8], 16)
+    return content_seed(data)
 
 
 def _text_only_batch_keeps_projection(text_scope: TextScope) -> bool:

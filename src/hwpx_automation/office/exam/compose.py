@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 from hwpx.document import HwpxDocument
 
+from ...upstream import open_seeded_input
+
 from ..form_fill.fit.wordbox import (
     detect_overflow,
     extract_cell_clips,
@@ -197,7 +199,7 @@ def compose_exam_into_form(
     exam = parse_exam_markdown(exam_md)
     expected_ph = {ph.raw_text for q in exam.iter_questions() for ph in q.placeholders}
 
-    doc = HwpxDocument.open(form_path)
+    doc = open_seeded_input(form_path)
     prof = profile_form(doc, role_style_names=role_style_names)
     specs = lower_exam(exam, prof)
     anchors = replace_body_region(doc, prof, specs)

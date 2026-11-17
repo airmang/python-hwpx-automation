@@ -55,6 +55,8 @@ list item does not hand its outline or list numbering to the paragraph after it.
 
 from __future__ import annotations
 
+import hashlib
+
 import os
 import re
 import warnings
@@ -2197,7 +2199,11 @@ def from_markdown(
 
     _check_markdown(markdown, "from_markdown")
     resolved = _resolve_style(style, "report")
-    document = HwpxDocument.new(inherit_style=False)
+    # The ids come from the Markdown text: the same text writes the same bytes. The seed is
+    # ``upstream.request_seed(markdown)``, written out here: the markdown package imports nothing
+    # else of hwpx_automation (upstream itself imports it for export).
+    seed = int(hashlib.sha256(markdown.encode("utf-8")).hexdigest()[:8], 16)
+    document = HwpxDocument.new(inherit_style=False, seed=seed)
     _unnumber_outline(document)
     if resolved.page_margins_mm:  # before the text: tables are made as wide as the text
         left, right, top, bottom, *edges = resolved.page_margins_mm

@@ -8,8 +8,11 @@ of the codebase has fewer direct dependencies on internal upstream details.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from copy import deepcopy
 from os import PathLike
+from pathlib import Path
 from typing import Any, Iterable, Literal
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
@@ -56,8 +59,58 @@ _DEFAULT_CHAR_HEIGHT = "1000"
 _PATHOLOGICAL_CHAR_SPACING_LIMIT = -40
 
 
+def content_seed(data: bytes) -> int:
+    """The id seed of a document made from *data*: the first 8 hex digits of its sha256.
+
+    Every path that rewrites a given file opens it with this seed (python-hwpx ``open(seed=)``), so
+    the same file and the same request write the same bytes: the paragraphs, objects and copies
+    made on the way get the same ids. Only ids follow it; the clock (``now=``) is left alone.
+    """
+
+    return int(hashlib.sha256(data).hexdigest()[:8], 16)
+
+
+def source_seed(source: object) -> int | None:
+    """:func:`content_seed` of what *source* holds (bytes, a file path, a stream's value); None
+    for anything else (an opened package), which then opens as before."""
+
+    if isinstance(source, (bytes, bytearray)):
+        return content_seed(bytes(source))
+    if isinstance(source, (str, PathLike)):
+        path = Path(source)
+        return content_seed(path.read_bytes()) if path.is_file() else None
+    getvalue = getattr(source, "getvalue", None)
+    if callable(getvalue):
+        value = getvalue()
+        if isinstance(value, (bytes, bytearray)):
+            return content_seed(bytes(value))
+    return None
+
+
+def request_seed(request: object) -> int:
+    """:func:`content_seed` of a request with no input file (a plan, a Markdown text, a spec):
+    its canonical JSON (sorted keys; a value JSON cannot hold is written as its ``repr``)."""
+
+    if isinstance(request, str):
+        data = request.encode("utf-8")
+    else:
+        data = json.dumps(
+            request, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=repr
+        ).encode("utf-8")
+    return content_seed(data)
+
+
+def open_seeded_input(source: str | PathLike[str] | Any) -> HwpxDocument:
+    """``HwpxDocument.open`` of an input to rewrite, seeded from its bytes (:func:`source_seed`)."""
+
+    seed = source_seed(source)
+    if seed is None:
+        return HwpxDocument.open(source)
+    return HwpxDocument.open(source, seed=seed)
+
+
 def open_document(source: str | PathLike[str] | Any) -> HwpxDocument:
-    return HwpxDocument.open(source)
+    return open_seeded_input(source)
 
 
 # HWP 5.0 (.hwp) files are OLE2 compound files; HWPX files are ZIP packages.
@@ -113,8 +166,13 @@ def hwpx_view_bytes(source: str | PathLike[str] | bytes) -> bytes:
         document.close()
 
 
-def new_document() -> HwpxDocument:
-    return HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
+def new_document(*, seed: int | None = None) -> HwpxDocument:
+    """A new document (6.x layout: core 7.0 changed the default first line). With *seed*
+    (:func:`request_seed` of the request) the ids it gets are the same each time."""
+
+    if seed is None:
+        return HwpxDocument.new(empty_first_line=True)
+    return HwpxDocument.new(empty_first_line=True, seed=seed)
 
 
 def blank_document_template_bytes() -> bytes:

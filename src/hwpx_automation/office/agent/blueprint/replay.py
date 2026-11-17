@@ -16,6 +16,7 @@ from hwpx.quality import SavePipeline
 from hwpx.tools.package_validator import validate_editor_open_safety
 
 from ..catalog import blueprint_agent_catalog_hash as catalog_hash
+from ....upstream import content_seed
 from ..commands import _error_from_exception, _member_diff, _quality_policy, _record_for_native, _revision
 from ..document import HwpxAgentDocument
 from ..model import AgentContractError
@@ -503,7 +504,7 @@ def _run_replay(
 
     input_path, input_data, output_path = _replay_load_target(normalized, state, fault_injector)
 
-    with HwpxDocument.open(input_data) as document:
+    with HwpxDocument.open(input_data, seed=content_seed(input_data)) as document:
         view = HwpxAgentDocument.from_document(document, revision=state.input_revision)
         parent = view.resolve_record(
             str(normalized["targetParent"]),

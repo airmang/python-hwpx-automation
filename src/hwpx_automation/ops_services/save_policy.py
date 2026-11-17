@@ -27,10 +27,7 @@ from ..core.transactions import (
     rotated_backup_path,
     semantic_diff,
 )
-from ..upstream import (
-    HwpxDocument,
-    new_document,
-)
+from ..upstream import HwpxDocument, new_document, request_seed
 
 from .context import DocumentContext
 
@@ -618,7 +615,7 @@ class SavePolicy:
         }
 
     def make_blank(self, out: str) -> Dict[str, Any]:
-        document = new_document()
+        document = new_document(seed=request_seed("make_blank"))
         out_path = self._context._resolve_output_path(out)
         verification_report = self._save_document(document, out_path)
         return {"outPath": str(out_path), "verificationReport": verification_report}
