@@ -208,9 +208,18 @@ class _Placer:
         return copies
 
     def finish(self) -> None:
-        if self._first is not None:
-            self._first.move_before(self._carrier)
-            self._carrier.remove()
+        if self._first is None:
+            return
+        self._first.move_before(self._carrier)
+        self._carrier.remove()
+        # Hancom keeps a section's settings in a run of their own at the start of the first paragraph,
+        # in the character shape of the text that follows (python-hwpx tests/fixtures/hancom_saved: in
+        # all 188 first paragraphs with text, 177 of them in the text's shape).
+        runs = list(self._first.runs)
+        settings = next((run for run in runs if any(item.kind == "section_properties" for item in run.content)), None)
+        text = next((run for run in runs if run.text), None)
+        if settings is not None and text is not None and settings != text and not settings.text:
+            settings.char_pr_id_ref = text.char_pr_id_ref
 
 
 def _fragment_for(
