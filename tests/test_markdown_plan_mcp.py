@@ -62,6 +62,29 @@ def test_markdown_to_document_plan_warns_for_lossy_markdown_shapes() -> None:
     assert any("Ordered Markdown lists" in warning for warning in result["warnings"])
 
 
+def test_markdown_to_document_plan_reads_inline_marks_like_from_markdown() -> None:
+    result = server.markdown_to_document_plan(
+        "# Notes\n\nPlain **bold part** and *slanted* `code` [site](https://example.org).\n\n"
+        "- item with **bold**\n"
+    )
+
+    blocks = result["document_plan"]["blocks"]
+    assert blocks[0] == {
+        "type": "paragraph",
+        "text": "Plain bold part and slanted code site(https://example.org).",
+        "runs": [
+            {"text": "Plain "},
+            {"text": "bold part", "bold": True},
+            {"text": " and slanted code site(https://example.org)."},
+        ],
+    }
+    assert blocks[1] == {"type": "bullets", "items": ["item with bold"]}
+    assert not any("**" in str(block) for block in blocks)
+    warnings = " ".join(result["warnings"])
+    assert "italic" in warnings and "inline code" in warnings and "links" in warnings
+    assert "list item" in warnings
+
+
 def test_markdown_document_plan_can_create_hwpx(tmp_path: Path) -> None:
     target = tmp_path / "from_markdown.hwpx"
     result = server.markdown_to_document_plan(
