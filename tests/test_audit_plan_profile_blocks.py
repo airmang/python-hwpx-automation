@@ -236,3 +236,19 @@ def test_composed_first_paragraph_keeps_a_column_definition(tmp_path: Path, doc_
     first_run = root.find(_HP + "p").find(_HP + "run")
     assert [child.tag for child in first_run][:2] == [_HP + "secPr", _HP + "ctrl"]
     assert first_run[1][0].tag == _HP + "colPr"
+
+
+def test_plain_table_sits_on_a_line_without_the_body_indents(tmp_path: Path) -> None:
+    """The 공문 body paragraph hangs its first line (intent -1384): a plain table put in a copy of it
+    crashed the native preview and drew wrongly in Hancom (8.0 14차). Its line has no indents."""
+
+    plan = {"schemaVersion": "hwpx.document_plan.v1", "title": "T", "metadata": {"document_type": "공문"},
+            "blocks": [{"type": "table", "showHeader": False,
+                        "columns": [{"key": "a", "label": "a"}, {"key": "b", "label": "b"}],
+                        "rows": [{"a": "1", "b": "2"}]}]}
+    target = tmp_path / "indent.hwpx"
+    create_document_from_plan(str(target), plan)
+    with HwpxDocument.open(str(target)) as doc:
+        host = next(paragraph for paragraph in doc.paragraphs if paragraph.tables)
+        margin = doc.styles.paragraph_property(host.para_pr_id_ref).margin
+        assert (int(margin.left), int(margin.right), int(margin.intent)) == (0, 0, 0)

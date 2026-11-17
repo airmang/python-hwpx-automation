@@ -343,10 +343,11 @@ def _plain_table(host: Any, block: Block, prof: Profile, document: HwpxDocument)
     page = prof.manifest.get("page") or {}
     margins = page.get("margins") or {}
     width = int(page.get("width") or 59528) - int(margins.get("left") or 0) - int(margins.get("right") or 0)
-    shape = document.styles.paragraph_property(host.para_pr_id_ref)
-    indent = getattr(shape, "margin", None)
-    if indent is not None:  # the host paragraph's own left/right margins narrow the line the table sits on
-        width -= max(int(indent.left or 0), 0) + max(int(indent.right or 0), 0)
+    # The table sits alone on a line of its own: the body paragraph's indents (a hanging first line, a
+    # left margin) do not apply to it. Its shape keeps the rest of the body paragraph's.
+    host.para_pr_id_ref = document.styles.ensure_paragraph_format(
+        base_para_pr_id_ref=host.para_pr_id_ref, margins={"left": 0, "right": 0, "intent": 0}
+    )
     line = document.styles.ensure_border_fill(border_color=_PLAIN_TABLE_BORDER, border_width_mm=0.12)
     table = host.add_table(len(rows), len(columns), width=width, border_fill_id_ref=line, char_pr_id_ref=char_pr)
     for row_index, values in enumerate(rows):
