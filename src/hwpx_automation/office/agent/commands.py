@@ -569,8 +569,8 @@ def _table_caption(table: Any, value: str) -> None:
             run.text = ""
     for paragraph in caption.paragraphs:
         # The setters clear the cache only when the text changed; a caption is
-        # rewritten here on request, so never leave a cache behind it.
-        _drop_layout_cache(paragraph.element)
+        # rewritten here on request, so never leave a cache behind it (nor in the paragraph holding the table).
+        paragraph.clear_layout_cache()
     table.mark_dirty()
 
 
@@ -775,11 +775,14 @@ def _apply_set_table(native: Any, properties: Mapping[str, Any], record: NodeRec
     if "caption" in properties:
         _table_caption(native, properties["caption"])
     if "alignment" in properties:
-        pos = next((child for child in native.element if _local_name(child) == "pos"), None)
-        if pos is None:
-            raise AgentContractError("unsupported_content", "table has no position element", target=record.path)
-        pos.set("horzAlign", properties["alignment"].upper())
-        native.mark_dirty()
+        try:
+            native.set_position(horizontal_alignment=properties["alignment"].upper())
+        except ValueError as exc:  # python-hwpx's HwpxValueError
+            if getattr(exc, "code", None) == "shape-position-unsupported":
+                raise AgentContractError(
+                    "unsupported_content", "table has no position element", target=record.path
+                ) from exc
+            raise
 
 
 def _apply_set_row(native: Any, properties: Mapping[str, Any]) -> None:
@@ -792,11 +795,10 @@ def _apply_set_cell(native: Any, properties: Mapping[str, Any], record: NodeReco
     if "text" in properties:
         native.text = properties["text"]
     if "verticalAlignment" in properties:
-        sublist = next((child for child in native.element if _local_name(child) == "subList"), None)
-        if sublist is None:
+        if not native.paragraphs:  # a cell without hp:subList: refused as before (the setter would add one)
             raise AgentContractError("unsupported_content", "cell has no subList", target=record.path)
-        sublist.set("vertAlign", properties["verticalAlignment"].upper())
-        native.table.mark_dirty()
+        native.vertical_alignment = properties["verticalAlignment"].upper()
+        native.table.mark_dirty()  # as before: the section is written again even when the value was already set
     if "backgroundColor" in properties:
         row, column = native.address
         native.table.set_cell_shading(row, column, properties["backgroundColor"])
@@ -974,7 +976,7 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
         native.remove()
         paragraph.clear_layout_cache()
     elif record.kind == "table":
-        _remove_inline_element(native.element, native.paragraph)
+        native.remove(remove_orphaned=False)
     elif record.kind == "row":
         table = native.table
         if len(table.rows) <= 1:
@@ -983,7 +985,7 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
             raise AgentContractError(
                 "unsupported_content", "row removal with vertical merges is unsupported", target=record.path
             )
-        table.element.remove(native.element)
+        table.delete_rows(table.rows.index(native))
         _refresh_table_rows(table)
     elif record.kind == "picture":
         parent = _element(record.native).getparent()
@@ -993,11 +995,11 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
         _drop_layout_cache(_paragraph_element_of(parent))
         _mark_containing_section(document, parent)
     elif record.kind == "shape":
-        _remove_inline_element(native.element, native.paragraph)
+        native.remove(remove_orphaned=False)
     elif record.kind == "memo":
         native.remove()
     elif record.kind in {"footnote", "endnote"}:
-        _remove_inline_element(native.element, native.paragraph)
+        native.remove()
     else:
         raise AgentContractError(
             "unsupported_operation", f"remove is unsupported for {record.kind}", target=record.path

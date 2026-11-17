@@ -333,9 +333,8 @@ class TypedNativeBridge:
         _move_to_host_run(paragraph, table, host_run)
         if properties.get("caption") is not None:
             _table_caption(table, str(properties["caption"] or ""))
-        pos = _direct_child(table.element, "pos")
-        if pos is not None and properties.get("alignment"):
-            pos.set("horzAlign", str(properties["alignment"]).upper())
+        if properties.get("alignment"):  # a table paragraph.add_table makes always carries hp:pos
+            table.set_position(horizontal_alignment=str(properties["alignment"]).upper())
         self.created[node_id] = CreatedBinding("table", table)
         row_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "row"]
         if len(row_ids) != len(table.rows):
@@ -426,7 +425,7 @@ class TypedNativeBridge:
         cell.set_span(int(properties.get("rowSpan") or 1), int(properties.get("columnSpan") or 1))
         sublist = _direct_child(cell.element, "subList")
         if sublist is not None and properties.get("verticalAlignment"):
-            sublist.set("vertAlign", str(properties["verticalAlignment"]).upper())
+            cell.vertical_alignment = str(properties["verticalAlignment"]).upper()
         self.created[node_id] = CreatedBinding("cell", cell)
         paragraph_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "paragraph"]
         existing = list(cell.paragraphs)
