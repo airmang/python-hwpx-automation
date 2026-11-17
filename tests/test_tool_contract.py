@@ -170,8 +170,9 @@ def test_release_contract_versions_counts_and_hash_are_exact() -> None:
     assert len(expected_tool_names(advanced=False)) == 128
     assert len(expected_tool_names(advanced=True)) == 136
     assert len(skill_required_tool_names()) == 29
-    assert RELEASED_CONTRACT_HASH == "1b572e4ed5e410e6"
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "1b572e4ed5e410e6"
+    # 8.0 (agent-command v2, blueprint v2): docs/tool-contract-delta-8.0.0.json.
+    assert RELEASED_CONTRACT_HASH == "c895883d5f4350ae"
+    assert contract_hash() == RELEASED_CONTRACT_HASH == "c895883d5f4350ae"
     assert REMOVED_PRACTICE_TOOLS.isdisjoint(expected_tool_names(advanced=True))
 
 

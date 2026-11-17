@@ -213,17 +213,67 @@ def test_source_audit_delta_is_the_recorded_predecessor() -> None:
     assert delta["target"]["skillRequiredToolCount"] == 29
 
 
-def test_source_core_floor_7_delta_matches_live_contract() -> None:
+CORE_FLOOR_7_HASH = "1b572e4ed5e410e6"
+V8_DELTA = "tool-contract-delta-8.0.0.json"
+V8_HASH = "c895883d5f4350ae"
+
+
+def test_source_core_floor_7_delta_is_the_recorded_predecessor() -> None:
+    """The core 7.0 floor delta is history now; the 8.0 agent-command v2 delta builds on it."""
+
     delta = _load(CORE_FLOOR_7_DELTA)
-    contract = _load("tool-contract.generated.json")
     assert delta["releaseStatus"] == "unreleased-source"
     assert delta["baseline"]["contractHash"] == AUDIT_HASH
+    assert delta["target"]["contractHash"] == CORE_FLOOR_7_HASH
+    assert delta["floors"]["minPythonHwpx"] == "7.0.0"
+    assert delta["target"]["defaultToolCount"] == 128
+    assert delta["target"]["advancedToolCount"] == 136
+    assert delta["target"]["skillRequiredToolCount"] == 29
+
+
+def test_8_0_0_delta_matches_live_contract() -> None:
+    delta = _load(V8_DELTA)
+    contract = _load("tool-contract.generated.json")
+    assert delta["releaseStatus"] == "unreleased-source"
+    assert delta["baseline"]["contractHash"] == CORE_FLOOR_7_HASH
     assert delta["target"]["contractHash"] == contract["contractHash"] == contract_hash()
-    assert contract_hash() == RELEASED_CONTRACT_HASH == "1b572e4ed5e410e6"
+    assert contract_hash() == RELEASED_CONTRACT_HASH == V8_HASH
     assert contract["minPythonHwpx"] == delta["floors"]["minPythonHwpx"] == "7.0.0"
     assert delta["target"]["defaultToolCount"] == 128
     assert delta["target"]["advancedToolCount"] == 136
     assert delta["target"]["skillRequiredToolCount"] == 29
+    assert delta["delta"]["addedTools"] == delta["delta"]["removedTools"] == []
+
+
+def _without_delta(payload: dict, name: str) -> dict:
+    """The payload with exactly the recorded tool changes of delta *name* undone."""
+
+    delta = _load(name)
+    restored = copy.deepcopy(payload)
+    changed = set()
+    for section, tools in (
+        ("tools", restored["tools"]),
+        ("baselineClassification", restored["baselineClassification"]["tools"]),
+    ):
+        previous = delta["previous"][section]
+        for tool in tools:
+            fields = previous.get(tool["name"])
+            if fields:
+                assert set(fields) <= set(tool), tool["name"]
+                tool.update(copy.deepcopy(fields))
+                changed.add(tool["name"])
+    assert changed == set(delta["changedTools"])
+    return restored
+
+
+def _before_v8() -> dict:
+    """The live payload with the 8.0 agent-command v2 delta undone."""
+
+    return _without_delta(contract_payload(), V8_DELTA)
+
+
+def test_8_0_0_delta_changes_only_its_listed_tools() -> None:
+    assert _payload_hash(_before_v8()) == CORE_FLOOR_7_HASH
 
 
 def _payload_hash(payload: dict) -> str:
@@ -244,9 +294,9 @@ def _with_core_floor(payload: dict, floor: str) -> dict:
 
 
 def _before_core_floor_7() -> dict:
-    """The live payload with the core 7.0 floor delta undone."""
+    """The live payload with the 8.0 delta and the core 7.0 floor delta undone."""
 
-    return _with_core_floor(contract_payload(), "6.10.0")
+    return _with_core_floor(_before_v8(), "6.10.0")
 
 
 def test_core_floor_7_delta_changes_only_the_core_dependency_floor() -> None:

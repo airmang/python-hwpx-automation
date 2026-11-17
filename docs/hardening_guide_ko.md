@@ -18,10 +18,15 @@
 - 도구 등록, 입력·출력 스키마, health/capability 표면과 생성 문서는 하나의
   `ToolSpec` 레지스트리에서 만들어집니다. 현재 소스(`python-hwpx-automation`
   8.0.0 후보)는 기본 128개, 고급 모드 포함 136개 도구와 29개 skill-required
-  도구를 유지하며 계약 해시는 `1b572e4ed5e410e6`입니다. 최소 좌표는 core `7.0.0`,
+  도구를 유지하며 계약 해시는 `c895883d5f4350ae`입니다. 최소 좌표는 core `7.0.0`,
   automation `7.2.0`, skill `2.0.0`입니다. 이 줄의 숫자는
   `hwpx_automation.tool_contract`의 값과 같아야 하며
   `tests/test_audit_identity_docs.py`가 대조합니다.
+- 8.0에서 문서 에이전트 명령이 `hwpx.agent-command/v2`, 블루프린트가
+  `hwpx.agent-blueprint/v2`로 올랐습니다. 글은 문단의 글자 범위로, 개체·각주는 글자 자리로
+  다루고, 뜻이 바뀐 v1 꼴은 `contract_changed`로 안내합니다. v1 블루프린트는 읽어 올립니다
+  (`docs/agent-command-v2.md`, `docs/tool-contract-delta-8.0.0.json`).
+- core 7.0 바닥 소스의 `1b572e4ed5e410e6`은 8.0 명령 v2 앞의 역사적 계약입니다.
 - 2026-11 감사 소스의 `71622c28a07913d1`(최소 core `6.10.0`)는 core 바닥만 다른
   역사적 계약입니다. 도구 이름·인자·출력은 같습니다
   (`docs/tool-contract-delta-source-core-floor-7.json`).

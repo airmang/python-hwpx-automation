@@ -31,7 +31,7 @@
         "public",
         "skill-required"
       ],
-      "description": "Get one bounded HWPX semantic node by canonical path. Shared catalog sha256:e1991f8cf51f9aa5f63f2d70139f98b7d418d16c3b80519cc7bae64eee1dc5f5.\n\nHWPX agent document interface v1\n\ndocument\n  readable: title, author, sectionCount, paragraphCount, tableCount\n  editable: -\n  operations: add\nsection\n  readable: index, partId, paragraphCount, pageWidthMm, pageHeightMm\n  editable: -\n  operations: add\nparagraph\n  readable: text, style, alignment, breakBefore, keepWithNext, lineSpacingPercent\n  editable: text, style, alignment, breakBefore, keepWithNext, lineSpacingPercent\n  operations: set, add, remove, move, copy\nrun\n  readable: text, bold, italic, underline, fontName, fontSizePt, color\n  editable: text, bold, italic, underline, fontName, fontSizePt, color\n  operations: set, add, remove, copy\ntable\n  readable: rowCount, columnCount, caption, widthMm, alignment\n  editable: caption, alignment\n  operations: set, add, remove, move, copy\nrow\n  readable: index, cellCount, heightMm\n  editable: heightMm\n  operations: set, add, remove, move, copy\ncell\n  readable: text, row, column, rowSpan, columnSpan, verticalAlignment, backgroundColor\n  editable: text, verticalAlignment, backgroundColor\n  operations: set\nform-field\n  readable: name, value, fieldType, readOnly\n  editable: value, readOnly\n  operations: set\npicture\n  readable: name, altText, widthMm, heightMm, mediaType\n  editable: altText\n  operations: set, remove, move, copy\nmemo\n  readable: text, author\n  editable: text\n  operations: set, remove, copy\nfootnote\n  readable: text\n  editable: text\n  operations: set, remove, copy\nendnote\n  readable: text\n  editable: text\n  operations: set, remove, copy\nshape\n  readable: shapeType, name, altText, xMm, yMm, widthMm, heightMm\n  editable: altText\n  operations: set, remove, move, copy\nunsupported\n  readable: localName, reason\n  editable: -\n  operations: -",
+      "description": "Get one bounded HWPX semantic node by canonical path. Shared catalog sha256:3dd487702f775ce6fb0ab72b39f33ea47f9ab5bd39d164c268a7b8b9c265d372.\n\nHWPX agent document interface v2\n\ndocument\n  readable: title, author, sectionCount, paragraphCount, tableCount\n  editable: -\n  operations: add\nsection\n  readable: index, partId, paragraphCount, pageWidthMm, pageHeightMm\n  editable: -\n  operations: add\nparagraph\n  readable: text, style, alignment, breakBefore, keepWithNext, lineSpacingPercent\n  editable: text, style, alignment, breakBefore, keepWithNext, lineSpacingPercent\n  operations: set, add, remove, move, copy\nrun\n  readable: text, bold, italic, underline, fontName, fontSizePt, color\n  editable: text, bold, italic, underline, fontName, fontSizePt, color\n  operations: set\ntext\n  readable: text, start, end, runs\n  editable: text, bold, italic, underline, fontName, fontSizePt, color\n  operations: set, add, remove, move, copy\ntable\n  readable: rowCount, columnCount, caption, widthMm, alignment\n  editable: caption, alignment\n  operations: set, add, remove, move, copy\nrow\n  readable: index, cellCount, heightMm\n  editable: heightMm\n  operations: set, add, remove, move, copy\ncell\n  readable: text, row, column, rowSpan, columnSpan, verticalAlignment, backgroundColor\n  editable: text, verticalAlignment, backgroundColor\n  operations: set\nform-field\n  readable: name, value, fieldType, readOnly\n  editable: value, readOnly\n  operations: set\npicture\n  readable: name, altText, widthMm, heightMm, mediaType\n  editable: altText\n  operations: set, remove, move, copy\nmemo\n  readable: text, author\n  editable: text\n  operations: set, remove, copy\nfootnote\n  readable: text\n  editable: text\n  operations: set, add, remove, move, copy\nendnote\n  readable: text\n  editable: text\n  operations: set, add, remove, move, copy\nshape\n  readable: shapeType, name, altText, xMm, yMm, widthMm, heightMm\n  editable: altText\n  operations: set, remove, move, copy\nunsupported\n  readable: localName, reason\n  editable: -\n  operations: -",
       "signature": "(filename: 'str', path: 'str' = '/', depth: 'AgentViewDepth' = 1, child_limit: 'AgentChildLimit' = 50, expected_revision: 'AgentRevision' = None) -> 'dict'",
       "inputSchema": {
         "additionalProperties": false,
@@ -112,7 +112,7 @@
         "public",
         "skill-required"
       ],
-      "description": "Query bounded semantic nodes with selector v1 and return canonical paths. Examples: paragraph[style=\"개요 1\"]:contains(\"평가\"), section > paragraph[type=\"normal\"], table[id=\"123\"] > row > cell. Shared catalog sha256:e1991f8cf51f9aa5f63f2d70139f98b7d418d16c3b80519cc7bae64eee1dc5f5.",
+      "description": "Query bounded semantic nodes with selector v1 and return canonical paths. Examples: paragraph[style=\"개요 1\"]:contains(\"평가\"), section > paragraph[type=\"normal\"], table[id=\"123\"] > row > cell. Shared catalog sha256:3dd487702f775ce6fb0ab72b39f33ea47f9ab5bd39d164c268a7b8b9c265d372.",
       "signature": "(filename: 'str', selector: 'AgentSelector', limit: 'AgentQueryLimit' = 20, node_depth: 'AgentViewDepth' = 0, child_limit: 'AgentChildLimit' = 20, expected_revision: 'AgentRevision' = None) -> 'dict'",
       "inputSchema": {
         "additionalProperties": false,
@@ -203,7 +203,7 @@
         "mutation",
         "skill-required"
       ],
-      "description": "Apply one heterogeneous atomic HWPX command batch using only the shared set/add/remove/move/copy union; all commands commit once or roll back. Shared catalog sha256:e1991f8cf51f9aa5f63f2d70139f98b7d418d16c3b80519cc7bae64eee1dc5f5.",
+      "description": "Apply one heterogeneous atomic HWPX command batch using only the shared set/add/remove/move/copy union; all commands commit once or roll back. Shared catalog sha256:3dd487702f775ce6fb0ab72b39f33ea47f9ab5bd39d164c268a7b8b9c265d372.",
       "signature": "(filename: 'str', output: 'str', commands: 'AgentCommandList', expected_revision: 'AgentRevision' = None, idempotency_key: 'str' = None, dry_run: 'bool' = False, quality: 'str | dict[str, Any] | None' = 'transparent', verification_requirements: 'list[str] | None' = None, overwrite: 'bool' = False) -> 'dict'",
       "inputSchema": {
         "additionalProperties": false,
@@ -211,7 +211,7 @@
           "commands": {
             "items": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "HwpxAgentCommand v1",
+              "title": "HwpxAgentCommand v2",
               "oneOf": [
                 {
                   "type": "object",
@@ -237,6 +237,12 @@
                       "type": "object",
                       "minProperties": 1,
                       "maxProperties": 32
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   }
                 },
@@ -266,6 +272,7 @@
                         "section",
                         "paragraph",
                         "run",
+                        "text",
                         "table",
                         "row",
                         "cell",
@@ -284,6 +291,12 @@
                     },
                     "position": {
                       "type": "object"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   }
                 },
@@ -305,6 +318,12 @@
                     },
                     "path": {
                       "type": "string"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   }
                 },
@@ -333,6 +352,12 @@
                     },
                     "position": {
                       "type": "object"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   }
                 },
@@ -361,6 +386,12 @@
                     },
                     "position": {
                       "type": "object"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   }
                 }
@@ -482,7 +513,7 @@
         "mutation",
         "skill-required"
       ],
-      "description": "Dump one revision-bound HWPX document/subtree into a validated typed .hwpxbp; returns bounded manifest/fidelity evidence and never exposes raw XML. Shared blueprint catalog sha256:cd8fa6ef9240ed7f1452789feeea7732ddd36dfeed785ddb592b43fb60e6730d.\n\nHWPX typed blueprint v1\n  dump: revision-bound document/subtree -> deterministic .hwpxbp\n  replay: source-bound|portable -> one atomic SavePipeline commit\n  fidelity: exact, mapped; strict replay rejects degraded/unsupported\n  limits: nodes=10000, assets=128, manifest=16777216 bytes\n  raw XML, package parts, resident sessions, watch, and OfficeCLI are unavailable",
+      "description": "Dump one revision-bound HWPX document/subtree into a validated typed .hwpxbp; returns bounded manifest/fidelity evidence and never exposes raw XML. Shared blueprint catalog sha256:5906573e3c0a10f5ef7e05232cc195ed2070bcd82b8dfa54f18104c0d38bdb74.\n\nHWPX typed blueprint v1\n  dump: revision-bound document/subtree -> deterministic .hwpxbp\n  replay: source-bound|portable -> one atomic SavePipeline commit\n  fidelity: exact, mapped; strict replay rejects degraded/unsupported\n  limits: nodes=10000, assets=128, manifest=16777216 bytes\n  raw XML, package parts, resident sessions, watch, and OfficeCLI are unavailable",
       "signature": "(filename: 'str', path: 'BlueprintPath' = '/', mode: 'BlueprintMode' = 'portable', expected_revision: 'AgentRevision' = None, output: 'str' = None, overwrite: 'bool' = False, include_assets: 'bool' = True, require_replayable: 'bool' = True, include_manifest: 'bool' = True) -> 'dict'",
       "inputSchema": {
         "additionalProperties": false,
@@ -586,7 +617,7 @@
         "mutation",
         "skill-required"
       ],
-      "description": "Atomically replay one validated typed blueprint request with strict dependency mapping, caller-owned idempotency, one save, rollback, lossless/openSafety evidence, and no session state. Shared blueprint catalog sha256:cd8fa6ef9240ed7f1452789feeea7732ddd36dfeed785ddb592b43fb60e6730d.",
+      "description": "Atomically replay one validated typed blueprint request with strict dependency mapping, caller-owned idempotency, one save, rollback, lossless/openSafety evidence, and no session state. Shared blueprint catalog sha256:5906573e3c0a10f5ef7e05232cc195ed2070bcd82b8dfa54f18104c0d38bdb74.",
       "signature": "(request: 'BlueprintReplayRequest') -> 'dict'",
       "inputSchema": {
         "additionalProperties": false,
@@ -5208,7 +5239,10 @@
                 "title": "Quality"
               },
               "schemaVersion": {
-                "const": "hwpx.agent-batch/v1",
+                "enum": [
+                  "hwpx.agent-batch/v1",
+                  "hwpx.agent-batch/v2"
+                ],
                 "title": "Schemaversion",
                 "type": "string"
               },
@@ -7634,7 +7668,10 @@
                 "title": "Quality"
               },
               "schemaVersion": {
-                "const": "hwpx.agent-batch/v1",
+                "enum": [
+                  "hwpx.agent-batch/v1",
+                  "hwpx.agent-batch/v2"
+                ],
                 "title": "Schemaversion",
                 "type": "string"
               },
@@ -9060,7 +9097,10 @@
                 "title": "Quality"
               },
               "schemaVersion": {
-                "const": "hwpx.agent-batch/v1",
+                "enum": [
+                  "hwpx.agent-batch/v1",
+                  "hwpx.agent-batch/v2"
+                ],
                 "title": "Schemaversion",
                 "type": "string"
               },
@@ -22384,7 +22424,7 @@
       }
     ]
   },
-  "contractHash": "1b572e4ed5e410e6",
+  "contractHash": "c895883d5f4350ae",
   "defaultToolCount": 128,
   "advancedToolCount": 136,
   "baselineToolCount": 140,
