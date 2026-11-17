@@ -34,8 +34,8 @@
  },
  "canonical": {
   "pythonFiles": 10,
-  "loc": 1912,
-  "manifestSha256": "f03ca7a4533db9e30cb14b19aefe6b1fd6f66c44d8ea3ac44053412a0b93adc4",
+  "loc": 1918,
+  "manifestSha256": "6168259223b5c29b48629da2e57e3fab7538de46455bb95e33fabc6995b9022d",
   "packageFileCounts": {
    "compliance": 4,
    "quality": 2,
@@ -44,7 +44,7 @@
   "refrozenFrom": {
    "loc": 1908,
    "manifestSha256": "b694922c31e8886aaec3ae5aaabeff977fa453e74cb102ade37f99566d1c5804",
-   "reason": "8.0 14차: 인자 모양이 틀린 입력을 TypeError·IndexError 대신 ValueError로 낸다(table_compute·official_lint·reference_consistency). MCP 도구가 TOOL_EXECUTION_FAILED가 아니라 INVALID_ARGUMENT로 알린다.",
+   "reason": "8.0 14차: 인자 모양이 틀린 입력을 TypeError·IndexError 대신 ValueError로 낸다(table_compute·official_lint·reference_consistency). MCP 도구가 TOOL_EXECUTION_FAILED가 아니라 INVALID_ARGUMENT로 알린다. table_compute의 행 목록 정리를 함수 하나로 떼어 냄(복잡도 래칫).",
    "previous": {
     "loc": 1881,
     "manifestSha256": "835a8a5636392cf58c24b13f9be1a2d21f3510bddebf23a0d93da4b458b6ab9c",

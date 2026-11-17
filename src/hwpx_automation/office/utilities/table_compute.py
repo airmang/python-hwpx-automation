@@ -167,6 +167,12 @@ def _normalize_table(
         ]
         return _NormalizedTable("rows_mapping", columns, rows, rows_list)
 
+    return _normalize_row_lists(rows_list)
+
+
+def _normalize_row_lists(rows_list: list[Any]) -> _NormalizedTable:
+    """A table given as rows of cells (a list of lists)."""
+
     first = rows_list[0]
     if not isinstance(first, Sequence) or isinstance(first, (str, bytes, bytearray)):
         raise ValueError("table rows must be mappings or sequences")
