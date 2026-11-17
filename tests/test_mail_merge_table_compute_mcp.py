@@ -107,3 +107,17 @@ def test_table_compute_returns_computed_table_and_evidence() -> None:
     assert result["computedTable"]["rows"][2]["name"] == "A 소계"
     assert result["computedTable"]["rows"][-1]["amount"] == "600"
     assert any(item["operation"] == "sum" for item in result["evidence"])
+
+
+def test_table_compute_reads_a_leading_label_row_as_the_header() -> None:
+    """A table read back from a document (rows of text) starts with its labels; they name the
+    columns and stay on top, and the sum is ok without a non-numeric warning."""
+
+    from hwpx_automation.office.utilities.table_compute import table_compute
+
+    result = table_compute(
+        [["item", "amount"], ["a", "45,000"], ["b", "60000"]], value_columns=["amount"], operations=["sum"]
+    )
+
+    assert result["ok"] is True and result["warnings"] == []
+    assert result["computedTable"] == [["item", "amount"], ["a", "45,000"], ["b", "60000"], ["합계", "105,000"]]

@@ -167,9 +167,33 @@ def _normalize_table(
     if not isinstance(first, Sequence) or isinstance(first, (str, bytes, bytearray)):
         raise TypeError("table rows must be mappings or sequences")
     width = max(len(row) for row in rows_list if isinstance(row, Sequence) and not isinstance(row, (str, bytes, bytearray)))
+    if _is_header_row(rows_list):
+        # A table read from a document (get_table_text) starts with its labels: they name the
+        # columns and are kept above the rows, not read as values.
+        header = [str(item) for item in rows_list[0]]  # type: ignore[union-attr]
+        columns = [
+            _Column(key=str(index), label=header[index] if index < len(header) else str(index), index=index)
+            for index in range(width)
+        ]
+        rows = [_row_sequence_to_mapping(row, columns) for row in rows_list[1:]]  # type: ignore[arg-type]
+        return _NormalizedTable("rows_sequence_header", columns, rows, rows_list)
     columns = [_Column(key=str(index), label=str(index), index=index) for index in range(width)]
     rows = [_row_sequence_to_mapping(row, columns) for row in rows_list]  # type: ignore[arg-type]
     return _NormalizedTable("rows_sequence", columns, rows, rows_list)
+
+
+def _is_header_row(rows: Sequence[Any]) -> bool:
+    """Whether the first of *rows* (sequences) is a label row: text only, no number in it, while a
+    later row holds a number."""
+
+    if len(rows) < 2:
+        return False
+    first = rows[0]
+    if not any(str(value).strip() for value in first):
+        return False
+    if any(_to_decimal(value) is not None for value in first):
+        return False
+    return any(_to_decimal(value) is not None for row in rows[1:] if isinstance(row, Sequence) for value in row)
 
 
 def _row_sequence_to_mapping(row: Sequence[Any], columns: Sequence[_Column]) -> dict[str, Any]:
@@ -468,6 +492,9 @@ def _restore_table(normalized: _NormalizedTable, rows: list[dict[str, Any]]) -> 
         return original
     if normalized.mode == "rows_sequence":
         return [[row.get(column.key, "") for column in normalized.columns] for row in rows]
+    if normalized.mode == "rows_sequence_header":
+        header = [column.label for column in normalized.columns]
+        return [header, *([row.get(column.key, "") for column in normalized.columns] for row in rows)]
     return rows
 
 
