@@ -16,6 +16,8 @@ from hwpx.oxml.namespaces import HH, HP
 from hwpx.oxml.shape_position import line_width_mm_for_units
 
 from ..commands import (
+    _TABLE_ALIGNMENTS,
+    _VERTICAL_ALIGNMENTS,
     _add,
     _insert_direct_child,
     _insert_inline,
@@ -27,6 +29,20 @@ from ..document import HwpxAgentDocument, NodeRecord
 from ..model import AgentContractError
 
 _HWP_UNITS_PER_MM = 7200 / 25.4
+
+
+def _replay_choice(value: object, choices: frozenset[str], node_id: str, name: str) -> str:
+    """A node property that must be one of *choices* (as ``apply_document_commands`` takes it), or a
+    contract error naming the node and the values it takes."""
+
+    text = str(value).upper()
+    if text not in choices:
+        raise AgentContractError(
+            "invalid_syntax",
+            f"{name} must be one of {sorted(choices)}; got {value!r}",
+            target=node_id,
+        )
+    return text
 _INLINE_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
 #: Names a blueprint may give a click-here field. Hancom opens the field only
 #: under its own type name, CLICK_HERE.
@@ -334,7 +350,8 @@ class TypedNativeBridge:
         if properties.get("caption") is not None:
             _table_caption(table, str(properties["caption"] or ""))
         if properties.get("alignment"):  # a table paragraph.add_table makes always carries hp:pos
-            table.set_position(horizontal_alignment=str(properties["alignment"]).upper())
+            alignment = _replay_choice(properties["alignment"], _TABLE_ALIGNMENTS, node_id, "table.alignment")
+            table.set_position(horizontal_alignment=alignment)
         self.created[node_id] = CreatedBinding("table", table)
         row_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "row"]
         if len(row_ids) != len(table.rows):
@@ -425,7 +442,9 @@ class TypedNativeBridge:
         cell.set_span(int(properties.get("rowSpan") or 1), int(properties.get("columnSpan") or 1))
         sublist = _direct_child(cell.element, "subList")
         if sublist is not None and properties.get("verticalAlignment"):
-            cell.vertical_alignment = str(properties["verticalAlignment"]).upper()
+            cell.vertical_alignment = _replay_choice(
+                properties["verticalAlignment"], _VERTICAL_ALIGNMENTS, node_id, "cell.verticalAlignment"
+            )
         self.created[node_id] = CreatedBinding("cell", cell)
         paragraph_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "paragraph"]
         existing = list(cell.paragraphs)
