@@ -1801,6 +1801,8 @@ def draw_table(
                     aligned.setdefault(align, []).append(table.cell(row_index, col_index).paragraphs[0])
     for align, paragraphs in aligned.items():
         doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
+    if resolved.table_align == "auto":
+        _pad_wrapping_rows(table, grid, cols, size or _BASE_SIZE_PT)
     if resolved.table_row_height_mm:
         table.set_row_heights([round(resolved.table_row_height_mm * _HWPUNIT_PER_MM)] * len(grid))
     if header and len(grid) > 1:
@@ -1811,6 +1813,29 @@ def draw_table(
         for col_index in range(cols):
             table.cell(0, col_index).is_header = True
         table.mark_dirty()
+
+
+#: The top and bottom margin of the cells of a row whose text wraps, in HWPUNIT: the room a one-line
+#: row gets from the least row height, which a taller row does not (8.0 16차; the value is picked from
+#: Hancom renderings of out/readme8/table-pad).
+WRAP_ROW_PADDING = 425
+
+
+def _pad_wrapping_rows(table: Any, grid: list[list[str]], cols: int, font_pt: float) -> None:
+    """Give the cells of each row with a cell whose text wraps more room above and below."""
+
+    from hwpx.form_fit import estimate_text_width
+
+    widths = [table.cell(0, col_index).width for col_index in range(cols)]
+    for row_index, row in enumerate(grid):
+        wraps = any(
+            estimate_text_width(line, font_pt) + _CELL_SIDE_PADDING > widths[col_index]
+            for col_index, text in enumerate(row[:cols])
+            for line in _plain_cell(text).split("\n")
+        )
+        if wraps:
+            for col_index in range(cols):
+                table.cell(row_index, col_index).set_margins(top=WRAP_ROW_PADDING, bottom=WRAP_ROW_PADDING)
 
 
 def _ruled_border(
@@ -1978,7 +2003,11 @@ def _body_aligns(block: _Table, cols: int, font_pt: float, widths: list[int]) ->
     aligns: list[str | None] = []
     for col_index in range(cols):
         given = block.aligns[col_index] if col_index < len(block.aligns) else None
-        if given is not None or needs[col_index] > widths[col_index] or (cols == 2 and col_index == 1):
+        if given is not None:
+            aligns.append(None)
+        elif needs[col_index] > widths[col_index]:
+            aligns.append("left")  # lines that wrap read from the left: justified, their words spread apart
+        elif cols == 2 and col_index == 1:
             aligns.append(None)
         elif cols == 2 and spread:
             aligns.append("distribute")

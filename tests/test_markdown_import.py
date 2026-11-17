@@ -905,3 +905,23 @@ def test_a_value_of_the_newer_fields_that_cannot_be_drawn_is_refused(kwargs) -> 
     with pytest.raises(ValueError) as caught:
         MarkdownStyle(**kwargs)
     assert caught.value.code == "text-markdown-style-invalid"  # type: ignore[attr-defined]
+
+
+def test_report_table_wrapping_cells_read_from_the_left_with_room_above_and_below() -> None:
+    """8.0 16차 (Hancom pictures of the comparison table): two-line cells were justified, their words
+    spread apart, and their text nearly touched the lines above and below."""
+
+    from hwpx_automation.markdown import from_markdown
+    from hwpx_automation.markdown._import import WRAP_ROW_PADDING
+
+    long = "가나다라 마바사아 자차카타 " * 6
+    doc = from_markdown(f"# T\n\n| 구분 | 내용 |\n|---|---|\n| 짧음 | 한 줄 |\n| 긺 | {long} |\n")
+    try:
+        table = [t for p in doc.paragraphs for t in p.tables][-1]
+        short_row, long_row = table.rows[1].cells, table.rows[2].cells
+        assert {cell.margins.top for cell in long_row} == {WRAP_ROW_PADDING}
+        assert WRAP_ROW_PADDING not in {cell.margins.top for cell in short_row}
+        shape = doc.styles.paragraph_property(long_row[1].paragraphs[0].para_pr_id_ref)
+        assert str(shape.alignment.horizontal).upper().endswith("LEFT")
+    finally:
+        doc.close()
