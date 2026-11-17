@@ -57,7 +57,8 @@ def test_canonical_policy_owner_inventory_is_complete() -> None:
     # 1684 -> 1443: quality/page_guard.py re-exports core's metrics (#177).
     # 1443 -> 1881: the three modules above (8.0).
     # 1881 -> 1908: table_compute reads a leading label row as the header (8.0).
-    assert sum(int(row["loc"]) for row in rows) == canonical["loc"] == 1908
+    # 1908 -> 1912: wrong argument shapes raise ValueError (INVALID_ARGUMENT), not TypeError (8.0).
+    assert sum(int(row["loc"]) for row in rows) == canonical["loc"] == 1912
     assert hashlib.sha256(payload).hexdigest() == canonical[
         "manifestSha256"
     ]

@@ -94,7 +94,7 @@ def _paragraph_texts(source: Any) -> list[str]:
             return [line for line in str(source.get("text") or "").splitlines() if line.strip()]
     if isinstance(source, Sequence) and not isinstance(source, (bytes, bytearray)):
         return _paragraphs_from_sequence(source)
-    raise TypeError("source must be a HWPX path, HwpxDocument, mapping, text, or paragraph sequence")
+    raise ValueError("source must be a HWPX path, HwpxDocument, mapping, text, or paragraph sequence")
 
 
 def _paragraphs_from_path(path: Path) -> list[str]:

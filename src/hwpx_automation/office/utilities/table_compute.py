@@ -43,6 +43,8 @@ def table_compute(
     """Compute sum, average, and subtotal rows or columns for a general table."""
 
     normalized = _normalize_table(table)
+    if not normalized.columns:
+        raise ValueError("table has no columns")
     operation_names = _normalize_operations(operations)
     append_mode = _normalize_append(append)
     label_map = {
@@ -148,6 +150,8 @@ def _normalize_table(
             return _normalize_table(table.get("rows") or [])
         raise ValueError("table mapping must contain columns, header, or rows")
 
+    if not isinstance(table, Sequence) or isinstance(table, (str, bytes, bytearray)):
+        raise ValueError("table must be a mapping or a list of rows")
     rows_list = list(table)
     if not rows_list:
         raise ValueError("table must contain at least one row")
@@ -165,7 +169,7 @@ def _normalize_table(
 
     first = rows_list[0]
     if not isinstance(first, Sequence) or isinstance(first, (str, bytes, bytearray)):
-        raise TypeError("table rows must be mappings or sequences")
+        raise ValueError("table rows must be mappings or sequences")
     width = max(len(row) for row in rows_list if isinstance(row, Sequence) and not isinstance(row, (str, bytes, bytearray)))
     if _is_header_row(rows_list):
         # A table read from a document (get_table_text) starts with its labels: they name the

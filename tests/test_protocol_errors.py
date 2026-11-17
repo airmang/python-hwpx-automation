@@ -134,3 +134,23 @@ def test_structured_failure_payload_is_promoted_with_stable_code(
     assert error.data["errorCode"] == "DOCUMENT_NOT_FOUND"
     assert error.data["error"]["category"] == "not_found"
     assert "secret.hwpx" not in json.dumps(error.data)
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("table_compute", {"table": [1, 2]}),
+        ("table_compute", {"table": {"columns": []}}),
+        ("mail_merge", {"template": "t.hwpx", "data": [1]}),
+        ("build_organization_chart", {"hierarchy": [1]}),
+        ("inspect_official_document_style", {"source": 3}),
+    ],
+)
+def test_wrong_argument_shapes_are_invalid_argument_not_execution_failures(tool: str, arguments: dict) -> None:
+    """Found by calling every tool with malformed nested arguments (8.0): these raised TypeError or
+    IndexError and came back as TOOL_EXECUTION_FAILED, which tells the agent nothing to fix."""
+
+    request = SimpleNamespace(params=SimpleNamespace(name=tool, arguments=arguments))
+    error = asyncio.run(server._strict_call_tool_handler(request))
+
+    assert error.data["errorCode"] == "INVALID_ARGUMENT", error.data

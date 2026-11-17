@@ -192,7 +192,7 @@ class ContentLayoutService:
                 )
                 for item in series
             ]
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, AttributeError) as exc:  # AttributeError: a series that is no object
             raise self._context._new_error(
                 "CHART_INPUT_INVALID",
                 f"series values must be numbers: {exc}",

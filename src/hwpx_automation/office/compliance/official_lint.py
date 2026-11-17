@@ -195,7 +195,7 @@ def _paragraphs_from_source(source: Any) -> list[str]:
             return _paragraphs_from_document_plan(source)
     if isinstance(source, Sequence) and not isinstance(source, (bytes, bytearray)):
         return _paragraphs_from_sequence(source)
-    raise TypeError("source must be a HWPX path, HwpxDocument, mapping, text, or paragraph sequence")
+    raise ValueError("source must be a HWPX path, HwpxDocument, mapping, text, or paragraph sequence")
 
 
 def _paragraphs_from_path(path: Path) -> list[str]:
@@ -208,7 +208,7 @@ def _paragraphs_from_path(path: Path) -> list[str]:
 
 def _paragraphs_from_sequence(value: Any) -> list[str]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
-        raise TypeError("paragraphs must be a sequence")
+        raise ValueError("paragraphs must be a sequence")
     paragraphs: list[str] = []
     for item in value:
         if isinstance(item, Mapping):
