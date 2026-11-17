@@ -13,9 +13,11 @@ from typing import Any
 
 from hwpx.oxml.namespaces import HH, OPF_NS
 
-from ..catalog import blueprint_agent_catalog_hash as catalog_hash
+from ..catalog import catalog_hash
 from ..document import HwpxAgentDocument, NodeRecord
-from ..model import AGENT_CATALOG_SCHEMA, NODE_KINDS, AgentContractError
+from hwpx.oxml.text_offsets import offset_of
+
+from ..model import AGENT_CATALOG_SCHEMA_V2, NODE_KINDS, AgentContractError
 from .bundle import (
     ALLOWED_MEDIA_TYPES,
     build_blueprint_bundle,
@@ -358,25 +360,35 @@ def _native_element(record: NodeRecord) -> Any | None:
     return getattr(native, "element", native)
 
 
-def _host_run_path(record: NodeRecord, selected: Mapping[str, NodeRecord]) -> str | None:
-    if record.kind not in {"table", "picture", "shape", "footnote", "endnote"}:
-        return None
-    element = _native_element(record)
-    parent = element.getparent() if element is not None and hasattr(element, "getparent") else None
-    for candidate in selected.values():
-        if candidate.kind != "run" or candidate.parent_path != record.parent_path:
-            continue
-        run_element = candidate.native.element
-        if parent is run_element or (element is not None and any(child is element for child in run_element)):
-            return candidate.path
-        # core 5.5.0+: notes are ctrl-wrapped inside the run (the real-Hancom
-        # contract) — the run hosts the wrapper, one hop above the note.
-        if element is not None and any(
-            child.tag.endswith("}ctrl") and any(grand is element for grand in child)
-            for child in run_element
-        ):
-            return candidate.path
-    return None
+_OFFSET_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
+
+
+def _v2_placement(record: NodeRecord) -> dict[str, int] | str:
+    """Where an object, note or form field stands in its paragraph's text (blueprint v2): ``offset``, or
+    a form field's ``start``/``end`` (its begin's and end's offsets, python-hwpx #778); a reason string
+    when a form field's end is not in its paragraph (v1 refused that one too)."""
+
+    if record.kind in _OFFSET_KINDS:
+        return {"offset": int(record.place["offset"])} if record.place is not None else {}
+    if record.kind != "form-field":
+        return {}
+    begin = record.native.get("_field_begin")
+    paragraph = record.native.get("_paragraph")
+    if begin is None or paragraph is None:
+        return "form field has no begin in a paragraph"
+    end = next(
+        (
+            node
+            for node in paragraph.element.iter()
+            if str(getattr(node, "tag", "")).endswith("}fieldEnd") and node.get("beginIDRef") == begin.get("id")
+        ),
+        None,
+    )
+    start_offset = offset_of(begin, paragraph.element)
+    end_offset = offset_of(end, paragraph.element) if end is not None else None
+    if start_offset is None or end_offset is None:
+        return "form field does not end in its own paragraph"
+    return {"start": int(start_offset), "end": int(end_offset)}
 
 
 def _ordered_subtree(
@@ -433,7 +445,6 @@ def _make_manifest(
     unsupported: list[dict[str, str]] = []
     references: list[dict[str, Any]] = []
     nodes: list[dict[str, Any]] = []
-    selected = {record.path: record for record, _depth in ordered}
 
     for record, _depth in ordered:
         style_refs: list[str] = []
@@ -475,43 +486,18 @@ def _make_manifest(
                 unsupported.append({"path": record.path, "kind": "shape", "reason": reason})
                 node_unsupported.append(reason)
 
-        host_run_path = _host_run_path(record, selected)
-        if host_run_path is not None:
-            references.append(
-                {
-                    "from": logical_ids[record.path],
-                    "field": "hostRun",
-                    "to": logical_ids[host_run_path],
-                    "required": True,
-                }
-            )
-            node_references.append("hostRun")
-        if record.kind == "form-field" and record.parent_path is not None:
-            paragraph = selected.get(record.parent_path)
-            run_paths = [
-                path
-                for path in (paragraph.child_paths if paragraph is not None else [])
-                if path in selected and selected[path].kind == "run"
-            ]
-            for field, index_key in (("hostRun", "_begin_run_index"), ("endRun", "_end_run_index")):
-                raw_index = record.native.get(index_key)
-                if isinstance(raw_index, int) and 0 <= raw_index < len(run_paths):
-                    references.append(
-                        {
-                            "from": logical_ids[record.path],
-                            "field": field,
-                            "to": logical_ids[run_paths[raw_index]],
-                            "required": True,
-                        }
-                    )
-                    node_references.append(field)
+        placement = _v2_placement(record)
+        if isinstance(placement, str):
+            unsupported.append({"path": record.path, "kind": record.kind, "reason": placement})
+            node_unsupported.append(placement)
+            placement = {}
 
         replayable = not node_unsupported
         native_id = record.attributes.get("id") or record.stable_id
         node = {
             "blueprintId": logical_ids[record.path],
             "kind": record.kind,
-            "properties": _portable_properties(record),
+            "properties": {**_portable_properties(record), **placement},
             "children": [logical_ids[path] for path in record.child_paths],
             "styleRefs": sorted(style_refs),
             "numberingRefs": sorted(numbering_refs),
@@ -546,7 +532,7 @@ def _make_manifest(
     kind_order = {kind: index for index, kind in enumerate(NODE_KINDS)}
     manifest: dict[str, Any] = {
         "schemaVersion": BLUEPRINT_SCHEMA,
-        "catalogVersion": AGENT_CATALOG_SCHEMA,
+        "catalogVersion": AGENT_CATALOG_SCHEMA_V2,
         "catalogHash": catalog_hash(),
         "source": {"revision": agent.revision, "label": source_label[:512]},
         "mode": mode,

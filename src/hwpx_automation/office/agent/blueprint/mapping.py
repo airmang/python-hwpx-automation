@@ -153,18 +153,17 @@ def _preflight_graph(
         (str(item["from"]), str(item["field"])): str(item["to"])
         for item in manifest["references"]
     }
+    if references:  # blueprint v2 places by character offsets; a v1 graph is upgraded before this
+        raise AgentContractError("invariant_violation", "blueprint v2 carries no run references", target="references")
     for node_id, node in nodes.items():
         kind = str(node["kind"])
-        host_id = references.get((node_id, "hostRun"))
-        if host_id is not None:
-            if nodes[host_id]["kind"] != "run" or parents.get(host_id) != parents.get(node_id):
-                raise AgentContractError("invariant_violation", "hostRun must be a sibling run", target=node_id)
-        if kind == "form-field":
-            end_id = references.get((node_id, "endRun"))
-            if host_id is None or end_id is None or nodes[end_id]["kind"] != "run":
-                raise AgentContractError("invariant_violation", "form field run references are incomplete", target=node_id)
-            if parents.get(end_id) != parents.get(node_id):
-                raise AgentContractError("invariant_violation", "form field endRun is not a sibling", target=node_id)
+        properties = node["properties"]
+        if kind == "form-field" and not (
+            isinstance(properties.get("start"), int)
+            and isinstance(properties.get("end"), int)
+            and 0 <= properties["start"] <= properties["end"]
+        ):
+            raise AgentContractError("invariant_violation", "form field range is incomplete", target=node_id)
         if kind == "shape" and str(node["properties"].get("shapeType")) not in {"rect", "ellipse"}:
             raise AgentContractError("unsupported_content", "shape type is not replayable", target=node_id)
     return root_id, root_kind

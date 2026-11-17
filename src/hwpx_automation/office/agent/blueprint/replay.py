@@ -15,7 +15,7 @@ from hwpx.document import HwpxDocument
 from hwpx.quality import SavePipeline
 from hwpx.tools.package_validator import validate_editor_open_safety
 
-from ..catalog import blueprint_agent_catalog_hash as catalog_hash
+from ..catalog import catalog_hash
 from ....upstream import content_seed
 from ..commands import _error_from_exception, _member_diff, _quality_policy, _record_for_native, _revision
 from ..document import HwpxAgentDocument
@@ -23,7 +23,7 @@ from ..model import AgentContractError
 from .bundle import BlueprintBundle, read_blueprint_bundle
 from .dump import dump_document_blueprint
 from .mapping import ReplayPlan, materialize_dependencies, plan_replay
-from .model import BlueprintReplayResult, validate_replay_request
+from .model import BLUEPRINT_SCHEMA, BLUEPRINT_SCHEMA_V1, BlueprintReplayResult, validate_replay_request
 from .native import CreatedBinding, TypedNativeBridge, hancom_field_type
 
 IdempotencyStore = MutableMapping[str, Any]
@@ -93,7 +93,43 @@ def _semantic_nodes(
                 "references": list(node["references"]),
             }
         )
-    return normalized
+    return _merged_text_runs(normalized)
+
+
+def _merged_text_runs(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compare a paragraph's text by its stretches, not by how it is cut into runs (blueprint v2).
+
+    python-hwpx places an object at a character offset in the run it lands in, or in a run of its own,
+    so a replayed paragraph may cut the same text into other runs than the source. Each paragraph's run
+    children become ``properties.textRuns``: its runs' properties in order, an empty run left out and
+    runs of the same shape side by side joined. The run nodes go, and the other nodes are numbered again
+    in order, so the two graphs are compared by what they hold."""
+
+    by_id = {node["blueprintId"]: node for node in nodes}
+    for node in nodes:
+        if node["kind"] != "paragraph":
+            continue
+        stretches: list[dict[str, Any]] = []
+        for child in node["children"]:
+            run = by_id.get(child)
+            if run is None or run["kind"] != "run":
+                continue
+            properties = dict(run["properties"])
+            text = str(properties.pop("text", "") or "")
+            if not text:
+                continue
+            if stretches and {k: v for k, v in stretches[-1].items() if k != "text"} == properties:
+                stretches[-1]["text"] += text
+            else:
+                stretches.append({**properties, "text": text})
+        node["properties"] = {**node["properties"], "textRuns": stretches}
+        node["children"] = [child for child in node["children"] if by_id.get(child, {}).get("kind") != "run"]
+    kept = [node for node in nodes if node["kind"] != "run"]
+    renumber = {node["blueprintId"]: f"s{index:06d}" for index, node in enumerate(kept)}
+    for node in kept:
+        node["blueprintId"] = renumber[node["blueprintId"]]
+        node["children"] = [renumber.get(child, child) for child in node["children"]]
+    return kept
 
 
 def _semantic_equivalence(
@@ -252,6 +288,62 @@ def _replay_failure_result(
     )
 
 
+def _run_lengths(nodes: Mapping[str, Mapping[str, Any]], paragraph_id: str) -> dict[str, tuple[int, int]]:
+    """(start, end) of each run child of *paragraph_id* in the paragraph's text the replay writes."""
+
+    spans: dict[str, tuple[int, int]] = {}
+    offset = 0
+    for child in nodes[paragraph_id]["children"]:
+        if nodes[child]["kind"] == "run":
+            length = len(str(nodes[child]["properties"].get("text") or ""))
+            spans[str(child)] = (offset, offset + length)
+            offset += length
+    return spans
+
+
+def upgrade_v1_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Read a v1 blueprint as v2 (design 5): an object at the end of its ``hostRun`` (where v1 replay put
+    it) is at that run's end offset; a form field starts at its ``hostRun``'s end and ends at its
+    ``endRun``'s end (v1 put the begin and the end control there). A reference to a run of another
+    paragraph cannot be read so and is refused."""
+
+    nodes = {str(node["blueprintId"]): dict(node, properties=dict(node["properties"])) for node in manifest["nodes"]}
+    parents = {str(child): node_id for node_id, node in nodes.items() for child in node["children"]}
+    references = {(str(item["from"]), str(item["field"])): str(item["to"]) for item in manifest["references"]}
+    for node_id, node in nodes.items():
+        fields = {field: references[(node_id, field)] for field in ("hostRun", "endRun") if (node_id, field) in references}
+        if not fields:
+            continue
+        paragraph_id = parents.get(node_id)
+        spans = _run_lengths(nodes, paragraph_id) if paragraph_id is not None else {}
+        if any(run_id not in spans for run_id in fields.values()):
+            raise AgentContractError(
+                "unsupported_content",
+                "this v1 blueprint cannot be read as v2: a run reference leaves its paragraph; "
+                "dump it again with hwpx-automation 8.0",
+                target=node_id,
+            )
+        if node["kind"] == "form-field":
+            if "endRun" not in fields:
+                raise AgentContractError(
+                    "unsupported_content",
+                    "this v1 blueprint cannot be read as v2: a form field has no end run; "
+                    "dump it again with hwpx-automation 8.0",
+                    target=node_id,
+                )
+            node["properties"]["start"] = spans[fields["hostRun"]][1]
+            node["properties"]["end"] = spans[fields["endRun"]][1]
+        else:
+            node["properties"]["offset"] = spans[fields["hostRun"]][1]
+        node["references"] = []
+    return {
+        **manifest,
+        "schemaVersion": BLUEPRINT_SCHEMA,
+        "nodes": [nodes[str(node["blueprintId"])] for node in manifest["nodes"]],
+        "references": [],
+    }
+
+
 def _replay_load_bundle(
     state: _ReplayState,
     normalized: Mapping[str, Any],
@@ -264,8 +356,12 @@ def _replay_load_bundle(
     state.blueprint_hash = blueprint_hash
     if blueprint_hash != normalized["bundle"]["blueprintHash"]:
         raise AgentContractError("verification_failed", "request blueprintHash does not match bundle", target="bundle")
-    if manifest["catalogHash"] != catalog_hash():
+    v1 = manifest["schemaVersion"] == BLUEPRINT_SCHEMA_V1
+    if manifest["catalogHash"] != catalog_hash(1 if v1 else 2):
         raise AgentContractError("verification_failed", "blueprint catalog hash does not match runtime", target="catalogHash")
+    if v1:  # checked by v1's rules above, replayed as the v2 graph it reads as
+        manifest = upgrade_v1_manifest(manifest)
+        state.verification["upgradedFrom"] = BLUEPRINT_SCHEMA_V1
     _call(fault_injector, "after_bundle_validation")
     state.verification["bundle"] = {
         "validatedBeforeTargetAccess": True,

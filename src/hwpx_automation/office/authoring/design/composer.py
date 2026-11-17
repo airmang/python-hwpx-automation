@@ -103,6 +103,9 @@ def compose(
                 f"plan produced no content for profile {prof.id!r}"
             )
         placed.finish()
+        # The skeleton's caret pointed into the template (a cell of its table, say); a composed
+        # document opens at the start of its body, as a new one does (python-hwpx #781).
+        doc.reset_caret()
 
         coverage = style_coverage(doc, [paragraph.element for paragraph in new_paragraphs])
         errors: list[str] = []

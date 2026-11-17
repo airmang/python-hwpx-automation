@@ -215,7 +215,7 @@ def test_contract_manifest_is_deterministic_and_freezes_v1_surface() -> None:
     assert v1["nodeKinds"]["run"]["operations"] == ["set", "add", "remove", "copy"]
     manifest = agent_contract_manifest()
     encoded = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-    assert hashlib.sha256(encoded).hexdigest() == "e4eaecec5912f53c717aee0738e51160b93701045a72a7ad3211509e18d8113e"
+    assert hashlib.sha256(encoded).hexdigest() == "169b3d21f017c933cb24a11885456c02b9e7db1732ca96e6d7004fd786c186a6"
     assert manifest["schemas"]["command"] == "hwpx.agent-command/v2"
     assert manifest["nodeKinds"]["run"]["operations"] == ["set"]
     assert manifest["nodeKinds"]["text"]["operations"] == ["set", "add", "remove", "move", "copy"]

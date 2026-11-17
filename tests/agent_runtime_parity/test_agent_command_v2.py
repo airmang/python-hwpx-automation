@@ -280,3 +280,64 @@ def test_same_file_and_commands_give_the_same_bytes(tmp_path: Path) -> None:
         assert result.ok, result.to_dict()
         outputs.append(output.read_bytes())
     assert outputs[0] == outputs[1]
+
+
+def test_notes_are_added_moved_and_copied_at_an_offset(tmp_path: Path) -> None:
+    _write(tmp_path / "input.hwpx")
+    first, second = _paths(tmp_path / "input.hwpx")
+    result, output = _apply(tmp_path, [
+        {"commandId": "f", "op": "add", "kind": "footnote", "parent": first,
+         "position": {"mode": "offset", "offset": 2}, "properties": {"text": "각주 글"}},
+        {"commandId": "m", "op": "move", "path": "$f.path", "parent": second,
+         "position": {"mode": "offset", "offset": 1}},
+        {"commandId": "c", "op": "copy", "path": "$m.path", "parent": first, "position": {"mode": "prepend"}},
+    ])
+    assert result.ok, result.to_dict()
+    added, moved, copied = result.command_results
+    assert added["place"] == {"paragraph": first, "offset": 2, "length": 0}
+    assert moved["place"] == {"paragraph": second, "offset": 1, "length": 0}
+    assert copied["place"] == {"paragraph": first, "offset": 0, "length": 0}
+    assert copied["generatedIdentities"]
+    assert _texts(output) == ["가나다라마바", "하나둘셋"]
+    with HwpxDocument.open(output) as document:
+        assert [len(p.footnotes) for p in document.paragraphs] == [1, 1]
+
+
+def _with_two_tables(path: Path) -> None:
+    with HwpxDocument.new() as document:
+        first = document.sections[0].paragraphs[0]
+        first.text = "표"
+        for label in ("가", "나"):
+            table = first.add_table(3, 2)
+            for row in range(3):
+                table.rows[row].cells[0].text = f"{label}{row}"
+        document.save(path)
+
+
+def _table_column(path: Path, index: int) -> list[str]:
+    with HwpxDocument.open(path) as document:
+        table = document.paragraphs[0].tables[index]
+        return [row.cells[0].text for row in table.rows]
+
+
+def test_rows_move_and_copy_through_python_hwpx(tmp_path: Path) -> None:
+    source = tmp_path / "rows.hwpx"
+    _with_two_tables(source)
+    with HwpxAgentDocument.open(source) as agent:
+        tables = [record.path for record in agent.records if record.kind == "table"]
+    cases = [
+        ({"commandId": "m", "op": "move", "path": f"{tables[0]}/row[1]", "parent": tables[0],
+          "position": {"mode": "append"}}, (["가1", "가2", "가0"], ["나0", "나1", "나2"])),
+        ({"commandId": "m", "op": "move", "path": f"{tables[0]}/row[3]", "parent": tables[0],
+          "position": {"mode": "index", "index": 1}}, (["가2", "가0", "가1"], ["나0", "나1", "나2"])),
+        ({"commandId": "c", "op": "copy", "path": f"{tables[0]}/row[2]", "parent": tables[1],
+          "position": {"mode": "prepend"}}, (["가0", "가1", "가2"], ["가1", "나0", "나1", "나2"])),
+        ({"commandId": "x", "op": "move", "path": f"{tables[0]}/row[1]", "parent": tables[1],
+          "position": {"mode": "append"}}, (["가1", "가2"], ["나0", "나1", "나2", "가0"])),
+    ]
+    for index, (command, (first_column, second_column)) in enumerate(cases):
+        output = tmp_path / f"rows-{index}.hwpx"
+        result = apply_document_commands(_batch(source, output, [command]))
+        assert result.ok, result.to_dict()
+        assert _table_column(output, 0) == first_column
+        assert _table_column(output, 1) == second_column

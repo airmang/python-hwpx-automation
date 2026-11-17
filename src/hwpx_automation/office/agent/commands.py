@@ -10,7 +10,6 @@ the normal :class:`~hwpx.quality.SavePipeline` exactly once.
 
 from __future__ import annotations
 
-import copy
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -75,7 +74,6 @@ _PARAGRAPH_ALIGNMENTS = frozenset(
 )
 _TABLE_ALIGNMENTS = frozenset({"LEFT", "CENTER", "RIGHT", "INSIDE", "OUTSIDE"})
 _VERTICAL_ALIGNMENTS = frozenset({"TOP", "CENTER", "BOTTOM"})
-_INLINE_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
 #: Notes sit in an hp:ctrl: Hancom drops a note outside one and crashes on an empty one.
 _NOTE_TAGS = frozenset({"footNote", "endNote"})
 _SHAPE_KINDS = frozenset({"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine"})
@@ -86,6 +84,8 @@ _CREATE_PROPERTIES: dict[str, frozenset[str]] = {
     "section": frozenset({"pageWidthMm", "pageHeightMm"}),
     "paragraph": frozenset(NODE_PROPERTY_CATALOG_V2["paragraph"]["editable"]),
     "text": frozenset(NODE_PROPERTY_CATALOG_V2["text"]["editable"]),
+    "footnote": frozenset({"text"}),
+    "endnote": frozenset({"text"}),
     "table": frozenset({"rowCount", "columnCount", "caption", "widthMm", "alignment"}),
     "row": frozenset({"cellCount", "heightMm"}),
 }
@@ -95,6 +95,8 @@ _ADD_PARENTS = {
     "paragraph": "section",
     "text": "paragraph",
     "table": "paragraph",
+    "footnote": "paragraph",
+    "endnote": "paragraph",
     "row": "table",
 }
 
@@ -118,7 +120,7 @@ _MOVE_COPY_PARENTS = {
 # ``format_range``, ``move_to``/``copy_to(offset=)``, ``obj.offset``); none writes the tree.
 
 #: Objects placed at a character offset of their paragraph (notes wait for asks10c).
-_OFFSET_KINDS = frozenset({"table", "picture", "shape"})
+_OFFSET_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
 #: What a place in a paragraph may be given before or after.
 _ANCHOR_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote", "form-field"})
 
@@ -145,6 +147,11 @@ _RANGE_CODES = {
     "shape-group-member-unsupported": "unsupported_content",
     "shape-not-in-document": "not_found",
     "style-char-pr-missing": "not_found",
+    "table-rows-invalid": "not_found",
+    "table-rows-merge-crossed": "unsupported_content",
+    "table-columns-differ": "incompatible_parent",
+    "table-rows-other-document": "incompatible_parent",
+    "table-rows-move-other-table": "incompatible_parent",
 }
 
 
@@ -440,11 +447,6 @@ def _precedes(paragraph: Any, first: Any, second: Any) -> bool:
 
 def _local_name(element: Any) -> str:
     return str(getattr(element, "tag", "")).rsplit("}", 1)[-1]
-
-
-def _tag_like(element: Any, local_name: str) -> str:
-    tag = str(element.tag)
-    return f"{tag.rsplit('}', 1)[0]}}}{local_name}" if "}" in tag else local_name
 
 
 def _element(native: Any) -> Any:
@@ -781,26 +783,6 @@ def _insertion_index(
     return index + (1 if mode == "after" else 0)
 
 
-def _insert_direct_child(
-    view: HwpxAgentDocument,
-    parent: NodeRecord,
-    kind: str,
-    element: Any,
-    position: Mapping[str, Any],
-) -> None:
-    siblings = _sibling_elements(view, parent, kind)
-    index = _insertion_index(view, parent, kind, position, siblings=siblings)
-    container = _element(parent.native)
-    if index >= len(siblings):
-        if siblings:
-            absolute = list(container).index(siblings[-1]) + 1
-            container.insert(absolute, element)
-        else:
-            container.append(element)
-    else:
-        container.insert(list(container).index(siblings[index]), element)
-
-
 def _move_paragraph_into_place(
     view: HwpxAgentDocument, parent: NodeRecord, paragraph: Any, position: Mapping[str, Any]
 ) -> None:
@@ -820,81 +802,6 @@ def _move_paragraph_into_place(
         paragraph.move_before(siblings[index])
     elif siblings and siblings[-1] != paragraph:
         paragraph.move_after(siblings[-1])
-
-
-def _drop_layout_cache(paragraph_element: Any | None) -> None:
-    """Remove a paragraph's line layout cache (``hp:linesegarray``) after its content changed.
-
-    The cache records where each line starts in the paragraph's content. Once an object or a run has left or
-    joined the paragraph, the cache no longer matches: Hancom reports a document whose cached lines point past
-    the remaining content as damaged, while without the cache it lays the paragraph out again. Only the
-    paragraph that changed is touched; every other paragraph keeps the cache Hancom wrote. ``None`` (an
-    element no paragraph holds) changes nothing.
-    """
-
-    if paragraph_element is None:
-        return
-    for child in list(paragraph_element):
-        if _local_name(child).lower() == "linesegarray":
-            paragraph_element.remove(child)
-
-
-def _paragraph_element_of(element: Any) -> Any | None:
-    """The nearest ``hp:p`` holding *element*, or ``None`` when it is detached."""
-
-    current = element
-    while current is not None and _local_name(current) != "p":
-        current = current.getparent() if hasattr(current, "getparent") else None
-    return current
-
-
-def _insert_inline(
-    view: HwpxAgentDocument,
-    parent: NodeRecord,
-    kind: str,
-    element: Any,
-    position: Mapping[str, Any],
-) -> Any:
-    paragraph = parent.native
-    siblings = _sibling_elements(view, parent, kind)
-    index = _insertion_index(view, parent, kind, position, siblings=siblings)
-    run = paragraph.element.makeelement(
-        _tag_like(paragraph.element, "run"),
-        {"charPrIDRef": paragraph.char_pr_id_ref or "0"},
-    )
-    if _local_name(element) in _NOTE_TAGS:
-        control = run.makeelement(_tag_like(paragraph.element, "ctrl"), {})
-        control.append(element)
-        run.append(control)
-    else:
-        run.append(element)
-    if index >= len(siblings):
-        paragraph.element.append(run)
-    else:
-        anchor = siblings[index]
-        anchor_run = anchor.getparent() if hasattr(anchor, "getparent") else next(
-            child for child in paragraph.element if anchor in list(child)
-        )
-        if _local_name(anchor_run) == "ctrl":
-            anchor_run = anchor_run.getparent()
-        paragraph.element.insert(list(paragraph.element).index(anchor_run), run)
-    _drop_layout_cache(paragraph.element)
-    paragraph.section.mark_dirty()
-    return run
-
-
-def _remove_inline_element(element: Any, paragraph: Any) -> None:
-    run = element.getparent() if hasattr(element, "getparent") else next(
-        child for child in paragraph.element if element in list(child)
-    )
-    run.remove(element)
-    if _local_name(run) == "ctrl" and not list(run):
-        control, run = run, run.getparent()
-        run.remove(control)
-    if not list(run) and run in list(paragraph.element):
-        paragraph.element.remove(run)
-    _drop_layout_cache(paragraph.element)
-    paragraph.section.mark_dirty()
 
 
 def _table_caption(table: Any, value: str) -> None:
@@ -946,14 +853,6 @@ def _style_id(document: HwpxDocument, value: str) -> str:
             target="paragraph.style",
         )
     return matches[0]
-
-
-def _mark_containing_section(document: HwpxDocument, target: Any) -> None:
-    for section in document.sections:
-        if any(node is target for node in section.element.iter()):
-            section.mark_dirty()
-            return
-    raise AgentContractError("not_found", "mutated element is detached")
 
 
 def _apply_header_story_set(
@@ -1174,6 +1073,30 @@ def _apply_create_properties(
     return _apply_set(document, record, setters) if setters else {}
 
 
+def _add_in_paragraph(
+    document: HwpxDocument,
+    view: HwpxAgentDocument,
+    parent: NodeRecord,
+    kind: str,
+    properties: Mapping[str, Any],
+    position: Mapping[str, Any],
+) -> Any:
+    """Text goes in with ``insert_text`` (N1). python-hwpx puts a note's mark at the paragraph's end
+    (asks10c, N6); another place moves it there as a move does (before an object puts the objects at
+    that place behind it again)."""
+
+    if kind == "text":
+        return _add_text(document, view, parent, properties, position)
+    add = document.notes.add_footnote if kind == "footnote" else document.notes.add_endnote
+    try:
+        created = add(str(properties.get("text", "")), paragraph=parent.native)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=parent.path) from exc
+    if position["mode"] != "append":
+        _place_object(view, created, parent, position, copy=False, target=parent.path)
+    return created
+
+
 def _add(
     document: HwpxDocument,
     view: HwpxAgentDocument,
@@ -1206,8 +1129,8 @@ def _add(
         if position["mode"] != "append":
             _move_paragraph_into_place(view, parent, created, position)
         return created
-    if kind == "text":
-        return _add_text(document, view, parent, properties, position)
+    if kind in {"text", "footnote", "endnote"}:  # placed at a character offset (agent-command v2)
+        return _add_in_paragraph(document, view, parent, kind, properties, position)
     if kind == "table":
         _check_v1_end_place(view, parent, "table", position)
         created = parent.native.add_table(
@@ -1237,20 +1160,6 @@ def _add(
 
 def _table_has_vertical_merge(table: Any) -> bool:
     return any(cell.span[0] > 1 for row in table.rows for cell in row.cells)
-
-
-def _refresh_table_rows(table: Any) -> None:
-    rows = table.rows
-    table.element.set("rowCnt", str(len(rows)))
-    for row_index, row in enumerate(rows):
-        for column_index, cell in enumerate(row.cells):
-            addr = next((child for child in cell.element if _local_name(child) == "cellAddr"), None)
-            if addr is not None:
-                addr.set("rowAddr", str(row_index))
-                # Preserve explicit merged-cell column addresses where present.
-                if addr.get("colAddr") is None:
-                    addr.set("colAddr", str(column_index))
-    table.mark_dirty()
 
 
 def _remove(view: HwpxAgentDocument, record: NodeRecord) -> None:
@@ -1288,31 +1197,6 @@ def _remove(view: HwpxAgentDocument, record: NodeRecord) -> None:
         raise AgentContractError(
             "unsupported_operation", f"remove is unsupported for {record.kind}", target=record.path
         )
-
-
-def _detach(view: HwpxAgentDocument, record: NodeRecord) -> Any:
-    element = _element(record.native)
-    if record.kind in _INLINE_KINDS:
-        paragraph = record.native.paragraph if hasattr(record.native, "paragraph") else None
-        if paragraph is None and record.parent_path is not None:
-            parent_record = view.resolve_record(record.parent_path)
-            paragraph = parent_record.native if parent_record.kind == "paragraph" else None
-        if paragraph is None:
-            raise AgentContractError("unsupported_content", "inline object has no paragraph binding")
-        _remove_inline_element(element, paragraph)
-    elif record.kind == "row":
-        table = record.native.table
-        if _table_has_vertical_merge(table):
-            raise AgentContractError(
-                "unsupported_content", "row movement with vertical merges is unsupported", target=record.path
-            )
-        table.element.remove(element)
-        _refresh_table_rows(table)
-    else:
-        # A memo is not movable: python-hwpx 7.0 keeps it in its paragraph's MEMO field
-        # (the node catalog lists no "move" for memo; copy makes a new memo there).
-        raise AgentContractError("unsupported_operation", f"cannot detach {record.kind}")
-    return element
 
 
 def _move_paragraph(
@@ -1376,10 +1260,8 @@ def _move(
         raise AgentContractError(
             "incompatible_parent", "a node cannot move into its own subtree", target=parent.path
         )
-    if source.kind == "row" and source.native.table.column_count != parent.native.column_count:
-        raise AgentContractError(
-            "incompatible_parent", "row destination must have the same column count", target=parent.path
-        )
+    if source.kind == "row":
+        return _move_row(view, source, parent, position)
 
     element = _element(source.native)
     siblings = _sibling_elements(view, parent, source.kind)
@@ -1393,27 +1275,44 @@ def _move(
             anchor_index = _insertion_index(view, parent, source.kind, position, siblings=siblings)
         elif old_index < anchor_index:
             anchor_index -= 1
-    if source.kind == "paragraph":
-        return _move_paragraph(view, source, parent, siblings, anchor_index)
-    detached = _detach(view, source)
+    return _move_paragraph(view, source, parent, siblings, anchor_index)
 
-    if source.kind == "row":
-        container = _element(parent.native)
-        if anchor_index >= len(siblings):
-            if siblings:
-                container.insert(list(container).index(siblings[-1]) + 1, detached)
-            else:
-                container.append(detached)
-        else:
-            container.insert(list(container).index(siblings[anchor_index]), detached)
-        _refresh_table_rows(source.native.table)
-        _refresh_table_rows(parent.native)
-    elif source.kind in _INLINE_KINDS:
-        synthetic_position = {"mode": "index", "index": anchor_index + 1}
-        fresh_view = HwpxAgentDocument.from_document(view.document, revision=view.revision)
-        fresh_parent = _record_for_native(fresh_view, parent.native)
-        _insert_inline(fresh_view, fresh_parent, source.kind, detached, synthetic_position)
-    return detached
+
+def _row_place(
+    view: HwpxAgentDocument, source: NodeRecord, parent: NodeRecord, position: Mapping[str, Any]
+) -> int:
+    """The row number of *parent* a row goes in front of, counted before it leaves (python-hwpx ``to``).
+
+    ``index`` is the one-based place among the rows once the row has left (v1's meaning); the other
+    modes name a place among the rows as they are."""
+
+    siblings = _sibling_elements(view, parent, "row")
+    element = _element(source.native)
+    if position["mode"] != "index" or element not in siblings:
+        return _insertion_index(view, parent, "row", position, siblings=siblings)
+    old_index = siblings.index(element)
+    final = _insertion_index(view, parent, "row", position, siblings=[row for row in siblings if row is not element])
+    return final if final < old_index else final + 1
+
+
+def _move_row(
+    view: HwpxAgentDocument, source: NodeRecord, parent: NodeRecord, position: Mapping[str, Any]
+) -> Any:
+    """Move a row with python-hwpx (asks10d, N10): ``move_rows`` in its table (the row keeps its ids);
+    into another table of the same columns, ``copy_rows(source=)`` and then ``delete_rows`` -- the two
+    steps python-hwpx gives for it, so that row's cells get fresh ids there, as a copy's do."""
+
+    table = source.native.table
+    row = table.rows.index(source.native)
+    to = _row_place(view, source, parent, position)
+    try:
+        if _element(parent.native) is _element(table):
+            return table.move_rows(row, to=to)[0]
+        placed = parent.native.copy_rows(row, to=to, source=table)
+        table.delete_rows(row)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=source.path) from exc
+    return placed[0]
 
 
 def _identity_kind(local: str) -> str:
@@ -1438,87 +1337,6 @@ def _identity_attribute_names(local: str, node: Any) -> tuple[str, ...]:
             name for name in ("instid", "instId", "id") if node.get(name) is not None
         )
     return ()
-
-
-def _refresh_one_identity(
-    node: Any,
-    local: str,
-    allocate: Any,
-    identity_map: list[dict[str, str]],
-    field_ids: dict[str, str],
-) -> None:
-    names = _identity_attribute_names(local, node)
-    # 한 요소에 실린 여러 식별 속성(id+instid, 또는 instid/instId 별칭 쌍)은
-    # 같은 정체성이다 — 하나의 새 값을 페어로 재발급한다. 노트(footNote/endNote)
-    # 는 정본 instid와 과거 산출물 instId가 공존할 수 있어 #101에서 편입.
-    paired_kinds = {"pic", "footNote", "endNote", *_SHAPE_KINDS}
-    paired_identity = allocate() if len(names) > 1 and local in paired_kinds else None
-    for name in names:
-        old = str(node.get(name))
-        new = paired_identity or allocate()
-        node.set(name, new)
-        identity_map.append(
-            {"kind": _identity_kind(local), "attribute": name, "old": old, "new": new}
-        )
-        if local == "fieldBegin" and name == "id":
-            field_ids[old] = new
-
-
-def _walk_refresh_identities(
-    node: Any,
-    inside_note: bool,
-    allocate: Any,
-    identity_map: list[dict[str, str]],
-    field_ids: dict[str, str],
-) -> None:
-    """Refresh copyable identities in document order.
-
-    Real-Hancom note bodies keep paragraph id="0" inside their subList (the
-    gold contract) — those are not document-order identities, so nothing
-    inside a note is refreshed. Single-pass recursion keeps this correct on
-    both element backends (lxml proxies break id()-sets).
-    """
-
-    local = _local_name(node)
-    if not inside_note:
-        _refresh_one_identity(node, local, allocate, identity_map, field_ids)
-    child_inside = inside_note or local in {"footNote", "endNote"}
-    for child in node:
-        _walk_refresh_identities(child, child_inside, allocate, identity_map, field_ids)
-
-
-def _refresh_copy_identities(document: HwpxDocument, clone: Any) -> list[dict[str, str]]:
-    used: set[str] = set()
-    max_numeric = 0
-    for section in document.sections:
-        for node in section.element.iter():
-            for name in ("id", "instid", "instId"):
-                value = node.get(name)
-                if value:
-                    used.add(value)
-                    if value.isdigit():
-                        max_numeric = max(max_numeric, int(value))
-
-    def allocate() -> str:
-        nonlocal max_numeric
-        while True:
-            max_numeric += 1
-            value = str(max_numeric)
-            if value not in used:
-                used.add(value)
-                return value
-
-    identity_map: list[dict[str, str]] = []
-    field_ids: dict[str, str] = {}
-    _walk_refresh_identities(clone, False, allocate, identity_map, field_ids)
-    if field_ids:
-        for node in clone.iter():
-            if _local_name(node) != "fieldEnd":
-                continue
-            old = node.get("beginIDRef")
-            if old in field_ids:
-                node.set("beginIDRef", field_ids[old])
-    return identity_map
 
 
 def _identities(root: Any) -> list[tuple[str, str, str]]:
@@ -1568,27 +1386,23 @@ def _copy_node(
         return copied, _copied_identities(original.element, copied.element)
     if source.kind == "paragraph":
         return _copy_paragraph(view, source, parent, position)
-    if source.kind == "row":
-        if source.native.table.column_count != parent.native.column_count:
-            raise AgentContractError(
-                "incompatible_parent", "row destination must have the same column count", target=parent.path
-            )
-        if _table_has_vertical_merge(source.native.table) or _table_has_vertical_merge(parent.native):
-            raise AgentContractError(
-                "unsupported_content", "row copy with vertical merges is unsupported", target=source.path
-            )
-    clone = copy.deepcopy(_element(source.native))
-    identity_map = _refresh_copy_identities(document, clone)
-    if source.kind == "row":
-        _insert_direct_child(view, parent, source.kind, clone, position)
-        _refresh_table_rows(parent.native)
-    elif source.kind in _INLINE_KINDS:
-        _insert_inline(view, parent, source.kind, clone, position)
-    elif source.kind == "memo":
+    if source.kind == "memo":
         return _copy_memo(document, source, parent)
-    else:
+    if source.kind != "row":
         raise AgentContractError("unsupported_operation", f"copy is unsupported for {source.kind}")
-    return clone, identity_map
+    # python-hwpx copies the row with fresh ids for what it holds (asks10d, N10); a merged cell
+    # crossing the row's edge or the place is refused there (table-rows-merge-crossed).
+    table = source.native.table
+    to = _insertion_index(view, parent, "row", position)
+    try:
+        placed = parent.native.copy_rows(
+            table.rows.index(source.native),
+            to=to,
+            source=None if _element(parent.native) is _element(table) else table,
+        )
+    except ValueError as exc:
+        raise _core_refusal(exc, target=source.path) from exc
+    return placed[0], _copied_identities(_element(source.native), _element(placed[0]))
 
 
 def _copy_paragraph(

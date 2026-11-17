@@ -18,7 +18,7 @@ from hwpx_automation.office.agent.blueprint import (
     validate_replay_request,
     with_blueprint_hash,
 )
-from hwpx_automation.office.agent.model import AGENT_CATALOG_SCHEMA, AgentContractError
+from hwpx_automation.office.agent.model import AGENT_CATALOG_SCHEMA_V2 as AGENT_CATALOG_SCHEMA, AgentContractError
 
 
 def _digest(seed: str) -> str:
@@ -92,7 +92,7 @@ def test_catalog_and_json_schemas_are_deterministic() -> None:
     second = blueprint_catalog()
     assert first == second
     assert blueprint_catalog_hash() == blueprint_catalog_hash()
-    assert blueprint_json_schemas()["blueprint"]["properties"]["schemaVersion"]["const"] == BLUEPRINT_SCHEMA
+    assert BLUEPRINT_SCHEMA in blueprint_json_schemas()["blueprint"]["properties"]["schemaVersion"]["enum"]
     json.dumps(blueprint_json_schemas(), sort_keys=True)
 
 

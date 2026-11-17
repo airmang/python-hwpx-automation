@@ -66,12 +66,6 @@ def catalog_hash(version: int = 2) -> str:
     return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def blueprint_agent_catalog_hash() -> str:
-    """The agent catalog hash a blueprint carries: still v1's until blueprint v2 (asks10c)."""
-
-    return catalog_hash(1)
-
-
 def agent_json_schemas() -> dict[str, Any]:
     """Generate public JSON Schema fragments from the frozen catalog."""
 
@@ -265,7 +259,6 @@ def human_help(kind: str | None = None) -> str:
 __all__ = [
     "agent_catalog",
     "agent_json_schemas",
-    "blueprint_agent_catalog_hash",
     "catalog_hash",
     "human_help",
     "node_help",

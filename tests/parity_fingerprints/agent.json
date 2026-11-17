@@ -192,7 +192,7 @@
       },
       "BLUEPRINT_SCHEMA": {
         "kind": "constant",
-        "value": "hwpx.agent-blueprint/v1"
+        "value": "hwpx.agent-blueprint/v2"
       },
       "BlueprintBundle": {
         "bases": [],
@@ -749,7 +749,7 @@
       },
       "BLUEPRINT_SCHEMA": {
         "kind": "constant",
-        "value": "hwpx.agent-blueprint/v1"
+        "value": "hwpx.agent-blueprint/v2"
       },
       "BlueprintBundle": {
         "bases": [],

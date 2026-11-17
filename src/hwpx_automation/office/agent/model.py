@@ -235,12 +235,14 @@ NODE_PROPERTY_CATALOG_V1: dict[str, dict[str, tuple[str, ...]]] = {
 _TEXT_FORMAT_PROPERTIES = ("bold", "italic", "underline", "fontName", "fontSizePt", "color")
 
 # agent-command v2 (hwpx-automation 8.0): a run is only re-formatted in place; text is
-# added, removed, moved and copied as a character range (``text``), and objects in a
-# paragraph sit at a character offset.  Footnotes and endnotes keep their v1
-# operations until python-hwpx places a note at an offset (asks10c).
+# added, removed, moved and copied as a character range (``text``), and objects and
+# notes in a paragraph sit at a character offset (python-hwpx places a note at one
+# since asks10c, so a footnote or endnote is also added and moved).
 _CATALOG_V2: dict[str, dict[str, tuple[str, ...]]] = {
     **NODE_PROPERTY_CATALOG_V1,
     "run": {**NODE_PROPERTY_CATALOG_V1["run"], "operations": ("set",)},
+    "footnote": {**NODE_PROPERTY_CATALOG_V1["footnote"], "operations": AGENT_OPERATIONS},
+    "endnote": {**NODE_PROPERTY_CATALOG_V1["endnote"], "operations": AGENT_OPERATIONS},
     "text": {
         "readable": ("text", "start", "end", "runs"),
         "editable": ("text", *_TEXT_FORMAT_PROPERTIES),
