@@ -949,3 +949,23 @@ def test_text_set_later_in_a_report_table_cell_keeps_the_table_type(tmp_path, mo
         table = [t for p in doc.paragraphs for t in p.tables][-1]
         shapes = {run.char_pr_id_ref for row in (1, 2) for run in table.cell(row, 1).paragraphs[0].runs}
     assert len(shapes) == 1
+
+
+def test_report_title_banner_and_section_boxes_start_with_their_text_run() -> None:
+    """8.0 18차: the title banner and the boxed section headings are table cells too; their text run
+    must be the cell's first, so an edit there keeps the heading's type (see the table case above)."""
+
+    from hwpx_automation.markdown import from_markdown
+
+    with from_markdown("# Title\n\n## 1. Part\n\nText.\n") as doc:
+        cells = [
+            cell
+            for paragraph in doc.paragraphs
+            for table in paragraph.tables
+            for row in table.rows
+            for cell in row.cells
+            if cell.text.strip()
+        ]
+        assert cells
+        for cell in cells:
+            assert cell.paragraphs[0].runs[0].text, cell.text
