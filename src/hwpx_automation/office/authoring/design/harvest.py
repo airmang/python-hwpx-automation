@@ -128,7 +128,8 @@ def _write_fragments_document(
     from ...rendering import save_gate_report
 
     places: dict[str, dict[str, int]] = {}
-    with HwpxDocument.open(skeleton) as document:
+    # The copies get new ids: from a fixed seed, so the same source harvests to the same bytes.
+    with S.open_seeded(skeleton, S.HARVEST_SEED) as document:  # type: ignore[attr-defined]
         last = document.sections[0].paragraphs[-1]
         index = len(document.sections[0].paragraphs)
         for role, paragraphs in groups:
@@ -188,7 +189,7 @@ def _pick_info_table(doc) -> Any | None:
 
 
 def _build_skeleton(source: Path, out_path: Path) -> dict:
-    doc = HwpxDocument.open(source)
+    doc: Any = S.open_seeded(source, S.HARVEST_SEED)  # any id made here comes from the fixed seed
     # Only the first section's page setup is reused; later sections would ride
     # into every composed document with the source's text.
     _drop_later_sections(doc)

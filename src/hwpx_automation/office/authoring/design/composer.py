@@ -163,14 +163,11 @@ def compose_bytes(plan: DocumentPlan | dict, **kwargs: Any) -> tuple[bytes, Comp
 
 #: The ids the copied fragments get come from this seed, so the same plan composes to the
 #: same document (python-hwpx ``HwpxDocument.open(seed=)``).
-_COMPOSE_SEED = 0x48575058
+_COMPOSE_SEED = S.COMPOSE_SEED
 
 
 def _open_seeded(data: bytes) -> HwpxDocument:
-    try:
-        return HwpxDocument.open(data, seed=_COMPOSE_SEED)
-    except TypeError:  # a python-hwpx 7.0 development build before seed= on open (#775)
-        return HwpxDocument.open(data)
+    return S.open_seeded(data, _COMPOSE_SEED)  # type: ignore[return-value]
 
 
 def _default_policy() -> QualityPolicy:
