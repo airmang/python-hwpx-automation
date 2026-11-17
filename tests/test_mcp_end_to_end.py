@@ -76,10 +76,15 @@ def test_advanced_toolset_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HWPX_MCP_ADVANCED", "1")
     import hwpx_automation.server as server
 
-    reloaded = importlib.reload(server)
-    names = set(snapshot_runtime_tools(reloaded.mcp))
+    try:
+        reloaded = importlib.reload(server)
+        names = set(snapshot_runtime_tools(reloaded.mcp))
 
-    assert ADVANCED_TOOLS.issubset(names)
+        assert ADVANCED_TOOLS.issubset(names)
+    finally:
+        # 고급 도구를 켠 서버 모듈을 남기지 않는다(같은 일꾼의 뒤 시험이 기본 도구 목록을 본다).
+        monkeypatch.undo()
+        importlib.reload(server)
 
 
 def test_year_rollover_batch_replace_flow(server_module, tmp_path: Path) -> None:
