@@ -53,12 +53,12 @@ jobs:
           # During the unpublished train this repository variable may name the
           # clean candidate branch. After core 5.0 lands, main is authoritative.
           # 8.0 needs python-hwpx 7.0, which is not on PyPI yet: until then every
-          # job here tests against core main at a fixed commit (0c3326b9).
+          # job here tests against core main at a fixed commit (9720bf7c).
           # TODO(core-7.0-release): once python-hwpx 7.0 is published, install
           # `python -m pip install "python-hwpx>=7.0,<8"` from PyPI instead of
           # the editable checkout and point this ref at the v7.0.0 tag (the
           # runtime-parity suites still read fixtures from this checkout).
-          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '0c3326b9b6974d8334082100e72d4636467c87f4' }}
+          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '9720bf7ca0cddbe5735272526790a808e3307de8' }}
           path: python-hwpx
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -204,7 +204,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: airmang/python-hwpx
-          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '0c3326b9b6974d8334082100e72d4636467c87f4' }}
+          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '9720bf7ca0cddbe5735272526790a808e3307de8' }}
           path: python-hwpx
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -239,7 +239,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: airmang/python-hwpx
-          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '0c3326b9b6974d8334082100e72d4636467c87f4' }}
+          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '9720bf7ca0cddbe5735272526790a808e3307de8' }}
           path: python-hwpx
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -346,7 +346,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: airmang/python-hwpx
-          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '0c3326b9b6974d8334082100e72d4636467c87f4' }}
+          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '9720bf7ca0cddbe5735272526790a808e3307de8' }}
           path: python-hwpx
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:

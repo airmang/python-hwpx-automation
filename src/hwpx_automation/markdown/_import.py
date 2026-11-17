@@ -1371,6 +1371,7 @@ class _Writer:
         table.set_cell_border_fill(1, 0, self.border_id(fill=style.banner_fill, sides=(None, None, None, None)))
         title = table.cell(1, 0).paragraphs[0]
         self.write_runs(title, block.text, bold=self.heading_bold(1), size=size, font=self.heading_font(1))
+        _drop_blank_lead_run(title)
         self.doc.styles.apply_paragraph_format(paragraphs=[title], alignment="center", line_spacing=120)
         self.outline(title, 1)
         table.set_row_heights([_STRIP_HEIGHT, round(size * 100 * _BANNER_HEIGHT_EMS), _STRIP_HEIGHT])
@@ -1411,9 +1412,11 @@ class _Writer:
             table.set_cell_border_fill(0, 0, self.border_id(color=line, width="0.4 mm", fill=fill))
             label = table.cell(0, 0).paragraphs[0]
             label.add_run(number, char_pr_id_ref=self.char_id(True, False, size + 2, style.body_font, "#FFFFFF"))
+            _drop_blank_lead_run(label)
             self.doc.styles.apply_paragraph_format(paragraphs=[label], alignment="center")
         heading = table.cell(0, 1 if number else 0).paragraphs[0]
         self.write_runs(heading, text, bold=self.heading_bold(2), size=size, font=self.heading_font(2), color=ink)
+        _drop_blank_lead_run(heading)
         self.doc.styles.apply_paragraph_format(
             paragraphs=[heading], indent_left_mm=_BOX_TITLE_INDENT_MM, line_spacing=130
         )
@@ -1840,7 +1843,8 @@ def _pad_wrapping_rows(table: Any, grid: list[list[str]], cols: int, font_pt: fl
 
 
 def _drop_blank_lead_run(paragraph: Any) -> None:
-    """Remove the empty run a new cell starts with (in the document's first character shape) when
+    """Remove the empty run a new cell starts with (tables, the report look's title banner and boxed
+    section headings) (in the document's first character shape) when
     the cell's text was written after it. Left in, it is the run Hancom, and every tool writing into
     the cell later, takes the cell's character shape from: text typed or set there came out in that
     shape, not in the table's (8.0 17차: the sum written into a plugin-made table was smaller)."""

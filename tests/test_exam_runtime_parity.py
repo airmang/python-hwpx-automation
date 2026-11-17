@@ -183,6 +183,12 @@ def test_measurement_and_profile_projections_match_frozen_core() -> None:
     assert _jsonify(dataclasses.asdict(mcp_profile_value)) == GOLDEN["profileFormAsDict"]
 
 
+#: python-hwpx #780 (asks10b, 9720bf7c) writes a new style's attributes in Hancom's order (langID before
+#: nextStyleIDRef). The composed header.xml is then these bytes; it is the frozen one but for that order
+#: (a canonical XML comparison finds them equal). Both are accepted, as for core #659/#677 in evalplan.
+CORE_780_HEADER_SHA256 = "e35a10afcebc99f19740cade3298fb8e532ff4fa99e3c11444e47046f66dfe36"
+
+
 def test_fixture_composition_bytes_reopen_and_open_safety_match_frozen_core(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -212,6 +218,9 @@ def test_fixture_composition_bytes_reopen_and_open_safety_match_frozen_core(
         hashes = {
             name: hashlib.sha256(mcp_zip.read(name)).hexdigest() for name in names
         }
-        assert hashes == GOLDEN["composeResult"]["zipEntrySha256"]
+        expected = dict(GOLDEN["composeResult"]["zipEntrySha256"])
+        if hashes.get("Contents/header.xml") == CORE_780_HEADER_SHA256:
+            expected["Contents/header.xml"] = CORE_780_HEADER_SHA256
+        assert hashes == expected
 
     assert validate_editor_open_safety(mcp_out).ok is True
