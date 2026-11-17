@@ -5,10 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, Sequence
 
-from ..upstream import (
-    HP_NS,
-)
-
 from .context import DocumentContext
 from .save_policy import SavePolicy
 from .transactions import TransactionService
@@ -232,7 +228,7 @@ class ContentLayoutService:
             "filename": path,
             "chart": {
                 "chartType": chart_type,
-                "chartIDRef": inline_object.element.get("chartIDRef"),
+                "chartIDRef": inline_object.attributes.get("chartIDRef"),
                 "seriesCount": len(parsed_series),
                 "categoryCount": len(categories),
             },
@@ -413,10 +409,12 @@ class ContentLayoutService:
         kind: str,
         page_type: str,
     ) -> Dict[str, Any]:
-        element = getattr(wrapper, "element", None)
+        # 쪽 번호 컨트롤 수: 머리말·꼬리말 안(칸·글상자 속 문단까지)의 run.content "page_number".
         page_number_count = 0
-        if element is not None and hasattr(element, "iter"):
-            page_number_count = sum(1 for _ in element.iter(f"{HP_NS}pageNum"))
+        for paragraph in getattr(wrapper, "paragraphs", None) or ():
+            for inner in (paragraph, *(place.paragraph for place in paragraph.iter_paragraphs())):
+                for run in inner.runs:
+                    page_number_count += sum(1 for item in run.content if item.kind == "page_number")
         return {
             "kind": kind,
             "pageType": page_type,

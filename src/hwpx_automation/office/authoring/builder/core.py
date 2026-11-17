@@ -898,7 +898,7 @@ _ANCHOR_SINK: ContextVar[list[_AnchorEntry] | None] = ContextVar(
 
 
 def _paragraph_counts(document: HwpxDocument) -> tuple[int, ...]:
-    return tuple(len(section.paragraphs) for section in document.oxml.sections)
+    return tuple(len(section.paragraphs) for section in document.sections)
 
 
 def _anchor_mark(document: HwpxDocument, child: object) -> None:
@@ -912,7 +912,7 @@ def _anchor_resolve(document: HwpxDocument) -> None:
     sink = _ANCHOR_SINK.get()
     if not sink:
         return
-    sections = document.oxml.sections
+    sections = document.sections
     for position, (key, before, element) in enumerate(sink):
         if element is not None:
             continue
@@ -928,7 +928,7 @@ def _anchor_positions(
     document: HwpxDocument, sink: Sequence[_AnchorEntry]
 ) -> dict[str, dict[str, int]]:
     positions: dict[Any, dict[str, int]] = {}  # paragraph objects are equal per element
-    for section_index, section in enumerate(document.oxml.sections):
+    for section_index, section in enumerate(document.sections):
         for paragraph_index, paragraph in enumerate(section.paragraphs):
             positions[paragraph] = {
                 "section": section_index,
@@ -1095,7 +1095,7 @@ class Section:
                 # field region is inserted after the whole document is lowered
                 # so the entry source (outline headings) is complete.
                 pending_native_tocs.append(
-                    (len(document.oxml.sections[0].paragraphs), child)
+                    (len(document.sections[0].paragraphs), child)
                 )
                 continue
             raise NotImplementedError(f"{type(child).__name__} lowering is not implemented yet")

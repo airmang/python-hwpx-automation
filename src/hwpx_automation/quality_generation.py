@@ -412,7 +412,7 @@ def _style_summary(doc: Any) -> dict[str, Any]:
     # duck-typed stand-in without the full namespace surface.
     text_ns = getattr(doc, "text", None)
     for run in getattr(text_ns, "runs", lambda: [])():
-        style_id = getattr(getattr(run, "element", None), "get", lambda _key: None)("charPrIDRef")
+        style_id = getattr(run, "char_pr_id_ref", None)
         if style_id:
             used_ids.add(str(style_id))
     styles_ns = getattr(doc, "styles", {})

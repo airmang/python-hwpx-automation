@@ -7,7 +7,6 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 from ..upstream import (
-    HH_NS,
     HwpxDocument,
     HwpxOxmlParagraph,
     HwpxOxmlRun,
@@ -95,41 +94,6 @@ def _char_style_matches(
     font_refs: dict[str, str],
 ) -> bool:
     return char_style_matches(run_style, flags=flags, color=color, height=height, font_refs=font_refs)
-
-
-def _ref_list_element(header: Any) -> ET.Element:
-    element = header.element.find(f"{HH_NS}refList")
-    if element is None:
-        raise RuntimeError("document header does not expose a refList element")
-    return element
-
-
-def _fontfaces_element(header: Any) -> ET.Element:
-    ref_list = _ref_list_element(header)
-    fontfaces = ref_list.find(f"{HH_NS}fontfaces")
-    if fontfaces is None:
-        raise RuntimeError("document header does not expose fontfaces")
-    return fontfaces
-
-
-def _find_fontface_bucket(fontfaces: ET.Element, lang: str) -> ET.Element | None:
-    for bucket in fontfaces.findall(f"{HH_NS}fontface"):
-        if (bucket.get("lang") or "").upper() == lang:
-            return bucket
-    return None
-
-
-def _next_font_id(bucket: ET.Element) -> str:
-    numeric_ids: list[int] = []
-    for child in bucket.findall(f"{HH_NS}font"):
-        raw_id = child.get("id")
-        if raw_id is None:
-            continue
-        try:
-            numeric_ids.append(int(raw_id))
-        except ValueError:
-            continue
-    return "0" if not numeric_ids else str(max(numeric_ids) + 1)
 
 
 def _ensure_font_face_refs(header: Any, font_name: str) -> dict[str, str]:

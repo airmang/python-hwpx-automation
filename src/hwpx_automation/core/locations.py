@@ -166,15 +166,14 @@ def _iter_nested_tables(table: Any) -> Iterator[Any]:
 
 def _iter_anchor_cells(table: Any) -> Iterator[tuple[int, int, Any]]:
     if hasattr(table, "iter_grid"):
-        seen: set[int] = set()
+        seen: set[Any] = set()  # 칸 객체는 같은 요소면 같고 해시도 같다(python-hwpx)
         for position in table.iter_grid():
             if not getattr(position, "is_anchor", False):
                 continue
             cell = position.cell
-            marker = id(getattr(cell, "element", cell))
-            if marker in seen:
+            if cell in seen:
                 continue
-            seen.add(marker)
+            seen.add(cell)
             row, col = getattr(position, "anchor", (position.row, position.column))
             yield int(row), int(col), cell
         return

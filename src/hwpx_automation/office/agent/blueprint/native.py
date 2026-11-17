@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from hwpx.document import HwpxDocument
+from hwpx.oxml import HwpxOxmlTableCell
 from hwpx.oxml.namespaces import HH, HP
 from hwpx.oxml.shape_position import line_width_mm_for_units
 
@@ -301,7 +302,7 @@ class TypedNativeBridge:
             paragraph = existing
             paragraph.clear_text()
             reuse_existing = True
-        elif hasattr(parent, "add_paragraph") and _local_name(parent.element) == "tc":
+        elif isinstance(parent, HwpxOxmlTableCell):
             paragraph = parent.add_paragraph("")
             paragraph.clear_text()
             reuse_existing = True
