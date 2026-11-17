@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: airmang/python-hwpx
-          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '82edc27f28595d0fd72d3c8fd0b636c2b4c27d13' }}
+          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || '0c3326b9b6974d8334082100e72d4636467c87f4' }}
           path: python-hwpx
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
