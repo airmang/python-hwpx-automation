@@ -775,11 +775,14 @@ def _apply_set_table(native: Any, properties: Mapping[str, Any], record: NodeRec
     if "caption" in properties:
         _table_caption(native, properties["caption"])
     if "alignment" in properties:
-        pos = next((child for child in native.element if _local_name(child) == "pos"), None)
-        if pos is None:
-            raise AgentContractError("unsupported_content", "table has no position element", target=record.path)
-        pos.set("horzAlign", properties["alignment"].upper())
-        native.mark_dirty()
+        try:
+            native.set_position(horizontal_alignment=properties["alignment"].upper())
+        except ValueError as exc:  # python-hwpx's HwpxValueError
+            if getattr(exc, "code", None) == "shape-position-unsupported":
+                raise AgentContractError(
+                    "unsupported_content", "table has no position element", target=record.path
+                ) from exc
+            raise
 
 
 def _apply_set_row(native: Any, properties: Mapping[str, Any]) -> None:

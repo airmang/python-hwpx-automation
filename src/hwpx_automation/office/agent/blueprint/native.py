@@ -333,9 +333,8 @@ class TypedNativeBridge:
         _move_to_host_run(paragraph, table, host_run)
         if properties.get("caption") is not None:
             _table_caption(table, str(properties["caption"] or ""))
-        pos = _direct_child(table.element, "pos")
-        if pos is not None and properties.get("alignment"):
-            pos.set("horzAlign", str(properties["alignment"]).upper())
+        if properties.get("alignment"):  # a table paragraph.add_table makes always carries hp:pos
+            table.set_position(horizontal_alignment=str(properties["alignment"]).upper())
         self.created[node_id] = CreatedBinding("table", table)
         row_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "row"]
         if len(row_ids) != len(table.rows):
