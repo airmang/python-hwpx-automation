@@ -997,7 +997,7 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
     elif record.kind == "memo":
         native.remove()
     elif record.kind in {"footnote", "endnote"}:
-        _remove_inline_element(native.element, native.paragraph)
+        native.remove()
     else:
         raise AgentContractError(
             "unsupported_operation", f"remove is unsupported for {record.kind}", target=record.path
