@@ -8,7 +8,7 @@ import re
 from ast import literal_eval as _literal
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Literal, Mapping, Sequence, cast, overload
+from typing import Any, Callable, Iterable, Literal, Mapping, Sequence, cast, overload
 
 from hwpx.document import HwpxDocument
 from hwpx.tools.package_validator import validate_package
@@ -1137,22 +1137,83 @@ def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
                 f"profile {profile_id!r} cannot place blocks[{index}] of type "
                 f"{block_type!r}; remove metadata.document_type to use the general layout"
             )
-    for line in _gyeolmun_lines(plan):
+    official = profile_id == "official_notice"
+    blocks[:0] = [_Block(type="paragraph", role="body", text=line) for line in _dumun_lines(plan, official=official)]
+    for line in _gyeolmun_lines(plan, official=official):
         emit(_Block(type="paragraph", role="body", text=line))
     if pending_break:
         # A trailing page break still opens a new (empty) page, as in the general layout.
         emit(_Block(type="paragraph", role="body", text=""))
-    design_plan = _DesignPlan(profile=profile_id, title=str(plan.get("title") or ""), blocks=blocks)
+    title = _shown_title(
+        str(plan.get("title") or ""),
+        (str(raw.get("text") or "") for raw in plan.get("blocks") or [] if isinstance(raw, Mapping)),
+    )
+    design_plan = _DesignPlan(profile=profile_id, title=title, blocks=blocks)
     return design_plan, memos
 
 
-def _gyeolmun_lines(plan: Mapping[str, Any]) -> list[str]:
-    gyeolmun = plan.get("gyeolmun")
-    if not isinstance(gyeolmun, Mapping):
+def _shown_title(title: str, block_texts: Iterable[str]) -> str:
+    """The plan title to print above the blocks, or ``""`` when a block already prints it: as it is,
+    or as a 기안문's ``제목  <title>`` line (compose_official_draft), which is where a 공문 shows it."""
+
+    wanted = "".join(title.split())
+    if not wanted:
+        return ""
+    for text in block_texts:
+        compact = "".join(text.split())
+        if compact == wanted or compact == "제목" + wanted:
+            return ""
+    return title
+
+
+#: metadata keys a 공문 plan may give its 두문·결문 in, by the field they fill.
+_DUMUN_METADATA = (("수신", ("수신", "수신자", "recipient")), ("(경유)", ("경유", "via")))
+_GYEOLMUN_METADATA = {
+    "issuer": ("발신명의", "발신", "sender", "issuer"),
+    "productionNumber": ("생산등록번호", "productionNumber"),
+    "enforcementDate": ("시행", "시행일", "enforcementDate"),
+    "disclosure": ("공개구분", "공개 구분", "disclosure"),
+}
+
+
+def _plan_metadata(plan: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata = plan.get("metadata")
+    return metadata if isinstance(metadata, Mapping) else {}
+
+
+def _dumun_lines(plan: Mapping[str, Any], *, official: bool) -> list[str]:
+    """``수신  …``/``(경유)  …`` from a 공문 (*official*) plan's metadata, unless a block already
+    starts with it."""
+
+    if not official:
         return []
-    return [
-        f"{label}  {gyeolmun[key]}" for key, label in _GYEOLMUN_FIELDS if gyeolmun.get(key)
+    metadata = _plan_metadata(plan)
+    written = [
+        "".join(str(raw.get("text") or "").split())
+        for raw in plan.get("blocks") or []
+        if isinstance(raw, Mapping)
     ]
+    lines: list[str] = []
+    for label, keys in _DUMUN_METADATA:
+        value = next((str(metadata[key]).strip() for key in keys if str(metadata.get(key) or "").strip()), "")
+        bare = label.strip("()")
+        if value and not any(text.startswith(label) or text.startswith(bare) for text in written):
+            lines.append(f"{label}  {value}")
+    return lines
+
+
+def _gyeolmun_lines(plan: Mapping[str, Any], *, official: bool = False) -> list[str]:
+    """The 결문 lines of ``plan["gyeolmun"]``; for a 공문 (*official*) a field it leaves out is taken
+    from ``metadata`` (``발신명의``/``발신``, ``시행``, ``공개구분`` ...)."""
+
+    gyeolmun = plan.get("gyeolmun")
+    values = dict(gyeolmun) if isinstance(gyeolmun, Mapping) else {}
+    if official:
+        metadata = _plan_metadata(plan)
+        for field_name, keys in _GYEOLMUN_METADATA.items():
+            if not values.get(field_name):
+                values[field_name] = next((metadata[key] for key in keys if metadata.get(key)), "")
+    return [f"{label}  {values[key]}" for key, label in _GYEOLMUN_FIELDS if values.get(key)]
 
 
 def _bridge_table_block(raw: Mapping[str, Any], block_type: Any) -> Any:
@@ -1304,9 +1365,10 @@ def _create_document_from_plan(
     tokens = style_preset.ensure_tokens(document)
     builder_document = _lower_plan_to_builder_document(normalized)
 
-    if normalized.title:
+    title = _shown_title(normalized.title, (str(block.data.get("text") or "") for block in normalized.blocks))
+    if title:
         paragraph = document.add_paragraph(
-            normalized.title,
+            title,
             char_pr_id_ref=tokens["title"],
             inherit_style=False,
         )

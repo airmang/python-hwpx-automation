@@ -164,3 +164,38 @@ def test_official_draft_blocks_compose_on_the_official_profile(tmp_path: Path) -
         texts = [[cell.text for cell in row.cells] for table in tables for row in table.rows]
     assert ["담당", "가", "과장", "전결\n나"] in texts  # the 결재란, all four cells
     assert not any("직위0" in cell or "구분" == cell for row in texts for cell in row)  # no label rows
+
+
+def test_official_plan_metadata_fills_the_dumun_and_gyeolmun(tmp_path: Path) -> None:
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "휴관 안내",
+        "metadata": {"document_type": "공문", "수신": "각 부서장", "발신": "가상도서관장", "시행": "자료-1(2031. 1. 2.)"},
+        "blocks": [{"type": "paragraph", "text": "휴관합니다.  끝."}],
+    }
+    target = tmp_path / "gongmun.hwpx"
+    result = create_document_from_plan(str(target), plan, verbosity="full")
+
+    with HwpxDocument.open(str(target)) as doc:
+        texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text]
+    assert texts[:3] == ["휴관 안내", "수신  각 부서장", "휴관합니다.  끝."]
+    assert "발신명의  가상도서관장" in texts and "시행일  자료-1(2031. 1. 2.)" in texts
+    # 공개구분 is still missing: the gate says so and points at the 일반기안문 tool.
+    assert result["quality"]["gongmun_structure"]["structure_pass"] is False
+    assert "compose_official_draft" in result["next_action"]
+
+
+@pytest.mark.parametrize("doc_type", [None, "공문"])
+def test_title_is_not_printed_twice_when_a_block_carries_it(tmp_path: Path, doc_type: str | None) -> None:
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "점검 안내",
+        "blocks": [{"type": "paragraph", "text": "가상기관"}, {"type": "paragraph", "text": "제목  점검 안내"}],
+    }
+    if doc_type:
+        plan["metadata"] = {"document_type": doc_type}
+    target = tmp_path / "title.hwpx"
+    create_document_from_plan(str(target), plan)
+    with HwpxDocument.open(str(target)) as doc:
+        texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text]
+    assert texts[:2] == ["가상기관", "제목  점검 안내"]

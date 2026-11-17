@@ -198,6 +198,14 @@ def _handoff_status(quality: dict) -> str:
 def _next_action(quality: dict) -> str:
     if bool(quality.get("pass")):
         return "structural handoff is ready; complete visual review before final submission"
+    structure = quality.get("gongmun_structure")
+    if isinstance(structure, dict) and not structure.get("structure_pass", True):
+        # A 공문 missing its 두문·결문: the 일반기안문 tool lays them out from named values.
+        return (
+            "공문 structure is incomplete (quality.gongmun_structure.repair_hints): build the blocks "
+            "with compose_official_draft (수신·발신명의·시행·공개구분·결재란), then rerun "
+            "create_document_from_plan with those blocks"
+        )
     return "review quality.gaps and profile repair_hints, then rerun validate/analyze/create"
 
 
