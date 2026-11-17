@@ -19,8 +19,18 @@ from pydantic import BaseModel, ConfigDict, field_validator
 MAX_DEPTH = 4
 MAX_BOXES = 40
 
-_BOX_ROW_HEIGHT = 1100
-_CONNECTOR_ROW_HEIGHT = 360
+_BOX_ROW_HEIGHT = 2600  # about 9 mm: a box reads as a box, not a ruled line (8.0)
+_CONNECTOR_ROW_HEIGHT = 700  # the connector rows: room between the levels
+#: The type size of a box's label by level (root first); deeper levels take the last.
+_BOX_FONT_PT = (15.0, 13.0, 12.0)
+#: The least a label is set in before it is let wrap in its box.
+_MIN_FONT_PT = 9.0
+#: A label wraps onto at most this many lines; past it the chart says it does not fit.
+_MOST_LINES = 3
+_CELL_SIDE_PADDING = 2 * 510
+_NEWLINE = chr(10)
+#: A box's line takes this much of its type size in height, line spacing and padding included.
+_LINE_PITCH = 1.7
 _BOX_COLUMN_WEIGHT = 3.0
 _GAP_COLUMN_WEIGHT = 1.0
 _BORDER_WIDTH_MM = 0.12
@@ -52,6 +62,7 @@ class _Box:
     col_end: int
     text: str
     fill_color: str | None
+    level: int = 0
 
 
 @dataclass
@@ -179,6 +190,7 @@ def _place_subtree(
             col_end=col_end,
             text=_box_text(node),
             fill_color=accent_color if level == 0 else None,
+            level=level,
         )
     )
     if not node.children:
@@ -237,7 +249,16 @@ def lower_boxed_org_chart(
         )
         table.set_cell_border_fill(row, col, fill)
 
-    for box in spec.boxes:
+    table_width = sum(table.cell(0, col).width for col in range(spec.cols))
+    table.set_column_widths(_column_widths(spec, table_width))
+    widths = [table.cell(0, col).width for col in range(spec.cols)]
+    fitted = [_fit_label(box, sum(widths[box.col_start : box.col_end + 1])) for box in spec.boxes]
+    row_heights = list(spec.row_heights)
+    for box, (size, lines, _fits) in zip(spec.boxes, fitted):
+        needed = round(size * 100 * _LINE_PITCH * lines) + 2 * 141
+        row_heights[box.row] = max(row_heights[box.row], needed)
+
+    for box, (size, _lines, _fits) in zip(spec.boxes, fitted):
         merged = table.merge_cells(box.row, box.col_start, box.row, box.col_end)
         box_fill = document.styles.ensure_border_fill(
             border_color=_BORDER_COLOR,
@@ -246,21 +267,70 @@ def lower_boxed_org_chart(
         )
         table.set_cell_border_fill(box.row, box.col_start, box_fill)
         merged.text = box.text
+        merged.vertical_alignment = "CENTER"
+        label = document.styles.ensure_run(bold=True, size=size)
+        for paragraph in merged.paragraphs:
+            for run in paragraph.runs:
+                run.char_pr_id_ref = label
+            paragraph.char_pr_id_ref = label
+        document.styles.apply_paragraph_format(paragraphs=list(merged.paragraphs), alignment="center")
 
-    table.set_column_widths(spec.column_weights)
-    for row_index, height in enumerate(spec.row_heights):
-        for col_index in range(spec.cols):
-            cell = table.cell(row_index, col_index)
-            if cell is not None:
-                cell.set_size(height=height)
-                break
+    table.set_row_heights(row_heights)  # every cell of a row, the merged boxes too
+    table.mark_dirty()
 
-    return {
+    too_wide = [box.text.replace(_NEWLINE, " ") for box, (_size, _lines, fits) in zip(spec.boxes, fitted) if not fits]
+    summary: dict[str, Any] = {
         "rows": spec.rows,
         "cols": spec.cols,
         "boxes": len(spec.boxes),
         "connectorCells": len(spec.cell_sides),
+        "fontPt": sorted({size for size, _lines, _fits in fitted}, reverse=True),
+        "fits": not too_wide,
     }
+    if too_wide:
+        summary["warnings"] = [
+            f"상자 {len(too_wide)}개의 이름이 칸 폭에 {_MOST_LINES}줄로도 들지 않습니다: "
+            + ", ".join(too_wide[:5])
+            + ". 이름을 줄이거나 가지를 나눠 주세요."
+        ]
+    return summary
+
+
+#: Hancom draws no column narrower than its cells' side margins (510 each) and 283 more
+#: (python-hwpx ``NEW_TABLE_COLUMN_FLOOR``); a narrower one widens the table past the page's text.
+_COLUMN_FLOOR = 2 * 510 + 283
+
+
+def _column_widths(spec: BoxedOrgChartSpec, table_width: int) -> list[int]:
+    """The columns' widths in HWPUNIT, adding up to *table_width*: the gaps their share, but never
+    under Hancom's least column, and the box columns the rest."""
+
+    total = sum(spec.column_weights)
+    gaps = [index for index, weight in enumerate(spec.column_weights) if weight == _GAP_COLUMN_WEIGHT]
+    gap = max(round(table_width * _GAP_COLUMN_WEIGHT / total), _COLUMN_FLOOR) if gaps else 0
+    boxes = spec.cols - len(gaps)
+    box = max((table_width - gap * len(gaps)) // max(boxes, 1), _COLUMN_FLOOR)
+    widths = [gap if index in gaps else box for index in range(spec.cols)]
+    widths[-1] += table_width - sum(widths)  # the rounding, on the last column
+    return widths
+
+
+def _fit_label(box: _Box, width: int) -> tuple[float, int, bool]:
+    """``(type size, lines, fits)`` for *box*'s label in a box *width* wide: its level's size, made
+    smaller (down to the least) until each line fits, then let wrap onto up to a few lines."""
+
+    from hwpx.form_fit import estimate_text_width
+
+    inner = max(width - _CELL_SIDE_PADDING, 1)
+    lines_text = box.text.split(_NEWLINE)
+    size = _BOX_FONT_PT[min(box.level, len(_BOX_FONT_PT) - 1)]
+    while True:
+        longest = max(estimate_text_width(line, size) for line in lines_text)
+        if longest <= inner or size <= _MIN_FONT_PT:
+            break
+        size -= 1.0
+    wrapped = sum(max(1, -(-int(estimate_text_width(line, size)) // inner)) for line in lines_text)
+    return size, wrapped, wrapped <= _MOST_LINES * len(lines_text)
 
 
 __all__ = [

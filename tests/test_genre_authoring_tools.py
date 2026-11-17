@@ -179,3 +179,46 @@ class TestGenreGrammarAndChip:
         assert inline["block"]["type"] == "heading"
         with pytest.raises(ValueError):
             server.compose_section_chip("1", "현황", style="banner")
+
+
+def _chart_document(tmp_path: Path, tree: dict):
+    from hwpx import HwpxDocument
+    from hwpx_automation.office.house_style.org_chart import lower_boxed_org_chart
+
+    doc = HwpxDocument.new()
+    summary = lower_boxed_org_chart(doc, tree)
+    path = tmp_path / "chart.hwpx"
+    doc.save(path)
+    doc.close()
+    return HwpxDocument.open(path), summary
+
+
+def test_boxed_org_chart_stays_inside_the_text_width_and_reads_as_boxes(tmp_path: Path) -> None:
+    """8.0 15차: many leaves floored the gap columns (Hancom's least column) and pushed the chart past
+    the page's text; boxes were one thin line of body text."""
+
+    tree = {"label": "관장", "children": [
+        {"label": f"과{index}", "children": [{"label": f"팀{index}-{leaf}"} for leaf in range(3)]}
+        for index in range(3)
+    ]}
+    doc, summary = _chart_document(tmp_path, tree)
+    try:
+        props = doc.sections[0].properties
+        text_width = props.page_size.width - props.page_margins.left - props.page_margins.right
+        table = next(table for paragraph in doc.paragraphs for table in paragraph.tables)
+        assert int(table.element.find(HP + "sz").get("width")) <= text_width
+        root = table.cell(0, next(col for col in range(table.column_count) if table.cell(0, col).text))
+        shape = doc.styles.char_property(root.paragraphs[0].runs[-1].char_pr_id_ref)
+        assert "bold" in shape.child_attributes and float(shape.size) >= 12
+        assert root.height >= 2600
+    finally:
+        doc.close()
+    assert summary["fits"] is True and summary["fontPt"][0] == 15.0
+
+
+def test_boxed_org_chart_says_when_labels_cannot_fit(tmp_path: Path) -> None:
+    tree = {"label": "본부", "children": [{"label": "아주 긴 이름의 부서 " * 3} for _ in range(12)]}
+    doc, summary = _chart_document(tmp_path, tree)
+    doc.close()
+    assert summary["fits"] is False
+    assert "들지 않습니다" in summary["warnings"][0]
