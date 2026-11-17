@@ -2,28 +2,26 @@
 """Compose a new document from a profile + plan (plan §2 Phase E, task 2/3).
 
 ``compose`` lowers a :class:`~hwpx.design.plan.DocumentPlan` onto a verified
-Hancom-saved skeleton: it clones the harvested fragments (real ``<hp:p>``/
-``<hp:tbl>`` with real styles), fills their text/cells, preserves the template's
-``secPr``/page setup, checks ``styleCoverage``, and saves through the single
+Hancom-saved skeleton: it copies the harvested fragment paragraphs (real paragraphs
+and tables with real styles) out of the profile's fragments document with python-hwpx's
+``paragraph.copy_to`` -- which brings the shapes they use along and gives the copies
+fresh ids -- fills their text/cells through the document API, keeps the template's
+page setup, checks ``styleCoverage``, and saves through the single
 :class:`~hwpx.quality.SavePipeline`. Every byte of structure traces to a real
 Hancom save — never imagined XML. Production mode forbids any minimal-XML fallback.
 """
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass, field
 from os import PathLike
-from typing import Any
-from uuid import uuid4
-
-from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
+from typing import Any, Mapping
 
 from hwpx.document import HwpxDocument
 from hwpx.quality import QualityPolicy
 
 import hwpx_automation.office.authoring.design._support as S
 from ...rendering import save_gate_report
-from .marked import OBJECT_TAGS, fill_placeholders, fragment_paragraphs, is_marked_profile
+from .marked import PLACEHOLDER_RE, is_marked_profile
 from .plan import Block, DocumentPlan
 from .profile import Profile, load_profile
 from .validator import StyleCoverage, style_coverage
@@ -75,40 +73,37 @@ def compose(
     prof = profile or load_profile(plan.profile)
     warnings: list[str] = []
 
-    doc = HwpxDocument.open(prof.template_bytes)
+    doc = _open_seeded(prof.template_bytes)
+    fragments_doc = HwpxDocument.open(prof.fragments_bytes)
     try:
         section = doc.sections[0]
-        secpr = S.find_secpr(section.element)
-        if secpr is None:
-            raise ProfileRequiredError(f"profile {prof.id!r} skeleton has no secPr")
-        secpr = deepcopy(secpr)
+        if not section.paragraphs:
+            raise ProfileRequiredError(f"profile {prof.id!r} skeleton has no paragraph")
+        # The skeleton's only paragraph carries the page setup (hp:secPr); it hands it to the
+        # first composed paragraph at the end and goes (_Placer.finish).
+        carrier = section.paragraphs[0]
+        placed = _Placer(carrier)
 
-        new_paragraphs: list[etree._Element] = []
+        new_paragraphs: list[Any] = []
         marked = is_marked_profile(prof.manifest)
         for block in plan.iter_blocks():
             if marked:
-                fragments = _marked_fragment_for(prof, block, production, warnings)
+                fragments = _marked_fragment_for(prof, fragments_doc, placed, block, production, warnings)
             else:
-                frag = _fragment_for(prof, block, production, warnings)
-                fragments = [] if frag is None else [frag]
+                fragments = _fragment_for(prof, fragments_doc, placed, block, production, warnings)
             if block.page_break_before and fragments and new_paragraphs:
                 # Hancom's own shape for a page break: the paragraph that
                 # starts the new page carries pageBreak="1".
-                fragments[0].set("pageBreak", "1")
+                fragments[0].page_break = True
             new_paragraphs.extend(fragments)
 
         if not new_paragraphs:
             raise ProfileRequiredError(
                 f"plan produced no content for profile {prof.id!r}"
             )
+        placed.finish()
 
-        S.move_secpr_into(new_paragraphs[0], secpr)
-        S.replace_section_body(section.element, new_paragraphs)
-        _reassign_paragraph_ids(new_paragraphs)
-        _reassign_object_ids(new_paragraphs)
-        section.mark_dirty()
-
-        coverage = style_coverage(doc, new_paragraphs)
+        coverage = style_coverage(doc, [paragraph.element for paragraph in new_paragraphs])
         errors: list[str] = []
         if production and not coverage.meets(prof.style_coverage_threshold):
             errors.append(
@@ -133,6 +128,7 @@ def compose(
                 warnings=warnings, errors=[f"OPEN_SAFETY_FAILED: {exc}"],
             )
     finally:
+        fragments_doc.close()
         doc.close()
 
     return ComposeResult(
@@ -165,6 +161,18 @@ def compose_bytes(plan: DocumentPlan | dict, **kwargs: Any) -> tuple[bytes, Comp
     return data, result
 
 
+#: The ids the copied fragments get come from this seed, so the same plan composes to the
+#: same document (python-hwpx ``HwpxDocument.open(seed=)``).
+_COMPOSE_SEED = 0x48575058
+
+
+def _open_seeded(data: bytes) -> HwpxDocument:
+    try:
+        return HwpxDocument.open(data, seed=_COMPOSE_SEED)
+    except TypeError:  # a python-hwpx 7.0 development build before seed= on open (#775)
+        return HwpxDocument.open(data)
+
+
 def _default_policy() -> QualityPolicy:
     # Structural-tier strict (no render here; the oracle gate runs separately):
     # open-safety + reference + layout lint on, render off.
@@ -178,30 +186,67 @@ def _default_policy() -> QualityPolicy:
     )
 
 
+class _Placer:
+    """Copies fragment paragraphs into the new document, one after another, after the
+    skeleton's page-setup paragraph (*carrier*). :meth:`finish` then moves the first copy in
+    front of the carrier -- python-hwpx hands it the section settings -- and removes the
+    carrier. The copies are filled before that, so the text goes into the fragment's own
+    runs, not the run the section settings come in."""
+
+    def __init__(self, carrier: Any) -> None:
+        self._carrier = carrier
+        self._last = carrier
+        self._first: Any | None = None
+
+    def copy(self, paragraphs: list[Any]) -> list[Any]:
+        copies: list[Any] = []
+        for source in paragraphs:
+            self._last = source.copy_to(self._last)
+            if self._first is None:
+                self._first = self._last
+            copies.append(self._last)
+        return copies
+
+    def finish(self) -> None:
+        if self._first is not None:
+            self._first.move_before(self._carrier)
+            self._carrier.remove()
+
+
 def _fragment_for(
-    prof: Profile, block: Block, production: bool, warnings: list[str]
-) -> etree._Element | None:
+    prof: Profile,
+    fragments_doc: Any,
+    placer: _Placer,
+    block: Block,
+    production: bool,
+    warnings: list[str],
+) -> list[Any]:
     if block.type == "table":
         if not prof.has_role("info_table"):
             _forbid_fallback(production, f"profile {prof.id!r} has no info_table fragment", warnings)
-            return None
-        frag = prof.fragment("info_table")
-        _fill_table(frag, block.columns, block.rows, prof.id, warnings, production)
-        return frag
+            return []
+        copies = placer.copy(prof.fragment_paragraphs(fragments_doc, "info_table"))
+        _fill_table(copies[0], block.columns, block.rows, prof.id, warnings, production)
+        return copies
 
     role = block.role if prof.has_role(block.role) else "body"
     if not prof.has_role(role):
         _forbid_fallback(production, f"profile {prof.id!r} has no {role!r} fragment", warnings)
-        return None
-    frag = prof.fragment(role)
-    S.set_paragraph_text(frag, block.text)
-    return frag
+        return []
+    copies = placer.copy(prof.fragment_paragraphs(fragments_doc, role))
+    copies[0].text = S.clean_text(block.text)
+    return copies
 
 
 def _marked_fragment_for(
-    prof: Profile, block: Block, production: bool, warnings: list[str]
-) -> list[etree._Element]:
-    """Clone the author-named role and fill its slots (marked-template profiles)."""
+    prof: Profile,
+    fragments_doc: Any,
+    placer: _Placer,
+    block: Block,
+    production: bool,
+    warnings: list[str],
+) -> list[Any]:
+    """Copy the author-named role and fill its slots (marked-template profiles)."""
 
     if not prof.has_role(block.role):
         _forbid_fallback(
@@ -226,7 +271,7 @@ def _marked_fragment_for(
             f"plan gave {unknown}",
             warnings,
         )
-    paragraphs = fragment_paragraphs(prof.fragment(block.role))
+    paragraphs = placer.copy(prof.fragment_paragraphs(fragments_doc, block.role))
     unfilled = fill_placeholders(paragraphs, block.role, values)
     if not values:
         # A block with no text and no values asks for the role as is (a page
@@ -248,7 +293,7 @@ def _forbid_fallback(production: bool, message: str, warnings: list[str]) -> Non
 # Table filling (row-fit the harvested fragment to the plan's rows).
 # --------------------------------------------------------------------------- #
 def _fill_table(
-    paragraph_frag: etree._Element,
+    paragraph: Any,
     columns: list[str],
     rows: list[list[str]],
     profile_id: str = "",
@@ -256,15 +301,13 @@ def _fill_table(
     production: bool = True,
 ) -> None:
     warnings = warnings if warnings is not None else []
-    tbl = next((el for el in paragraph_frag.iter() if S.ln(el.tag) == "tbl"), None)
-    if tbl is None:
+    tables = list(paragraph.tables)
+    if not tables:
         return
-    trs = [c for c in tbl if S.ln(c.tag) == "tr"]
-    if not trs:
+    table = tables[0]
+    if not table.rows:
         return
-    header = trs[0]
-    data_template = deepcopy(trs[1]) if len(trs) > 1 else deepcopy(trs[0])
-    col_count = len([c for c in header if S.ln(c.tag) == "tc"])
+    col_count = len(table.rows[0].cells)
 
     # The harvested grid has a fixed width; a plan asking for MORE columns would
     # silently lose data (fewer just leaves blank trailing cells). Surface it —
@@ -284,95 +327,75 @@ def _fill_table(
             f"{profile_id!r} grid has {col_count}; trailing columns left blank"
         )
 
+    # Rows: the header, then one copy of the harvested data row (the header when the
+    # fragment has no other) for each data row of the plan. python-hwpx keeps rowCnt,
+    # cell addresses and the table height right.
+    data_rows = rows or [["" for _ in range(col_count)]]
+    if len(table.rows) > 2:
+        table.delete_rows(list(range(2, len(table.rows))))
+    if len(table.rows) == 1:
+        table.insert_rows(0, len(data_rows), side="below", copy_content=True)
+    elif len(data_rows) > 1:
+        table.insert_rows(1, len(data_rows) - 1, side="below", copy_content=True)
+
     # Always re-fill the header (even when columns is empty) so the harvested
     # {{cell}} placeholder never ships in the output.
-    _fill_row(header, columns, col_count, row_addr=0)
-    for tr in trs[1:]:
-        tbl.remove(tr)
-
-    header_index = list(tbl).index(header)
-    data_rows = rows or [["" for _ in range(col_count)]]
-    for offset, row in enumerate(data_rows):
-        new_tr = deepcopy(data_template)
-        _fill_row(new_tr, row, col_count, row_addr=offset + 1)
-        tbl.insert(header_index + 1 + offset, new_tr)
-
-    tbl.set("rowCnt", str(1 + len(data_rows)))
-    S.strip_lineseg(paragraph_frag)
+    _fill_row(table.rows[0], columns)
+    for row, values in zip(table.rows[1:], data_rows):
+        _fill_row(row, values)
 
 
-def _fill_row(tr: etree._Element, values: list[str], col_count: int, row_addr: int) -> None:
-    tcs = [c for c in tr if S.ln(c.tag) == "tc"]
-    for col_index, tc in enumerate(tcs):
-        addr = next((c for c in tc if S.ln(c.tag) == "cellAddr"), None)
-        if addr is not None:
-            addr.set("rowAddr", str(row_addr))
-            addr.set("colAddr", str(col_index))
+def _fill_row(row: Any, values: list[str]) -> None:
+    for col_index, cell in enumerate(row.cells):
         value = values[col_index] if col_index < len(values) else ""
-        sublist = next((c for c in tc if S.ln(c.tag) == "subList"), None)
-        target = sublist if sublist is not None else tc
-        cell_paras = S.children_local(target, "p")
-        # Collapse the cell to a single paragraph — a source cell may hold several
-        # (empty) paragraphs, which Hancom flags as a damaged table after cloning.
-        for extra in cell_paras[1:]:
-            target.remove(extra)
-        if cell_paras:
-            S.set_paragraph_text(cell_paras[0], value)
+        # A cell takes the value as its only paragraph, in its first run's shape.
+        cell.text = S.clean_text(value)
 
 
-def _reassign_paragraph_ids(paragraphs: list[etree._Element]) -> None:
-    """Give every <hp:p> a fresh id so clones don't collide (id integrity)."""
+# --------------------------------------------------------------------------- #
+# Placeholder filling (marked profiles).
+# --------------------------------------------------------------------------- #
+def fill_placeholders(paragraphs: list[Any], role: str, values: Mapping[str, str]) -> list[str]:
+    """Replace ``{{role}}``/``{{role.slot}}`` text in *paragraphs* (and the paragraphs of
+    their tables) in place; return the slots no value was given for.
 
-    for root in paragraphs:
-        for para in root.iter():
-            if S.ln(para.tag) == "p" and para.get("id") is not None:
-                para.set("id", str(uuid4().int % (2**31)))
-
-
-# Composed bodies are made only of clones, so object ids restart from a fixed
-# base — deterministic output, and no clone shares the id of another.
-_OBJECT_ID_BASE = 1_000_000_000
-
-
-# Drawing objects number their instance in "instid"; footnotes/endnotes spell it
-# "instId". A connector names the shape it joins by that value (subjectIDRef).
-_INSTANCE_ID_ATTRS = ("instid", "instId")
-
-
-def _reassign_object_ids(paragraphs: list[etree._Element]) -> None:
-    """Give every table/drawing object and click-here field a unique id.
-
-    Fragments may repeat, so each clone's ids are renumbered, and the local
-    references inside that clone follow: a ``fieldEnd@beginIDRef`` its own
-    ``fieldBegin@id``, a connector's ``subjectIDRef`` its shape's ``instid``.
-    ``fieldid`` names the field type (Hancom gives every click-here the same
-    one), so it stays.
+    The value goes where the placeholder starts, in that run's shape: a placeholder
+    Hancom split across runs (the character shape changed inside it) loses only its own
+    characters from the later runs; the rest of those runs, and their shapes, stay. A
+    value's line breaks and tabs are written as Hancom writes them. Missing values
+    become empty text so a placeholder never ships.
     """
 
-    next_id = _OBJECT_ID_BASE
+    unfilled: list[str] = []
     for root in paragraphs:
-        object_map: dict[str, str] = {}
-        instance_map: dict[str, str] = {}
-        for element in root.iter():
-            name = S.ln(element.tag)
-            old = element.get("id")
-            if (name in OBJECT_TAGS or name == "fieldBegin") and old is not None:
-                object_map[old] = str(next_id)
-                element.set("id", object_map[old])
-                next_id += 1
-            for attr in _INSTANCE_ID_ATTRS:
-                old_instance = element.get(attr)
-                if old_instance:
-                    instance_map[old_instance] = str(next_id)
-                    element.set(attr, instance_map[old_instance])
-                    next_id += 1
-        for element in root.iter():
-            begin = element.get("beginIDRef")
-            if begin in object_map:
-                element.set("beginIDRef", object_map[begin])
-            subject = element.get("subjectIDRef")
-            if subject in instance_map:
-                element.set("subjectIDRef", instance_map[subject])
+        for paragraph in (root, *(place.paragraph for place in root.iter_paragraphs())):
+            _fill_paragraph_placeholders(paragraph, role, values, unfilled)
+    return list(dict.fromkeys(unfilled))
+
+
+def _fill_paragraph_placeholders(
+    paragraph: Any, role: str, values: Mapping[str, str], unfilled: list[str]
+) -> None:
+    matches = [match for match in PLACEHOLDER_RE.finditer(paragraph.text) if match.group(1) == role]
+    if not matches:
+        return
+    # Where each run's text starts in paragraph.text (a run's text counts as paragraph.text does).
+    run_ends: list[int] = []
+    position = 0
+    for run in paragraph.runs:
+        position += len(run.text or "")
+        run_ends.append(position)
+    # Right to left, so an earlier match's offsets still hold.
+    for match in reversed(matches):
+        slot = match.group(2) or ""
+        if slot not in values:
+            unfilled.append(slot)
+        value = S.clean_text(str(values.get(slot, "")))
+        first_end = next((end for end in run_ends if end > match.start()), match.end())
+        cut = min(first_end, match.end())
+        if cut < match.end():
+            paragraph.replace_range(cut, match.end(), "")  # the placeholder's characters in later runs
+        paragraph.replace_range(match.start(), cut, value)
 
 
 __all__ = ["compose", "compose_bytes", "ComposeResult", "ProfileRequiredError"]

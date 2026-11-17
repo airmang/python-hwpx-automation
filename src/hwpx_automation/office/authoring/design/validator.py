@@ -15,7 +15,6 @@ from typing import Any
 
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
 
-from ._support import ln
 
 _REF_TO_KIND = {
     "charPrIDRef": "charPr",
@@ -49,24 +48,16 @@ class StyleCoverage:
 
 
 def header_style_ids(doc: Any) -> dict[str, set[str]]:
-    """Collect defined style ids from the document's header part(s)."""
+    """The style ids the document defines, as it is now (``doc.styles``: definitions a copied
+    paragraph brought along count before the document is saved)."""
 
-    ids: dict[str, set[str]] = {"charPr": set(), "paraPr": set(), "style": set(), "borderFill": set()}
-    package = doc.package
-    try:
-        header_paths = package.header_paths()
-    except Exception:  # pragma: no cover - defensive
-        header_paths = []
-    for path in header_paths:
-        try:
-            root = package.get_xml(path)
-        except Exception:  # pragma: no cover - defensive
-            continue
-        for element in root.iter():
-            name = ln(element.tag)
-            if name in ids and element.get("id") is not None:
-                ids[name].add(element.get("id"))
-    return ids
+    styles = doc.styles
+    return {
+        "charPr": {str(key) for key in styles.char_properties},
+        "paraPr": {str(key) for key in styles.paragraph_properties},
+        "style": {str(key) for key in styles},
+        "borderFill": {str(key) for key in styles.border_fills},
+    }
 
 
 def collect_references(elements: list[etree._Element]) -> list[tuple[str, str]]:

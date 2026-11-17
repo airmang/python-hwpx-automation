@@ -157,7 +157,15 @@ POST_FREEZE_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     "hwpx.design": {
         # page_break_before: a plan page_break carried onto the profile route (ENG-18).
         "Block": ("values", "page_break_before"),
+        # 8.0 design profile v2: the fragments document the composer copies paragraphs from.
+        "Profile": ("fragments_bytes",),
     },
+}
+
+# Methods added by the automation owner after the freeze; every frozen method stays as it was.
+POST_FREEZE_METHODS: dict[str, dict[str, tuple[str, ...]]] = {
+    # 8.0 design profile v2: the fragments document's paragraphs, and the format a profile is in.
+    "hwpx.design": {"Profile": ("fragment_paragraphs", "fragment_place", "schema")},
 }
 
 
@@ -168,6 +176,11 @@ def _without_post_freeze_fields(core_name: str, shape: dict[str, Any]) -> dict[s
             assert fields[field_name]["hasDefault"] is True, (class_name, field_name)
             assert field_name not in FROZEN[core_name][class_name]["fields"]
             del fields[field_name]
+    for class_name, method_names in POST_FREEZE_METHODS.get(core_name, {}).items():
+        methods = shape[class_name]["methods"]
+        for method_name in method_names:
+            assert method_name not in FROZEN[core_name][class_name]["methods"]
+            del methods[method_name]
     return shape
 
 
