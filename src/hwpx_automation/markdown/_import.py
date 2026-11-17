@@ -58,7 +58,7 @@ from __future__ import annotations
 import os
 import re
 import warnings
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -1713,71 +1713,161 @@ class _Writer:
             return
         cols = max(len(row) for row in block.rows)
         table = self.doc.add_table(len(block.rows), cols)
-        size = self.style.table_size or self.style.body_size
-        font = self.style.table_font or self.style.body_font
-        ruled = self.style.table_look == "ruled"
-        aligned: dict[str, list[HwpxOxmlParagraph]] = {}
-        for row_index, row in enumerate(block.rows):
-            is_header = block.header and row_index == 0
-            for col_index in range(cols):
-                text = row[col_index] if col_index < len(row) else ""
-                cell = table.cell(row_index, col_index)
-                self.write_runs(
-                    cell.paragraphs[0],
-                    text,
-                    bold=is_header and self.style.table_header_bold,
-                    size=size,
-                    font=font,
-                )
-                if ruled:
-                    table.set_cell_border_fill(
-                        row_index, col_index, self.ruled_border(row_index, col_index, len(block.rows), cols, block.header)
-                    )
-                elif is_header and self.style.table_header_shading:
-                    table.set_cell_shading(row_index, col_index, self.style.table_header_shading)
-                align = block.aligns[col_index] if col_index < len(block.aligns) else None
-                if align is None and is_header:
-                    align = self.style.table_header_align
-                if align in ("center", "right"):
-                    aligned.setdefault(align, []).append(cell.paragraphs[0])
-        if self.style.table_fit_columns and cols > 1:
-            total = sum(table.cell(0, col_index).width for col_index in range(cols))
-            table.set_column_widths(_column_weights(block.rows, cols, size or _BASE_SIZE_PT, total))
-        if self.style.table_align == "auto":
-            widths = [table.cell(0, col_index).width for col_index in range(cols)]
-            by_column = _body_aligns(block, cols, size or _BASE_SIZE_PT, widths)
-            for row_index in range(1 if block.header else 0, len(block.rows)):
-                for col_index, align in enumerate(by_column):
-                    if align:
-                        aligned.setdefault(align, []).append(table.cell(row_index, col_index).paragraphs[0])
-        for align, paragraphs in aligned.items():
-            self.doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
-        if self.style.table_row_height_mm:
-            table.set_row_heights([round(self.style.table_row_height_mm * _HWPUNIT_PER_MM)] * len(block.rows))
-        if block.header and len(block.rows) > 1:
-            # Hancom draws the header row again at the top of each page a long table runs onto.
-            # table.set_header_rows(1) would also write header="0" on every other cell, so the
-            # title cells and the repeat are set one by one.
-            table.repeat_header = True
-            for col_index in range(cols):
-                table.cell(0, col_index).is_header = True
-            table.mark_dirty()
-
-    def ruled_border(self, row: int, col: int, rows: int, cols: int, header: bool) -> str:
-        """The border of one cell of a ruled table: open sides, a heavy line above and below the table, a
-        double line under the header row and thin lines between cells."""
-
-        heavy, thin, double = ("SOLID", "0.4 mm"), ("SOLID", "0.15 mm"), ("DOUBLE_SLIM", "0.5 mm")
-        under_header = header and rows > 1
-        return self.border_id(
-            fill=self.style.table_header_shading if header and row == 0 else None,
-            sides=(
-                None if col == 0 else thin,
-                None if col == cols - 1 else thin,
-                heavy if row == 0 else double if under_header and row == 1 else thin,
-                heavy if row == rows - 1 else double if under_header and row == 0 else thin,
+        draw_table(
+            self.doc,
+            table,
+            block.rows,
+            header=block.header,
+            aligns=block.aligns,
+            style=self.style,
+            write=lambda paragraph, text, bold, size, font: self.write_runs(
+                paragraph, text, bold=bold, size=size, font=font
             ),
+            border=self.border_id,
         )
+
+
+Write = Callable[["HwpxOxmlParagraph", str, bool, "float | None", "str | None"], None]
+Border = Callable[..., str]
+
+
+def draw_table(
+    doc: HwpxDocument,
+    table: Any,
+    rows: Sequence[Sequence[str]],
+    *,
+    header: bool,
+    aligns: Sequence[str | None] = (),
+    style: MarkdownStyle | str | None = "report",
+    write: Write | None = None,
+    border: Border | None = None,
+) -> None:
+    """Fill *table* (made by the caller, ``len(rows)`` rows by the widest row's columns) with *rows* and
+    give it *style*'s table look: the one table look a new document's tables share (8.0).
+
+    The report look (:meth:`MarkdownStyle.report`): open sides, a heavy line above and below, a double
+    line under a shaded bold centred header row, thin lines between cells, columns as wide as their
+    text needs, one-line body columns centred (a two-column table of labels spreads its labels), the
+    least row height, and the header row drawn again on each page the table runs onto. *aligns* gives
+    columns their own alignment (``"left"``, ``"center"``, ``"right"`` or ``None``), as a Markdown
+    separator row does.
+
+    *write* writes one cell's text: ``write(paragraph, text, bold, size, font)``; without it the text
+    is written as it is (a ``"\\n"`` a line break) in the look's table size and font. *border* makes a
+    border/fill id (:meth:`_Writer.border_id`'s arguments); without it one is made from
+    ``doc.styles.ensure_border_fill``.
+    """
+
+    resolved = _resolve_style(style, "report")
+    grid = [list(row) for row in rows]
+    cols = max((len(row) for row in grid), default=0)
+    if not grid or not cols:
+        return
+    block = _Table(grid, header, list(aligns))
+    size = resolved.table_size or resolved.body_size
+    font = resolved.table_font or resolved.body_font
+    if write is None:
+        write = _plain_writer(doc)
+    if border is None:
+        border = _border_maker(doc)
+    ruled = resolved.table_look == "ruled"
+    aligned: dict[str, list[Any]] = {}
+    for row_index, row in enumerate(grid):
+        is_header = header and row_index == 0
+        for col_index in range(cols):
+            text = row[col_index] if col_index < len(row) else ""
+            cell = table.cell(row_index, col_index)
+            write(cell.paragraphs[0], text, bool(is_header and resolved.table_header_bold), size, font)
+            if ruled:
+                table.set_cell_border_fill(
+                    row_index, col_index, _ruled_border(border, resolved, row_index, col_index, len(grid), cols, header)
+                )
+            elif is_header and resolved.table_header_shading:
+                table.set_cell_shading(row_index, col_index, resolved.table_header_shading)
+            align = block.aligns[col_index] if col_index < len(block.aligns) else None
+            if align is None and is_header:
+                align = resolved.table_header_align
+            if align in ("center", "right"):
+                aligned.setdefault(align, []).append(cell.paragraphs[0])
+    if resolved.table_fit_columns and cols > 1:
+        total = sum(table.cell(0, col_index).width for col_index in range(cols))
+        table.set_column_widths(_column_weights(grid, cols, size or _BASE_SIZE_PT, total))
+    if resolved.table_align == "auto":
+        widths = [table.cell(0, col_index).width for col_index in range(cols)]
+        by_column = _body_aligns(block, cols, size or _BASE_SIZE_PT, widths)
+        for row_index in range(1 if header else 0, len(grid)):
+            for col_index, align in enumerate(by_column):
+                if align:
+                    aligned.setdefault(align, []).append(table.cell(row_index, col_index).paragraphs[0])
+    for align, paragraphs in aligned.items():
+        doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=align)
+    if resolved.table_row_height_mm:
+        table.set_row_heights([round(resolved.table_row_height_mm * _HWPUNIT_PER_MM)] * len(grid))
+    if header and len(grid) > 1:
+        # Hancom draws the header row again at the top of each page a long table runs onto.
+        # table.set_header_rows(1) would also write header="0" on every other cell, so the
+        # title cells and the repeat are set one by one.
+        table.repeat_header = True
+        for col_index in range(cols):
+            table.cell(0, col_index).is_header = True
+        table.mark_dirty()
+
+
+def _ruled_border(
+    border: Border, style: MarkdownStyle, row: int, col: int, rows: int, cols: int, header: bool
+) -> str:
+    """The border of one cell of a ruled table: open sides, a heavy line above and below the table, a
+    double line under the header row and thin lines between cells."""
+
+    heavy, thin, double = ("SOLID", "0.4 mm"), ("SOLID", "0.15 mm"), ("DOUBLE_SLIM", "0.5 mm")
+    under_header = header and rows > 1
+    return border(
+        fill=style.table_header_shading if header and row == 0 else None,
+        sides=(
+            None if col == 0 else thin,
+            None if col == cols - 1 else thin,
+            heavy if row == 0 else double if under_header and row == 1 else thin,
+            heavy if row == rows - 1 else double if under_header and row == 0 else thin,
+        ),
+    )
+
+
+def _plain_writer(doc: HwpxDocument) -> Write:
+    ids: dict[tuple[bool, float | None, str | None], str] = {}
+
+    def write(paragraph: Any, text: str, bold: bool, size: float | None, font: str | None) -> None:
+        key = (bold, size, font)
+        if key not in ids:
+            ids[key] = doc.styles.ensure_run(bold=bold, size=size, font=font)
+        paragraph.add_run(text, char_pr_id_ref=ids[key])
+
+    return write
+
+
+def _border_maker(doc: HwpxDocument) -> Border:
+    ids: dict[tuple[Any, ...], str] = {}
+
+    def border(
+        *,
+        color: str = "#000000",
+        width: str = "0.12 mm",
+        fill: str | None = None,
+        sides: Any = None,
+    ) -> str:
+        key = (color, width, fill, sides)
+        if key not in ids:
+            lines = None
+            if sides is not None:
+                lines = {
+                    name: None if line is None else {"type": line[0], "width_mm": float(line[1].split()[0])}
+                    for name, line in zip(("left", "right", "top", "bottom"), sides)
+                }
+            ids[key] = doc.styles.ensure_border_fill(
+                border_color=color, border_width_mm=float(width.split()[0]), fill_color=fill, sides=lines
+            )
+        return ids[key]
+
+    return border
 
 
 #: The blank document's body size, used to judge how wide a column's text is.
