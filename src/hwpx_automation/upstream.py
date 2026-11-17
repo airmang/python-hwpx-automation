@@ -389,83 +389,24 @@ def char_style_matches(
     return True
 
 
-def _ref_list_element(header: Any) -> ET.Element:
-    element = header.element.find(f"{HH_NS}refList")
-    if element is None:
-        raise RuntimeError("document header does not expose a refList element")
-    return element
-
-
-def _fontfaces_element(header: Any) -> ET.Element:
-    ref_list = _ref_list_element(header)
-    fontfaces = ref_list.find(f"{HH_NS}fontfaces")
-    if fontfaces is None:
-        raise RuntimeError("document header does not expose fontfaces")
-    return fontfaces
-
-
-def _find_fontface_bucket(fontfaces: ET.Element, lang: str) -> ET.Element | None:
-    for bucket in fontfaces.findall(f"{HH_NS}fontface"):
-        if (bucket.get("lang") or "").upper() == lang:
-            return bucket
-    return None
-
-
-def _next_font_id(bucket: ET.Element) -> str:
-    numeric_ids: list[int] = []
-    for child in bucket.findall(f"{HH_NS}font"):
-        raw_id = child.get("id")
-        if raw_id is None:
-            continue
-        try:
-            numeric_ids.append(int(raw_id))
-        except ValueError:
-            continue
-    return "0" if not numeric_ids else str(max(numeric_ids) + 1)
-
-
 def ensure_font_face_refs(header: Any, font_name: str) -> dict[str, str]:
+    """Declare *font_name* in every language block of *header* and return its ``hh:fontRef`` ids.
+
+    python-hwpx's ``header.ensure_font`` declares the face in each of the seven blocks (an existing
+    declaration is reused) and ``header.font_ref_for_face`` reads the id each block gives it.
+    """
+
     name = (font_name or "").strip()
     if not name:
         raise ValueError("font_name cannot be empty")
-
-    fontfaces = _fontfaces_element(header)
+    header.ensure_font(name)
+    found = header.font_ref_for_face(name) or {}
     refs: dict[str, str] = {}
-    changed = False
-
-    for lang, ref_key in _FONT_FACE_LANGS.items():
-        bucket = _find_fontface_bucket(fontfaces, lang)
-        if bucket is None:
-            bucket = append_xml_child(fontfaces, f"{HH_NS}fontface", {"lang": lang, "fontCnt": "0"})
-            changed = True
-
-        font_element = None
-        for candidate in bucket.findall(f"{HH_NS}font"):
-            if (candidate.get("face") or "").strip() == name:
-                font_element = candidate
-                break
-
-        if font_element is None:
-            font_element = append_xml_child(
-                bucket,
-                f"{HH_NS}font",
-                {
-                    "id": _next_font_id(bucket),
-                    "face": name,
-                    "type": "TTF",
-                    "isEmbedded": "0",
-                },
-            )
-            bucket.set("fontCnt", str(len(bucket.findall(f"{HH_NS}font"))))
-            changed = True
-
-        font_id = font_element.get("id")
+    for ref_key in _FONT_FACE_LANGS.values():
+        font_id = found.get(ref_key)
         if not font_id:
             raise RuntimeError("fontface entry is missing an id")
         refs[ref_key] = font_id
-
-    if changed:
-        header.mark_dirty()
     return refs
 
 
