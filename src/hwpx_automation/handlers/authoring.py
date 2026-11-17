@@ -464,6 +464,18 @@ def _create_document_from_plan_impl(
     return _apply_write_verbosity(result, verbosity)
 
 
+def _in_table_look(plan: dict) -> dict:
+    """The comparison plan without the header shading and column widths its builder gives: the new
+    document's table takes the table look new documents share, which sizes columns by their text (8.0)."""
+
+    for section in plan.get("sections") or []:
+        for block in section.get("blocks") or []:
+            if isinstance(block, dict) and block.get("type") == "table":
+                block.pop("headerShading", None)
+                block.pop("columnWidths", None)
+    return plan
+
+
 def create_government_report_document(
     filename: str,
     document_plan: dict,
@@ -663,11 +675,13 @@ def create_comparison_table_document(
         old_paragraphs=old_paragraphs,
         new_paragraphs=new_paragraphs,
     )
-    document_plan = build_hwpx_comparison_table_plan(
-        old_source,
-        new_source,
-        title=title,
-        include_equal=include_equal,
+    document_plan = _in_table_look(
+        build_hwpx_comparison_table_plan(
+            old_source,
+            new_source,
+            title=title,
+            include_equal=include_equal,
+        )
     )
     validation = validate_hwpx_document_plan(document_plan)
     if not validation.ok:

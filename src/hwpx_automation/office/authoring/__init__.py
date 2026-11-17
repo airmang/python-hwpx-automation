@@ -2638,9 +2638,12 @@ class _PlanCellStyle:
 
 @dataclass(frozen=True)
 class _PlanTable(BuilderTable):
-    """A v1 plan table: the public builder table plus the plan's ``cellStyles``."""
+    """A v1 plan table: the public builder table plus the plan's ``cellStyles``, its columns'
+    alignments, and whether the plan gave the columns widths of its own (``widthWeight``)."""
 
     cell_styles: tuple[_PlanCellStyle, ...] = ()
+    aligns: tuple[str | None, ...] = ()
+    given_widths: bool = False
 
 
 def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
@@ -2690,6 +2693,8 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
                     for row in rows
                 ),
                 column_widths=tuple(_plan_table_column_widths(columns)),
+                aligns=tuple(column.get("align") for column in columns),
+                given_widths=any(int(column.get("widthWeight", 1)) != 1 for column in columns),
                 cell_styles=tuple(
                     _PlanCellStyle(
                         row=int(style["row"]),
@@ -2771,13 +2776,15 @@ def _normalize_columns(value: Any, *, index: int) -> list[dict[str, Any]]:
         seen.add(key)
         label = normalize_cell_text(raw_column.get("label") or key)
         width_weight = _int_value(raw_column.get("widthWeight", 1), default=1)
-        columns.append(
-            {
-                "key": key,
-                "label": label,
-                "widthWeight": max(width_weight, 1),
-            }
-        )
+        column = {
+            "key": key,
+            "label": label,
+            "widthWeight": max(width_weight, 1),
+        }
+        align = str(raw_column.get("align") or "").strip().lower()
+        if align in ("left", "center", "right"):
+            column["align"] = align
+        columns.append(column)
     return columns
 
 
@@ -3036,32 +3043,13 @@ def _add_plan_table(
         )
     columns = list(block["columns"])
     rows = list(block["rows"])
-    table = document.add_table(
-        len(rows) + 1,
-        len(columns),
-        width=_DEFAULT_TABLE_WIDTH,
-        char_pr_id_ref=tokens["table_cell"],
+    _look_table(
+        document,
+        [[str(column["label"]) for column in columns]]
+        + [[str(row.get(column["key"], "")) for column in columns] for row in rows],
+        header=True,
+        tokens=tokens,
     )
-    _apply_column_widths(table, columns)
-    for col_index, column in enumerate(columns):
-        _set_table_cell_text(
-            table,
-            0,
-            col_index,
-            str(column["label"]),
-            char_pr_id_ref=tokens["table_header"],
-        )
-    for row_index, row in enumerate(rows, start=1):
-        for col_index, column in enumerate(columns):
-            _set_table_cell_text(
-                table,
-                row_index,
-                col_index,
-                str(row.get(column["key"], "")),
-                char_pr_id_ref=tokens["table_cell"],
-            )
-    _style_plan_table(document, table, header_fill=_TABLE_HEADER_FILL)
-    _flow_oversized_authored_table(table)
 
 
 def _add_builder_table(
@@ -3074,6 +3062,26 @@ def _add_builder_table(
     ) + [list(row) for row in table_node.rows]
     if not rows:
         raise ValueError("table must contain a header or at least one row")
+    if _takes_table_look(table_node):
+        _look_table(
+            document,
+            [[str(value) for value in row] for row in rows],
+            header=bool(table_node.header),
+            tokens=tokens,
+            aligns=getattr(table_node, "aligns", ()),
+        )
+    else:
+        _add_given_look_table(document, table_node, rows, tokens)
+
+
+def _add_given_look_table(
+    document: HwpxDocument,
+    table_node: BuilderTable,
+    rows: list[list[Any]],
+    tokens: Mapping[str, str],
+) -> None:
+    """A plan table that gives its own look (cell styles, widths, header shading), drawn as given."""
+
     column_count = max(len(row) for row in rows)
     table = document.add_table(
         len(rows),
@@ -3119,6 +3127,43 @@ def _add_builder_table(
             base_char_pr_id=tokens["table_cell"],
         )
     _flow_oversized_authored_table(table)
+
+
+def _takes_table_look(table_node: Any) -> bool:
+    """Whether a new document's table is drawn in the one table look (``draw_table``): the plan gave
+    it no look of its own (cell styles, header shading, column widths, merged cells)."""
+
+    if getattr(table_node, "cell_styles", ()) or getattr(table_node, "merges", ()):
+        return False
+    if isinstance(table_node, _PlanTable):
+        return not table_node.given_widths and not table_node.header_shading
+    return not table_node.header_shading and not table_node.column_widths
+
+
+def _look_table(
+    document: HwpxDocument,
+    rows: list[list[str]],
+    *,
+    header: bool,
+    tokens: Mapping[str, str],
+    aligns: Sequence[str | None] = (),
+) -> Any:
+    """A table at the end of *document* in the one table look new documents share
+    (:func:`hwpx_automation.markdown._import.draw_table`, the report look's), its text in the
+    document's own table character shapes."""
+
+    from ...markdown._import import draw_table
+
+    cols = max(len(row) for row in rows)
+    table = document.add_table(len(rows), cols, width=_DEFAULT_TABLE_WIDTH, char_pr_id_ref=tokens["table_cell"])
+
+    def write(paragraph: Any, text: str, bold: bool, size: Any, font: Any) -> None:
+        del size, font  # the document's own table shapes
+        paragraph.add_run(text, char_pr_id_ref=tokens["table_header"] if bold else tokens["table_cell"])
+
+    draw_table(document, table, rows, header=header, aligns=aligns, style="report", write=write)
+    _flow_oversized_authored_table(table)
+    return table
 
 
 def _apply_plan_cell_styles(

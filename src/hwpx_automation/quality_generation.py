@@ -556,14 +556,14 @@ def _create_quality_document_fallback(content_spec: Mapping[str, Any]) -> Any:
     budget_items = [item for item in content_spec.get("budget_items") or [] if isinstance(item, Mapping)]
     if budget_items:
         doc.add_paragraph("예산 및 자원 계획", char_pr_id_ref=heading_style)
-        headers = ("항목", "금액", "비고")
-        table = doc.add_table(len(budget_items) + 1, 3, width=_READABLE_TABLE_WIDTH)
-        for col, label in enumerate(headers):
-            table.set_cell_text(0, col, label)
-        for row, item in enumerate(budget_items, start=1):
-            table.set_cell_text(row, 0, str(item.get("item", "")))
-            table.set_cell_text(row, 1, str(item.get("amount", "")))
-            table.set_cell_text(row, 2, str(item.get("note", "")))
+        from .markdown._import import draw_table
+
+        rows = [["항목", "금액", "비고"]] + [
+            [str(item.get("item", "")), str(item.get("amount", "")), str(item.get("note", ""))]
+            for item in budget_items
+        ]
+        table = doc.add_table(len(rows), 3, width=_READABLE_TABLE_WIDTH)
+        draw_table(doc, table, rows, header=True, style="report")  # the shared table look (8.0)
 
     outcomes = _string_list(content_spec.get("expected_outcomes") or [])
     if outcomes:

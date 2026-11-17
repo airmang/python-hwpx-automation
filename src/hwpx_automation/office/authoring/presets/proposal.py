@@ -320,36 +320,34 @@ def _metadata_rows(spec: ProposalSpec) -> list[tuple[str, str]]:
 
 
 def _add_key_value_table(document: HwpxDocument, rows: list[tuple[str, str]], tokens: Mapping[str, str]) -> None:
-    table = document.add_table(len(rows) + 1, 2, char_pr_id_ref=tokens["table_cell"])
-    table.set_cell_text(0, 0, "항목")
-    table.set_cell_text(0, 1, "내용")
-    _bold_table_row(table, 0)
-    for row_index, (key, value) in enumerate(rows, start=1):
-        table.set_cell_text(row_index, 0, key)
-        table.set_cell_text(row_index, 1, value)
+    _look_table(document, [["항목", "내용"], *([key, value] for key, value in rows)], tokens)
 
 
 def _add_budget_table(document: HwpxDocument, items: list[dict[str, str]], tokens: Mapping[str, str]) -> None:
-    headers = ["항목", "금액", "비고"]
-    table = document.add_table(len(items) + 1, len(headers), char_pr_id_ref=tokens["table_cell"])
-    for col, header in enumerate(headers):
-        table.set_cell_text(0, col, header)
-    _bold_table_row(table, 0)
-    for row_index, item in enumerate(items, start=1):
-        table.set_cell_text(row_index, 0, item.get("item") or item.get("name") or "")
-        table.set_cell_text(row_index, 1, item.get("amount") or item.get("cost") or "")
-        table.set_cell_text(row_index, 2, item.get("note") or item.get("description") or "")
+    rows = [["항목", "금액", "비고"]]
+    for item in items:
+        rows.append([
+            item.get("item") or item.get("name") or "",
+            item.get("amount") or item.get("cost") or "",
+            item.get("note") or item.get("description") or "",
+        ])
+    _look_table(document, rows, tokens)
 
 
-def _bold_table_row(table: Any, row_index: int) -> None:
-    try:
-        row = table.rows[row_index]
-    except (AttributeError, IndexError):
-        return
-    for cell in getattr(row, "cells", []):
-        for paragraph in getattr(cell, "paragraphs", []):
-            for run in paragraph.runs:
-                run.bold = True
+def _look_table(document: HwpxDocument, rows: list[list[str]], tokens: Mapping[str, str]) -> None:
+    """A table in the one table look new documents share (the report look's, 8.0), in the
+    proposal's table text shape (its header row in bold)."""
+
+    from hwpx_automation.markdown._import import draw_table
+
+    table = document.add_table(len(rows), len(rows[0]), char_pr_id_ref=tokens["table_cell"])
+    bold = document.styles.ensure_run(bold=True, base_char_pr_id_ref=tokens["table_cell"])
+
+    def write(paragraph: Any, text: str, is_bold: bool, size: Any, font: Any) -> None:
+        del size, font
+        paragraph.add_run(str(text), char_pr_id_ref=bold if is_bold else tokens["table_cell"])
+
+    draw_table(document, table, rows, header=True, style="report", write=write)
 
 
 def _safe_table_count(document: HwpxDocument) -> int:

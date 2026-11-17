@@ -318,7 +318,6 @@ def _forbid_fallback(production: bool, message: str, warnings: list[str]) -> Non
 #: Starts the warning that a plan table was written as a plain table (no fitting table fragment).
 TABLE_FALLBACK_NOTICE = "PROFILE_TABLE_FALLBACK"
 _PLAIN_TABLE_BORDER = "#000000"
-_PLAIN_TABLE_HEADER_FILL = "#F2F2F2"
 
 
 def _fragment_table_columns(prof: Profile, fragments_doc: Any) -> int:
@@ -330,8 +329,8 @@ def _fragment_table_columns(prof: Profile, fragments_doc: Any) -> int:
 
 
 def _plain_table(host: Any, block: Block, prof: Profile, document: HwpxDocument) -> None:
-    """Write *block* as a plain table (thin black lines, a shaded header row unless the plan hides
-    it) in *host*, a copy of the profile's body paragraph, as wide as the page's text."""
+    """Write *block* as a table in *host*, a copy of the profile's body paragraph, as wide as the page's
+    text: in the shared table look when it has a header row, else as a plain grid of thin black lines."""
 
     host.text = ""
     runs = list(host.runs)
@@ -350,17 +349,24 @@ def _plain_table(host: Any, block: Block, prof: Profile, document: HwpxDocument)
     )
     line = document.styles.ensure_border_fill(border_color=_PLAIN_TABLE_BORDER, border_width_mm=0.12)
     table = host.add_table(len(rows), len(columns), width=width, border_fill_id_ref=line, char_pr_id_ref=char_pr)
+    if block.show_header:
+        # A table with a header row takes the one table look new documents share (the report look's,
+        # 8.0 15차) in the profile's body characters.
+        from hwpx_automation.markdown._import import draw_table
+
+        bold_pr = document.styles.ensure_run(bold=True, base_char_pr_id_ref=char_pr) if char_pr is not None else None
+
+        def write(paragraph: Any, text: str, bold: bool, size: Any, font: Any) -> None:
+            del size, font
+            paragraph.add_run(S.clean_text(text), char_pr_id_ref=(bold_pr if bold else char_pr))
+
+        draw_table(document, table, [[str(v) for v in row] for row in rows], header=True, style="report", write=write)
+        return
+    # Without one it is a 공문 결재란·결문 (compose_official_draft): a plain grid, as the 서식 draws it.
     for row_index, values in enumerate(rows):
         for col_index in range(len(columns)):
             value = values[col_index] if col_index < len(values) else ""
             table.cell(row_index, col_index).text = S.clean_text(str(value))
-    if block.show_header:
-        shaded = document.styles.ensure_border_fill(
-            border_color=_PLAIN_TABLE_BORDER, border_width_mm=0.12, fill_color=_PLAIN_TABLE_HEADER_FILL
-        )
-        for col_index in range(len(columns)):
-            table.cell(0, col_index).border_fill_id_ref = shaded
-        table.mark_dirty()
 
 
 # --------------------------------------------------------------------------- #

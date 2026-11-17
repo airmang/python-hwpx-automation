@@ -559,6 +559,18 @@ class Table:
             column_count,
             section=section_index,
         )
+        if not self.header_shading and not self.column_widths and not self.merges:
+            # No look of its own: the one table look new documents share (the report look's, 8.0).
+            from hwpx_automation.markdown._import import draw_table
+
+            draw_table(
+                document,
+                table,
+                [[_computed_text(str(value)) for value in row] for row in table_rows],
+                header=bool(self.header),
+                style="report",
+            )
+            return
         for row_index, row in enumerate(table_rows):
             for col_index, value in enumerate(row):
                 table.cell(row_index, col_index).text = _computed_text(str(value))
