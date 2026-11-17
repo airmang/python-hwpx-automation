@@ -795,11 +795,10 @@ def _apply_set_cell(native: Any, properties: Mapping[str, Any], record: NodeReco
     if "text" in properties:
         native.text = properties["text"]
     if "verticalAlignment" in properties:
-        sublist = next((child for child in native.element if _local_name(child) == "subList"), None)
-        if sublist is None:
+        if not native.paragraphs:  # a cell without hp:subList: refused as before (the setter would add one)
             raise AgentContractError("unsupported_content", "cell has no subList", target=record.path)
-        sublist.set("vertAlign", properties["verticalAlignment"].upper())
-        native.table.mark_dirty()
+        native.vertical_alignment = properties["verticalAlignment"].upper()
+        native.table.mark_dirty()  # as before: the section is written again even when the value was already set
     if "backgroundColor" in properties:
         row, column = native.address
         native.table.set_cell_shading(row, column, properties["backgroundColor"])

@@ -425,7 +425,7 @@ class TypedNativeBridge:
         cell.set_span(int(properties.get("rowSpan") or 1), int(properties.get("columnSpan") or 1))
         sublist = _direct_child(cell.element, "subList")
         if sublist is not None and properties.get("verticalAlignment"):
-            sublist.set("vertAlign", str(properties["verticalAlignment"]).upper())
+            cell.vertical_alignment = str(properties["verticalAlignment"]).upper()
         self.created[node_id] = CreatedBinding("cell", cell)
         paragraph_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "paragraph"]
         existing = list(cell.paragraphs)
