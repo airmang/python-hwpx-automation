@@ -234,7 +234,8 @@ def _fragment_for(
         reason = ""
         if not prof.has_role("info_table"):
             reason = f"'{prof.id}' 프로필에 표 조각이 없어 기본 표로 지음"
-        elif width > (grid := _fragment_table_columns(prof, fragments_doc)):
+        elif width != (grid := _fragment_table_columns(prof, fragments_doc)):
+            # More columns would be cut off, fewer would leave blank columns in the grid.
             reason = f"'{prof.id}' 프로필의 표 조각은 {grid}칸이고 계획의 표는 {width}칸이라 기본 표로 지음"
         if reason:
             # The plan's table is written whole as a plain table in the profile's body paragraph,

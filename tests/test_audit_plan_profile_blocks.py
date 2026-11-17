@@ -54,19 +54,19 @@ def _section_xml(path: Path) -> str:
 
 @pytest.mark.parametrize("doc_type", ["보고서", "공문", "가정통신문"])
 def test_profile_route_carries_page_break_memo_and_line_break(tmp_path: Path, doc_type: str) -> None:
-    if authoring._resolve_design_profile(_plan(doc_type)) is None:
+    if authoring._resolve_design_profile({**_plan(doc_type), "designProfile": ""}) is None and doc_type != "보고서":
         pytest.skip(f"no committed design profile for {doc_type}")
     target = tmp_path / "plan.hwpx"
     plan = _plan(doc_type)
+    if doc_type == "보고서":  # a 보고서 takes the report look unless the plan names the profile (8.0)
+        plan["designProfile"] = "report"
 
     result = create_document_from_plan(str(target), plan, verbosity="full")
 
     assert result["created"] is True, result
-    # 가정통신문 has no table fragment: the table is written as a plain table, and the result says so.
-    if doc_type == "가정통신문":
-        assert any(w.startswith("PROFILE_TABLE_FALLBACK") for w in result["warnings"]), result
-    else:  # the 2-column table fits the fragment's grid (its spare column is named, not a fallback)
-        assert not any(w.startswith("PROFILE_TABLE_FALLBACK") for w in result.get("warnings", []))
+    # No table fragment (가정통신문) or one of another column count (3 columns, the plan's table 2):
+    # the table is written whole as a plain table, and the result says so.
+    assert any(w.startswith("PROFILE_TABLE_FALLBACK") for w in result["warnings"]), result
     xml = _section_xml(target)
     for mark in ("H1MARK", "P1MARK", "P1B", "B1MARK", "B2MARK", "MEMOTEXT", "H2MARK", "T1MARK", "P2MARK"):
         assert mark in xml, mark
@@ -199,3 +199,25 @@ def test_title_is_not_printed_twice_when_a_block_carries_it(tmp_path: Path, doc_
     with HwpxDocument.open(str(target)) as doc:
         texts = [paragraph.text for paragraph in doc.paragraphs if paragraph.text]
     assert texts[:2] == ["가상기관", "제목  점검 안내"]
+
+
+def test_report_document_type_takes_the_report_look_unless_a_profile_is_named(tmp_path: Path) -> None:
+    """Owner, 2026-11-17: document_type 보고서 is written in the report look (from_markdown's);
+    the report design profile is used only when the plan names it in designProfile."""
+
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "결과 보고",
+        "metadata": {"document_type": "보고서"},
+        "blocks": [{"type": "heading", "level": 2, "text": "1. 개요"}, {"type": "paragraph", "text": "본문"}],
+    }
+    assert authoring._resolve_design_profile(plan) is None
+    look = tmp_path / "look.hwpx"
+    create_document_from_plan(str(look), plan)
+    with HwpxDocument.open(str(look)) as doc:
+        assert doc.paragraphs[0].tables  # the title banner of the report look is a table
+
+    named = {**plan, "designProfile": "report"}
+    assert authoring._resolve_design_profile(named) == "report"
+    with pytest.raises(ValueError, match="designProfile"):
+        authoring._resolve_design_profile({**plan, "designProfile": "no-such-form"})

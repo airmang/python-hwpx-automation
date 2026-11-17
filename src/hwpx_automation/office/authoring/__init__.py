@@ -1063,14 +1063,33 @@ def _plan_document_type(plan: Any) -> str:
     return ""
 
 
-def _resolve_design_profile(plan: Any) -> str | None:
-    """Return a committed design profile id for the plan's document_type, or None."""
+#: Document types written in the named report look (``from_markdown``'s), not from a profile: the
+#: report design profile is used only when the plan names it (``designProfile``). Owner, 2026-11-17.
+_REPORT_LOOK_DOCTYPES = frozenset(key for key, value in _DOCTYPE_TO_PROFILE.items() if value == "report")
 
-    raw = _plan_document_type(plan)
-    if not raw:
-        return None
+
+def _resolve_design_profile(plan: Any) -> str | None:
+    """The committed design profile the plan is composed from, or None.
+
+    ``plan["designProfile"]`` names one outright (the user chose that form). Otherwise the plan's
+    document type picks the profile of its genre (공문, 가정통신문); a 보고서 takes no profile, it is
+    written in the report look (:func:`_write_in_named_look`).
+    """
+
     from .design import available_profiles
 
+    if not isinstance(plan, Mapping):
+        return None
+    chosen = str(plan.get("designProfile") or "").strip()
+    if chosen:
+        if chosen not in available_profiles():
+            raise ValueError(
+                f"designProfile {chosen!r} is not a design profile; available: {sorted(available_profiles())}"
+            )
+        return chosen
+    raw = _plan_document_type(plan)
+    if not raw or raw in _REPORT_LOOK_DOCTYPES:
+        return None
     profile_id = _DOCTYPE_TO_PROFILE.get(raw)
     if profile_id and profile_id in available_profiles():
         return profile_id
@@ -1416,14 +1435,15 @@ def _write_in_named_look(
     plan: Mapping[str, Any], profile_id: str | None, notices: list[str] | None
 ) -> HwpxDocument | None:
     """A plan that asks for a named Markdown look (``plan["look"]``, which
-    ``markdown_to_document_plan`` sets to ``"report"``) is written by ``from_markdown`` in that
-    look, unless its document type has a design profile of its own other than the report one
-    (공문, 가정통신문). ``None``: the plan goes the profile or general way."""
+    ``markdown_to_document_plan`` sets to ``"report"``), or whose document type is 보고서, is
+    written by ``from_markdown`` in that look, unless it is composed from a design profile (its
+    genre's, 공문 or 가정통신문, or one it names in ``designProfile``). ``None``: the plan goes the
+    profile or general way."""
 
     from ...markdown_plan import LOOKS, plan_to_markdown
 
-    look = plan.get("look")
-    if look not in LOOKS or profile_id not in (None, "report"):
+    look = plan.get("look") or ("report" if _plan_document_type(plan) in _REPORT_LOOK_DOCTYPES else None)
+    if look not in LOOKS or profile_id is not None:
         return None
     markdown = plan_to_markdown(plan)
     if markdown is None:
