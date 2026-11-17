@@ -1,6 +1,6 @@
 ---
 name: hwpx
-description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한글 문서 편집해줘', 가정통신문·공문·한글 양식 작성, HWPX 편집, 한글 파일/OWPML 분석, 플레이스홀더 치환, 문서 자동화 요청이면 이 스킬을 반드시 사용하세요. 줄간격·여백·쪽번호·머리글 등 서식 변경, 그림 삽입/교체, 문서 비교·신구대조표, 메일머지 대량생산(상장·수료증·가정통신문), 사진대지·회의명패·조직도 생성, 표 합계/소계 계산 요청도 모두 이 스킬의 대상입니다."
+description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한글 문서 편집해줘', 가정통신문·공문·한글 양식 작성, HWPX 편집, 한글 파일/OWPML 분석, 플레이스홀더 치환, 문서 자동화 요청이면 이 스킬을 반드시 사용하세요. 줄간격·여백·쪽번호·머리글 등 서식 변경, 그림 삽입/교체, 문서 비교·신구대조표, 메일머지 대량생산(상장·수료증·가정통신문), 사진대지·조직도 생성, 표 합계/소계 계산 요청도 모두 이 스킬의 대상입니다."
 ---
 
 # hwpx (HWPX / OWPML)
@@ -125,8 +125,7 @@ Codex 관리 런처가 시작 시 점검 간격(기본 24시간)이 지났으면
 | 두 문서/문단 비교 (신구 diff) | `doc_diff` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 신구대조표 문서 생성 | `doc_diff` → comparison document plan → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 사진대지 생성 | `build_image_grid` → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
-| 회의 명패 생성 | `build_meeting_nameplates` → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
-| 조직도 생성 | `build_organization_chart` → `create_document_from_plan` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
+| 조직도 생성(상자와 연결선) | `create_document_from_plan`(제목) → `add_boxed_org_chart(filename, hierarchy)` (노드 `label`·`sublabel`·`children`, 4단·40상자까지. `orgChart.fits=false`면 사용자에게 알린다) | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 참조 문서 서식 이식·템플릿 등록 | `extract_style_profile` · `apply_style_profile_to_plan` · `register_template` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 붙임·표/그림 번호 정합성 검사 | `inspect_reference_consistency` | [workflows-bulk-compare](references/workflows-bulk-compare.md) |
 | 깨졌거나 한컴에서 안 열리는 파일 | `repair_hwpx` (복구 복사본 생성) | [api](references/api.md) |

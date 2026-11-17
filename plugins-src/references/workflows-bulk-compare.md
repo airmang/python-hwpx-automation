@@ -117,22 +117,21 @@ build_image_grid(images, columns=2, image_width_mm=None, title="사진대지")
 `images`는 `[{"path": "...", "caption": "현장 사진"}]` 목록. `image_grid` block과
 document_plan을 반환한다.
 
-### 회의 명패 — `build_meeting_nameplates`
+### 조직도 — `add_boxed_org_chart`
+
+"조직도 만들어 줘"는 상자와 연결선으로 된 조직도로 만든다.
 
 ```
-build_meeting_nameplates(names, size="150x70", columns=2, title="회의 명패")
+create_document_from_plan(filename, {"schemaVersion": "hwpx.document_plan.v1", "title": "○○ 조직도",
+    "blocks": [{"type": "paragraph", "text": "2031. 3. 1. 기준"}]})
+add_boxed_org_chart(filename, {"label": "센터장", "sublabel": "(선택)", "children": [{"label": "운영팀"}, ...]})
 ```
 
-참석자 명단을 명패 table block으로 변환한다 (`block.rows`가 columns 단위로 배치된다).
-
-### 조직도 — `build_organization_chart`
-
-```
-build_organization_chart(hierarchy, max_depth=3, title="조직도")
-```
-
-`hierarchy`는 `{"name": "위원장", "children": [{"name": "기획팀", "children": [...]}]}`
-형태의 2~3단 계층. 표 기반 조직도 block으로 변환한다.
+- 노드는 `label`(필수)·`sublabel`·`children`. 4단·상자 40개까지.
+- 상자는 쪽 본문 폭 안에 나눠 그린다. 이름이 상자에 안 들면 글을 줄이고 감싼다.
+  그래도 안 들면 응답 `orgChart.fits=false`·`warnings`가 나온다. 그때는 사용자에게 알리고 이름을 줄이거나 가지를 나누자고 한다.
+- `build_organization_chart`는 계층을 "1단계|2단계|3단계" 표로 나열하는 **단계 표**다.
+  사용자가 표로 된 목록을 원할 때만 쓴다.
 
 ## 5. 참조 문서 서식 이식·스타일 프로파일
 
