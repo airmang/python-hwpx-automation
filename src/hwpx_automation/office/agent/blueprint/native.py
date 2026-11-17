@@ -97,7 +97,7 @@ def create_paragraph_style(
     the paragraph format it points to are minted by core's ``doc.styles``.
     """
 
-    if not document.oxml.headers:
+    if not document.parts.headers:
         raise AgentContractError("unsupported_content", "target has no style header", target=source_key)
     if document.oxml.headers[0].element.find(f"{HH}refList/{HH}styles") is None:
         raise AgentContractError("unsupported_content", "target has no style registry", target=source_key)
@@ -245,7 +245,7 @@ class TypedNativeBridge:
         if numbering is not None:
             definition = self.document.styles.paragraph_property(numbering["identity"]["paraPrIDRef"])
             heading = definition.heading if definition is not None else None
-            if heading is None or not self.document.oxml.headers:
+            if heading is None or not self.document.parts.headers:
                 raise AgentContractError("invariant_violation", "mapped numbering has no heading")
             paragraph.para_pr_id_ref = self.document.styles.ensure_paragraph_format(
                 base_para_pr_id_ref=paragraph.para_pr_id_ref,

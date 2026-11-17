@@ -98,8 +98,8 @@ def _keep_para_pr(
     key = (base.name, keep)
     if key in cache:
         return cache[key]
-    pid = doc.oxml.headers[0].ensure_paragraph_format(
-        base_para_pr_id=base.para_pr_id,
+    pid = doc.styles.ensure_paragraph_format(
+        base_para_pr_id_ref=base.para_pr_id,
         break_setting={"keep_with_next": keep, "keep_lines": True},
     )
     cache[key] = pid

@@ -3009,8 +3009,8 @@ def _style_plan_table(
     )
     table.border_fill_id_ref = border_fill_id
     center_para_pr_id: str | None = None
-    if header_rows and document.oxml.headers:
-        center_para_pr_id = document.oxml.headers[0].ensure_paragraph_format(alignment="center")
+    if header_rows and document.parts.headers:
+        center_para_pr_id = document.styles.ensure_paragraph_format(alignment="center")
 
     for row_index, row in enumerate(table.rows):
         for cell in row.cells:
