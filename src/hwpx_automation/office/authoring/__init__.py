@@ -2802,10 +2802,12 @@ def _render_block(
         )
         return
     if isinstance(block, BuilderBullet):
+        bullet_shape = bullet_paragraph_shape(document)
         for item in block.items:
             paragraph = document.add_paragraph(
-                f"• {item}",
+                str(item),
                 char_pr_id_ref=tokens["bullet"],
+                para_pr_id_ref=bullet_shape,
                 inherit_style=False,
             )
             _format_para(document, paragraph, line_spacing=150, after_pt=2)
@@ -2825,6 +2827,16 @@ def _render_block(
         document.add_paragraph("", inherit_style=False).page_break = True
         return
     raise ValueError(f"unsupported builder block: {type(block).__name__}")
+
+
+def bullet_paragraph_shape(document: HwpxDocument, char: str = "•") -> str:
+    """The paragraph shape of a one-level bullet list whose bullet is *char*.
+
+    The bullet is Hancom's own (a ``hh:bullet`` definition the paragraph shape's heading points to), so
+    Hancom draws it and the item's text holds no bullet character. The same definition is reused.
+    """
+
+    return document.styles.ensure_numbering(kind="bullet", levels=[{"char": char}])[0]
 
 
 def _heading_has_own_number(text: str) -> bool:

@@ -182,7 +182,7 @@ def create_proposal_document(
         for paragraph in section.paragraphs:
             _add_paragraph(document, paragraph, tokens["body"])
         for bullet in section.bullets:
-            _add_paragraph(document, f"• {bullet}", tokens["body"])
+            _add_bullet(document, bullet, tokens["body"])
 
     if normalized.budget_items:
         _add_paragraph(document, "예산 및 자원 계획", tokens["heading"])
@@ -191,7 +191,7 @@ def create_proposal_document(
     if normalized.expected_outcomes:
         _add_paragraph(document, "기대 효과", tokens["heading"])
         for outcome in normalized.expected_outcomes:
-            _add_paragraph(document, f"• {outcome}", tokens["body"])
+            _add_bullet(document, outcome, tokens["body"])
 
     if normalized.closing:
         _add_paragraph(document, "마무리", tokens["heading"])
@@ -291,6 +291,19 @@ def _string_list(value: Any) -> list[str]:
 
 def _add_paragraph(document: HwpxDocument, text: str, char_pr_id_ref: str) -> None:
     document.add_paragraph(text, char_pr_id_ref=char_pr_id_ref, inherit_style=False)
+
+
+def _add_bullet(document: HwpxDocument, text: str, char_pr_id_ref: str) -> None:
+    """A list item with Hancom's own bullet (a ``hh:bullet`` definition), not a typed ``•``."""
+
+    from .. import bullet_paragraph_shape
+
+    document.add_paragraph(
+        text,
+        char_pr_id_ref=char_pr_id_ref,
+        para_pr_id_ref=bullet_paragraph_shape(document),
+        inherit_style=False,
+    )
 
 
 def _metadata_rows(spec: ProposalSpec) -> list[tuple[str, str]]:

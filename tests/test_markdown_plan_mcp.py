@@ -118,3 +118,17 @@ def test_heading_with_its_own_number_is_not_numbered_again(tmp_path: Path) -> No
     # The writer's "1." stays and the outline draws no second number; an unnumbered heading keeps it.
     assert heads["1. Overview"].type == "NONE"
     assert heads["Details"].type == "OUTLINE"
+
+
+def test_bullet_items_use_hancom_bullets_not_a_typed_character(tmp_path: Path) -> None:
+    from hwpx import HwpxDocument
+
+    target = tmp_path / "bullets.hwpx"
+    plan = server.markdown_to_document_plan("# List\n\n- first\n- second\n")
+    server.create_document_from_plan(str(target), plan["document_plan"])
+
+    with HwpxDocument.open(target) as doc:
+        items = [paragraph for paragraph in doc.paragraphs if paragraph.text in {"first", "second"}]
+        heads = {doc.styles.paragraph_property(item.para_pr_id_ref).heading.type for item in items}
+        assert len(items) == 2 and heads == {"BULLET"}
+        assert not any("•" in (paragraph.text or "") for paragraph in doc.paragraphs)
