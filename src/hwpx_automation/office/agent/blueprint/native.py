@@ -456,7 +456,7 @@ class TypedNativeBridge:
         if properties.get("altText"):
             picture.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
         if properties.get("name"):
-            picture.element.set("name", str(properties["name"]))
+            picture.set_attribute("name", str(properties["name"]))
         self.created[node_id] = CreatedBinding("picture", picture)
         return picture
 
@@ -482,7 +482,7 @@ class TypedNativeBridge:
         if properties.get("altText"):
             shape.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
         if properties.get("name"):
-            shape.element.set("name", str(properties["name"]))
+            shape.set_attribute("name", str(properties["name"]))
         self.created[node_id] = CreatedBinding("shape", shape)
         return shape
 
