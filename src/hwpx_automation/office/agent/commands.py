@@ -569,8 +569,8 @@ def _table_caption(table: Any, value: str) -> None:
             run.text = ""
     for paragraph in caption.paragraphs:
         # The setters clear the cache only when the text changed; a caption is
-        # rewritten here on request, so never leave a cache behind it.
-        _drop_layout_cache(paragraph.element)
+        # rewritten here on request, so never leave a cache behind it (nor in the paragraph holding the table).
+        paragraph.clear_layout_cache()
     table.mark_dirty()
 
 
