@@ -156,7 +156,8 @@ POST_FREEZE_FIELDS: dict[str, dict[str, tuple[str, ...]]] = {
     # Slot values a block passes to a placeholder-marked template role.
     "hwpx.design": {
         # page_break_before: a plan page_break carried onto the profile route (ENG-18).
-        "Block": ("values", "page_break_before"),
+        # show_header: a plan table's showHeader=false carried onto the profile route (8.0 14차).
+        "Block": ("values", "page_break_before", "show_header"),
         # 8.0 design profile v2: the fragments document the composer copies paragraphs from.
         "Profile": ("fragments_bytes",),
     },

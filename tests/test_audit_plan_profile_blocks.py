@@ -58,17 +58,17 @@ def test_profile_route_carries_page_break_memo_and_line_break(tmp_path: Path, do
         pytest.skip(f"no committed design profile for {doc_type}")
     target = tmp_path / "plan.hwpx"
     plan = _plan(doc_type)
-    has_table = doc_type != "가정통신문"  # that profile has no table fragment and refuses one
-    if not has_table:
-        plan["blocks"] = [block for block in plan["blocks"] if block["type"] != "table"]
 
     result = create_document_from_plan(str(target), plan, verbosity="full")
 
     assert result["created"] is True, result
+    # 가정통신문 has no table fragment: the table is written as a plain table, and the result says so.
+    if doc_type == "가정통신문":
+        assert any(w.startswith("PROFILE_TABLE_FALLBACK") for w in result["warnings"]), result
+    else:  # the 2-column table fits the fragment's grid (its spare column is named, not a fallback)
+        assert not any(w.startswith("PROFILE_TABLE_FALLBACK") for w in result.get("warnings", []))
     xml = _section_xml(target)
     for mark in ("H1MARK", "P1MARK", "P1B", "B1MARK", "B2MARK", "MEMOTEXT", "H2MARK", "T1MARK", "P2MARK"):
-        if mark == "T1MARK" and not has_table:
-            continue
         assert mark in xml, mark
     # "\n" is an hp:lineBreak element, never a raw LF inside hp:t.
     root = etree.fromstring(xml.encode("utf-8"))
@@ -129,3 +129,38 @@ def test_set_paragraph_text_writes_marks_and_drops_control_characters() -> None:
     assert [(c.tag.rsplit("}", 1)[-1], c.tail) for c in text] == [("lineBreak", "다"), ("tab", "라")]
     assert paragraph.find(_HP + "linesegarray") is None
     assert paragraph.find(_HP + "run").get("charPrIDRef") == "3"
+
+
+def test_official_draft_blocks_compose_on_the_official_profile(tmp_path: Path) -> None:
+    """compose_official_draft's 결재란 (4 columns) and 결문 table (no header row) used to stop the
+    공문 profile with TABLE_COLUMN_MISMATCH; they are now written whole, the 결재란 as a plain table."""
+
+    from hwpx_automation.server import compose_official_draft
+
+    draft = getattr(compose_official_draft, "fn", compose_official_draft)(
+        {
+            "agency": "가상기관",
+            "subject": "점검 안내",
+            "recipient": "각 부서장",
+            "body": ["점검을 합니다."],
+            "sender": "가상기관장",
+            "approvers": [{"position": "담당", "name": "가"}, {"position": "과장", "name": "나", "mark": "전결"}],
+            "issued": "총무-1(2031. 1. 2.)",
+        }
+    )
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "점검 안내",
+        "metadata": {"document_type": "공문"},
+        "blocks": draft["blocks"],
+    }
+    target = tmp_path / "draft.hwpx"
+    result = create_document_from_plan(str(target), plan, verbosity="full")
+
+    assert result["created"] is True, result
+    assert any("4칸" in w for w in result["warnings"])
+    with HwpxDocument.open(str(target)) as doc:
+        tables = [table for paragraph in doc.paragraphs for table in paragraph.tables]
+        texts = [[cell.text for cell in row.cells] for table in tables for row in table.rows]
+    assert ["담당", "가", "과장", "전결\n나"] in texts  # the 결재란, all four cells
+    assert not any("직위0" in cell or "구분" == cell for row in texts for cell in row)  # no label rows

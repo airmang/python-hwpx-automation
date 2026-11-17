@@ -1170,7 +1170,9 @@ def _bridge_table_block(raw: Mapping[str, Any], block_type: Any) -> Any:
     else:
         columns = [str(c) for c in raw_cols]
         rows = [[str(c) for c in row] for row in (raw.get("rows") or [])]
-    return block_type(type="table", role="info", columns=columns, rows=rows)
+    return block_type(
+        type="table", role="info", columns=columns, rows=rows, show_header=raw.get("showHeader") is not False
+    )
 
 
 def _attach_profile_memos(document: HwpxDocument, memos: Sequence[tuple[str, str]]) -> None:
@@ -1261,24 +1263,23 @@ def create_document_from_plan(
 ) -> HwpxDocument:
     """Create a formatted HWPX document from a declarative document plan."""
 
+    return _create_document_from_plan(plan, preset=preset, notices=None)
+
+
+def _create_document_from_plan(
+    plan: Mapping[str, Any] | DocumentPlan,
+    *,
+    preset: str | DocumentStylePreset | None,
+    notices: list[str] | None,
+) -> HwpxDocument:
+    """:func:`create_document_from_plan`; *notices*, a list, receives what the document was made
+    differently from the plan asked (a design profile with no fitting table fragment writes the
+    table as a plain table). The MCP tool reports them as ``warnings``."""
+
     if isinstance(plan, Mapping):
         profile_id = _resolve_design_profile(plan)
         if profile_id is not None:
-            from .design import compose_bytes
-
-            design_plan, memos = _bridge_to_design_plan(plan, profile_id)
-            data, result = compose_bytes(design_plan, production=True)
-            if not result.ok:
-                raise ValueError(
-                    f"profile compose failed for {profile_id!r}: {result.errors}"
-                )
-            document = HwpxDocument.open(data)
-            try:
-                _attach_profile_memos(document, memos)
-            except Exception:
-                document.close()
-                raise
-            return document
+            return _compose_from_profile(plan, profile_id, notices)
 
     normalized = normalize_document_plan(plan)
     if normalized.builder_document is not None:
@@ -1343,6 +1344,31 @@ def create_document_from_plan(
     for block in builder_document.sections[0].children:
         _render_block(document, block, tokens, style_preset=style_preset)
 
+    return document
+
+
+def _compose_from_profile(
+    plan: Mapping[str, Any], profile_id: str, notices: list[str] | None
+) -> HwpxDocument:
+    from .design import compose_bytes
+    from .design.composer import TABLE_FALLBACK_NOTICE
+
+    design_plan, memos = _bridge_to_design_plan(plan, profile_id)
+    data, result = compose_bytes(design_plan, production=True)
+    if not result.ok:
+        raise ValueError(f"profile compose failed for {profile_id!r}: {result.errors}")
+    if notices is not None:
+        notices.extend(
+            warning
+            for warning in result.warnings
+            if warning.startswith(TABLE_FALLBACK_NOTICE) or warning.startswith("table column-count")
+        )
+    document = HwpxDocument.open(data)
+    try:
+        _attach_profile_memos(document, memos)
+    except Exception:
+        document.close()
+        raise
     return document
 
 
@@ -2729,6 +2755,45 @@ def _add_rich_runs(
         paragraph.add_run(str(run.text or ""), char_pr_id_ref=char_pr_id)
 
 
+def _render_heading(
+    document: HwpxDocument,
+    block: Any,
+    tokens: Mapping[str, str],
+    *,
+    style_preset: DocumentStylePreset,
+) -> None:
+    refs = dict(_outline_style_refs(document, block.level))
+    # Core 7.0 dropped style_id_ref=; set the label only (style= would also apply shapes).
+    style_id = refs.pop("style_id_ref", None)
+    if "para_pr_id_ref" in refs and _heading_has_own_number(block.text):
+        # The outline shape draws Hancom's number ("1.", "가." ...) before the text; a heading that
+        # starts with the writer's own number would show two. The writer's number stays, as the
+        # design profiles and from_markdown keep it, and this heading's shape draws none.
+        refs["para_pr_id_ref"] = int(
+            document.styles.ensure_paragraph_format(
+                base_para_pr_id_ref=refs["para_pr_id_ref"],
+                heading={"type": "NONE", "idRef": "0", "level": "0"},
+            )
+        )
+    paragraph = document.add_paragraph(
+        block.text,
+        char_pr_id_ref=tokens["heading"],
+        inherit_style=False,
+        **cast(Any, refs),
+    )
+    if style_id is not None:
+        paragraph.style_id_ref = style_id
+    _format_para(
+        document,
+        paragraph,
+        line_spacing=150,
+        before_pt=14,
+        after_pt=4,
+        bottom_border=style_preset.heading_rule,
+        border_color=style_preset.rule_color,
+    )
+
+
 def _render_block(
     document: HwpxDocument,
     block: Any,
@@ -2737,36 +2802,7 @@ def _render_block(
     style_preset: DocumentStylePreset,
 ) -> None:
     if isinstance(block, BuilderHeading):
-        refs = dict(_outline_style_refs(document, block.level))
-        # Core 7.0 dropped style_id_ref=; set the label only (style= would also apply shapes).
-        style_id = refs.pop("style_id_ref", None)
-        if "para_pr_id_ref" in refs and _heading_has_own_number(block.text):
-            # The outline shape draws Hancom's number ("1.", "가." ...) before the text; a heading that
-            # starts with the writer's own number would show two. The writer's number stays, as the
-            # design profiles and from_markdown keep it, and this heading's shape draws none.
-            refs["para_pr_id_ref"] = int(
-                document.styles.ensure_paragraph_format(
-                    base_para_pr_id_ref=refs["para_pr_id_ref"],
-                    heading={"type": "NONE", "idRef": "0", "level": "0"},
-                )
-            )
-        paragraph = document.add_paragraph(
-            block.text,
-            char_pr_id_ref=tokens["heading"],
-            inherit_style=False,
-            **cast(Any, refs),
-        )
-        if style_id is not None:
-            paragraph.style_id_ref = style_id
-        _format_para(
-            document,
-            paragraph,
-            line_spacing=150,
-            before_pt=14,
-            after_pt=4,
-            bottom_border=style_preset.heading_rule,
-            border_color=style_preset.rule_color,
-        )
+        _render_heading(document, block, tokens, style_preset=style_preset)
         return
     if isinstance(block, BuilderParagraph):
         style = str(block.style or "body")

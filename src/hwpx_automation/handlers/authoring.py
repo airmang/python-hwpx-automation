@@ -21,6 +21,9 @@ from ..core.content import (
 from ..core.document import create_blank
 from ..document_state import document_state_payload
 from ..office.authoring import (
+    _create_document_from_plan as _build_document_from_plan_with_notices,
+)
+from ..office.authoring import (
     create_document_from_plan as build_document_from_plan,
 )
 from ..office.authoring import (
@@ -423,7 +426,8 @@ def _create_document_from_plan_impl(
         }
     path = resolve_path(filename)
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    doc = build_document_from_plan(document_plan or {}, preset=style_preset)
+    notices: list[str] = []
+    doc = _build_document_from_plan_with_notices(document_plan or {}, preset=style_preset, notices=notices)
     try:
         verification = _save_generated_document(doc, path)
     finally:
@@ -446,6 +450,9 @@ def _create_document_from_plan_impl(
         "quality": report,
         "verification": verification,
     }
+    if notices:
+        # What was made differently from the plan (e.g. a plain table where the profile has none).
+        result["warnings"] = notices
     return _apply_write_verbosity(result, verbosity)
 
 
