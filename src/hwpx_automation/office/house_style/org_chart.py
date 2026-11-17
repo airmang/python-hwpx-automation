@@ -27,12 +27,14 @@ _BOX_FONT_PT = (15.0, 13.0, 12.0)
 _MIN_FONT_PT = 9.0
 #: A label wraps onto at most this many lines; past it the chart says it does not fit.
 _MOST_LINES = 3
-_CELL_SIDE_PADDING = 2 * 510
+#: A box cell's left and right margins (each), and the gap cells' (none: a gap holds no text).
+_BOX_SIDE_MARGIN = 283
+_CELL_SIDE_PADDING = 2 * _BOX_SIDE_MARGIN
 _NEWLINE = chr(10)
 #: A box's line takes this much of its type size in height, line spacing and padding included.
 _LINE_PITCH = 1.7
 _BOX_COLUMN_WEIGHT = 3.0
-_GAP_COLUMN_WEIGHT = 1.0
+_GAP_COLUMN_WEIGHT = 0.6
 _BORDER_WIDTH_MM = 0.12
 _BORDER_COLOR = "#000000"
 
@@ -63,6 +65,14 @@ class _Box:
     text: str
     fill_color: str | None
     level: int = 0
+    #: The node's name and its second line (``sublabel``), apart.
+    label: str = ""
+    sublabel: str = ""
+    #: The column whose right edge is the subtree's centre, and the subtree's first and last
+    #: columns: how far a parent's box may widen (:func:`_widen`).
+    center: int = 0
+    first: int = 0
+    last: int = 0
 
 
 @dataclass
@@ -191,6 +201,11 @@ def _place_subtree(
             text=_box_text(node),
             fill_color=accent_color if level == 0 else None,
             level=level,
+            label=node.label,
+            sublabel=(node.sublabel or "").strip(),
+            center=center,
+            first=subtree_first,
+            last=subtree_last,
         )
     )
     if not node.children:
@@ -249,42 +264,50 @@ def lower_boxed_org_chart(
         )
         table.set_cell_border_fill(row, col, fill)
 
+    # The margins first: Hancom (and python-hwpx) floor a column by its cells' side margins.
+    gap_columns = {index for index, weight in enumerate(spec.column_weights) if weight == _GAP_COLUMN_WEIGHT}
+    for row in range(spec.rows):
+        for col in range(spec.cols):
+            side = 0 if col in gap_columns else _BOX_SIDE_MARGIN
+            table.cell(row, col).set_margins(left=side, right=side, top=141, bottom=141)
     table_width = sum(table.cell(0, col).width for col in range(spec.cols))
     table.set_column_widths(_column_widths(spec, table_width))
     widths = [table.cell(0, col).width for col in range(spec.cols)]
-    fitted = [_fit_label(box, sum(widths[box.col_start : box.col_end + 1])) for box in spec.boxes]
+    layout = _layout_labels(spec, widths)
     row_heights = list(spec.row_heights)
-    for box, (size, lines, _fits) in zip(spec.boxes, fitted):
-        needed = round(size * 100 * _LINE_PITCH * lines) + 2 * 141
+    for box, placed in zip(spec.boxes, layout):
+        points = len(placed.name_lines) * placed.size + len(placed.sub_lines) * placed.sub_size
+        needed = round(points * 100 * _LINE_PITCH) + 2 * 141
         row_heights[box.row] = max(row_heights[box.row], needed)
 
-    for box, (size, _lines, _fits) in zip(spec.boxes, fitted):
-        merged = table.merge_cells(box.row, box.col_start, box.row, box.col_end)
+    for box, placed in zip(spec.boxes, layout):
+        merged = table.merge_cells(box.row, placed.col_start, box.row, placed.col_end)
         box_fill = document.styles.ensure_border_fill(
             border_color=_BORDER_COLOR,
             border_width_mm=_BORDER_WIDTH_MM,
             fill_color=box.fill_color,
         )
-        table.set_cell_border_fill(box.row, box.col_start, box_fill)
-        merged.text = box.text
+        table.set_cell_border_fill(box.row, placed.col_start, box_fill)
         merged.vertical_alignment = "CENTER"
-        label = document.styles.ensure_run(bold=True, size=size)
-        for paragraph in merged.paragraphs:
-            for run in paragraph.runs:
-                run.char_pr_id_ref = label
-            paragraph.char_pr_id_ref = label
+        paragraph = merged.paragraphs[0]
+        name = document.styles.ensure_run(bold=True, size=placed.size)
+        paragraph.char_pr_id_ref = name
+        paragraph.add_run(_NEWLINE.join(placed.name_lines), char_pr_id_ref=name)
+        if placed.sub_lines:
+            sub = document.styles.ensure_run(size=placed.sub_size)
+            paragraph.add_run(_NEWLINE + _NEWLINE.join(placed.sub_lines), char_pr_id_ref=sub)
         document.styles.apply_paragraph_format(paragraphs=list(merged.paragraphs), alignment="center")
 
     table.set_row_heights(row_heights)  # every cell of a row, the merged boxes too
     table.mark_dirty()
 
-    too_wide = [box.text.replace(_NEWLINE, " ") for box, (_size, _lines, fits) in zip(spec.boxes, fitted) if not fits]
+    too_wide = [box.text.replace(_NEWLINE, " ") for box, placed in zip(spec.boxes, layout) if not placed.fits]
     summary: dict[str, Any] = {
         "rows": spec.rows,
         "cols": spec.cols,
         "boxes": len(spec.boxes),
         "connectorCells": len(spec.cell_sides),
-        "fontPt": sorted({size for size, _lines, _fits in fitted}, reverse=True),
+        "fontPt": sorted({placed.size for placed in layout}, reverse=True),
         "fits": not too_wide,
     }
     if too_wide:
@@ -296,9 +319,123 @@ def lower_boxed_org_chart(
     return summary
 
 
-#: Hancom draws no column narrower than its cells' side margins (510 each) and 283 more
-#: (python-hwpx ``NEW_TABLE_COLUMN_FLOOR``); a narrower one widens the table past the page's text.
-_COLUMN_FLOOR = 2 * 510 + 283
+@dataclass(frozen=True)
+class _Placed:
+    """Where a box's label goes: its columns, its name's size and lines, its second line's."""
+
+    col_start: int
+    col_end: int
+    size: float
+    name_lines: tuple[str, ...]
+    sub_size: float
+    sub_lines: tuple[str, ...]
+    fits: bool
+
+
+#: A bold name runs this much wider than the width estimate, which is made for regular text.
+_BOLD_WIDER = 1.08
+#: A second line (sublabel) is set this many points under its name, but no smaller than the least.
+_SUBLABEL_SMALLER = 3.0
+
+
+def _text_width(text: str, size: float, *, bold: bool) -> float:
+    from hwpx.form_fit import estimate_text_width
+
+    return estimate_text_width(text, size) * (_BOLD_WIDER if bold else 1.0)
+
+
+def _span_width(widths: list[int], start: int, end: int) -> int:
+    return sum(widths[start : end + 1])
+
+
+def _widen(box: _Box, widths: list[int], size: float) -> tuple[int, int]:
+    """The columns of *box*. A leaf keeps its two. A parent's box grows evenly about the centre of
+    its subtree, inside the subtree, until its name (bold, *size*) and its second line each fit on
+    one line, or it reaches the subtree's edges."""
+
+    if box.col_end - box.col_start < 3:  # a leaf, or a parent over a single leaf
+        return box.col_start, box.col_end
+    sub_size = max(size - _SUBLABEL_SMALLER, _MIN_FONT_PT)
+    need = max(
+        _text_width(box.label, size, bold=True),
+        _text_width(box.sublabel, sub_size, bold=False) if box.sublabel else 0.0,
+    ) + _CELL_SIDE_PADDING
+    reach = 2
+    while True:
+        start = max(box.center - reach + 1, box.first)
+        end = min(box.center + reach, box.last)
+        if _span_width(widths, start, end) >= need or (start == box.first and end == box.last):
+            return start, end
+        reach += 1
+
+
+def _layout_labels(spec: BoxedOrgChartSpec, widths: list[int]) -> list[_Placed]:
+    """Each box's columns and label lines. The boxes of a level share one type size: the largest,
+    from the level's own down to the least, at which every name of the level fits its box on one
+    line. A name that does not fit even then is broken into even parts (at a space if it has one)."""
+
+    spans = [_widen(box, widths, _BOX_FONT_PT[min(box.level, len(_BOX_FONT_PT) - 1)]) for box in spec.boxes]
+    sizes: dict[int, float] = {}
+    for level in sorted({box.level for box in spec.boxes}):
+        size = _BOX_FONT_PT[min(level, len(_BOX_FONT_PT) - 1)]
+        members = [(box, span) for box, span in zip(spec.boxes, spans) if box.level == level]
+        while size > _MIN_FONT_PT and any(
+            _text_width(box.label, size, bold=True) > _span_width(widths, *span) - _CELL_SIDE_PADDING
+            for box, span in members
+        ):
+            size -= 1.0
+        sizes[level] = size
+    placed: list[_Placed] = []
+    for box, (start, end) in zip(spec.boxes, spans):
+        size = sizes[box.level]
+        inner = _span_width(widths, start, end) - _CELL_SIDE_PADDING
+        name_lines, name_fits = _break(box.label, size, inner, bold=True)
+        sub_size = max(size - _SUBLABEL_SMALLER, _MIN_FONT_PT)
+        sub_lines, sub_fits = _break(box.sublabel, sub_size, inner, bold=False) if box.sublabel else ((), True)
+        placed.append(_Placed(start, end, size, name_lines, sub_size, sub_lines, name_fits and sub_fits))
+    return placed
+
+
+def _break(text: str, size: float, inner: float, *, bold: bool) -> tuple[tuple[str, ...], bool]:
+    """*text* as lines that each fit *inner*: whole, else in two (then three) even parts, broken at
+    the space nearest each cut when it has spaces, so no letter is left alone on a line."""
+
+    if _text_width(text, size, bold=bold) <= inner:
+        return (text,), True
+    for parts in range(2, _MOST_LINES + 1):
+        lines = _split_even(text, parts)
+        if all(_text_width(line, size, bold=bold) <= inner for line in lines):
+            return lines, True
+    return _split_even(text, _MOST_LINES), False
+
+
+def _split_even(text: str, parts: int) -> tuple[str, ...]:
+    words = text.split()
+    if len(words) >= parts:  # at spaces: the cut nearest each even share of the letters
+        lines: list[str] = []
+        remaining = words
+        for left in range(parts, 1, -1):
+            total = sum(len(word) for word in remaining)
+            best, best_gap = 1, None
+            for cut in range(1, len(remaining) - left + 2):
+                gap = abs(sum(len(word) for word in remaining[:cut]) - total / left)
+                if best_gap is None or gap < best_gap:
+                    best, best_gap = cut, gap
+            lines.append(" ".join(remaining[:best]))
+            remaining = remaining[best:]
+        lines.append(" ".join(remaining))
+        return tuple(lines)
+    letters = text.replace(" ", "")
+    step = -(-len(letters) // parts)  # the longer share first
+    return tuple(letters[index : index + step] for index in range(0, len(letters), step))
+
+
+#: Hancom draws no column narrower than its cells' side margins and 283 more (python-hwpx
+#: ``COLUMN_FLOOR_EXTRA``); a narrower one widens the table past the page's text. The gap cells
+#: have no side margins, the box cells ``_BOX_SIDE_MARGIN``.
+_COLUMN_FLOOR_EXTRA = 283
+_GAP_FLOOR = _COLUMN_FLOOR_EXTRA
+_COLUMN_FLOOR = _CELL_SIDE_PADDING + _COLUMN_FLOOR_EXTRA
 
 
 def _column_widths(spec: BoxedOrgChartSpec, table_width: int) -> list[int]:
@@ -307,30 +444,12 @@ def _column_widths(spec: BoxedOrgChartSpec, table_width: int) -> list[int]:
 
     total = sum(spec.column_weights)
     gaps = [index for index, weight in enumerate(spec.column_weights) if weight == _GAP_COLUMN_WEIGHT]
-    gap = max(round(table_width * _GAP_COLUMN_WEIGHT / total), _COLUMN_FLOOR) if gaps else 0
+    gap = max(round(table_width * _GAP_COLUMN_WEIGHT / total), _GAP_FLOOR) if gaps else 0
     boxes = spec.cols - len(gaps)
     box = max((table_width - gap * len(gaps)) // max(boxes, 1), _COLUMN_FLOOR)
     widths = [gap if index in gaps else box for index in range(spec.cols)]
     widths[-1] += table_width - sum(widths)  # the rounding, on the last column
     return widths
-
-
-def _fit_label(box: _Box, width: int) -> tuple[float, int, bool]:
-    """``(type size, lines, fits)`` for *box*'s label in a box *width* wide: its level's size, made
-    smaller (down to the least) until each line fits, then let wrap onto up to a few lines."""
-
-    from hwpx.form_fit import estimate_text_width
-
-    inner = max(width - _CELL_SIDE_PADDING, 1)
-    lines_text = box.text.split(_NEWLINE)
-    size = _BOX_FONT_PT[min(box.level, len(_BOX_FONT_PT) - 1)]
-    while True:
-        longest = max(estimate_text_width(line, size) for line in lines_text)
-        if longest <= inner or size <= _MIN_FONT_PT:
-            break
-        size -= 1.0
-    wrapped = sum(max(1, -(-int(estimate_text_width(line, size)) // inner)) for line in lines_text)
-    return size, wrapped, wrapped <= _MOST_LINES * len(lines_text)
 
 
 __all__ = [
