@@ -127,132 +127,6 @@ def _ensure_char_style(
     )
 
 
-# Characters python-hwpx reads for the inline atoms Hancom writes *inside* an
-# ``hp:t`` (``HwpxOxmlRun.text``): each stands for exactly one character.
-_INLINE_ATOM_NAMES = frozenset({"tab", "lineBreak", "nbSpace", "fwSpace", "hyphen"})
-
-
-def _local_name(node: Any) -> str:
-    tag = getattr(node, "tag", None)
-    if not isinstance(tag, str):  # comment / processing instruction
-        return ""
-    return tag.rsplit("}", 1)[-1]
-
-
-def _inline_child_length(child: Any) -> int:
-    """Characters one child of an ``hp:t`` contributes to ``HwpxOxmlRun.text``."""
-
-    name = _local_name(child)
-    if not name:
-        return 0
-    if name in _INLINE_ATOM_NAMES:
-        return 1
-    return len("".join(child.itertext()))
-
-
-def _text_element_length(text_element: Any) -> int:
-    total = len(text_element.text or "")
-    for child in text_element:
-        total += _inline_child_length(child) + len(child.tail or "")
-    return total
-
-
-def _new_like(element: Any) -> Any:
-    """An empty element with *element*'s tag and attributes (never its children)."""
-
-    return element.makeelement(element.tag, dict(element.attrib))
-
-
-def _move_children(children: list[Any], destination: Any) -> None:
-    for child in children:
-        # lxml moves the node (with its tail) out of its old parent on append.
-        destination.append(child)
-
-
-def _split_text_element(text_element: Any, offset: int) -> Any:
-    """Cut one ``hp:t`` at character *offset* (``0 < offset < length``).
-
-    The original keeps the content before the cut; the returned new ``hp:t``
-    takes the content after it. Every inline child (``hp:tab``,
-    ``hp:lineBreak``, marks) ends up on exactly one side -- nothing is copied.
-    """
-
-    right = _new_like(text_element)
-    leading = text_element.text or ""
-    children = list(text_element)
-    if offset <= len(leading):
-        text_element.text = leading[:offset]
-        right.text = leading[offset:] or None
-        _move_children(children, right)
-        return right
-
-    position = len(leading)
-    for index, child in enumerate(children):
-        length = _inline_child_length(child)
-        tail = child.tail or ""
-        if offset < position + length:
-            # The cut falls inside an element that carries several characters
-            # (it cannot be divided): move the cut to just after it.
-            offset = position + length
-        position += length
-        if offset <= position + len(tail):
-            cut = offset - position
-            child.tail = tail[:cut] or None
-            right.text = tail[cut:] or None
-            _move_children(children[index + 1 :], right)
-            return right
-        position += len(tail)
-    return right
-
-
-def _split_run_element(paragraph_element: Any, run_element: Any, offset: int) -> Any | None:
-    """Divide *run_element* at text *offset* into two sibling runs.
-
-    Only text is divided. Every other child of the run -- ``hp:secPr``,
-    ``hp:ctrl`` (column definitions, field begin/end), tables, pictures -- stays
-    a single node on the side of the cut where it already was, so a section
-    definition or a form field is never duplicated (audit ENG-15). Returns the
-    new right-hand run, or ``None`` when the cut is not strictly inside the
-    run's text.
-    """
-
-    children = list(run_element)
-    consumed = 0
-    for index, child in enumerate(children):
-        if _local_name(child) != "t":
-            continue
-        length = _text_element_length(child)
-        if consumed + length < offset:
-            consumed += length
-            continue
-        right = _new_like(run_element)
-        if consumed + length == offset:
-            trailing = children[index + 1 :]
-        else:
-            local = offset - consumed
-            if local <= 0:
-                trailing = children[index:]
-            else:
-                tail_text = _split_text_element(child, local)
-                right.append(tail_text)
-                trailing = children[index + 1 :]
-        _move_children(trailing, right)
-        if len(right) == 0 or not any(_local_name(node) == "t" for node in right):
-            # Nothing textual would move: put the pieces back and report no split.
-            _move_children(list(right), run_element)
-            return None
-        siblings = list(paragraph_element)
-        paragraph_element.insert(siblings.index(run_element) + 1, right)
-        return right
-    return None
-
-
-def _drop_paragraph_layout_cache(paragraph_element: Any) -> None:
-    for child in list(paragraph_element):
-        if _local_name(child).lower() == "linesegarray":
-            paragraph_element.remove(child)
-
-
 def split_run_for_format(
     run_obj: HwpxOxmlRun, local_start: int, local_end: int, char_pr_id_ref: str
 ) -> None:
@@ -278,27 +152,19 @@ def split_run_for_format(
         return
 
     paragraph = run_obj.paragraph
-    parent = paragraph.element
-    if run_obj.element not in list(parent):
+    runs = list(paragraph.runs)
+    if run_obj not in runs:
         return
+    # The run's first character in paragraph.text (a tab or a line break is one character there too).
+    base = sum(len(run.text or "") for run in runs[: runs.index(run_obj)])
 
-    target = run_obj.element
+    # python-hwpx's paragraph.split_run cuts only text: hp:secPr, hp:ctrl and objects stay on one side.
     # Cut the far end first so the near offset still addresses the left piece.
     if local_end < length:
-        _split_run_element(parent, target, local_end)
-    if local_start > 0:
-        middle = _split_run_element(parent, target, local_start)
-        if middle is None:
-            # The start could not be cut (it fell inside an indivisible
-            # element); nothing safe to restyle.
-            _drop_paragraph_layout_cache(parent)
-            paragraph.section.mark_dirty()
-            return
-        target = middle
-
-    HwpxOxmlRun(target, paragraph).char_pr_id_ref = char_pr_id_ref
-    _drop_paragraph_layout_cache(parent)
-    paragraph.section.mark_dirty()
+        paragraph.split_run(base + local_end)
+    target = paragraph.split_run(base + local_start) if local_start > 0 else run_obj
+    target.char_pr_id_ref = char_pr_id_ref
+    paragraph.clear_layout_cache()
 
 
 # Kept as the historical private name used inside this module.
