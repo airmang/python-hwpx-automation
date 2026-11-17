@@ -976,7 +976,7 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
         native.remove()
         paragraph.clear_layout_cache()
     elif record.kind == "table":
-        _remove_inline_element(native.element, native.paragraph)
+        native.remove(remove_orphaned=False)
     elif record.kind == "row":
         table = native.table
         if len(table.rows) <= 1:
