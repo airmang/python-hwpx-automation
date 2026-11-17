@@ -1065,7 +1065,7 @@ def _plan_document_type(plan: Any) -> str:
 
 #: Document types written in the named report look (``from_markdown``'s), not from a profile: the
 #: report design profile is used only when the plan names it (``designProfile``). Owner, 2026-11-17.
-_REPORT_LOOK_DOCTYPES = frozenset(key for key, value in _DOCTYPE_TO_PROFILE.items() if value == "report")
+_REPORT_LOOK_DOCTYPES = frozenset({"보고서", "report"})
 
 
 def _resolve_design_profile(plan: Any) -> str | None:
@@ -1088,10 +1088,10 @@ def _resolve_design_profile(plan: Any) -> str | None:
             )
         return chosen
     raw = _plan_document_type(plan)
-    if not raw or raw in _REPORT_LOOK_DOCTYPES:
-        return None
-    profile_id = _DOCTYPE_TO_PROFILE.get(raw)
-    if profile_id and profile_id in available_profiles():
+    profile_id = _DOCTYPE_TO_PROFILE.get(raw) if raw else None
+    # The report profile is a form a user picks; no document type picks it. A government_report plan
+    # is written with its own style preset (create_government_report_document).
+    if profile_id and profile_id != "report" and profile_id in available_profiles():
         return profile_id
     return None
 
