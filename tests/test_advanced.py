@@ -7,8 +7,17 @@ from hwpx_automation.fastmcp_adapter import snapshot_runtime_tools
 
 @pytest.fixture(autouse=True)
 def enable_advanced(monkeypatch):
-    """고급 도구 테스트 시 환경변수 설정"""
+    """고급 도구 테스트 시 환경변수 설정.
+
+    시험이 고급 도구를 켠 채 서버 모듈을 다시 불러오므로, 끝나면 환경 변수를 되돌리고
+    서버 모듈을 한 번 더 불러와 같은 일꾼에서 뒤에 도는 시험이 기본 도구 목록을 보게 한다.
+    """
     monkeypatch.setenv("HWPX_MCP_ADVANCED", "1")
+    yield
+    monkeypatch.undo()
+    import hwpx_automation.server as server
+
+    importlib.reload(server)
 
 
 def test_package_parts(tmp_path):
@@ -46,9 +55,6 @@ def test_advanced_tools_hidden_by_default(monkeypatch):
     tool_names = set(snapshot_runtime_tools(reloaded.mcp))
 
     assert "package_parts" not in tool_names
-
-    monkeypatch.setenv("HWPX_MCP_ADVANCED", "1")
-    importlib.reload(reloaded)
 
 
 def test_object_find_by_attr_matches_any_value_when_attr_value_omitted(tmp_path):
