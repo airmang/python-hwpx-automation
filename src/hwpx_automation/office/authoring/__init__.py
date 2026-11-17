@@ -1278,6 +1278,9 @@ def _create_document_from_plan(
 
     if isinstance(plan, Mapping):
         profile_id = _resolve_design_profile(plan)
+        looked = _write_in_named_look(plan, profile_id, notices)
+        if looked is not None:
+            return looked
         if profile_id is not None:
             return _compose_from_profile(plan, profile_id, notices)
 
@@ -1345,6 +1348,34 @@ def _create_document_from_plan(
         _render_block(document, block, tokens, style_preset=style_preset)
 
     return document
+
+
+def _write_in_named_look(
+    plan: Mapping[str, Any], profile_id: str | None, notices: list[str] | None
+) -> HwpxDocument | None:
+    """A plan that asks for a named Markdown look (``plan["look"]``, which
+    ``markdown_to_document_plan`` sets to ``"report"``) is written by ``from_markdown`` in that
+    look, unless its document type has a design profile of its own other than the report one
+    (공문, 가정통신문). ``None``: the plan goes the profile or general way."""
+
+    from ...markdown_plan import LOOKS, plan_to_markdown
+
+    look = plan.get("look")
+    if look not in LOOKS or profile_id not in (None, "report"):
+        return None
+    markdown = plan_to_markdown(plan)
+    if markdown is None:
+        if notices is not None:
+            notices.append(
+                f"LOOK_NOT_APPLIED: 계획에 '{look}' 모양이 담지 못하는 블록(쪽 나눔·메모·색·칸 서식)이 있어 "
+                "일반 꼴로 지음"
+            )
+        return None
+    from ...markdown import from_markdown
+
+    metadata = plan.get("metadata")
+    byline = str(metadata.get("byline") or "").strip() if isinstance(metadata, Mapping) else ""
+    return from_markdown(markdown, style=str(look), byline=byline or None)
 
 
 def _compose_from_profile(
@@ -1472,7 +1503,9 @@ def inspect_document_authoring_quality(
             package_ok=bool(getattr(package_report, "ok", False)),
             document_ok=bool(getattr(document_report, "ok", False)),
             reopened=reopened,
-            non_empty_paragraph_count=len(non_empty_texts),
+            # Text in table cells counts too: a title banner, a boxed section heading or a
+            # nameplate sheet holds its paragraphs in a table.
+            non_empty_paragraph_count=len(non_empty_texts) + _non_empty_cell_paragraphs(document),
             table_count=table_count,
             full_text=full_text,
         )
@@ -3729,6 +3762,15 @@ def _iter_tables(document: HwpxDocument) -> list[Any]:
     for paragraph in document.paragraphs:
         tables.extend(getattr(paragraph, "tables", []))
     return tables
+
+
+def _non_empty_cell_paragraphs(document: HwpxDocument) -> int:
+    count = 0
+    for table in _iter_tables(document):
+        for row in table.rows:
+            for cell in row.cells:
+                count += sum(1 for paragraph in cell.paragraphs if (paragraph.text or "").strip())
+    return count
 
 
 def _can_reopen(path: Path | None, package_payload: bytes) -> bool:

@@ -9,6 +9,12 @@ the agent can read, change and hand to ``create_document_from_plan`` (which can 
 it from a design profile). A plan paragraph's ``runs`` carry bold (and colour) only, so bold
 becomes a bold run, and italic, strike, code, links, pictures and footnotes are written as
 their text; each such loss is named once in ``warnings``.
+
+The plan carries ``"look": "report"``: ``create_document_from_plan`` then writes it in the report
+look ``from_markdown`` writes by default (the look the owner chose for a Markdown document), from
+the plan's blocks as they are when it is called (:func:`plan_to_markdown`), so an agent's changes
+to the plan count. ``"look": "plain"`` asks for the plain look; a ``metadata.document_type`` with
+a design profile of its own (공문, 가정통신문) is composed from that profile instead.
 """
 
 from __future__ import annotations
@@ -28,6 +34,12 @@ from .markdown._import import (
     _spans,
     _Table,
 )
+
+
+#: The named Markdown looks a plan may ask for (``plan["look"]``); see :func:`plan_to_markdown`.
+LOOKS = ("report", "plain")
+DEFAULT_LOOK = "report"
+_ESCAPED = set("\\`*_[]<>|~")
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,10 +157,13 @@ class _Converter:
         header = block.rows[0] if block.header else []
         body = block.rows[1:] if block.header else block.rows
         cell = lambda value: self.plain(value.replace("<br>", "\n"), "table cell")  # noqa: E731
-        columns = [
+        columns: list[dict[str, Any]] = [
             {"key": key, "label": (cell(header[index]) if index < len(header) else "") or key}
             for index, key in enumerate(keys)
         ]
+        for column, align in zip(columns, block.aligns):
+            if align:  # ":---:" / "---:" in the separator: kept for the named look (plan_to_markdown)
+                column["align"] = align
         rows = [
             {key: cell(row[index]) if index < len(row) else "" for index, key in enumerate(keys)}
             for row in body
@@ -204,6 +219,7 @@ def markdown_to_document_plan(
             "title": resolved_title,
             "metadata": _string_metadata(metadata or {}),
             "stylePreset": style_preset,
+            "look": DEFAULT_LOOK,
             "blocks": blocks,
             "qualityGates": quality_gates,
         },
@@ -240,3 +256,83 @@ def _non_empty_block_count(blocks: list[dict[str, Any]]) -> int:
         elif kind == "bullets":
             count += len(block.get("items") or [])
     return count
+
+
+def plan_to_markdown(plan: Mapping[str, Any]) -> str | None:
+    """The Markdown ``from_markdown`` writes *plan* from, or ``None`` when the plan holds what the
+    Markdown subset cannot say (a page break, a memo, a coloured run, a cell style)."""
+
+    lines: list[str] = []
+    title = str(plan.get("title") or "").strip()
+    if title:
+        lines += [f"# {_escape(title)}", ""]
+    for block in plan.get("blocks") or []:
+        if not isinstance(block, Mapping):
+            return None
+        written = _block_markdown(block)
+        if written is None:
+            return None
+        lines += written
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _block_markdown(block: Mapping[str, Any]) -> list[str] | None:
+    kind = block.get("type")
+    if kind == "heading":
+        level = min(max(int(block.get("level") or 1), 1), 6)
+        return ["#" * level + " " + _escape(str(block.get("text") or ""), line_start=False), ""]
+    if kind == "paragraph":
+        runs = block.get("runs")
+        if runs:
+            if any(not isinstance(run, Mapping) or run.get("color") for run in runs):
+                return None
+            text = "".join(
+                f"**{_escape(str(run.get('text') or ''), line_start=False)}**"
+                if run.get("bold")
+                else _escape(str(run.get("text") or ""), line_start=False)
+                for run in runs
+            )
+            text = _escape_line_start(text)
+        else:
+            text = _escape(str(block.get("text") or ""))
+        # A line break inside the paragraph: a trailing backslash.
+        return [text.replace("\n", "\\\n"), ""] if text.strip() else []
+    if kind == "bullets":
+        return [f"- {_escape(str(item), line_start=False)}" for item in block.get("items") or []] + [""]
+    if kind == "table":
+        columns = [column for column in block.get("columns") or [] if isinstance(column, Mapping)]
+        if block.get("cellStyles") or not columns:
+            return None
+
+        def cell(value: Any) -> str:
+            return _escape(str(value or ""), line_start=False).replace("\n", "<br>")
+
+        lines: list[str] = []
+        if block.get("showHeader") is not False:
+            lines.append("| " + " | ".join(cell(c.get("label") or c.get("key")) for c in columns) + " |")
+            marks = {"left": ":---", "center": ":---:", "right": "---:"}
+            lines.append("|" + "".join(marks.get(str(c.get("align")), "---") + "|" for c in columns))
+        for row in block.get("rows") or []:
+            values = row if isinstance(row, Mapping) else {}
+            lines.append("| " + " | ".join(cell(values.get(c.get("key"))) for c in columns) + " |")
+        return lines + [""]
+    return None
+
+
+def _escape(text: str, *, line_start: bool = True) -> str:
+    """*text* as Markdown that reads back as the same text (*line_start*: it begins a line)."""
+
+    escaped = "".join("\\" + char if char in _ESCAPED else char for char in text)
+    return _escape_line_start(escaped) if line_start else escaped
+
+
+def _escape_line_start(escaped: str) -> str:
+    """A paragraph line the parser would take for a heading, list item or quote, kept a paragraph.
+    (A heading's own number, "1. 개요", is left as it is: from_markdown reads it as the writer's.)"""
+
+    if escaped[:1] in ("#", "-", "+", ">"):
+        return "\\" + escaped
+    digits = len(escaped) - len(escaped.lstrip("0123456789"))
+    if digits and escaped[digits : digits + 2] in (". ", ") "):
+        return escaped[:digits] + "\\" + escaped[digits:]
+    return escaped
