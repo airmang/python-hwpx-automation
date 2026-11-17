@@ -2740,6 +2740,16 @@ def _render_block(
         refs = dict(_outline_style_refs(document, block.level))
         # Core 7.0 dropped style_id_ref=; set the label only (style= would also apply shapes).
         style_id = refs.pop("style_id_ref", None)
+        if "para_pr_id_ref" in refs and _heading_has_own_number(block.text):
+            # The outline shape draws Hancom's number ("1.", "가." ...) before the text; a heading that
+            # starts with the writer's own number would show two. The writer's number stays, as the
+            # design profiles and from_markdown keep it, and this heading's shape draws none.
+            refs["para_pr_id_ref"] = int(
+                document.styles.ensure_paragraph_format(
+                    base_para_pr_id_ref=refs["para_pr_id_ref"],
+                    heading={"type": "NONE", "idRef": "0", "level": "0"},
+                )
+            )
         paragraph = document.add_paragraph(
             block.text,
             char_pr_id_ref=tokens["heading"],
@@ -2815,6 +2825,14 @@ def _render_block(
         document.add_paragraph("", inherit_style=False).page_break = True
         return
     raise ValueError(f"unsupported builder block: {type(block).__name__}")
+
+
+def _heading_has_own_number(text: str) -> bool:
+    """Whether a heading starts with a number its writer typed (``1.``, ``가.``, ``Ⅰ``, ``(1)`` ...)."""
+
+    from ...markdown._import import _OWN_NUMBER
+
+    return bool(_OWN_NUMBER.match(text.strip()))
 
 
 def _add_key_value_table(

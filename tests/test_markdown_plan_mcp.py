@@ -100,3 +100,21 @@ def test_markdown_document_plan_can_create_hwpx(tmp_path: Path) -> None:
     assert "Name" in extracted["markdown"]
     assert "Value" in extracted["markdown"]
     assert "| A | 1 |" in extracted["markdown"]
+
+
+def test_heading_with_its_own_number_is_not_numbered_again(tmp_path: Path) -> None:
+    from hwpx import HwpxDocument
+
+    target = tmp_path / "numbered.hwpx"
+    plan = server.markdown_to_document_plan("# Report\n\n## 1. Overview\n\nText.\n\n## Details\n\nMore.")
+    server.create_document_from_plan(str(target), plan["document_plan"])
+
+    with HwpxDocument.open(target) as doc:
+        heads = {
+            paragraph.text: doc.styles.paragraph_property(paragraph.para_pr_id_ref).heading
+            for paragraph in doc.paragraphs
+            if paragraph.text in {"1. Overview", "Details"}
+        }
+    # The writer's "1." stays and the outline draws no second number; an unnumbered heading keeps it.
+    assert heads["1. Overview"].type == "NONE"
+    assert heads["Details"].type == "OUTLINE"
