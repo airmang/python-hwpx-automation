@@ -307,13 +307,10 @@ def _caption_text(obj) -> str | None:
 
 
 def _table_caption_text(table) -> str | None:
-    """표의 캡션 글(``table.caption``의 문단 글을 이어 붙임), 없으면 None."""
+    """표의 캡션 글, 없으면 None: 그림 캡션처럼 캡션 안 모든 문단(캡션 안 표의 칸까지)의 ``hp:t``
+    글자를 잇는다. b82cb30은 캡션 문단의 글만 읽어 캡션 안 표의 글이 빠졌다(baseline3 r3)."""
 
-    caption = table.caption
-    if caption is None:
-        return None
-    text = "".join(paragraph.text or "" for paragraph in caption.paragraphs).strip()
-    return text or None
+    return _caption_text(table)
 
 
 def _picture_item_id(obj) -> str | None:
@@ -1039,19 +1036,14 @@ _PAGE_TYPE_LABELS = {"EVEN": "짝수 쪽", "ODD": "홀수 쪽"}
 
 
 def _nested_paragraphs(paragraphs):
-    """*paragraphs* 와 그 안(표 칸·글상자 등 개체)의 문단을 문서 차례로."""
+    """*paragraphs* 와 그 안의 모든 문단(표 칸·글상자·캡션·묶음 구성원, 몇 겹이든)을 문서 차례로:
+    python-hwpx의 ``paragraph.iter_paragraphs()``. 머리말 문단의 표 옆 글상자 글도 여기 든다
+    (d36bdd0이 머리말 아래 ``hp:p`` 를 모두 읽던 것과 같은 문단들)."""
 
     for paragraph in paragraphs:
         yield paragraph
-        for obj in paragraph.objects:
-            if hasattr(obj, "rows"):
-                for row in obj.rows:
-                    for cell in row.cells:
-                        yield from _nested_paragraphs(cell.paragraphs)
-            else:
-                inner = getattr(obj, "paragraphs", None)
-                if inner:
-                    yield from _nested_paragraphs(inner)
+        for place in paragraph.iter_paragraphs():
+            yield place.paragraph
 
 
 def _page_text_lines(section, tag: str, doc, seen: set[tuple[str, str]]) -> list[str]:

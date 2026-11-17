@@ -79,6 +79,8 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 
 ### Changed
 
+- 새로 짓는 표(`from_markdown`, `draw_table`)의 칸이 표 글자 모양의 런 하나로 시작합니다. 전에는 문서 첫 글자 모양의
+  빈 런이 앞에 있어, 나중에 그 칸에 쓴 글이 작은 기본 모양을 이었습니다.
 - python-hwpx 7.0의 이름과 저장 API를 씁니다(`doc.save`, `alignment=`, `paragraph(s)=`, `section=`, `*_mm` 굵기 등).
   도구 이름·인자·출력은 그대로입니다.
 - `document_to_markdown`·`document_extract_json`, `create_from_markdown`, 양식·메일 머지·미리보기·점검 도구가 이 패키지로
