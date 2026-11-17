@@ -995,7 +995,7 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
         _drop_layout_cache(_paragraph_element_of(parent))
         _mark_containing_section(document, parent)
     elif record.kind == "shape":
-        _remove_inline_element(native.element, native.paragraph)
+        native.remove(remove_orphaned=False)
     elif record.kind == "memo":
         native.remove()
     elif record.kind in {"footnote", "endnote"}:
