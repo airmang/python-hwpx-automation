@@ -1318,11 +1318,6 @@ def test_batch_invokes_save_pipeline_exactly_once(tmp_path: Path) -> None:
     assert pipeline.calls == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="python-hwpx aa9e0ea6 note.copy_to keeps a lowercase instid and adds a new instId "
-    "(the copy repeats instid 777); reported to core (8.0 19차)",
-)
 def test_copy_footnote_refreshes_real_corpus_instid(tmp_path: Path) -> None:
     """실한컴 산출물 형태(소문자 instid만)의 각주도 copy 시 재발급되어야 한다 (#101).
 

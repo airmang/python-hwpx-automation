@@ -15,8 +15,6 @@ from hwpx.oxml.namespaces import HH, OPF_NS
 
 from ..catalog import catalog_hash
 from ..document import HwpxAgentDocument, NodeRecord
-from hwpx.oxml.text_offsets import offset_of
-
 from ..model import AGENT_CATALOG_SCHEMA_V2, NODE_KINDS, AgentContractError
 from .bundle import (
     ALLOWED_MEDIA_TYPES,
@@ -365,27 +363,16 @@ _OFFSET_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
 
 def _v2_placement(record: NodeRecord) -> dict[str, int] | str:
     """Where an object, note or form field stands in its paragraph's text (blueprint v2): ``offset``, or
-    a form field's ``start``/``end`` (its begin's and end's offsets, python-hwpx #778); a reason string
+    a form field's ``start``/``end`` (``FormField.start``/``end``, python-hwpx #784); a reason string
     when a form field's end is not in its paragraph (v1 refused that one too)."""
 
     if record.kind in _OFFSET_KINDS:
         return {"offset": int(record.place["offset"])} if record.place is not None else {}
     if record.kind != "form-field":
         return {}
-    begin = record.native.get("_field_begin")
-    paragraph = record.native.get("_paragraph")
-    if begin is None or paragraph is None:
-        return "form field has no begin in a paragraph"
-    end = next(
-        (
-            node
-            for node in paragraph.element.iter()
-            if str(getattr(node, "tag", "")).endswith("}fieldEnd") and node.get("beginIDRef") == begin.get("id")
-        ),
-        None,
-    )
-    start_offset = offset_of(begin, paragraph.element)
-    end_offset = offset_of(end, paragraph.element) if end is not None else None
+    field = record.native.get("_field")
+    start_offset = getattr(field, "start", None)
+    end_offset = getattr(field, "end", None)  # python-hwpx #784: None when the end is not in its paragraph
     if start_offset is None or end_offset is None:
         return "form field does not end in its own paragraph"
     return {"start": int(start_offset), "end": int(end_offset)}
