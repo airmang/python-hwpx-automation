@@ -1832,6 +1832,21 @@ def _ruled_border(
     )
 
 
+def document_font_writer(doc: HwpxDocument) -> Write:
+    """A *write* for :func:`draw_table` that keeps the document's own type (only the header's bold
+    comes from the look): for a table in a document that is not in the report look."""
+
+    ids: dict[bool, str] = {}
+
+    def write(paragraph: Any, text: str, bold: bool, size: float | None, font: str | None) -> None:
+        del size, font
+        if bold not in ids:
+            ids[bold] = doc.styles.ensure_run(bold=bold)
+        paragraph.add_run(text, char_pr_id_ref=ids[bold])
+
+    return write
+
+
 def _plain_writer(doc: HwpxDocument) -> Write:
     ids: dict[tuple[bool, float | None, str | None], str] = {}
 

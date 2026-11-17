@@ -561,7 +561,7 @@ class Table:
         )
         if not self.header_shading and not self.column_widths and not self.merges:
             # No look of its own: the one table look new documents share (the report look's, 8.0).
-            from hwpx_automation.markdown._import import draw_table
+            from hwpx_automation.markdown._import import document_font_writer, draw_table
 
             draw_table(
                 document,
@@ -569,6 +569,7 @@ class Table:
                 [[_computed_text(str(value)) for value in row] for row in table_rows],
                 header=bool(self.header),
                 style="report",
+                write=document_font_writer(document),
             )
             return
         for row_index, row in enumerate(table_rows):
