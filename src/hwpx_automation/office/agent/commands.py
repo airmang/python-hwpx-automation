@@ -983,7 +983,7 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
             raise AgentContractError(
                 "unsupported_content", "row removal with vertical merges is unsupported", target=record.path
             )
-        table.element.remove(native.element)
+        table.delete_rows(table.rows.index(native))
         _refresh_table_rows(table)
     elif record.kind == "picture":
         parent = _element(record.native).getparent()
