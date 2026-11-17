@@ -218,3 +218,65 @@ def test_offset_outside_a_paragraph_is_refused(tmp_path: Path) -> None:
         "position": {"mode": "offset", "offset": 99}, "properties": {"text": "x"},
     }])
     assert not past_end.ok and past_end.error is not None and past_end.error.code == "not_found"
+
+
+def _with_table(path: Path, *, text_after: bool) -> None:
+    with HwpxDocument.new() as document:
+        first = document.sections[0].paragraphs[0]
+        first.element.set("id", "11")
+        first.text = "앞글"
+        first.add_table(1, 1)
+        if text_after:
+            first.add_run("뒷글")
+        document.save(path)
+
+
+@pytest.mark.parametrize(
+    ("mode", "text_after", "taken"),
+    [
+        ("append", False, True),   # v1 (after the last table) = v2 (end of the text)
+        ("append", True, False),   # text after the last table: the two places differ
+        ("prepend", False, False),  # v1 before the first table, v2 at offset 0
+    ],
+)
+def test_v1_append_prepend_in_a_paragraph_is_taken_only_where_it_means_the_same(
+    tmp_path: Path, mode: str, text_after: bool, taken: bool
+) -> None:
+    source = tmp_path / "input.hwpx"
+    _with_table(source, text_after=text_after)
+    first, = [p for p in _paths_all(source)]
+    command = {"commandId": "t", "op": "add", "kind": "table", "parent": first,
+               "position": {"mode": mode}, "properties": {"rowCount": 1, "columnCount": 1}}
+    result = apply_document_commands(_batch(source, tmp_path / "v1.hwpx", [command], schema=AGENT_BATCH_SCHEMA_V1))
+    if taken:
+        assert result.ok, result.to_dict()
+    else:
+        assert not result.ok and result.error is not None
+        assert result.error.code == "contract_changed"
+        assert '"mode": "offset"' in (result.error.suggestion or "")
+    v2 = apply_document_commands(_batch(source, tmp_path / "v2.hwpx", [command]))
+    assert v2.ok, v2.to_dict()
+
+
+def _paths_all(source: Path) -> list[str]:
+    with HwpxAgentDocument.open(source) as agent:
+        return [record.path for record in agent.records if record.kind == "paragraph" and record.parent_path == "/section[1]"]
+
+
+def test_same_file_and_commands_give_the_same_bytes(tmp_path: Path) -> None:
+    _write(tmp_path / "input.hwpx")
+    first, second = _paths(tmp_path / "input.hwpx")
+    commands = [
+        {"commandId": "p", "op": "add", "kind": "paragraph", "parent": "/section[1]", "properties": {"text": "새 문단"}},
+        {"commandId": "t", "op": "add", "kind": "table", "parent": first,
+         "position": {"mode": "offset", "offset": 2}, "properties": {"rowCount": 2, "columnCount": 2}},
+        {"commandId": "c", "op": "copy", "path": "$t.path", "parent": second},
+        {"commandId": "q", "op": "copy", "path": first, "parent": "/section[1]"},
+    ]
+    outputs = []
+    for run in range(2):
+        output = tmp_path / f"out-{run}.hwpx"
+        result = apply_document_commands(_batch(tmp_path / "input.hwpx", output, commands))
+        assert result.ok, result.to_dict()
+        outputs.append(output.read_bytes())
+    assert outputs[0] == outputs[1]

@@ -604,11 +604,11 @@ def validate_agent_command(value: Mapping[str, Any], *, batch_schema: str | None
     meaning did not change: a v1 command using a v2-only form is refused here, and
     the v1 forms whose meaning changed (run add/remove/copy, ``index`` or a run
     anchor inside a paragraph) with ``contract_changed`` when the batch is checked
-    against the catalog.  The normalized command is v2.
+    against the catalog.  The normalized command keeps the version it was written in.
     """
 
     raw = dict(_require_mapping(value, "command"))
-    _command_schema(raw, batch_schema)
+    schema = _command_schema(raw, batch_schema)
     command_id = str(raw.get("commandId", ""))
     if not COMMAND_ID_PATTERN.fullmatch(command_id):
         raise AgentContractError("invalid_syntax", "commandId is invalid", target="command.commandId")
@@ -617,7 +617,9 @@ def validate_agent_command(value: Mapping[str, Any], *, batch_schema: str | None
         raise AgentContractError("unsupported_operation", f"unsupported command op: {op}", target="command.op")
 
     normalized: dict[str, Any] = {
-        "schemaVersion": AGENT_COMMAND_SCHEMA,
+        # The version the command was written in: a v1 append/prepend in a paragraph is taken
+        # only where its v1 place is the v2 one (commands._check_v1_end_place).
+        "schemaVersion": schema,
         "commandId": command_id,
         "op": op,
     }

@@ -11,6 +11,7 @@ the normal :class:`~hwpx.quality.SavePipeline` exactly once.
 from __future__ import annotations
 
 import copy
+import hashlib
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -25,6 +26,7 @@ from ._text_scope import TextScope
 from .catalog import catalog_hash
 from .document import HwpxAgentDocument, NodeRecord, TextRange, place
 from .model import (
+    AGENT_COMMAND_SCHEMA_V1,
     CONTRACT_CHANGED_INDEX,
     CONTRACT_CHANGED_RUN,
     CONTRACT_CHANGED_RUN_ANCHOR,
@@ -333,6 +335,62 @@ def _move_object(native: Any, paragraph: Any, offset: int | None) -> None:
         native.move_to(paragraph, offset=offset)
 
 
+def _check_v1_end_place(
+    view: HwpxAgentDocument,
+    paragraph: NodeRecord,
+    kind: str,
+    position: Mapping[str, Any],
+    *,
+    leaving: Any = None,
+) -> None:
+    """Take a v1 ``append``/``prepend`` in a paragraph only where its v1 place is the v2 one.
+
+    v1 put the object after the last (before the first) object of its kind, or at the paragraph's
+    end when there was none; v2 puts it at the end of the text (at offset 0), after the objects
+    already there.  Where the two places differ the command is refused (``contract_changed``) with
+    the offset its v1 place has, rather than done somewhere else without a word (owner, 18차).
+    *leaving* is an object that is moved and so is not counted where it stands.
+    """
+
+    mode = position["mode"]
+    if not position.get("_v1") or mode not in {"append", "prepend"}:
+        return
+    length = len(paragraph.native.text or "")
+    items = [
+        record
+        for record in view.records
+        if record.parent_path == paragraph.path
+        and record.kind in _ANCHOR_KINDS
+        and (leaving is None or _element(record.native) is not leaving)
+    ]
+    same = [record for record in items if record.kind == kind]
+    if not same:  # v1 appended a new run at the paragraph's end: after everything there
+        old_offset = length
+        agrees = mode == "append" or length == 0
+    elif mode == "append":
+        old_offset = _object_offset(view, same[-1])
+        agrees = old_offset == length and items[-1] is same[-1]
+    else:  # v2 goes after the objects at offset 0, v1 went before the first of its kind
+        old_offset = _object_offset(view, same[0])
+        agrees = False
+    if agrees:
+        return
+    anchor = same[-1 if mode == "append" else 0].path if same else None
+    exact = (
+        f'{{"mode": "{"after" if mode == "append" else "before"}", "path": "{anchor}"}}'
+        if anchor is not None
+        else f'{{"mode": "offset", "offset": {old_offset}}}'
+    )
+    raise AgentContractError(
+        "contract_changed",
+        f'position.mode "{mode}" in a paragraph means the {"end" if mode == "append" else "start"} of its text '
+        f"since hwpx-automation 8.0; this v1 command's place was offset {old_offset}",
+        target=paragraph.path,
+        suggestion=f'Use {{"mode": "offset", "offset": {old_offset}}} (or {exact}) for the v1 place, '
+        'or send schemaVersion "hwpx.agent-command/v2" for the new one',
+    )
+
+
 def _place_object(
     view: HwpxAgentDocument,
     native: Any,
@@ -346,6 +404,10 @@ def _place_object(
     object now there.  ``before`` an object puts that object, and the ones after it at the same
     place, behind the new one again (python-hwpx places after what is already there)."""
 
+    _check_v1_end_place(
+        view, paragraph, _identity_kind(_local_name(native.element)), position,
+        leaving=None if copy else native.element,
+    )
     offset, anchor = _offset_in(view, paragraph, position)
     followers = (
         _same_offset_followers(view, paragraph, offset, anchor)
@@ -641,11 +703,13 @@ def _resolve_alias(value: str, aliases: Mapping[str, Mapping[str, str]]) -> str:
 
 
 def _resolved_position(
-    position: Mapping[str, Any], aliases: Mapping[str, Mapping[str, str]]
+    position: Mapping[str, Any], aliases: Mapping[str, Mapping[str, str]], command: Mapping[str, Any]
 ) -> dict[str, Any]:
     result = dict(position)
     if "path" in result:
         result["path"] = _resolve_alias(str(result["path"]), aliases)
+    if command.get("schemaVersion") == AGENT_COMMAND_SCHEMA_V1:
+        result["_v1"] = True  # private: the command was written in agent-command v1
     return result
 
 
@@ -1145,6 +1209,7 @@ def _add(
     if kind == "text":
         return _add_text(document, view, parent, properties, position)
     if kind == "table":
+        _check_v1_end_place(view, parent, "table", position)
         created = parent.native.add_table(
             int(properties["rowCount"]),
             int(properties["columnCount"]),
@@ -1612,7 +1677,7 @@ def _dispatch_command_op(
     elif op == "add":
         parent_path = _resolve_alias(command["parent"], aliases)
         parent = view.resolve_record(parent_path, expected_revision=input_revision)
-        position = _resolved_position(command["position"], aliases)
+        position = _resolved_position(command["position"], aliases, command)
         target_native = _add(document, view, parent, command["kind"], command["properties"], position)
         if not isinstance(target_native, TextRange):  # a text range is made with its properties
             created_view = HwpxAgentDocument.from_document(document, revision=input_revision)
@@ -1629,14 +1694,14 @@ def _dispatch_command_op(
         parent_path = _resolve_alias(command["parent"], aliases)
         source = view.resolve_record(resolved_path, expected_revision=input_revision)
         parent = view.resolve_record(parent_path, expected_revision=input_revision)
-        position = _resolved_position(command["position"], aliases)
+        position = _resolved_position(command["position"], aliases, command)
         target_native = _move(view, source, parent, position)
     else:  # copy
         resolved_path = _resolve_alias(command["path"], aliases)
         parent_path = _resolve_alias(command["parent"], aliases)
         source = view.resolve_record(resolved_path, expected_revision=input_revision)
         parent = view.resolve_record(parent_path, expected_revision=input_revision)
-        position = _resolved_position(command["position"], aliases)
+        position = _resolved_position(command["position"], aliases, command)
         target_native, generated = _copy_node(document, view, source, parent, position)
     return resolved_path, parent_path, changed, generated, target_native, story_before
 
@@ -1705,6 +1770,14 @@ def _result_place(view: HwpxAgentDocument, op: str, path: str, target_native: An
     except AgentContractError:
         return None
     return dict(value) if value is not None else None
+
+
+def command_seed(data: bytes) -> int:
+    """The id seed a command batch opens its document with: the first 8 hex digits of the input's
+    sha256, as school's ``open_seeded`` takes it.  Same file, same commands, same bytes (the new
+    paragraphs', objects' and copies' ids come from it); the batch's order or content is not mixed in."""
+
+    return int(hashlib.sha256(data).hexdigest()[:8], 16)
 
 
 def _text_only_batch_keeps_projection(text_scope: TextScope) -> bool:
@@ -1780,7 +1853,7 @@ def apply_document_commands(
         semantic_changes: list[Mapping[str, Any]] = []
         story_expectations: dict[str, Mapping[str, str]] = {}
         _call_fault(fault_injector, "before_open")
-        with HwpxDocument.open(input_data) as document:
+        with HwpxDocument.open(input_data, seed=command_seed(input_data)) as document:
             view = HwpxAgentDocument.from_document(document, revision=input_revision)
             text_scope = TextScope.bind(view, normalized["commands"])
             keep_view = _text_only_batch_keeps_projection(text_scope)
