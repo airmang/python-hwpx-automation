@@ -172,15 +172,8 @@ def _typed_payload(value: BaseModel | dict[str, Any] | str | None) -> dict[str, 
 
 
 def _clear_paragraph_layout_cache(paragraph: Any) -> None:
-    element = getattr(paragraph, "element", None)
-    if element is None:
-        return
-    for child in list(element):
-        if child.tag.rsplit("}", 1)[-1].lower() == "linesegarray":
-            element.remove(child)
-    section = getattr(paragraph, "section", None)
-    if section is not None and hasattr(section, "mark_dirty"):
-        section.mark_dirty()
+    # 본문 문단(doc.paragraphs)이라 감싼 문단이 없다: python-hwpx가 이 문단의 캐시만 지우고 구역을 고친 것으로 둔다.
+    paragraph.clear_layout_cache()
 
 
 def sha256_file(path: str | Path) -> str:
