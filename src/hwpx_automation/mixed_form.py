@@ -315,7 +315,7 @@ class _CompiledSetCommand(_StrictModel):
 
 
 class _CompiledBatch(_StrictModel):
-    schema_version: Literal["hwpx.agent-batch/v1"] = Field(alias="schemaVersion")
+    schema_version: Literal["hwpx.agent-batch/v1", "hwpx.agent-batch/v2"] = Field(alias="schemaVersion")
     input: _FilenameRef
     output: _OutputRef
     commands: list[_CompiledSetCommand] = Field(min_length=1, max_length=100)

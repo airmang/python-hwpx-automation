@@ -381,7 +381,7 @@ def test_add_alias_and_remove_are_sequential_but_commit_atomically(tmp_path: Pat
                     "commandId": "newrun",
                     "op": "add",
                     "parent": "$newp.path",
-                    "kind": "run",
+                    "kind": "text",
                     "properties": {"text": " 추가", "bold": True},
                 },
                 {"commandId": "drop", "op": "remove", "path": removable.path},
@@ -433,9 +433,11 @@ def test_move_preserves_identity_and_copy_refreshes_nested_identities(tmp_path: 
     assert 'paragraph[@id="102"]' in result.command_results[0]["path"]
     identity_map = result.command_results[1]["generatedIdentities"]
     assert {item["kind"] for item in identity_map} >= {"paragraph", "table", "shape", "form-field"}
-    object_pairs: dict[tuple[str, str], set[str]] = {}
+    # python-hwpx gives a copy fresh ids (agent-command v2): one new value per old id and attribute
+    # (a picture's or shape's id and instid are each renewed, as Hancom writes two values).
+    object_pairs: dict[tuple[str, str, str], set[str]] = {}
     for item in identity_map:
-        object_pairs.setdefault((item["kind"], item["old"]), set()).add(item["new"])
+        object_pairs.setdefault((item["kind"], item["attribute"], item["old"]), set()).add(item["new"])
     assert all(len(values) == 1 for values in object_pairs.values())
     with HwpxAgentDocument.open(output) as agent:
         paragraph_ids = [
@@ -836,7 +838,7 @@ def test_notes_stay_inside_their_control(tmp_path: Path, op: str, notes: int) ->
     assert sum(1 for node in root.iter() if node.tag in note_tags) == notes
 
 
-@pytest.mark.parametrize("kind", ["run", "table", "picture", "memo", "footnote", "endnote", "shape"])
+@pytest.mark.parametrize("kind", ["text", "table", "picture", "memo", "footnote", "endnote", "shape"])
 def test_remove_positive_matrix_for_every_supported_kind(tmp_path: Path, kind: str) -> None:
     source = tmp_path / f"{kind}-input.hwpx"
     output = tmp_path / f"{kind}-output.hwpx"
@@ -850,13 +852,9 @@ def test_remove_positive_matrix_for_every_supported_kind(tmp_path: Path, kind: s
         "shape": "401",
     }
     with HwpxAgentDocument.open(source) as agent:
-        if kind == "run":
+        if kind == "text":
             paragraph = _record(agent, "paragraph", "101")
-            target = next(
-                record
-                for record in agent.records
-                if record.parent_path == paragraph.path and record.kind == "run"
-            )
+            target = agent.resolve_record(paragraph.path + "/text[0:1]")
         else:
             target = _record(agent, kind, identities[kind])
     result = apply_document_commands(
@@ -906,7 +904,7 @@ def test_move_table_picture_shape_and_row_preserves_native_ids(tmp_path: Path) -
     assert 'shape[@id="401"]' in result.command_results[3]["path"]
 
 
-def test_copy_run_memo_notes_picture_and_shape_matrix(tmp_path: Path) -> None:
+def test_copy_text_memo_notes_picture_and_shape_matrix(tmp_path: Path) -> None:
     source = tmp_path / "input.hwpx"
     output = tmp_path / "output.hwpx"
     _write_fixture(source)
@@ -914,18 +912,13 @@ def test_copy_run_memo_notes_picture_and_shape_matrix(tmp_path: Path) -> None:
         destination = _record(agent, "paragraph", "101")
         section = next(record for record in agent.records if record.kind == "section")
         source_paragraph = _record(agent, "paragraph", "102")
-        run = next(
-            record
-            for record in agent.records
-            if record.parent_path == source_paragraph.path and record.kind == "run"
-        )
         memo = _record(agent, "memo", "301")
         footnote = _record(agent, "footnote", "501")
         endnote = _record(agent, "endnote", "502")
         picture = _record(agent, "picture", "402")
         shape = _record(agent, "shape", "401")
     commands = [
-        {"commandId": "run", "op": "copy", "path": run.path, "parent": destination.path},
+        {"commandId": "text", "op": "copy", "path": source_paragraph.path + "/text[0:2]", "parent": destination.path},
         {"commandId": "memo", "op": "copy", "path": memo.path, "parent": section.path},
         {"commandId": "foot", "op": "copy", "path": footnote.path, "parent": destination.path},
         {"commandId": "end", "op": "copy", "path": endnote.path, "parent": destination.path},
@@ -1264,7 +1257,7 @@ def test_deterministic_generated_command_sequences(seed: int, tmp_path: Path) ->
             "commandId": "run",
             "op": "add",
             "parent": "$add.path",
-            "kind": "run",
+            "kind": "text",
             "properties": {"text": f"-{seed}", "bold": bool(seed % 2)},
         },
         {

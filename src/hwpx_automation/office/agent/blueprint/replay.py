@@ -15,7 +15,7 @@ from hwpx.document import HwpxDocument
 from hwpx.quality import SavePipeline
 from hwpx.tools.package_validator import validate_editor_open_safety
 
-from ..catalog import catalog_hash
+from ..catalog import blueprint_agent_catalog_hash as catalog_hash
 from ..commands import _error_from_exception, _member_diff, _quality_policy, _record_for_native, _revision
 from ..document import HwpxAgentDocument
 from ..model import AgentContractError

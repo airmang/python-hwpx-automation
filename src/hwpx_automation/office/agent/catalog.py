@@ -9,12 +9,13 @@ from copy import deepcopy
 from typing import Any
 
 from .model import (
-    AGENT_BATCH_SCHEMA,
-    AGENT_CATALOG_SCHEMA,
+    AGENT_BATCH_SCHEMAS,
+    AGENT_CATALOG_SCHEMA_V2,
+    AGENT_COMMAND_SCHEMAS,
     MAX_COMMANDS,
     AgentContractError,
-    NODE_KINDS,
-    NODE_PROPERTY_CATALOG_V1,
+    NODE_KINDS_V2,
+    NODE_PROPERTY_CATALOG_V2,
     QUALITY_KEYS,
     QUALITY_MODES,
     REVISION_PATTERN,
@@ -23,24 +24,29 @@ from .model import (
 )
 
 
-def agent_catalog() -> dict[str, Any]:
-    """Return a detached deterministic catalog shared by nodes, CLI, and MCP."""
+def agent_catalog(version: int = 2) -> dict[str, Any]:
+    """Return a detached deterministic catalog shared by nodes, CLI, and MCP.
 
-    manifest = agent_contract_manifest()
+    ``version=1`` is the frozen agent-command v1 catalog (its hash is the
+    ``catalogHash`` v1 blueprints carry); 2 is the current one.
+    """
+
+    manifest = agent_contract_manifest(version)
+    versioned = ["schemaVersion"] if version != 1 else []
     manifest["commands"] = {
-        "set": {"required": ["commandId", "op", "path", "properties"]},
+        "set": {"required": ["commandId", "op", "path", "properties"], **({"optional": versioned} if versioned else {})},
         "add": {
             "required": ["commandId", "op", "parent", "kind", "properties"],
-            "optional": ["position"],
+            "optional": ["position", *versioned],
         },
-        "remove": {"required": ["commandId", "op", "path"]},
+        "remove": {"required": ["commandId", "op", "path"], **({"optional": versioned} if versioned else {})},
         "move": {
             "required": ["commandId", "op", "path", "parent"],
-            "optional": ["position"],
+            "optional": ["position", *versioned],
         },
         "copy": {
             "required": ["commandId", "op", "path", "parent"],
-            "optional": ["position"],
+            "optional": ["position", *versioned],
         },
     }
     manifest["query"] = {
@@ -55,9 +61,15 @@ def agent_catalog() -> dict[str, Any]:
     return deepcopy(manifest)
 
 
-def catalog_hash() -> str:
-    payload = json.dumps(agent_catalog(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+def catalog_hash(version: int = 2) -> str:
+    payload = json.dumps(agent_catalog(version), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def blueprint_agent_catalog_hash() -> str:
+    """The agent catalog hash a blueprint carries: still v1's until blueprint v2 (asks10c)."""
+
+    return catalog_hash(1)
 
 
 def agent_json_schemas() -> dict[str, Any]:
@@ -71,9 +83,10 @@ def agent_json_schemas() -> dict[str, Any]:
             "op": {"const": operation},
             "path": {"type": "string"},
             "parent": {"type": "string"},
-            "kind": {"enum": [kind for kind in NODE_KINDS if kind not in {"document", "unsupported"}]},
+            "kind": {"enum": [kind for kind in NODE_KINDS_V2 if kind not in {"document", "unsupported"}]},
             "properties": {"type": "object", "minProperties": 1, "maxProperties": 32},
             "position": {"type": "object"},
+            "schemaVersion": {"enum": list(AGENT_COMMAND_SCHEMAS)},
         }
         allowed = set(shape["required"]) | set(shape.get("optional", []))
         command_variants.append(
@@ -103,7 +116,7 @@ def agent_json_schemas() -> dict[str, Any]:
     return {
         "node": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "HwpxAgentNode v1",
+            "title": "HwpxAgentNode v2",
             "type": "object",
             "required": [
                 "schemaVersion",
@@ -119,7 +132,7 @@ def agent_json_schemas() -> dict[str, Any]:
             ],
             "properties": {
                 "schemaVersion": {"const": catalog["schemas"]["node"]},
-                "kind": {"enum": list(NODE_KINDS)},
+                "kind": {"enum": list(NODE_KINDS_V2)},
                 "path": {"type": "string"},
                 "stableId": {"type": ["string", "null"]},
                 "stability": {"enum": catalog["path"]["stabilityLevels"]},
@@ -132,12 +145,12 @@ def agent_json_schemas() -> dict[str, Any]:
         },
         "command": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "HwpxAgentCommand v1",
+            "title": "HwpxAgentCommand v2",
             "oneOf": command_variants,
         },
         "batch": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "HwpxAgentBatch v1",
+            "title": "HwpxAgentBatch v2",
             "type": "object",
             "required": [
                 "schemaVersion",
@@ -152,7 +165,7 @@ def agent_json_schemas() -> dict[str, Any]:
             ],
             "additionalProperties": False,
             "properties": {
-                "schemaVersion": {"const": AGENT_BATCH_SCHEMA},
+                "schemaVersion": {"enum": list(AGENT_BATCH_SCHEMAS)},
                 "input": {
                     "type": "object",
                     "required": ["filename"],
@@ -216,11 +229,11 @@ def agent_json_schemas() -> dict[str, Any]:
 
 
 def node_help(kind: str) -> dict[str, Any]:
-    if kind not in NODE_KINDS:
+    if kind not in NODE_KINDS_V2:
         raise AgentContractError("unknown_kind", f"unknown node kind: {kind}", target="kind")
-    entry = NODE_PROPERTY_CATALOG_V1[kind]
+    entry = NODE_PROPERTY_CATALOG_V2[kind]
     return {
-        "schemaVersion": AGENT_CATALOG_SCHEMA,
+        "schemaVersion": AGENT_CATALOG_SCHEMA_V2,
         "kind": kind,
         "readableProperties": list(entry["readable"]),
         "editableProperties": list(entry["editable"]),
@@ -231,8 +244,8 @@ def node_help(kind: str) -> dict[str, Any]:
 def human_help(kind: str | None = None) -> str:
     """Render compact human help from the same catalog used for JSON schemas."""
 
-    kinds = [kind] if kind is not None else list(NODE_KINDS)
-    lines = ["HWPX agent document interface v1", ""]
+    kinds = [kind] if kind is not None else list(NODE_KINDS_V2)
+    lines = ["HWPX agent document interface v2", ""]
     for candidate in kinds:
         info = node_help(candidate)
         readable = ", ".join(info["readableProperties"]) or "-"
@@ -249,4 +262,11 @@ def human_help(kind: str | None = None) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-__all__ = ["agent_catalog", "agent_json_schemas", "catalog_hash", "human_help", "node_help"]
+__all__ = [
+    "agent_catalog",
+    "agent_json_schemas",
+    "blueprint_agent_catalog_hash",
+    "catalog_hash",
+    "human_help",
+    "node_help",
+]

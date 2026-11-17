@@ -49,7 +49,7 @@ def _error_from_exception(exc: BaseException, *, target: str | None = None) -> A
         code = "verification_failed"
         message = f"{type(exc).__name__}: {exc}"
     recoverability = "retryable" if code in {"stale_revision", "idempotency_conflict"} else "terminal"
-    if code in {"ambiguous_target", "volatile_target", "unsupported_content"}:
+    if code in {"ambiguous_target", "volatile_target", "unsupported_content", "contract_changed"}:
         recoverability = "needs-review"
     suggestions = {
         "stale_revision": "Read the document again and retry with its current revision.",
@@ -64,7 +64,7 @@ def _error_from_exception(exc: BaseException, *, target: str | None = None) -> A
         message=message[:4096],
         target=target,
         recoverability=recoverability,
-        suggestion=suggestions.get(code),
+        suggestion=getattr(exc, "suggestion", None) or suggestions.get(code),
     )
 
 

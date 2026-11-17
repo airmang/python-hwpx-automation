@@ -117,14 +117,14 @@ def _agent_error(exc: BaseException, *, target: str) -> AgentError:
         message = f"{type(exc).__name__}: {exc}"
         resolved_target = target
     recoverability = "retryable" if code == "stale_revision" else "terminal"
-    if code in {"not_found", "ambiguous_target", "volatile_target", "unsupported_content"}:
+    if code in {"not_found", "ambiguous_target", "volatile_target", "unsupported_content", "contract_changed"}:
         recoverability = "needs-review"
     return AgentError(
         code=code,
         message=message[:4096],
         target=resolved_target,
         recoverability=recoverability,
-        suggestion=_suggestion(code),
+        suggestion=getattr(exc, "suggestion", None) or _suggestion(code),
     )
 
 

@@ -13,7 +13,7 @@ from typing import Any
 
 from hwpx.oxml.namespaces import HH, OPF_NS
 
-from ..catalog import catalog_hash
+from ..catalog import blueprint_agent_catalog_hash as catalog_hash
 from ..document import HwpxAgentDocument, NodeRecord
 from ..model import AGENT_CATALOG_SCHEMA, NODE_KINDS, AgentContractError
 from .bundle import (

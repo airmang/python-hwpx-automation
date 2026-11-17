@@ -167,11 +167,14 @@ def test_private_story_path_keeps_public_catalog_and_projection_frozen() -> None
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    assert catalog_hash() == (
+    assert catalog_hash(1) == (
         "sha256:e1991f8cf51f9aa5f63f2d70139f98b7d418d16c3b80519cc7bae64eee1dc5f5"
     )
+    assert catalog_hash() == (
+        "sha256:058d3a2cefdcd576fb6f0689d5c88fa5c8b1586959ccb826cf99754c2cb997d7"
+    )
     assert hashlib.sha256(manifest).hexdigest() == (
-        "1a0f31dd9468be8d4ba619e7651dfd7845148d3b99f19d1e5fa5bd79934377fd"
+        "e4eaecec5912f53c717aee0738e51160b93701045a72a7ad3211509e18d8113e"
     )
 
     with pytest.raises(AgentContractError) as id_error:

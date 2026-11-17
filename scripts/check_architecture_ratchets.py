@@ -193,7 +193,7 @@ EXPECTED_C901 = (
     # render-pdf is dispatched ahead of the frozen parser (one branch) so the
     # parser's help and choice errors stay byte-identical to core's golden.
     ("src/hwpx_automation/office/agent/cli.py", "main", 15),
-    ("src/hwpx_automation/office/agent/commands.py", "_add", 15),  # 8.0: rows and paragraphs go in through python-hwpx
+    ("src/hwpx_automation/office/agent/commands.py", "_add", 14),  # 8.0: rows and paragraphs go in through python-hwpx; text through insert_text
     ("src/hwpx_automation/office/agent/commands.py", "_move", 12),  # 8.0: the memo move branch went away (15 -> 12)
     ("src/hwpx_automation/office/agent/commands.py", "_refresh_copy_identities", 13),
     ("src/hwpx_automation/office/agent/commands.py", "_remove", 12),
@@ -203,7 +203,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/agent/form_plan.py", "validate_mixed_form_request", 13),
     ("src/hwpx_automation/office/agent/model.py", "__post_init__", 15),
     ("src/hwpx_automation/office/agent/model.py", "validate_agent_batch", 16),
-    ("src/hwpx_automation/office/agent/path.py", "parse_path", 19),
+    ("src/hwpx_automation/office/agent/path.py", "parse_path", 15),
     ("src/hwpx_automation/office/agent/query.py", "_split_steps", 15),
     ("src/hwpx_automation/office/authoring/__init__.py", "_bridge_to_design_plan", 14),
     ("src/hwpx_automation/office/authoring/__init__.py", "_normalize_block", 13),
