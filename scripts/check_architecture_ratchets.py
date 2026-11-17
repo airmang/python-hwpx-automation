@@ -44,7 +44,8 @@ EXPECTED_SERVICE_LINES = {
     # dispatch to the page/shapes namespaces and .to_dict() the returned
     # living views before this op's dict-mutation contract (result.update()).
     # 8.0: the paragraph index uses paragraph objects being equal (#762) (547 -> 544).
-    "content_layout.py": 544,
+    # 8.0 sync-core 8: header/footer page numbers counted from run.content (544 -> 542).
+    "content_layout.py": 542,
     # .hwp documents: python-hwpx opens and writes HWP 5.0 itself, so services
     # route .hwp through it and refuse it where they patch HWPX package bytes.
     "context.py": 259,

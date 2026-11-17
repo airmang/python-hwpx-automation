@@ -22,9 +22,6 @@ from ..core.formatting import (
     list_styles_in_doc,
 )
 from ..core.locations import location_from_anchor
-from ..upstream import (
-    HP_NS,
-)
 from ..utils.helpers import resolve_path
 from ._shared import (
     _revision_guard,
@@ -375,17 +372,24 @@ def set_page_setup(
 def _header_footer_payload(
     wrapper: Any, *, kind: str, page_type: str
 ) -> dict[str, Any]:
-    element = getattr(wrapper, "element", None)
-    page_number_count = 0
-    if element is not None and hasattr(element, "iter"):
-        page_number_count = sum(1 for _ in element.iter(f"{HP_NS}pageNum"))
     return {
         "kind": kind,
         "pageType": page_type,
         "id": getattr(wrapper, "id", None),
         "text": getattr(wrapper, "text", ""),
-        "pageNumberCount": page_number_count,
+        "pageNumberCount": _page_number_count(wrapper),
     }
+
+
+def _page_number_count(story: Any) -> int:
+    """머리말·꼬리말 안(칸·글상자 속 문단까지)의 쪽 번호 컨트롤(``run.content``의 ``page_number``) 수."""
+
+    count = 0
+    for paragraph in getattr(story, "paragraphs", None) or ():
+        for inner in (paragraph, *(place.paragraph for place in paragraph.iter_paragraphs())):
+            for run in inner.runs:
+                count += sum(1 for item in run.content if item.kind == "page_number")
+    return count
 
 
 def set_header_footer(

@@ -298,9 +298,7 @@ def _cell_format_detail(cell: Any) -> dict[str, Any]:
         "height": getattr(cell, "height", None),
         "span": list(getattr(cell, "span", ()) or ()),
         "address": list(getattr(cell, "address", ()) or ()),
-        "borderFillIDRef": getattr(
-            getattr(cell, "element", None), "get", lambda _name, _default=None: _default
-        )("borderFillIDRef"),
+        "borderFillIDRef": getattr(cell, "border_fill_id_ref", None),
     }
 
 

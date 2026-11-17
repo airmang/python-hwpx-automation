@@ -262,8 +262,8 @@ def _strip_binaries(doc) -> list[str]:
             except Exception:  # pragma: no cover - defensive
                 pass
 
-    if package.has_part("Preview/PrvText.txt"):
-        package.set_part("Preview/PrvText.txt", b"")  # clear source text (PII)
+    # clear source text (PII): PrvText.txt becomes empty bytes (the preview images went above)
+    doc.parts.clear_preview()
     return removed
 
 

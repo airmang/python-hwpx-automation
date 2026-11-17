@@ -417,7 +417,7 @@ def _template_text(document: HwpxDocument) -> str:
     Each part (a section, then each master page) gives its paragraphs, then its 덧말 text.
     """
 
-    parts = [*document.oxml.sections, *document.oxml.master_pages]
+    parts = [*document.sections, *document.parts.master_pages]
     # A section and a master page object is the same object wherever it is reached from.
     lines_of: dict[int, list[str]] = {id(part): [] for part in parts}
     rubies_of: dict[int, list[str]] = {id(part): [] for part in parts}
@@ -474,7 +474,7 @@ def _replace_token(document: HwpxDocument, token: str, value: str) -> int:
     """
 
     count = document.text.replace(token, value, everywhere=True)
-    sections = {id(section) for section in document.oxml.sections}
+    sections = {id(section) for section in document.sections}
     for place in document.text.iter_paragraphs():
         if id(place.paragraph.section) not in sections:  # as before: sections, not master pages
             continue
