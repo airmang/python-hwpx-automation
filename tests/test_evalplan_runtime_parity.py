@@ -17,20 +17,16 @@ from a scratch git worktree at the commit before removal (see
 ``hwpx.evalplan_fill`` import.
 
 The filled document's raw bytes (``result["_data"]``) can't live in JSON —
-the golden records their SHA-256 and length instead, the same tradeoff
-``test_exam_runtime_parity.py`` made for its composed output.
+the golden recorded their SHA-256 and length instead; the test now checks the
+digest of the document's parts (``CORE_PARTS_SHA256``), which does not depend on
+how the zip was compressed, as ``test_exam_runtime_parity.py`` hashes each part.
 
 Those bytes come from the installed core's ``table_patch`` edits, so a
-deliberate core change to them moves the hash while the parsed plan and
+deliberate core change to them moves the digest while the parsed plan and
 ``fillResult`` stay the frozen ones. The golden keeps the frozen bytes (core up
-to 6.10.0, the published candidate); ``CORE_659_BYTES`` adds the one reviewed
-change since, core #659: ``split_cell_vertical`` leaves its new cells as one
-empty paragraph instead of emptied copies of the original's paragraphs, and
-copied paragraphs get ids the document does not have, where the frozen output
-repeated ``id="7001"``. Both are accepted, so the suite holds on the candidate
-core and on core main. Core 6.11.0 matches neither: it set a page-split table's
-height to 0 (core #539, fixed in core #672). Add an entry only for such a
-reviewed core change, never to quiet a regression.
+to 6.10.0); ``CORE_PARTS_SHA256`` holds the outputs after the reviewed core
+changes since (#659, #677, described there). Core 6.11.0 matched none: it set a
+page-split table's height to 0 (core #539, fixed in core #672).
 
 Every assertion the pre-freeze version of this file made is still made here;
 none needed dropping.
@@ -40,7 +36,9 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import io
 import json
+import zipfile
 from pathlib import Path
 
 import hwpx
@@ -167,22 +165,31 @@ _FIXTURES = Path(__file__).parent / "parity_fingerprints"
 FROZEN = json.loads((_FIXTURES / "evalplan.json").read_text(encoding="utf-8"))["modules"]
 GOLDEN = json.loads((_FIXTURES / "evalplan.golden.json").read_text(encoding="utf-8"))["calls"]
 
-# The filled bytes after core #659 (see the module docstring), as (SHA-256, length).
-CORE_659_BYTES = {
-    "all:synthetic": ("dc5056d405c4720aa6dfe717a2dd93142a9472b2c43ea93800c82f13e545ed6b", 103117),
-    "clean:synthetic": ("458d4ca787a6ed863aa626adb0182e82e95f01c0d61e92ac2505f49d8cd5de8b", 97783),
-    "clean:detailed": ("554fa719a1c8fee944955d35dc01860f0ec8f580ea25d9944805b7a35221d7a5", 97738),
+# The filled document's parts, as one digest (each part's name and the SHA-256 of its bytes as stored
+# uncompressed): the zip layer (zlib level and implementation, entry dates) differs between
+# machines, the parts do not. The values are the outputs the reviewed core changes settled on:
+# core #659 (``split_cell_vertical`` leaves its new cells as one empty paragraph, copied
+# paragraphs get ids of their own) and core #677 (the cleanup phase clears only the text the
+# target run holds itself, so a guidance-coloured run holding a table keeps the table's first
+# cell). They were frozen before as whole-file hashes (``dc5056d4…`` for "all:synthetic",
+# ``09e642d2…``/``8272e38f…`` for the clean phase, the golden's for "structural:synthetic"); the
+# same files give these digests. Change one only for such a reviewed core change, never to quiet a
+# regression.
+CORE_PARTS_SHA256 = {
+    "structural:synthetic": "2fd5242eefa6dfec4b1e084770b41c7a13ba5482406ac89765fe4462746235ee",
+    "all:synthetic": "545dca10fe143f090b53baae2318203fae783b5799b4abf31e53af362d61f25d",
+    "clean:synthetic": "65c33a7a2300c47e5b4587d17f9cae310e01028455bf55eaddd1531d077402ef",
+    "clean:detailed": "54ddbb655122452b7d524141906d5b4669d966ff24b545da80ff59346e45d467",
 }
 
-# The filled bytes after core #677, as (SHA-256, length). The cleanup phase strips guidance runs by
-# colour; before #677 a target-colour run that held a table also lost the text of the table's first
-# cell (form labels such as "성취율(원점수)" and the numbers beside them). Core now clears only the
-# text the target run holds itself and drops the line cache of the paragraphs it changed, so the
-# cleaned document keeps those cells. Only the "clean" phase output moved.
-CORE_677_BYTES = {
-    "clean:synthetic": ("09e642d2760f80b2cf7f2c6f96dc16c242ab38152c3143aa98dda4e017a5b41d", 97782),
-    "clean:detailed": ("8272e38fc4fe59f42fa69982ae3982379ef770e93ec7f2d2407faf1415f98846", 97741),
-}
+
+def _parts_sha256(data: bytes) -> str:
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        listing = sorted(
+            (info.filename, hashlib.sha256(archive.read(info)).hexdigest()) for info in archive.infolist()
+        )
+    joined = "\n".join(f"{name} {digest}" for name, digest in listing)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
 # Core #711 (reviewed) stopped warning that the manifest does not list
@@ -281,12 +288,7 @@ def test_plan_fill_and_cleanup_byte_matches_frozen_core(
     assert _without_core_711_warning(_jsonify(canonical_result)) == _without_core_711_warning(
         expected["fillResult"]
     )
-    accepted = {(expected["dataSha256"], expected["dataLength"])}
-    if (key := f"{phase}:{md_label}") in CORE_659_BYTES:
-        accepted.add(CORE_659_BYTES[key])
-    if key in CORE_677_BYTES:
-        accepted.add(CORE_677_BYTES[key])
-    assert (hashlib.sha256(data).hexdigest(), len(data)) in accepted
+    assert _parts_sha256(data) == CORE_PARTS_SHA256[f"{phase}:{md_label}"]
 
 
 def test_missing_input_refusal_matches_frozen_core() -> None:

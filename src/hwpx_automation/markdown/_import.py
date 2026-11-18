@@ -64,6 +64,8 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
+from ..save_dates import date_new_document
+
 if TYPE_CHECKING:
     from hwpx import HwpxDocument
     from hwpx.oxml import HwpxOxmlParagraph
@@ -2243,6 +2245,7 @@ def from_markdown(
     # else of hwpx_automation (upstream itself imports it for export).
     seed = int(hashlib.sha256(markdown.encode("utf-8")).hexdigest()[:8], 16)
     document = HwpxDocument.new(inherit_style=False, seed=seed)
+    date_new_document(document)  # made now: CreatedDate, ModifiedDate and date one moment
     _unnumber_outline(document)
     if resolved.page_margins_mm:  # before the text: tables are made as wide as the text
         left, right, top, bottom, *edges = resolved.page_margins_mm

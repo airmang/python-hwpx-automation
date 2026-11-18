@@ -49,11 +49,11 @@ def test_public_module_manifest_freezes_the_complete_shipped_source_surface() ->
     assert set(base_modules).isdisjoint(framework_modules)
     assert set(adapter_modules).isdisjoint(framework_modules)
     # 185 -> 208: python-hwpx 7.0 moved Markdown, ingest, forms, mail merge,
-    # preview and format rules here (8.0).
-    assert manifest["basePublicModuleCount"] == len(base_modules) == 208
+    # preview and format rules here (8.0). 209: save_dates (the save's dates, 24차).
+    assert manifest["basePublicModuleCount"] == len(base_modules) == 209
     assert manifest["mcpAdapterModuleCount"] == len(adapter_modules) == 6
     assert manifest["frameworkAdapterModuleCount"] == len(framework_modules) == 2
-    assert manifest["moduleCount"] == len(all_modules) == 216
+    assert manifest["moduleCount"] == len(all_modules) == 217
     assert manifest["basePublicModuleSha256"] == _digest(base_modules)
     assert manifest["mcpAdapterModuleSha256"] == _digest(adapter_modules)
     assert manifest["frameworkAdapterModuleSha256"] == _digest(framework_modules)
@@ -98,7 +98,7 @@ modules = manifest["basePublicModules"]
 digest = hashlib.sha256(
     ("\n".join(sorted(modules)) + "\n").encode()
 ).hexdigest()
-assert len(modules) == manifest["basePublicModuleCount"] == 208
+assert len(modules) == manifest["basePublicModuleCount"] == 209
 assert digest == manifest["basePublicModuleSha256"]
 for module in modules:
     importlib.import_module(module)

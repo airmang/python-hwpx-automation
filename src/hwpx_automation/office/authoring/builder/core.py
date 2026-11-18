@@ -19,7 +19,7 @@ from hwpx.tools.package_validator import validate_editor_open_safety
 from hwpx.tools.package_validator import validate_package
 from hwpx.tools.validator import validate_document
 
-from ....upstream import request_seed
+from ....upstream import date_new_document, request_seed
 from .report import BuilderSaveReport, BuilderVerifyReport, ReopenReport
 
 
@@ -1141,6 +1141,7 @@ class Document:
         # 6.x layout (core 7.0 default changed). The ids come from the request itself (its repr):
         # the same document asked for twice writes the same bytes.
         document = HwpxDocument.new(empty_first_line=True, seed=request_seed(repr(self)))
+        date_new_document(document)
         preset = _builder_preset(self.preset)
         if self.metadata is not None:
             _write_package_metadata(document, self.metadata)

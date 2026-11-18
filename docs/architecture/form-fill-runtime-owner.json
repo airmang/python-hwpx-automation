@@ -10,8 +10,8 @@
   },
   "canonical": {
     "pythonFiles": 15,
-    "loc": 5257,
-    "manifestSha256": "0cb846c88a6b1685f67b2b8bfe4f61d77849c7a8033f8d737d97d9bfad19e90c",
+    "loc": 5258,
+    "manifestSha256": "01196d8c33ca7c36c06e7eaafc807d6958d2c070bb12f779632a6ece7f3873b8",
     "nomenclatureRefrozenFrom": {
       "loc": 5060,
       "manifestSha256": "9da1c81298ca242f05b81f17cfac3dbe3fc5235a1a74b14f0d00be726dda70f5",
@@ -19,9 +19,9 @@
     },
     "refrozenNote": "WP-F (core 6.0 namespace adaptation): seal.py's document.add_image(...) call and template_formfit.py's doc.export_text() call moved to document.media.add_image(...)/doc.text.plain() (design §2.6). Same line counts, no behavior change.",
     "refrozenFrom": {
-      "loc": 5255,
-      "manifestSha256": "c3b79ab9c8cc2fb034b640c88702faa58cdd5f674df2f11392e973c18361c32f",
-      "reason": "8.0 18차: 고쳐 쓰는 길이 입력 바이트의 sha256 씨앗으로 문서를 연다(시험지 조판·양식 맞춤)"
+      "loc": 5257,
+      "manifestSha256": "0cb846c88a6b1685f67b2b8bfe4f61d77849c7a8033f8d737d97d9bfad19e90c",
+      "reason": "24차: form_fill guidance의 chars 형 주석을 Mapping으로(본체 #788 char_properties 읽기 전용); exam·visual 날짜 도우미"
     },
     "boundaryRefrozenFrom": {
       "loc": 5085,

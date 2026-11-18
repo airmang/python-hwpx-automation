@@ -182,6 +182,36 @@ COMPOSE_SEED = 0x48575058  # "HWPX": a document composed from a profile
 HARVEST_SEED = 0x48415256  # "HARV": a profile's template.hwpx and fragments.hwpx
 
 
+#: The XML declaration Hangul writes on every part.
+HANGUL_XML_DECLARATION = b'<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+_OTHER_DECLARATION = re.compile(rb"\A<\?xml version='1\.0'[^?]*\?>\s*")
+
+
+def with_hangul_declarations(package: bytes) -> bytes:
+    """*package* (a profile's ``template.hwpx``) with Hangul's XML declaration on every part that
+    has lxml's (``<?xml version='1.0' encoding='utf-8'?>`` and a line break).
+
+    The packaged profiles were saved by a python-hwpx that wrote lxml's declaration, and
+    python-hwpx keeps a part's declaration as read when it writes the part again (#791), so a
+    document composed from a profile -- a new document -- kept it. The profile on disk is not
+    changed; only the copy a document is composed from. Entry order and compression stay."""
+
+    import io
+    import zipfile
+
+    out = io.BytesIO()
+    changed = False
+    with zipfile.ZipFile(io.BytesIO(package)) as source, zipfile.ZipFile(out, "w") as target:
+        for info in source.infolist():
+            data = source.read(info)
+            match = _OTHER_DECLARATION.match(data)
+            if match is not None:
+                data = HANGUL_XML_DECLARATION + data[match.end():]
+                changed = True
+            target.writestr(info, data, compress_type=info.compress_type)
+    return out.getvalue() if changed else package
+
+
 def open_seeded(source: object, seed: int) -> object:
     """``HwpxDocument.open(source, seed=seed)``; the clock (``now=``) is left alone."""
 

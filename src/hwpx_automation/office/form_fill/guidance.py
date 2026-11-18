@@ -17,9 +17,10 @@ row/col은 ``<hp:cellAddr>`` 값(병합 앵커 좌표).
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import tag_local_name
@@ -285,7 +286,7 @@ def _local(el) -> str:
 
 
 class _Walker:
-    def __init__(self, chars: dict) -> None:
+    def __init__(self, chars: Mapping[str, Any]) -> None:
         self.chars = chars
         self.table_counter = -1
         self.out: list[ScannedParagraph] = []
@@ -420,7 +421,7 @@ def _preview(text: str, limit: int = 80) -> str:
     return flat[: limit - 1] + "…" if len(flat) > limit else flat
 
 
-def _format_context(para: ScannedParagraph, chars: dict) -> str:
+def _format_context(para: ScannedParagraph, chars: Mapping[str, Any]) -> str:
     for cpr, _, span_text in para.spans:
         if not span_text.strip():
             continue
@@ -443,7 +444,7 @@ def _scan_resolve_source(
 
 
 def _scan_collect_paragraphs(
-    doc: HwpxDocument, chars: dict
+    doc: HwpxDocument, chars: Mapping[str, Any]
 ) -> tuple[list[ScannedParagraph], int]:
     paragraphs: list[ScannedParagraph] = []
     tables_total = 0
@@ -522,7 +523,7 @@ def _scan_placeholder_candidates(para: ScannedParagraph, text: str) -> list[Cand
 
 
 def _scan_accumulate_modify(
-    modify_by_table: dict[str, dict], para: ScannedParagraph, text: str, chars: dict
+    modify_by_table: dict[str, dict], para: ScannedParagraph, text: str, chars: Mapping[str, Any]
 ) -> None:
     key = f"표{para.cell.table_index}" if para.cell else f"§{para.section_index} 본문"
     agg = modify_by_table.setdefault(
@@ -537,7 +538,7 @@ def _scan_accumulate_modify(
 
 
 def _scan_candidates(
-    paragraphs: list[ScannedParagraph], legend: list[LegendBinding], chars: dict
+    paragraphs: list[ScannedParagraph], legend: list[LegendBinding], chars: Mapping[str, Any]
 ) -> tuple[list[Candidate], list[Candidate], list[Candidate], dict[str, dict]]:
     delete_family = {b.family for b in legend if b.action == "delete"}
     modify_family = {b.family for b in legend if b.action == "modify"}
@@ -590,7 +591,7 @@ def _scan_empty_cell_candidate(
     row: int,
     col: int,
     plist: list[ScannedParagraph],
-    chars: dict,
+    chars: Mapping[str, Any],
 ) -> Candidate:
     label = ""
     for nkey, tag in (((tbl, row, col - 1), "좌측"), ((tbl, row - 1, col), "상단")):
@@ -617,7 +618,7 @@ def _scan_empty_cell_candidate(
 
 
 def _scan_empty_cells(
-    paragraphs: list[ScannedParagraph], chars: dict
+    paragraphs: list[ScannedParagraph], chars: Mapping[str, Any]
 ) -> list[Candidate]:
     cell_paras: dict[tuple[int, int, int], list[ScannedParagraph]] = {}
     for para in paragraphs:

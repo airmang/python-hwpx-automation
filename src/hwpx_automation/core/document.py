@@ -6,7 +6,7 @@ from typing import Any
 
 from ..configuration import env_value
 from ..storage import LocalDocumentStorage, open_local_document
-from ..upstream import HwpxDocument, blank_document_template_bytes, open_document
+from ..upstream import HwpxDocument, blank_document_template_bytes, date_new_document, open_document
 
 
 def _local_storage() -> LocalDocumentStorage:
@@ -31,6 +31,7 @@ def create_blank(path: str, title=None, author=None) -> dict[str, Any]:
     source = BytesIO(blank_document_template_bytes())
     doc = open_document(source)
     try:
+        date_new_document(doc)  # the skeleton's author and 2025 dates are not this document's
         return save_doc(doc, path)
     finally:
         doc.close()
