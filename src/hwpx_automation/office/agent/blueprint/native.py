@@ -12,17 +12,16 @@ from typing import Any, cast
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlTableCell
-from hwpx.oxml.namespaces import HH, HP
+from hwpx.oxml.namespaces import HH
 from hwpx.oxml.shape_position import line_width_mm_for_units
 
 from ..commands import (
     _TABLE_ALIGNMENTS,
     _VERTICAL_ALIGNMENTS,
     _add,
-    _insert_direct_child,
-    _insert_inline,
     _move_paragraph_into_place,
-    _remove_inline_element,
+    _offset_in,
+    _place_object,
     _table_caption,
 )
 from ..document import HwpxAgentDocument, NodeRecord
@@ -165,50 +164,6 @@ def create_numbering(document: HwpxDocument, properties: dict[str, Any]) -> str:
     return refs[level]
 
 
-def _move_to_host_run(paragraph: Any, native: Any, host_run: Any) -> None:
-    element = getattr(native, "element", native)
-    temporary_run = None
-    movable = element
-    for run in list(paragraph.element):
-        if _local_name(run) != "run":
-            continue
-        for child in run:
-            if child is element:
-                temporary_run = run
-                movable = element
-                break
-            # core 5.5.0+: notes are ctrl-wrapped inside the run (the
-            # real-Hancom contract) — relocate the wrapper, not the note.
-            if _local_name(child) == "ctrl" and any(
-                grandchild is element for grandchild in child
-            ):
-                temporary_run = run
-                movable = child
-                break
-        if temporary_run is not None:
-            break
-    if temporary_run is not None and temporary_run is not host_run.element:
-        temporary_run.remove(movable)
-        if len(temporary_run) == 0:
-            paragraph.element.remove(temporary_run)
-        host_run.element.append(movable)
-        paragraph.section.mark_dirty()
-    _remove_empty_text_placeholders(host_run)
-
-
-def _remove_empty_text_placeholders(run: Any) -> None:
-    """Drop builder placeholders before attaching native controls.
-
-    Hancom ignores a table or inline control that follows an empty ``t`` in the
-    same run even though the semantic reader can still see it.  Preserve real
-    run text, but remove empty builder-created text nodes from control runs.
-    """
-
-    for child in list(run.element):
-        if _local_name(child) == "t" and not "".join(child.itertext()) and not child.tail:
-            run.element.remove(child)
-
-
 class TypedNativeBridge:
     """Construct validated blueprint nodes through existing typed primitives."""
 
@@ -227,21 +182,6 @@ class TypedNativeBridge:
             (str(item["from"]), str(item["field"])): str(item["to"])
             for item in manifest["references"]
         }
-        self._identity_seed = self._max_numeric_identity()
-
-    def _max_numeric_identity(self) -> int:
-        maximum = 0
-        for section in self.document.sections:
-            for element in section.element.iter():
-                for name in ("id", "instid", "instId"):
-                    value = str(element.get(name) or "")
-                    if value.isdigit():
-                        maximum = max(maximum, int(value))
-        return maximum
-
-    def _identity(self) -> str:
-        self._identity_seed += 1
-        return str(self._identity_seed)
 
     def _dependency(self, node: dict[str, Any], field: str) -> dict[str, Any] | None:
         refs = list(node[field])
@@ -292,16 +232,7 @@ class TypedNativeBridge:
             # Newly created section/cell paragraphs may carry one structural
             # control run.  Preserve it only when it has non-text children.
             if all(_local_name(child) in {"t", "tab"} for child in run.element):
-                paragraph.element.remove(run.element)
-
-    def _host_run(self, node_id: str, paragraph: Any) -> Any:
-        target_id = self.references.get((node_id, "hostRun"))
-        if target_id is not None:
-            try:
-                return self.created[target_id].native
-            except KeyError as exc:
-                raise AgentContractError("invariant_violation", "host run was not constructed", target=node_id) from exc
-        return paragraph.add_run("")
+                run.remove()  # python-hwpx (N13)
 
     def _create_paragraph(
         self,
@@ -338,7 +269,24 @@ class TypedNativeBridge:
             self._create_inline_or_table(child_id, paragraph)
         return paragraph
 
-    def _create_table(self, node_id: str, paragraph: Any, host_run: Any) -> Any:
+    def _place(self, node_id: str, paragraph: Any, native: Any) -> None:
+        """Put a made object or note at its character offset (blueprint v2 ``properties.offset``) with
+        python-hwpx's ``move_to``; made in the graph's order, objects at one offset keep that order."""
+
+        offset = self.nodes[node_id]["properties"].get("offset")
+        if offset is None:
+            return  # made at the paragraph's end, where it stays
+        try:
+            try:
+                native.move_to(paragraph, offset=int(offset), keep_order=True)
+            except TypeError:  # a table or a note keeps its order and takes no keep_order
+                native.move_to(paragraph, offset=int(offset))
+        except ValueError as exc:
+            raise AgentContractError(
+                "invariant_violation", f"object offset cannot be placed: {exc}", target=node_id
+            ) from exc
+
+    def _create_table(self, node_id: str, paragraph: Any) -> Any:
         node = self.nodes[node_id]
         properties = node["properties"]
         table = paragraph.add_table(
@@ -346,7 +294,7 @@ class TypedNativeBridge:
             int(properties["columnCount"]),
             width=_mm_units(properties.get("widthMm"), 7200 * int(properties["columnCount"])),
         )
-        _move_to_host_run(paragraph, table, host_run)
+        self._place(node_id, paragraph, table)
         if properties.get("caption") is not None:
             _table_caption(table, str(properties["caption"] or ""))
         if properties.get("alignment"):  # a table paragraph.add_table makes always carries hp:pos
@@ -451,14 +399,14 @@ class TypedNativeBridge:
         for index, paragraph_id in enumerate(paragraph_ids):
             paragraph = existing[index] if index < len(existing) else None
             self._create_paragraph(paragraph_id, cell, existing=paragraph)
-        for paragraph in existing[len(paragraph_ids) :]:
-            if sublist is not None:
-                sublist.remove(paragraph.element)
-                cell.table.mark_dirty()
+        # The cell's paragraphs the graph does not hold go through python-hwpx (N13); a cell keeps one,
+        # which takes the cell's text when the graph has no paragraph for it.
+        for paragraph in existing[max(len(paragraph_ids), 1) :]:
+            paragraph.remove()
         if not paragraph_ids:
             cell.text = str(properties.get("text") or "")
 
-    def _create_picture(self, node_id: str, paragraph: Any, host_run: Any) -> Any:
+    def _create_picture(self, node_id: str, paragraph: Any) -> Any:
         node = self.nodes[node_id]
         resource = self._dependency(node, "resourceRefs")
         if resource is None:
@@ -471,7 +419,7 @@ class TypedNativeBridge:
             alignment=properties.get("alignment"),
             treat_as_char=_bool(properties.get("treatAsChar"), True),
         )
-        _move_to_host_run(paragraph, picture, host_run)
+        self._place(node_id, paragraph, picture)
         if properties.get("altText"):
             picture.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
         if properties.get("name"):
@@ -479,7 +427,7 @@ class TypedNativeBridge:
         self.created[node_id] = CreatedBinding("picture", picture)
         return picture
 
-    def _create_shape(self, node_id: str, paragraph: Any, host_run: Any) -> Any:
+    def _create_shape(self, node_id: str, paragraph: Any) -> Any:
         node = self.nodes[node_id]
         properties = node["properties"]
         shape_type = str(properties.get("shapeType") or "")
@@ -497,7 +445,7 @@ class TypedNativeBridge:
             shape = paragraph.add_ellipse(**kwargs)
         else:
             raise AgentContractError("unsupported_content", "shape type is not replayable", target=node_id)
-        _move_to_host_run(paragraph, shape, host_run)
+        self._place(node_id, paragraph, shape)
         if properties.get("altText"):
             shape.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
         if properties.get("name"):
@@ -505,68 +453,37 @@ class TypedNativeBridge:
         self.created[node_id] = CreatedBinding("shape", shape)
         return shape
 
-    def _create_note(self, node_id: str, paragraph: Any, host_run: Any) -> Any:
+    def _create_note(self, node_id: str, paragraph: Any) -> Any:
         node = self.nodes[node_id]
         text = str(node["properties"].get("text") or "")
         note = paragraph.add_footnote(text) if node["kind"] == "footnote" else paragraph.add_endnote(text)
-        _move_to_host_run(paragraph, note, host_run)
+        self._place(node_id, paragraph, note)
         self.created[node_id] = CreatedBinding(str(node["kind"]), note)
         return note
 
     def _create_form_field(self, node_id: str, paragraph: Any) -> None:
+        """A click-here field over the characters ``[start, end)`` of its paragraph (blueprint v2), made by
+        python-hwpx's ``add_form_field(start=, end=)`` (asks10c, N7): those characters are its value, the
+        ``value`` property its 안내문 as the v1 replay wrote it, ``readOnly`` its editable flag."""
+
         node = self.nodes[node_id]
         properties = node["properties"]
-        field_type = hancom_field_type(properties.get("fieldType"))
-        if field_type is None:
+        if hancom_field_type(properties.get("fieldType")) is None:
             raise AgentContractError("unsupported_content", "only FORM fields are replayable", target=node_id)
-        host_id = self.references.get((node_id, "hostRun"))
-        end_id = self.references.get((node_id, "endRun"))
-        if host_id is None or end_id is None:
-            raise AgentContractError("invariant_violation", "form field run references are incomplete", target=node_id)
-        host_run = self.created[host_id].native
-        end_run = self.created[end_id].native
-        begin_id = self._identity()
-        field_id = self._identity()
-        direction = str(properties.get("value") or "")[:4096]
-        command_payload = (
-            f"Direction:wstring:{len(direction)}:{direction} HelpState:wstring:0:  "
-        )
-        ctrl = host_run.element.makeelement(f"{HP}ctrl", {})
-        begin = ctrl.makeelement(
-            f"{HP}fieldBegin",
-            {
-                "id": begin_id,
-                "fieldid": field_id,
-                "name": str(properties.get("name") or "")[:512],
-                "type": field_type,
-                "editable": "0" if properties.get("readOnly") else "1",
-                "dirty": "0",
-                "zorder": "-1",
-                "metaTag": "",
-            },
-        )
-        parameters = begin.makeelement(f"{HP}parameters", {"cnt": "3", "name": ""})
-        prop = parameters.makeelement(f"{HP}integerParam", {"name": "Prop"})
-        prop.text = "9"
-        command = parameters.makeelement(f"{HP}stringParam", {"name": "Command"})
-        command.text = f"Clickhere:set:{max(0, len(command_payload) - 1)}:{command_payload}"
-        direction_param = parameters.makeelement(f"{HP}stringParam", {"name": "Direction"})
-        direction_param.text = direction
-        parameters.extend((prop, command, direction_param))
-        begin.append(parameters)
-        ctrl.append(begin)
-        _remove_empty_text_placeholders(host_run)
-        host_run.element.append(ctrl)
-        end_ctrl = end_run.element.makeelement(f"{HP}ctrl", {"type": "FORM"})
-        end_ctrl.append(
-            end_ctrl.makeelement(
-                f"{HP}fieldEnd", {"beginIDRef": begin_id, "fieldid": field_id}
+        start, end = properties.get("start"), properties.get("end")
+        if not isinstance(start, int) or not isinstance(end, int):
+            raise AgentContractError("invariant_violation", "form field range is incomplete", target=node_id)
+        try:
+            field = paragraph.add_form_field(
+                str(properties.get("name") or "")[:512],
+                prompt=str(properties.get("value") or "")[:4096],
+                editable=not properties.get("readOnly"),
+                start=start,
+                end=end,
             )
-        )
-        _remove_empty_text_placeholders(end_run)
-        end_run.element.append(end_ctrl)
-        paragraph.section.mark_dirty()
-        self.created[node_id] = CreatedBinding("form-field", None, begin_id)
+        except ValueError as exc:
+            raise AgentContractError("invariant_violation", f"form field range cannot be wrapped: {exc}", target=node_id) from exc
+        self.created[node_id] = CreatedBinding("form-field", None, str(field.element.get("id") or ""))
 
     def _create_inline_or_table(self, node_id: str, paragraph: Any) -> Any:
         node = self.nodes[node_id]
@@ -574,15 +491,14 @@ class TypedNativeBridge:
         if kind == "form-field":
             self._create_form_field(node_id, paragraph)
             return None
-        host_run = self._host_run(node_id, paragraph)
         if kind == "table":
-            return self._create_table(node_id, paragraph, host_run)
+            return self._create_table(node_id, paragraph)
         if kind == "picture":
-            return self._create_picture(node_id, paragraph, host_run)
+            return self._create_picture(node_id, paragraph)
         if kind == "shape":
-            return self._create_shape(node_id, paragraph, host_run)
+            return self._create_shape(node_id, paragraph)
         if kind in {"footnote", "endnote"}:
-            return self._create_note(node_id, paragraph, host_run)
+            return self._create_note(node_id, paragraph)
         raise AgentContractError("unsupported_content", f"unsupported paragraph child: {kind}", target=node_id)
 
     def _create_memo(self, node_id: str, section: Any) -> Any:
@@ -641,18 +557,18 @@ class TypedNativeBridge:
                 position=position,
             )
         elif kind == "run":
+            # A run is text at a character offset (blueprint v2): python-hwpx's insert_text (N1).
             character = self._dependency(root, "styleRefs")
             char_ref = character["identity"]["charPrIDRef"] if character is not None else None
-            run = parent.native.add_run(str(root["properties"].get("text") or ""), char_pr_id_ref=char_ref)
-            if position["mode"] != "append":
-                parent.native.element.remove(run.element)
-                _insert_direct_child(view, parent, "run", run.element, position)
-            self.created[root_id] = CreatedBinding("run", run)
+            offset, _anchor = _offset_in(view, parent, position)
+            runs = parent.native.insert_text(
+                offset, str(root["properties"].get("text") or ""), char_pr_id_ref=char_ref
+            )
+            self.created[root_id] = CreatedBinding("run", runs[0] if runs else None)
         elif kind in _INLINE_KINDS:
             native = self._create_inline_or_table(root_id, parent.native)
             if position["mode"] != "append":
-                _remove_inline_element(native.element, parent.native)
-                _insert_inline(view, parent, kind, native.element, position)
+                _place_object(view, native, parent, position, copy=False, target=root_id)
         elif kind == "memo":
             if position["mode"] != "append":
                 raise AgentContractError("unsupported_operation", "memo replay is append-only")

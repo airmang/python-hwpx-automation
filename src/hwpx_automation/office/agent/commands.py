@@ -10,23 +10,29 @@ the normal :class:`~hwpx.quality.SavePipeline` exactly once.
 
 from __future__ import annotations
 
-import copy
 import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from hwpx.document import HwpxDocument
+from hwpx.oxml.objects import wrap_object
 from hwpx.quality import SavePipeline
 
 from ._batch_publication import BatchPublication
 from ._text_scope import TextScope
+from ...upstream import content_seed
 from .catalog import catalog_hash
-from .document import HwpxAgentDocument, NodeRecord
+from .document import HwpxAgentDocument, NodeRecord, TextRange, place
 from .model import (
-    NODE_PROPERTY_CATALOG_V1,
+    AGENT_COMMAND_SCHEMA_V1,
+    CONTRACT_CHANGED_INDEX,
+    CONTRACT_CHANGED_RUN,
+    CONTRACT_CHANGED_RUN_ANCHOR,
+    NODE_PROPERTY_CATALOG_V2,
     AgentBatchResult,
     AgentContractError,
+    contract_changed,
     validate_agent_batch,
 )
 from .path import parse_path
@@ -68,18 +74,18 @@ _PARAGRAPH_ALIGNMENTS = frozenset(
 )
 _TABLE_ALIGNMENTS = frozenset({"LEFT", "CENTER", "RIGHT", "INSIDE", "OUTSIDE"})
 _VERTICAL_ALIGNMENTS = frozenset({"TOP", "CENTER", "BOTTOM"})
-_INLINE_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
 #: Notes sit in an hp:ctrl: Hancom drops a note outside one and crashes on an empty one.
 _NOTE_TAGS = frozenset({"footNote", "endNote"})
 _SHAPE_KINDS = frozenset({"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine"})
 
 # Creation needs a few geometry fields that are readable, rather than editable,
-# after the node exists.  Everything else comes directly from the frozen v1
-# property catalog.
+# after the node exists.  Everything else comes directly from the property catalog.
 _CREATE_PROPERTIES: dict[str, frozenset[str]] = {
     "section": frozenset({"pageWidthMm", "pageHeightMm"}),
-    "paragraph": frozenset(NODE_PROPERTY_CATALOG_V1["paragraph"]["editable"]),
-    "run": frozenset(NODE_PROPERTY_CATALOG_V1["run"]["editable"]),
+    "paragraph": frozenset(NODE_PROPERTY_CATALOG_V2["paragraph"]["editable"]),
+    "text": frozenset(NODE_PROPERTY_CATALOG_V2["text"]["editable"]),
+    "footnote": frozenset({"text"}),
+    "endnote": frozenset({"text"}),
     "table": frozenset({"rowCount", "columnCount", "caption", "widthMm", "alignment"}),
     "row": frozenset({"cellCount", "heightMm"}),
 }
@@ -87,14 +93,16 @@ _CREATE_PROPERTIES: dict[str, frozenset[str]] = {
 _ADD_PARENTS = {
     "section": "document",
     "paragraph": "section",
-    "run": "paragraph",
+    "text": "paragraph",
     "table": "paragraph",
+    "footnote": "paragraph",
+    "endnote": "paragraph",
     "row": "table",
 }
 
 _MOVE_COPY_PARENTS = {
     "paragraph": "section",
-    "run": "paragraph",
+    "text": "paragraph",
     "table": "paragraph",
     "row": "table",
     "picture": "paragraph",
@@ -104,13 +112,341 @@ _MOVE_COPY_PARENTS = {
     "endnote": "paragraph",
 }
 
+# --- agent-command v2: character-offset places (hwpx-automation 8.0) ---------------------------
+# A run is no longer placed by its order among its siblings: text is added, removed, moved and
+# copied as a range of ``paragraph.text`` (the ``text`` node), and a table, picture or shape sits
+# at a character offset of its paragraph.  These go through python-hwpx's own range and placement
+# calls (``insert_text``, ``delete_range``, ``move_range``/``copy_range``, ``replace_range``,
+# ``format_range``, ``move_to``/``copy_to(offset=)``, ``obj.offset``); none writes the tree.
+
+#: Objects placed at a character offset of their paragraph (notes wait for asks10c).
+_OFFSET_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
+#: What a place in a paragraph may be given before or after.
+_ANCHOR_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote", "form-field"})
+
+_FORMAT_NAMES = {
+    "bold": "bold",
+    "italic": "italic",
+    "underline": "underline",
+    "fontName": "font",
+    "fontSizePt": "size",
+    "color": "color",
+}
+
+# python-hwpx range refusals -> the agent error a caller can act on.
+_RANGE_CODES = {
+    "paragraph-range-holds-objects": "unsupported_content",
+    "paragraph-range-splits-field": "unsupported_content",
+    "paragraph-range-splits-mark": "unsupported_content",
+    "paragraph-range-crosses-element": "unsupported_content",
+    "paragraph-range-into-itself": "incompatible_parent",
+    "paragraph-move-place-unsupported": "incompatible_parent",
+    "shape-move-into-itself": "incompatible_parent",
+    "shape-move-place-unsupported": "incompatible_parent",
+    "shape-copy-document-unsupported": "incompatible_parent",
+    "shape-group-member-unsupported": "unsupported_content",
+    "shape-not-in-document": "not_found",
+    "style-char-pr-missing": "not_found",
+    "table-rows-invalid": "not_found",
+    "table-rows-merge-crossed": "unsupported_content",
+    "table-columns-differ": "incompatible_parent",
+    "table-rows-other-document": "incompatible_parent",
+    "table-rows-move-other-table": "incompatible_parent",
+}
+
+
+def _core_refusal(exc: ValueError, *, target: str | None) -> AgentContractError:
+    """The agent error for a python-hwpx refusal (``HwpxValueError.code``)."""
+
+    code = str(getattr(exc, "code", "") or "")
+    agent_code = _RANGE_CODES.get(code)
+    if agent_code is None:
+        agent_code = "not_found" if "offset" in code or "range" in code else "unsupported_content"
+    suggestion = getattr(exc, "suggestion", None)
+    return AgentContractError(
+        agent_code, str(exc) or code, target=target, suggestion=str(suggestion) if suggestion else None
+    )
+
+
+def _format_changes(document: HwpxDocument, properties: Mapping[str, Any], *, target: str) -> dict[str, Any]:
+    """``format_range``/``insert_text`` keyword arguments for the character properties given."""
+
+    changes = {_FORMAT_NAMES[name]: value for name, value in properties.items() if name in _FORMAT_NAMES}
+    face = changes.get("font")
+    if face is not None and not _font_is_declared(document, face):
+        raise AgentContractError(
+            "not_found", f"font is not declared by the document: {face!r}", target=f"{target}.fontName"
+        )
+    return changes
+
+
+def _object_wrapper(view: HwpxAgentDocument, record: NodeRecord) -> Any:
+    """The python-hwpx object of a table, picture or shape record (a picture is projected as its element)."""
+
+    if record.kind == "picture":
+        paragraph = view.resolve_record(str(record.parent_path)).native
+        return wrap_object(record.native, paragraph)
+    return record.native
+
+
+def _object_offset(view: HwpxAgentDocument, record: NodeRecord) -> int:
+    native = _object_wrapper(view, record) if record.kind in _OFFSET_KINDS else record.native
+    offset = getattr(native, "offset", None)
+    if offset is None and record.place is not None:
+        offset = record.place.get("offset")
+    if offset is None:
+        raise AgentContractError("not_found", "the anchor is not in a paragraph's text", target=record.path)
+    return int(offset)
+
+
+def _offset_in(view: HwpxAgentDocument, paragraph: NodeRecord, position: Mapping[str, Any]) -> tuple[int, NodeRecord | None]:
+    """The character offset *position* names in *paragraph*, and its before/after anchor."""
+
+    length = len(paragraph.native.text or "")
+    mode = position["mode"]
+    if mode == "append":
+        return length, None
+    if mode == "prepend":
+        return 0, None
+    if mode == "offset":
+        offset = int(position["offset"])
+        if offset > length:
+            raise AgentContractError(
+                "not_found",
+                f"offset {offset} is past the paragraph's {length} characters",
+                target=paragraph.path,
+            )
+        return offset, None
+    if mode == "index":  # preflight refuses it; kept for a direct caller
+        raise AgentContractError("invalid_syntax", "index is not a place in a paragraph", target=paragraph.path)
+    anchor = view.resolve_record(str(position["path"]))
+    if anchor.parent_path != paragraph.path or anchor.kind not in _ANCHOR_KINDS:
+        raise AgentContractError(
+            "incompatible_parent",
+            "position anchor must be a table, picture, shape, note or form field of the same paragraph",
+            target=anchor.path,
+        )
+    return _object_offset(view, anchor), anchor
+
+
+# --- text ranges -----------------------------------------------------------------------------
+
+
+def _paragraph_path(view: HwpxAgentDocument, paragraph: Any) -> str:
+    for record in view.records:
+        if record.kind == "paragraph" and record.native.element is paragraph.element:
+            return record.path
+    raise AgentContractError("not_found", "the paragraph left the document")
+
+
+def _add_text(
+    document: HwpxDocument,
+    view: HwpxAgentDocument,
+    paragraph: NodeRecord,
+    properties: Mapping[str, Any],
+    position: Mapping[str, Any],
+) -> TextRange:
+    offset, _anchor = _offset_in(view, paragraph, position)
+    native = paragraph.native
+    changes = _format_changes(document, properties, target="text")
+    before = len(native.text or "")
+    try:
+        native.insert_text(offset, str(properties.get("text", "")), **changes)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=paragraph.path) from exc
+    return TextRange(native, offset, offset + len(native.text or "") - before)
+
+
+def _set_text(document: HwpxDocument, record: NodeRecord, properties: Mapping[str, Any]) -> TextRange:
+    span: TextRange = record.native
+    paragraph = span.paragraph
+    end = span.end
+    try:
+        if "text" in properties:
+            before = len(paragraph.text or "")
+            paragraph.replace_range(span.start, span.end, str(properties["text"]))
+            end = span.end + len(paragraph.text or "") - before
+        changes = _format_changes(document, properties, target="text")
+        if changes and end > span.start:
+            paragraph.format_range(span.start, end, **changes)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=record.path) from exc
+    return TextRange(paragraph, span.start, end)
+
+
+def _remove_text(record: NodeRecord) -> None:
+    span: TextRange = record.native
+    try:
+        span.paragraph.delete_range(span.start, span.end)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=record.path) from exc
+
+
+def _place_text(
+    view: HwpxAgentDocument,
+    record: NodeRecord,
+    paragraph: NodeRecord,
+    position: Mapping[str, Any],
+    *,
+    copy: bool,
+) -> TextRange:
+    span: TextRange = record.native
+    offset, _anchor = _offset_in(view, paragraph, position)
+    call = span.paragraph.copy_range if copy else span.paragraph.move_range
+    try:
+        start, end = call(span.start, span.end, to=paragraph.native, offset=offset)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=record.path) from exc
+    return TextRange(paragraph.native, start, end)
+
+
+def _text_path(view: HwpxAgentDocument, span: TextRange) -> tuple[str, str]:
+    """(path, paragraph path) of a text range after the command."""
+
+    paragraph_path = _paragraph_path(view, span.paragraph)
+    return f"{paragraph_path}/text[{span.start}:{span.end}]", paragraph_path
+
+
+# --- objects at an offset --------------------------------------------------------------------
+
+
+def _same_offset_followers(
+    view: HwpxAgentDocument, paragraph: NodeRecord, offset: int, anchor: NodeRecord
+) -> list[Any]:
+    """The objects at *offset* of *paragraph* from *anchor* on, in their order (to put back after)."""
+
+    found: list[Any] = []
+    seen_anchor = False
+    for record in view.records:
+        if record.parent_path != paragraph.path or record.kind not in _ANCHOR_KINDS:
+            continue
+        if record.path == anchor.path:
+            seen_anchor = True
+        if not seen_anchor:
+            continue
+        if record.kind not in _OFFSET_KINDS:
+            raise AgentContractError(
+                "incompatible_parent",
+                "only a table, picture or shape can stand behind the new place; give an offset instead",
+                target=record.path,
+            )
+        if _object_offset(view, record) == offset:
+            found.append(_object_wrapper(view, record))
+    return found
+
+
+def _move_object(native: Any, paragraph: Any, offset: int | None) -> None:
+    try:
+        native.move_to(paragraph, offset=offset, keep_order=True)
+    except TypeError:  # a table's move_to keeps its order and takes no keep_order
+        native.move_to(paragraph, offset=offset)
+
+
+def _check_v1_end_place(
+    view: HwpxAgentDocument,
+    paragraph: NodeRecord,
+    kind: str,
+    position: Mapping[str, Any],
+    *,
+    leaving: Any = None,
+) -> None:
+    """Take a v1 ``append``/``prepend`` in a paragraph only where its v1 place is the v2 one.
+
+    v1 put the object after the last (before the first) object of its kind, or at the paragraph's
+    end when there was none; v2 puts it at the end of the text (at offset 0), after the objects
+    already there.  Where the two places differ the command is refused (``contract_changed``) with
+    the offset its v1 place has, rather than done somewhere else without a word (owner, 18차).
+    *leaving* is an object that is moved and so is not counted where it stands.
+    """
+
+    mode = position["mode"]
+    if not position.get("_v1") or mode not in {"append", "prepend"}:
+        return
+    length = len(paragraph.native.text or "")
+    items = [
+        record
+        for record in view.records
+        if record.parent_path == paragraph.path
+        and record.kind in _ANCHOR_KINDS
+        and (leaving is None or _element(record.native) is not leaving)
+    ]
+    same = [record for record in items if record.kind == kind]
+    if not same:  # v1 appended a new run at the paragraph's end: after everything there
+        old_offset = length
+        agrees = mode == "append" or length == 0
+    elif mode == "append":
+        old_offset = _object_offset(view, same[-1])
+        agrees = old_offset == length and items[-1] is same[-1]
+    else:  # v2 goes after the objects at offset 0, v1 went before the first of its kind
+        old_offset = _object_offset(view, same[0])
+        agrees = False
+    if agrees:
+        return
+    anchor = same[-1 if mode == "append" else 0].path if same else None
+    exact = (
+        f'{{"mode": "{"after" if mode == "append" else "before"}", "path": "{anchor}"}}'
+        if anchor is not None
+        else f'{{"mode": "offset", "offset": {old_offset}}}'
+    )
+    raise AgentContractError(
+        "contract_changed",
+        f'position.mode "{mode}" in a paragraph means the {"end" if mode == "append" else "start"} of its text '
+        f"since hwpx-automation 8.0; this v1 command's place was offset {old_offset}",
+        target=paragraph.path,
+        suggestion=f'Use {{"mode": "offset", "offset": {old_offset}}} (or {exact}) for the v1 place, '
+        'or send schemaVersion "hwpx.agent-command/v2" for the new one',
+    )
+
+
+def _place_object(
+    view: HwpxAgentDocument,
+    native: Any,
+    paragraph: NodeRecord,
+    position: Mapping[str, Any],
+    *,
+    copy: bool,
+    target: str,
+) -> Any:
+    """Move (or copy) the object *native* to the place *position* names in *paragraph*; return the
+    object now there.  ``before`` an object puts that object, and the ones after it at the same
+    place, behind the new one again (python-hwpx places after what is already there)."""
+
+    _check_v1_end_place(
+        view, paragraph, _identity_kind(_local_name(native.element)), position,
+        leaving=None if copy else native.element,
+    )
+    offset, anchor = _offset_in(view, paragraph, position)
+    followers = (
+        _same_offset_followers(view, paragraph, offset, anchor)
+        if anchor is not None and position["mode"] == "before"
+        else []
+    )
+    if not copy:  # the moved object itself is not put back behind its new place
+        followers = [item for item in followers if item.element is not native.element]
+    try:
+        if copy:
+            placed = native.copy_to(paragraph.native, offset=offset)
+        else:
+            _move_object(native, paragraph.native, offset)
+            placed = native
+        for follower in followers:
+            _move_object(follower, paragraph.native, offset)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=target) from exc
+    if followers and not _precedes(paragraph.native, placed.element, followers[0].element):
+        raise AgentContractError(
+            "incompatible_parent", "the object could not be put before its anchor", target=target
+        )
+    return placed
+
+
+def _precedes(paragraph: Any, first: Any, second: Any) -> bool:
+    order = [node for node in paragraph.element.iter() if node is first or node is second]
+    return len(order) == 2 and order[0] is first
+
+
 def _local_name(element: Any) -> str:
     return str(getattr(element, "tag", "")).rsplit("}", 1)[-1]
-
-
-def _tag_like(element: Any, local_name: str) -> str:
-    tag = str(element.tag)
-    return f"{tag.rsplit('}', 1)[0]}}}{local_name}" if "}" in tag else local_name
 
 
 def _element(native: Any) -> Any:
@@ -166,7 +502,7 @@ def _validate_property_values(kind: str, properties: Mapping[str, Any], *, creat
     allowed = (
         _CREATE_PROPERTIES.get(kind, frozenset())
         if creating
-        else frozenset(NODE_PROPERTY_CATALOG_V1[kind]["editable"])
+        else frozenset(NODE_PROPERTY_CATALOG_V2[kind]["editable"])
     )
     unknown = sorted(set(properties) - allowed)
     if unknown:
@@ -242,8 +578,35 @@ def _preflight_parent_kind(value: str, alias_kinds: Mapping[str, Mapping[str, st
     return parsed.segments[-2].kind if len(parsed.segments) > 1 else "document"
 
 
+#: Placed in a paragraph at a character offset (agent-command v2); notes keep v1 places (asks10c).
+_IN_PARAGRAPH_KINDS = frozenset({"text", *_OFFSET_KINDS})
+
+
+def _preflight_position(
+    kind: str, destination_kind: str, command: Mapping[str, Any], alias_kinds: Mapping[str, Mapping[str, str]]
+) -> None:
+    """Refuse the v1 places whose meaning changed in a paragraph (design 6), and an offset elsewhere."""
+
+    position = command.get("position") or {"mode": "append"}
+    mode = position["mode"]
+    in_paragraph = destination_kind == "paragraph" and kind in _IN_PARAGRAPH_KINDS
+    target = f"{command['commandId']}.position"
+    if mode in {"before", "after"} and _preflight_reference_kind(str(position["path"]), alias_kinds) == "run":
+        raise contract_changed(CONTRACT_CHANGED_RUN_ANCHOR, target=target)
+    if mode == "index" and in_paragraph:
+        raise contract_changed(CONTRACT_CHANGED_INDEX, target=target)
+    if mode == "offset" and not in_paragraph:
+        raise AgentContractError(
+            "invalid_syntax",
+            f"position mode offset places text, a table, a picture or a shape in a paragraph, not a {kind}",
+            target=target,
+        )
+
+
 def _preflight_add_command(command: Mapping[str, Any], alias_kinds: dict[str, dict[str, str]]) -> None:
     kind = command["kind"]
+    if kind == "run":
+        raise contract_changed(CONTRACT_CHANGED_RUN, target=command["commandId"])
     if kind not in _ADD_PARENTS:
         raise AgentContractError(
             "unsupported_operation", f"add is unsupported for {kind}", target=command["commandId"]
@@ -265,6 +628,7 @@ def _preflight_add_command(command: Mapping[str, Any], alias_kinds: dict[str, di
             f"{kind} requires a {expected_parent} parent, not {destination_kind}",
             target=command["commandId"],
         )
+    _preflight_position(kind, destination_kind, command, alias_kinds)
     alias_kinds[command["commandId"]] = {
         "path": kind,
         "parentPath": destination_kind,
@@ -288,7 +652,9 @@ def _preflight_mutate_command(
             "parentPath": "section",
         }
         return
-    if op not in NODE_PROPERTY_CATALOG_V1[source_kind]["operations"]:
+    if source_kind == "run" and op in {"remove", "copy"}:
+        raise contract_changed(CONTRACT_CHANGED_RUN, target=command["commandId"])
+    if op not in NODE_PROPERTY_CATALOG_V2[source_kind]["operations"]:
         raise AgentContractError(
             "unsupported_operation",
             f"{op} is unsupported for {source_kind}",
@@ -306,6 +672,7 @@ def _preflight_mutate_command(
                 f"{source_kind} requires a {move_parent} parent, not {destination_kind}",
                 target=command["commandId"],
             )
+        _preflight_position(source_kind, destination_kind, command, alias_kinds)
     alias_kinds[command["commandId"]] = {
         "path": source_kind,
         "parentPath": destination_kind,
@@ -338,11 +705,13 @@ def _resolve_alias(value: str, aliases: Mapping[str, Mapping[str, str]]) -> str:
 
 
 def _resolved_position(
-    position: Mapping[str, Any], aliases: Mapping[str, Mapping[str, str]]
+    position: Mapping[str, Any], aliases: Mapping[str, Mapping[str, str]], command: Mapping[str, Any]
 ) -> dict[str, Any]:
     result = dict(position)
     if "path" in result:
         result["path"] = _resolve_alias(str(result["path"]), aliases)
+    if command.get("schemaVersion") == AGENT_COMMAND_SCHEMA_V1:
+        result["_v1"] = True  # private: the command was written in agent-command v1
     return result
 
 
@@ -355,7 +724,7 @@ def _record_for_native(view: HwpxAgentDocument, native_or_element: Any) -> NodeR
 
 
 def _ensure_operation(record: NodeRecord, operation: str) -> None:
-    if operation not in NODE_PROPERTY_CATALOG_V1[record.kind]["operations"]:
+    if operation not in NODE_PROPERTY_CATALOG_V2[record.kind]["operations"]:
         raise AgentContractError(
             "unsupported_operation",
             f"{operation} is unsupported for {record.kind}",
@@ -414,26 +783,6 @@ def _insertion_index(
     return index + (1 if mode == "after" else 0)
 
 
-def _insert_direct_child(
-    view: HwpxAgentDocument,
-    parent: NodeRecord,
-    kind: str,
-    element: Any,
-    position: Mapping[str, Any],
-) -> None:
-    siblings = _sibling_elements(view, parent, kind)
-    index = _insertion_index(view, parent, kind, position, siblings=siblings)
-    container = _element(parent.native)
-    if index >= len(siblings):
-        if siblings:
-            absolute = list(container).index(siblings[-1]) + 1
-            container.insert(absolute, element)
-        else:
-            container.append(element)
-    else:
-        container.insert(list(container).index(siblings[index]), element)
-
-
 def _move_paragraph_into_place(
     view: HwpxAgentDocument, parent: NodeRecord, paragraph: Any, position: Mapping[str, Any]
 ) -> None:
@@ -455,89 +804,6 @@ def _move_paragraph_into_place(
         paragraph.move_after(siblings[-1])
 
 
-def _drop_layout_cache(paragraph_element: Any | None) -> None:
-    """Remove a paragraph's line layout cache (``hp:linesegarray``) after its content changed.
-
-    The cache records where each line starts in the paragraph's content. Once an object or a run has left or
-    joined the paragraph, the cache no longer matches: Hancom reports a document whose cached lines point past
-    the remaining content as damaged, while without the cache it lays the paragraph out again. Only the
-    paragraph that changed is touched; every other paragraph keeps the cache Hancom wrote. ``None`` (an
-    element no paragraph holds) changes nothing.
-    """
-
-    if paragraph_element is None:
-        return
-    for child in list(paragraph_element):
-        if _local_name(child).lower() == "linesegarray":
-            paragraph_element.remove(child)
-
-
-def _paragraph_element_of(element: Any) -> Any | None:
-    """The nearest ``hp:p`` holding *element*, or ``None`` when it is detached."""
-
-    current = element
-    while current is not None and _local_name(current) != "p":
-        current = current.getparent() if hasattr(current, "getparent") else None
-    return current
-
-
-def _insert_inline(
-    view: HwpxAgentDocument,
-    parent: NodeRecord,
-    kind: str,
-    element: Any,
-    position: Mapping[str, Any],
-) -> Any:
-    paragraph = parent.native
-    siblings = _sibling_elements(view, parent, kind)
-    index = _insertion_index(view, parent, kind, position, siblings=siblings)
-    run = paragraph.element.makeelement(
-        _tag_like(paragraph.element, "run"),
-        {"charPrIDRef": paragraph.char_pr_id_ref or "0"},
-    )
-    if _local_name(element) in _NOTE_TAGS:
-        control = run.makeelement(_tag_like(paragraph.element, "ctrl"), {})
-        control.append(element)
-        run.append(control)
-    else:
-        run.append(element)
-    if index >= len(siblings):
-        paragraph.element.append(run)
-    else:
-        anchor = siblings[index]
-        anchor_run = anchor.getparent() if hasattr(anchor, "getparent") else next(
-            child for child in paragraph.element if anchor in list(child)
-        )
-        if _local_name(anchor_run) == "ctrl":
-            anchor_run = anchor_run.getparent()
-        paragraph.element.insert(list(paragraph.element).index(anchor_run), run)
-    _drop_layout_cache(paragraph.element)
-    paragraph.section.mark_dirty()
-    return run
-
-
-def _remove_inline_element(element: Any, paragraph: Any) -> None:
-    run = element.getparent() if hasattr(element, "getparent") else next(
-        child for child in paragraph.element if element in list(child)
-    )
-    run.remove(element)
-    if _local_name(run) == "ctrl" and not list(run):
-        control, run = run, run.getparent()
-        run.remove(control)
-    if not list(run) and run in list(paragraph.element):
-        paragraph.element.remove(run)
-    _drop_layout_cache(paragraph.element)
-    paragraph.section.mark_dirty()
-
-
-def _set_shape_comment(element: Any, value: str) -> None:
-    comment = next((child for child in element if _local_name(child) == "shapeComment"), None)
-    if comment is None:
-        comment = element.makeelement(_tag_like(element, "shapeComment"), {})
-        element.append(comment)
-    comment.text = value
-
-
 def _table_caption(table: Any, value: str) -> None:
     """Set a table's caption text through python-hwpx's own text setters.
 
@@ -555,12 +821,7 @@ def _table_caption(table: Any, value: str) -> None:
         table.set_caption(value)
         table.mark_dirty()
         return
-    text_runs = [
-        run
-        for paragraph in caption.paragraphs
-        for run in paragraph.runs
-        if any(_local_name(child) == "t" for child in run.element)
-    ]
+    text_runs = [run for paragraph in caption.paragraphs for run in paragraph.runs if run.has_text_element]
     if not text_runs:
         raise AgentContractError("unsupported_content", "table caption has no editable text node")
     text_runs[0].text = value
@@ -592,14 +853,6 @@ def _style_id(document: HwpxDocument, value: str) -> str:
             target="paragraph.style",
         )
     return matches[0]
-
-
-def _mark_containing_section(document: HwpxDocument, target: Any) -> None:
-    for section in document.sections:
-        if any(node is target for node in section.element.iter()):
-            section.mark_dirty()
-            return
-    raise AgentContractError("not_found", "mutated element is detached")
 
 
 def _apply_header_story_set(
@@ -639,70 +892,13 @@ def _apply_header_story_set(
 
 
 _LINE_BREAKS = re.compile("\r\n|\r|\n")
-# Private-use stand-ins that carry a tab and a line break through
-# ``set_text_preserving_runs``; the first pair absent from both texts is used.
-_MARK_STAND_INS = tuple((chr(0xF8F0 + 2 * n), chr(0xF8F1 + 2 * n)) for n in range(8))
-
-
-def _expand_text_marks(text_element: Any, tab_mark: str, break_mark: str) -> None:
-    """Turn the stand-in characters inside one ``hp:t`` into ``hp:tab`` / ``hp:lineBreak``."""
-
-    splitter = re.compile("([" + re.escape(tab_mark) + re.escape(break_mark) + "])")
-
-    def expand(value: str | None, insert_at: int) -> tuple[str, int]:
-        parts = splitter.split(value or "")
-        for mark, segment in zip(parts[1::2], parts[2::2]):
-            name = "tab" if mark == tab_mark else "lineBreak"
-            child = text_element.makeelement(_tag_like(text_element, name), {})
-            child.tail = segment or None
-            text_element.insert(insert_at, child)
-            insert_at += 1
-        return parts[0], insert_at
-
-    originals = list(text_element)
-    text_element.text, _ = expand(text_element.text, 0)
-    for original in originals:
-        position = list(text_element).index(original) + 1
-        original.tail = expand(original.tail, position)[0] or None
 
 
 def _set_paragraph_text(native: Any, value: str) -> None:
-    """Replace a paragraph's text, keeping its runs, with tabs and line breaks as elements.
+    """Replace a paragraph's text, keeping its runs: python-hwpx writes a tab as ``hp:tab`` and a
+    line break as ``hp:lineBreak`` (asks10b, N11) and drops the paragraph's line layout cache."""
 
-    ``set_text_preserving_runs`` keeps each run's style but deletes a tab and
-    leaves ``"\n"`` as a raw LF in ``hp:t`` (python-hwpx 6.11). Hancom reads a
-    tab only as ``hp:tab`` and a line break only as ``hp:lineBreak`` inside
-    ``hp:t``, so both travel through that call as private-use stand-ins and are
-    turned into the elements afterwards (audit ENG-19).
-    """
-
-    value = _LINE_BREAKS.sub("\n", value)
-    if "\t" not in value and "\n" not in value:
-        native.set_text_preserving_runs(value)
-        return
-    existing = native.text or ""
-    pair = next(
-        (
-            (tab_mark, break_mark)
-            for tab_mark, break_mark in _MARK_STAND_INS
-            if not {tab_mark, break_mark} & set(value + existing)
-        ),
-        None,
-    )
-    if pair is None:
-        raise AgentContractError(
-            "unsupported_content",
-            "paragraph text mixes tabs or line breaks with reserved private-use characters",
-            target="paragraph.text",
-        )
-    tab_mark, break_mark = pair
-    native.set_text_preserving_runs(value.replace("\t", tab_mark).replace("\n", break_mark))
-    for run in native.runs:
-        for child in list(run.element):
-            if _local_name(child) == "t":
-                _expand_text_marks(child, tab_mark, break_mark)
-    _drop_layout_cache(native.element)
-    native.section.mark_dirty()
+    native.set_text_preserving_runs(_LINE_BREAKS.sub("\n", value))
 
 
 def _apply_set_paragraph(document: HwpxDocument, native: Any, properties: Mapping[str, Any]) -> None:
@@ -817,20 +1013,28 @@ def _apply_set_form_field(document: HwpxDocument, native: Any, properties: Mappi
         form_field.editable = not properties["readOnly"]
 
 
-def _apply_set_picture_shape(document: HwpxDocument, native: Any, kind: str, properties: Mapping[str, Any]) -> None:
-    target_element = _element(native)
-    _set_shape_comment(target_element, properties["altText"])
-    if kind == "shape":
-        native.paragraph.section.mark_dirty()
-    else:
-        _mark_containing_section(document, target_element)
+def _apply_set_picture_shape(view: HwpxAgentDocument | None, record: NodeRecord, properties: Mapping[str, Any]) -> None:
+    """Alternative text through python-hwpx's ``description``: ``hp:shapeComment`` where Hancom
+    writes it (after ``outMargin``/``caption``); a group member is refused, as Hancom keeps none."""
+
+    if view is None:
+        raise AgentContractError("unsupported_operation", "altText needs the projected document", target=record.path)
+    try:
+        _object_wrapper(view, record).description = properties["altText"]
+    except ValueError as exc:
+        raise _core_refusal(exc, target=record.path) from exc
 
 
 def _set_result_summary(record: NodeRecord, properties: Mapping[str, Any]) -> dict[str, Any]:
     return {name: {"before": record.summary.get(name), "after": value} for name, value in properties.items()}
 
 
-def _apply_set(document: HwpxDocument, record: NodeRecord, properties: Mapping[str, Any]) -> dict[str, Any]:
+def _apply_set(
+    document: HwpxDocument,
+    record: NodeRecord,
+    properties: Mapping[str, Any],
+    view: HwpxAgentDocument | None = None,
+) -> dict[str, Any]:
     _ensure_operation(record, "set")
     _validate_property_values(record.kind, properties, creating=False)
     native = record.native
@@ -849,7 +1053,7 @@ def _apply_set(document: HwpxDocument, record: NodeRecord, properties: Mapping[s
     elif kind == "form-field":
         _apply_set_form_field(document, native, properties, record)
     elif kind in {"picture", "shape"}:
-        _apply_set_picture_shape(document, native, kind, properties)
+        _apply_set_picture_shape(view, record, properties)
     elif kind == "memo":
         native.text = properties["text"]
     elif kind in {"footnote", "endnote"}:
@@ -864,9 +1068,33 @@ def _apply_create_properties(
 ) -> dict[str, Any]:
     # Geometry used to create tables/rows/sections is already present.  Apply the
     # remaining editable subset through the exact same set compiler.
-    editable = set(NODE_PROPERTY_CATALOG_V1[record.kind]["editable"])
+    editable = set(NODE_PROPERTY_CATALOG_V2[record.kind]["editable"])
     setters = {name: value for name, value in properties.items() if name in editable}
     return _apply_set(document, record, setters) if setters else {}
+
+
+def _add_in_paragraph(
+    document: HwpxDocument,
+    view: HwpxAgentDocument,
+    parent: NodeRecord,
+    kind: str,
+    properties: Mapping[str, Any],
+    position: Mapping[str, Any],
+) -> Any:
+    """Text goes in with ``insert_text`` (N1). python-hwpx puts a note's mark at the paragraph's end
+    (asks10c, N6); another place moves it there as a move does (before an object puts the objects at
+    that place behind it again)."""
+
+    if kind == "text":
+        return _add_text(document, view, parent, properties, position)
+    add = document.notes.add_footnote if kind == "footnote" else document.notes.add_endnote
+    try:
+        created = add(str(properties.get("text", "")), paragraph=parent.native)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=parent.path) from exc
+    if position["mode"] != "append":
+        _place_object(view, created, parent, position, copy=False, target=parent.path)
+    return created
 
 
 def _add(
@@ -901,35 +1129,17 @@ def _add(
         if position["mode"] != "append":
             _move_paragraph_into_place(view, parent, created, position)
         return created
-    if kind == "run":
-        run_kwargs = {
-            key: value
-            for key, value in {
-                "bold": properties.get("bold", False),
-                "italic": properties.get("italic", False),
-                "underline": properties.get("underline", False),
-                "color": properties.get("color"),
-                "font": properties.get("fontName"),
-                "size": properties.get("fontSizePt"),
-            }.items()
-            if value is not None
-        }
-        created = parent.native.add_run(str(properties.get("text", "")), **run_kwargs)
-        if position["mode"] != "append":
-            parent.native.element.remove(created.element)
-            _insert_direct_child(view, parent, kind, created.element, position)
-        _drop_layout_cache(parent.native.element)
-        parent.native.section.mark_dirty()
-        return created
+    if kind in {"text", "footnote", "endnote"}:  # placed at a character offset (agent-command v2)
+        return _add_in_paragraph(document, view, parent, kind, properties, position)
     if kind == "table":
+        _check_v1_end_place(view, parent, "table", position)
         created = parent.native.add_table(
             int(properties["rowCount"]),
             int(properties["columnCount"]),
             width=(round(properties["widthMm"] * _HWP_UNITS_PER_MM) if "widthMm" in properties else None),
         )
         if position["mode"] != "append":
-            _remove_inline_element(created.element, parent.native)
-            _insert_inline(view, parent, kind, created.element, position)
+            _place_object(view, created, parent, position, copy=False, target=parent.path)
         return created
     if kind == "row":
         table = parent.native
@@ -952,29 +1162,13 @@ def _table_has_vertical_merge(table: Any) -> bool:
     return any(cell.span[0] > 1 for row in table.rows for cell in row.cells)
 
 
-def _refresh_table_rows(table: Any) -> None:
-    rows = table.rows
-    table.element.set("rowCnt", str(len(rows)))
-    for row_index, row in enumerate(rows):
-        for column_index, cell in enumerate(row.cells):
-            addr = next((child for child in cell.element if _local_name(child) == "cellAddr"), None)
-            if addr is not None:
-                addr.set("rowAddr", str(row_index))
-                # Preserve explicit merged-cell column addresses where present.
-                if addr.get("colAddr") is None:
-                    addr.set("colAddr", str(column_index))
-    table.mark_dirty()
-
-
-def _remove(document: HwpxDocument, record: NodeRecord) -> None:
+def _remove(view: HwpxAgentDocument, record: NodeRecord) -> None:
     _ensure_operation(record, "remove")
     native = record.native
     if record.kind == "paragraph":
         native.remove()
-    elif record.kind == "run":
-        paragraph = native.paragraph
-        native.remove()
-        paragraph.clear_layout_cache()
+    elif record.kind == "text":
+        _remove_text(record)
     elif record.kind == "table":
         native.remove(remove_orphaned=False)
     elif record.kind == "row":
@@ -986,14 +1180,13 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
                 "unsupported_content", "row removal with vertical merges is unsupported", target=record.path
             )
         table.delete_rows(table.rows.index(native))
-        _refresh_table_rows(table)
     elif record.kind == "picture":
-        parent = _element(record.native).getparent()
-        if parent is None:
-            raise AgentContractError("not_found", "picture is detached", target=record.path)
-        parent.remove(_element(record.native))
-        _drop_layout_cache(_paragraph_element_of(parent))
-        _mark_containing_section(document, parent)
+        # python-hwpx removes it as Hancom does (an emptied run goes, the caches of the paragraphs
+        # holding it go); the image stays in the package as before (N15).
+        try:
+            _object_wrapper(view, record).remove(remove_orphaned=False)
+        except ValueError as exc:
+            raise _core_refusal(exc, target=record.path) from exc
     elif record.kind == "shape":
         native.remove(remove_orphaned=False)
     elif record.kind == "memo":
@@ -1004,38 +1197,6 @@ def _remove(document: HwpxDocument, record: NodeRecord) -> None:
         raise AgentContractError(
             "unsupported_operation", f"remove is unsupported for {record.kind}", target=record.path
         )
-
-
-def _detach(view: HwpxAgentDocument, record: NodeRecord) -> Any:
-    element = _element(record.native)
-    if record.kind == "paragraph":
-        record.native.section.element.remove(element)
-        record.native.section.mark_dirty()
-    elif record.kind == "run":
-        record.native.paragraph.element.remove(element)
-        _drop_layout_cache(record.native.paragraph.element)
-        record.native.paragraph.section.mark_dirty()
-    elif record.kind in _INLINE_KINDS:
-        paragraph = record.native.paragraph if hasattr(record.native, "paragraph") else None
-        if paragraph is None and record.parent_path is not None:
-            parent_record = view.resolve_record(record.parent_path)
-            paragraph = parent_record.native if parent_record.kind == "paragraph" else None
-        if paragraph is None:
-            raise AgentContractError("unsupported_content", "inline object has no paragraph binding")
-        _remove_inline_element(element, paragraph)
-    elif record.kind == "row":
-        table = record.native.table
-        if _table_has_vertical_merge(table):
-            raise AgentContractError(
-                "unsupported_content", "row movement with vertical merges is unsupported", target=record.path
-            )
-        table.element.remove(element)
-        _refresh_table_rows(table)
-    else:
-        # A memo is not movable: python-hwpx 7.0 keeps it in its paragraph's MEMO field
-        # (the node catalog lists no "move" for memo; copy makes a new memo there).
-        raise AgentContractError("unsupported_operation", f"cannot detach {record.kind}")
-    return element
 
 
 def _move_paragraph(
@@ -1073,6 +1234,18 @@ def _move_paragraph(
     return _element(source.native)
 
 
+def _move_in_paragraph(
+    view: HwpxAgentDocument, source: NodeRecord, parent: NodeRecord, position: Mapping[str, Any]
+) -> Any:
+    """Move text or an object to a character offset (agent-command v2) with python-hwpx."""
+
+    if source.kind == "text":
+        return _place_text(view, source, parent, position, copy=False)
+    native = _object_wrapper(view, source)
+    _place_object(view, native, parent, position, copy=False, target=source.path)
+    return native
+
+
 def _move(
     view: HwpxAgentDocument,
     source: NodeRecord,
@@ -1081,14 +1254,14 @@ def _move(
 ) -> Any:
     _ensure_operation(source, "move")
     _ensure_parent(parent, source_kind=source.kind, operation="move")
+    if source.kind in _IN_PARAGRAPH_KINDS:
+        return _move_in_paragraph(view, source, parent, position)
     if source.path == parent.path or parent.path.startswith(source.path.rstrip("/") + "/"):
         raise AgentContractError(
             "incompatible_parent", "a node cannot move into its own subtree", target=parent.path
         )
-    if source.kind == "row" and source.native.table.column_count != parent.native.column_count:
-        raise AgentContractError(
-            "incompatible_parent", "row destination must have the same column count", target=parent.path
-        )
+    if source.kind == "row":
+        return _move_row(view, source, parent, position)
 
     element = _element(source.native)
     siblings = _sibling_elements(view, parent, source.kind)
@@ -1102,31 +1275,44 @@ def _move(
             anchor_index = _insertion_index(view, parent, source.kind, position, siblings=siblings)
         elif old_index < anchor_index:
             anchor_index -= 1
-    if source.kind == "paragraph":
-        return _move_paragraph(view, source, parent, siblings, anchor_index)
-    detached = _detach(view, source)
+    return _move_paragraph(view, source, parent, siblings, anchor_index)
 
-    if source.kind in {"run", "row"}:
-        container = _element(parent.native)
-        if anchor_index >= len(siblings):
-            if siblings:
-                container.insert(list(container).index(siblings[-1]) + 1, detached)
-            else:
-                container.append(detached)
-        else:
-            container.insert(list(container).index(siblings[anchor_index]), detached)
-        if source.kind == "run":
-            _drop_layout_cache(parent.native.element)
-            parent.native.section.mark_dirty()
-        else:
-            _refresh_table_rows(source.native.table)
-            _refresh_table_rows(parent.native)
-    elif source.kind in _INLINE_KINDS:
-        synthetic_position = {"mode": "index", "index": anchor_index + 1}
-        fresh_view = HwpxAgentDocument.from_document(view.document, revision=view.revision)
-        fresh_parent = _record_for_native(fresh_view, parent.native)
-        _insert_inline(fresh_view, fresh_parent, source.kind, detached, synthetic_position)
-    return detached
+
+def _row_place(
+    view: HwpxAgentDocument, source: NodeRecord, parent: NodeRecord, position: Mapping[str, Any]
+) -> int:
+    """The row number of *parent* a row goes in front of, counted before it leaves (python-hwpx ``to``).
+
+    ``index`` is the one-based place among the rows once the row has left (v1's meaning); the other
+    modes name a place among the rows as they are."""
+
+    siblings = _sibling_elements(view, parent, "row")
+    element = _element(source.native)
+    if position["mode"] != "index" or element not in siblings:
+        return _insertion_index(view, parent, "row", position, siblings=siblings)
+    old_index = siblings.index(element)
+    final = _insertion_index(view, parent, "row", position, siblings=[row for row in siblings if row is not element])
+    return final if final < old_index else final + 1
+
+
+def _move_row(
+    view: HwpxAgentDocument, source: NodeRecord, parent: NodeRecord, position: Mapping[str, Any]
+) -> Any:
+    """Move a row with python-hwpx (asks10d, N10): ``move_rows`` in its table (the row keeps its ids);
+    into another table of the same columns, ``copy_rows(source=)`` and then ``delete_rows`` -- the two
+    steps python-hwpx gives for it, so that row's cells get fresh ids there, as a copy's do."""
+
+    table = source.native.table
+    row = table.rows.index(source.native)
+    to = _row_place(view, source, parent, position)
+    try:
+        if _element(parent.native) is _element(table):
+            return table.move_rows(row, to=to)[0]
+        placed = parent.native.copy_rows(row, to=to, source=table)
+        table.delete_rows(row)
+    except ValueError as exc:
+        raise _core_refusal(exc, target=source.path) from exc
+    return placed[0]
 
 
 def _identity_kind(local: str) -> str:
@@ -1153,85 +1339,34 @@ def _identity_attribute_names(local: str, node: Any) -> tuple[str, ...]:
     return ()
 
 
-def _refresh_one_identity(
-    node: Any,
-    local: str,
-    allocate: Any,
-    identity_map: list[dict[str, str]],
-    field_ids: dict[str, str],
-) -> None:
-    names = _identity_attribute_names(local, node)
-    # 한 요소에 실린 여러 식별 속성(id+instid, 또는 instid/instId 별칭 쌍)은
-    # 같은 정체성이다 — 하나의 새 값을 페어로 재발급한다. 노트(footNote/endNote)
-    # 는 정본 instid와 과거 산출물 instId가 공존할 수 있어 #101에서 편입.
-    paired_kinds = {"pic", "footNote", "endNote", *_SHAPE_KINDS}
-    paired_identity = allocate() if len(names) > 1 and local in paired_kinds else None
-    for name in names:
-        old = str(node.get(name))
-        new = paired_identity or allocate()
-        node.set(name, new)
-        identity_map.append(
-            {"kind": _identity_kind(local), "attribute": name, "old": old, "new": new}
-        )
-        if local == "fieldBegin" and name == "id":
-            field_ids[old] = new
+def _identities(root: Any) -> list[tuple[str, str, str]]:
+    """(local name, attribute, value) of the copyable identities under *root*, in document order
+    (nothing inside a note: Hancom keeps its paragraphs at id 0)."""
+
+    found: list[tuple[str, str, str]] = []
+
+    def walk(node: Any, inside_note: bool) -> None:
+        local = _local_name(node)
+        if not inside_note:
+            found.extend((local, name, str(node.get(name))) for name in _identity_attribute_names(local, node))
+        for child in node:
+            walk(child, inside_note or local in _NOTE_TAGS)
+
+    walk(root, False)
+    return found
 
 
-def _walk_refresh_identities(
-    node: Any,
-    inside_note: bool,
-    allocate: Any,
-    identity_map: list[dict[str, str]],
-    field_ids: dict[str, str],
-) -> None:
-    """Refresh copyable identities in document order.
+def _copied_identities(source: Any, copy: Any) -> list[dict[str, str]]:
+    """The fresh ids python-hwpx gave a copy (N14), paired in order with the source's, for
+    ``generatedIdentities`` as the v1 copy reported them."""
 
-    Real-Hancom note bodies keep paragraph id="0" inside their subList (the
-    gold contract) — those are not document-order identities, so nothing
-    inside a note is refreshed. Single-pass recursion keeps this correct on
-    both element backends (lxml proxies break id()-sets).
-    """
-
-    local = _local_name(node)
-    if not inside_note:
-        _refresh_one_identity(node, local, allocate, identity_map, field_ids)
-    child_inside = inside_note or local in {"footNote", "endNote"}
-    for child in node:
-        _walk_refresh_identities(child, child_inside, allocate, identity_map, field_ids)
-
-
-def _refresh_copy_identities(document: HwpxDocument, clone: Any) -> list[dict[str, str]]:
-    used: set[str] = set()
-    max_numeric = 0
-    for section in document.sections:
-        for node in section.element.iter():
-            for name in ("id", "instid", "instId"):
-                value = node.get(name)
-                if value:
-                    used.add(value)
-                    if value.isdigit():
-                        max_numeric = max(max_numeric, int(value))
-
-    def allocate() -> str:
-        nonlocal max_numeric
-        while True:
-            max_numeric += 1
-            value = str(max_numeric)
-            if value not in used:
-                used.add(value)
-                return value
-
-    identity_map: list[dict[str, str]] = []
-    field_ids: dict[str, str] = {}
-    _walk_refresh_identities(clone, False, allocate, identity_map, field_ids)
-    if field_ids:
-        for node in clone.iter():
-            if _local_name(node) != "fieldEnd":
-                continue
-            old = node.get("beginIDRef")
-            if old in field_ids:
-                node.set("beginIDRef", field_ids[old])
-    return identity_map
+    changes: list[dict[str, str]] = []
+    for (local, name, old), (copy_local, copy_name, new) in zip(_identities(source), _identities(copy)):
+        if (local, name) != (copy_local, copy_name):
+            break
+        if old != new:
+            changes.append({"kind": _identity_kind(local), "attribute": name, "old": old, "new": new})
+    return changes
 
 
 def _copy_node(
@@ -1243,34 +1378,51 @@ def _copy_node(
 ) -> tuple[Any, list[dict[str, str]]]:
     _ensure_operation(source, "copy")
     _ensure_parent(parent, source_kind=source.kind, operation="copy")
-    if source.kind == "row":
-        if source.native.table.column_count != parent.native.column_count:
-            raise AgentContractError(
-                "incompatible_parent", "row destination must have the same column count", target=parent.path
-            )
-        if _table_has_vertical_merge(source.native.table) or _table_has_vertical_merge(parent.native):
-            raise AgentContractError(
-                "unsupported_content", "row copy with vertical merges is unsupported", target=source.path
-            )
-    clone = copy.deepcopy(_element(source.native))
-    identity_map = _refresh_copy_identities(document, clone)
-    if source.kind in {"paragraph", "run", "row"}:
-        _insert_direct_child(view, parent, source.kind, clone, position)
-        if source.kind == "paragraph":
-            _drop_layout_cache(clone)  # a copy never carries the source's cached lines
-            parent.native.mark_dirty()
-        elif source.kind == "run":
-            _drop_layout_cache(parent.native.element)
-            parent.native.section.mark_dirty()
-        else:
-            _refresh_table_rows(parent.native)
-    elif source.kind in _INLINE_KINDS:
-        _insert_inline(view, parent, source.kind, clone, position)
-    elif source.kind == "memo":
+    if source.kind == "text":
+        return _place_text(view, source, parent, position, copy=True), []
+    if source.kind in _OFFSET_KINDS:
+        original = _object_wrapper(view, source)
+        copied = _place_object(view, original, parent, position, copy=True, target=source.path)
+        return copied, _copied_identities(original.element, copied.element)
+    if source.kind == "paragraph":
+        return _copy_paragraph(view, source, parent, position)
+    if source.kind == "memo":
         return _copy_memo(document, source, parent)
-    else:
+    if source.kind != "row":
         raise AgentContractError("unsupported_operation", f"copy is unsupported for {source.kind}")
-    return clone, identity_map
+    # python-hwpx copies the row with fresh ids for what it holds (asks10d, N10); a merged cell
+    # crossing the row's edge or the place is refused there (table-rows-merge-crossed).
+    table = source.native.table
+    to = _insertion_index(view, parent, "row", position)
+    try:
+        placed = parent.native.copy_rows(
+            table.rows.index(source.native),
+            to=to,
+            source=None if _element(parent.native) is _element(table) else table,
+        )
+    except ValueError as exc:
+        raise _core_refusal(exc, target=source.path) from exc
+    return placed[0], _copied_identities(_element(source.native), _element(placed[0]))
+
+
+def _copy_paragraph(
+    view: HwpxAgentDocument, source: NodeRecord, parent: NodeRecord, position: Mapping[str, Any]
+) -> tuple[Any, list[dict[str, str]]]:
+    """Copy a section paragraph beside one of *parent*'s paragraphs with python-hwpx's
+    ``copy_to`` (N9): fresh ids for it and what it holds, no line layout cache, a memo of its own."""
+
+    siblings = [
+        record.native for record in view.records if record.parent_path == parent.path and record.kind == "paragraph"
+    ]
+    index = _insertion_index(view, parent, "paragraph", position, siblings=[_element(item) for item in siblings])
+    try:
+        if index < len(siblings):
+            copied = source.native.copy_to(siblings[index], before=True)
+        else:
+            copied = source.native.copy_to(siblings[-1])
+    except ValueError as exc:
+        raise _core_refusal(exc, target=source.path) from exc
+    return copied, _copied_identities(_element(source.native), _element(copied))
 
 
 def _copy_memo(
@@ -1328,35 +1480,42 @@ def _dispatch_command_op(
             changed = _apply_header_story_set(story_before, command["properties"])
         else:
             record = view.resolve_record(resolved_path, expected_revision=input_revision)
-            changed = _apply_set(document, record, command["properties"])
-            target_native = record.native
+            if record.kind == "text":
+                _ensure_operation(record, "set")
+                _validate_property_values("text", command["properties"], creating=False)
+                target_native = _set_text(document, record, command["properties"])
+                changed = _set_result_summary(record, command["properties"])
+            else:
+                changed = _apply_set(document, record, command["properties"], view)
+                target_native = record.native
     elif op == "add":
         parent_path = _resolve_alias(command["parent"], aliases)
         parent = view.resolve_record(parent_path, expected_revision=input_revision)
-        position = _resolved_position(command["position"], aliases)
+        position = _resolved_position(command["position"], aliases, command)
         target_native = _add(document, view, parent, command["kind"], command["properties"], position)
-        created_view = HwpxAgentDocument.from_document(document, revision=input_revision)
-        created_record = _record_for_native(created_view, target_native)
-        changed = _apply_create_properties(document, created_record, command["properties"])
+        if not isinstance(target_native, TextRange):  # a text range is made with its properties
+            created_view = HwpxAgentDocument.from_document(document, revision=input_revision)
+            created_record = _record_for_native(created_view, target_native)
+            changed = _apply_create_properties(document, created_record, command["properties"])
     elif op == "remove":
         resolved_path = _resolve_alias(command["path"], aliases)
         record = view.resolve_record(resolved_path, expected_revision=input_revision)
         parent_path = record.parent_path
-        _remove(document, record)
+        _remove(view, record)
         target_native = None
     elif op == "move":
         resolved_path = _resolve_alias(command["path"], aliases)
         parent_path = _resolve_alias(command["parent"], aliases)
         source = view.resolve_record(resolved_path, expected_revision=input_revision)
         parent = view.resolve_record(parent_path, expected_revision=input_revision)
-        position = _resolved_position(command["position"], aliases)
+        position = _resolved_position(command["position"], aliases, command)
         target_native = _move(view, source, parent, position)
     else:  # copy
         resolved_path = _resolve_alias(command["path"], aliases)
         parent_path = _resolve_alias(command["parent"], aliases)
         source = view.resolve_record(resolved_path, expected_revision=input_revision)
         parent = view.resolve_record(parent_path, expected_revision=input_revision)
-        position = _resolved_position(command["position"], aliases)
+        position = _resolved_position(command["position"], aliases, command)
         target_native, generated = _copy_node(document, view, source, parent, position)
     return resolved_path, parent_path, changed, generated, target_native, story_before
 
@@ -1375,7 +1534,9 @@ def _finalize_command_result(
     """Return (result_path, result_parent, result_stable_id) for one applied command."""
 
     result_stable_id: str | None = None
-    if story_before is not None and resolved_path is not None:
+    if isinstance(target_native, TextRange):
+        result_path, result_parent = _text_path(view, target_native)
+    elif story_before is not None and resolved_path is not None:
         target_story = view._resolve_header_story(resolved_path)
         if target_story.stable_id != story_before.stable_id:
             raise AgentContractError(
@@ -1410,6 +1571,29 @@ def _finalize_command_result(
     return result_path, result_parent, result_stable_id
 
 
+def _result_place(view: HwpxAgentDocument, op: str, path: str, target_native: Any) -> dict[str, Any] | None:
+    """Where the command's node now stands in its paragraph's text (agent-command v2, N8)."""
+
+    if op == "remove":
+        return None
+    if isinstance(target_native, TextRange):
+        paragraph_path = path.rsplit("/", 1)[0]
+        return place(paragraph_path, target_native.start, target_native.end - target_native.start)
+    try:
+        value = view.resolve_record(path).place
+    except AgentContractError:
+        return None
+    return dict(value) if value is not None else None
+
+
+def command_seed(data: bytes) -> int:
+    """The id seed a command batch opens its document with: ``upstream.content_seed`` of the input
+    (the first 8 hex digits of its sha256, as school's ``open_seeded``).  Same file, same commands,
+    same bytes; the batch's order or content is not mixed in."""
+
+    return content_seed(data)
+
+
 def _text_only_batch_keeps_projection(text_scope: TextScope) -> bool:
     """Whether one projection can serve every command of the batch.
 
@@ -1440,7 +1624,7 @@ def apply_document_commands(
     domain_verifier: DomainVerifier | None = None,
     save_pipeline: SavePipeline | None = None,
 ) -> AgentBatchResult:
-    """Validate and atomically apply one ``hwpx.agent-batch/v1`` request.
+    """Validate and atomically apply one ``hwpx.agent-batch/v2`` request (v1 read as it was where it means the same).
 
     ``idempotency_store`` is explicitly caller-owned.  The core keeps no hidden
     resident state in Leap A; MCP/CLI adapters may supply their existing scoped
@@ -1483,7 +1667,7 @@ def apply_document_commands(
         semantic_changes: list[Mapping[str, Any]] = []
         story_expectations: dict[str, Mapping[str, str]] = {}
         _call_fault(fault_injector, "before_open")
-        with HwpxDocument.open(input_data) as document:
+        with HwpxDocument.open(input_data, seed=command_seed(input_data)) as document:
             view = HwpxAgentDocument.from_document(document, revision=input_revision)
             text_scope = TextScope.bind(view, normalized["commands"])
             keep_view = _text_only_batch_keeps_projection(text_scope)
@@ -1521,6 +1705,9 @@ def apply_document_commands(
                     "generatedIdentities": generated,
                     "warnings": [],
                 }
+                result_place = _result_place(view, op, result_path, target_native)
+                if result_place is not None:
+                    result["place"] = result_place
                 if result_stable_id is not None:
                     # Command results are already an untyped JSON mapping.  This
                     # story-only receipt carries the actual stable identity

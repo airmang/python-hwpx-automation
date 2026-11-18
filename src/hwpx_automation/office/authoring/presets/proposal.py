@@ -34,6 +34,7 @@ _REQUIRED_SECTIONS = (
     "expected_outcomes",
     "closing",
 )
+from ....upstream import request_seed
 
 _EMPTY_ASSET_INFO = {"image_count": 0, "image_bytes": 0, "package_bytes": 0}
 
@@ -160,7 +161,8 @@ def create_proposal_document(
         if isinstance(preset, ProposalStylePreset)
         else ProposalStylePreset(name=str(preset or "clean_korean_proposal"))
     )
-    document = HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
+    # 6.x layout (core 7.0 default changed); ids seeded from the spec: same spec, same bytes.
+    document = HwpxDocument.new(empty_first_line=True, seed=request_seed(repr((normalized, style_preset))))
     tokens = style_preset.ensure_tokens(document)
 
     _add_paragraph(document, normalized.title, tokens["title"])

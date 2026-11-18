@@ -20,6 +20,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from hwpx import HwpxDocument, validate_editor_open_safety
 
+from .upstream import open_seeded_input
+
 MAIL_MERGE_REPORT_VERSION = "mail-merge-v1"
 
 # A key starts with a letter of any script (or "_"), so ``{{성명}}`` is a placeholder like ``{{name}}``.
@@ -265,7 +267,8 @@ def merge_template_rows(
             )
             continue
 
-        document = HwpxDocument.open(template_path)
+        # Every record opens the template with its seed: same template and rows, same files.
+        document = open_seeded_input(template_path)
         replaced_count = 0
         fit_fields: list[dict[str, Any]] = []
         masked_fields: list[str] = []

@@ -87,7 +87,7 @@ EXPECTED_SERVICE_LINES = {
     # refuses the impossible combination rather than forwarding it.
     # 8.0: a save python-hwpx 7.0 refuses carries its code as details.coreCode
     # (619 -> 624).
-    "save_policy.py": 624,
+    "save_policy.py": 621,
     # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
     # hasattr fallback (equivalent direct itemCnt computation) is now the only
     # branch, so the dead private call went away.
@@ -185,17 +185,15 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/handlers/read_export.py", "_build_read_model", 15),
     ("src/hwpx_automation/handlers/tracked_changes.py", "_validate_tracked_edits", 19),
     ("src/hwpx_automation/handlers/tracked_changes.py", "add_tracked_edit", 12),
-    ("src/hwpx_automation/office/agent/blueprint/dump.py", "_make_manifest", 16),
-    ("src/hwpx_automation/office/agent/blueprint/mapping.py", "_preflight_graph", 15),
+    ("src/hwpx_automation/office/agent/blueprint/dump.py", "_make_manifest", 13),
+    ("src/hwpx_automation/office/agent/blueprint/mapping.py", "_preflight_graph", 12),
     ("src/hwpx_automation/office/agent/blueprint/model.py", "_validate_public_json", 11),
     ("src/hwpx_automation/office/agent/blueprint/model.py", "validate_replay_request", 14),
-    ("src/hwpx_automation/office/agent/blueprint/native.py", "create_root", 14),
+    ("src/hwpx_automation/office/agent/blueprint/native.py", "create_root", 13),
     # render-pdf is dispatched ahead of the frozen parser (one branch) so the
     # parser's help and choice errors stay byte-identical to core's golden.
     ("src/hwpx_automation/office/agent/cli.py", "main", 15),
-    ("src/hwpx_automation/office/agent/commands.py", "_add", 15),  # 8.0: rows and paragraphs go in through python-hwpx
-    ("src/hwpx_automation/office/agent/commands.py", "_move", 12),  # 8.0: the memo move branch went away (15 -> 12)
-    ("src/hwpx_automation/office/agent/commands.py", "_refresh_copy_identities", 13),
+    ("src/hwpx_automation/office/agent/commands.py", "_add", 14),  # 8.0: rows and paragraphs go in through python-hwpx; text through insert_text
     ("src/hwpx_automation/office/agent/commands.py", "_remove", 12),
     ("src/hwpx_automation/office/agent/document.py", "_project_paragraph", 13),
     ("src/hwpx_automation/office/agent/form_plan.py", "_validate_plan_target", 11),
@@ -203,7 +201,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/agent/form_plan.py", "validate_mixed_form_request", 13),
     ("src/hwpx_automation/office/agent/model.py", "__post_init__", 15),
     ("src/hwpx_automation/office/agent/model.py", "validate_agent_batch", 16),
-    ("src/hwpx_automation/office/agent/path.py", "parse_path", 19),
+    ("src/hwpx_automation/office/agent/path.py", "parse_path", 15),
     ("src/hwpx_automation/office/agent/query.py", "_split_steps", 15),
     ("src/hwpx_automation/office/authoring/__init__.py", "_bridge_to_design_plan", 14),
     ("src/hwpx_automation/office/authoring/__init__.py", "_normalize_block", 13),

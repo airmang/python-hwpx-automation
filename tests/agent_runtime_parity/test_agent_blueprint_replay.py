@@ -185,15 +185,17 @@ def test_portable_replay_preserves_merged_table_form_note_shape_and_media(tmp_pa
             )
         ]
         assert control_runs
-        assert all(
-            not any(
-                child.tag.rsplit("}", 1)[-1] == "t"
-                and not "".join(child.itertext())
-                and not child.tail
-                for child in run
-            )
-            for run in control_runs
-        )
+        # Hancom skips a table or control that follows an empty hp:t in its run. An empty hp:t after the
+        # objects is Hancom's own shape (the run's end, as python-hwpx's move_to leaves it) and is fine.
+        controls = {"tbl", "pic", "rect", "footNote", "endNote", "ctrl"}
+        for run in control_runs:
+            children = list(run)
+            for index, child in enumerate(children):
+                empty = child.tag.rsplit("}", 1)[-1] == "t" and not "".join(child.itertext()) and not child.tail
+                if empty:
+                    assert not any(
+                        later.tag.rsplit("}", 1)[-1] in controls for later in children[index + 1 :]
+                    )
 
 
 @pytest.mark.parametrize("field_type", ["FORM", "ClickHere", "NURUMTUL", "누름틀"])

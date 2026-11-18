@@ -1,0 +1,2997 @@
+{
+  "schemaVersion": "hwpx.tool-contract-delta/v1",
+  "release": "8.0.0",
+  "releaseStatus": "unreleased-source",
+  "baseline": {
+    "contractHash": "1b572e4ed5e410e6",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136
+  },
+  "target": {
+    "release": "8.0.0",
+    "contractHash": "c895883d5f4350ae",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136,
+    "skillRequiredToolCount": 29
+  },
+  "delta": {
+    "addedTools": [],
+    "removedTools": [],
+    "promotedTools": [],
+    "profileMoves": [],
+    "changedInputSchemas": [
+      "apply_document_commands",
+      "apply_form_fill",
+      "verify_form_fill"
+    ],
+    "changedOutputSchemas": [
+      "analyze_form_fill"
+    ],
+    "changedDescriptions": [
+      "apply_document_commands",
+      "dump_document_blueprint",
+      "get_document_node",
+      "query_document_nodes",
+      "replay_document_blueprint"
+    ]
+  },
+  "changedTools": [
+    "analyze_form_fill",
+    "apply_document_commands",
+    "apply_form_fill",
+    "dump_document_blueprint",
+    "get_document_node",
+    "query_document_nodes",
+    "replay_document_blueprint",
+    "verify_form_fill"
+  ],
+  "floors": {
+    "minPythonHwpx": "7.0.0",
+    "minAutomationVersion": "7.2.0",
+    "minMcpVersion": "7.2.0",
+    "minSkillVersion": "2.0.0"
+  },
+  "note": "agent-command v2 and blueprint v2 (hwpx-automation 8.0): text is added, removed, moved and copied as a character range (kind text, <paragraph>/text[s:e]), objects and notes sit at a character offset (position.mode offset), results carry place, and the v1 forms whose meaning changed are refused with the new error code contract_changed. v1 commands whose meaning is unchanged and v1 blueprints are still read. The mixed form plan carries batch v2. Tool names, profiles and floors are unchanged; see docs/agent-command-v2.md.",
+  "previous": {
+    "tools": {
+      "get_document_node": {
+        "description": "Get one bounded HWPX semantic node by canonical path. Shared catalog sha256:e1991f8cf51f9aa5f63f2d70139f98b7d418d16c3b80519cc7bae64eee1dc5f5.\n\nHWPX agent document interface v1\n\ndocument\n  readable: title, author, sectionCount, paragraphCount, tableCount\n  editable: -\n  operations: add\nsection\n  readable: index, partId, paragraphCount, pageWidthMm, pageHeightMm\n  editable: -\n  operations: add\nparagraph\n  readable: text, style, alignment, breakBefore, keepWithNext, lineSpacingPercent\n  editable: text, style, alignment, breakBefore, keepWithNext, lineSpacingPercent\n  operations: set, add, remove, move, copy\nrun\n  readable: text, bold, italic, underline, fontName, fontSizePt, color\n  editable: text, bold, italic, underline, fontName, fontSizePt, color\n  operations: set, add, remove, copy\ntable\n  readable: rowCount, columnCount, caption, widthMm, alignment\n  editable: caption, alignment\n  operations: set, add, remove, move, copy\nrow\n  readable: index, cellCount, heightMm\n  editable: heightMm\n  operations: set, add, remove, move, copy\ncell\n  readable: text, row, column, rowSpan, columnSpan, verticalAlignment, backgroundColor\n  editable: text, verticalAlignment, backgroundColor\n  operations: set\nform-field\n  readable: name, value, fieldType, readOnly\n  editable: value, readOnly\n  operations: set\npicture\n  readable: name, altText, widthMm, heightMm, mediaType\n  editable: altText\n  operations: set, remove, move, copy\nmemo\n  readable: text, author\n  editable: text\n  operations: set, remove, copy\nfootnote\n  readable: text\n  editable: text\n  operations: set, remove, copy\nendnote\n  readable: text\n  editable: text\n  operations: set, remove, copy\nshape\n  readable: shapeType, name, altText, xMm, yMm, widthMm, heightMm\n  editable: altText\n  operations: set, remove, move, copy\nunsupported\n  readable: localName, reason\n  editable: -\n  operations: -"
+      },
+      "query_document_nodes": {
+        "description": "Query bounded semantic nodes with selector v1 and return canonical paths. Examples: paragraph[style=\"개요 1\"]:contains(\"평가\"), section > paragraph[type=\"normal\"], table[id=\"123\"] > row > cell. Shared catalog sha256:e1991f8cf51f9aa5f63f2d70139f98b7d418d16c3b80519cc7bae64eee1dc5f5."
+      },
+      "apply_document_commands": {
+        "description": "Apply one heterogeneous atomic HWPX command batch using only the shared set/add/remove/move/copy union; all commands commit once or roll back. Shared catalog sha256:e1991f8cf51f9aa5f63f2d70139f98b7d418d16c3b80519cc7bae64eee1dc5f5.",
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {
+            "commands": {
+              "items": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "title": "HwpxAgentCommand v1",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "commandId",
+                      "op",
+                      "path",
+                      "properties"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "commandId": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+                      },
+                      "op": {
+                        "const": "set"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "properties": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "maxProperties": 32
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "commandId",
+                      "op",
+                      "parent",
+                      "kind",
+                      "properties"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "commandId": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+                      },
+                      "op": {
+                        "const": "add"
+                      },
+                      "parent": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "enum": [
+                          "section",
+                          "paragraph",
+                          "run",
+                          "table",
+                          "row",
+                          "cell",
+                          "form-field",
+                          "picture",
+                          "memo",
+                          "footnote",
+                          "endnote",
+                          "shape"
+                        ]
+                      },
+                      "properties": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "maxProperties": 32
+                      },
+                      "position": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "commandId",
+                      "op",
+                      "path"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "commandId": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+                      },
+                      "op": {
+                        "const": "remove"
+                      },
+                      "path": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "commandId",
+                      "op",
+                      "path",
+                      "parent"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "commandId": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+                      },
+                      "op": {
+                        "const": "move"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "parent": {
+                        "type": "string"
+                      },
+                      "position": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "commandId",
+                      "op",
+                      "path",
+                      "parent"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "commandId": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+                      },
+                      "op": {
+                        "const": "copy"
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "parent": {
+                        "type": "string"
+                      },
+                      "position": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                ]
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "title": "Commands",
+              "type": "array"
+            },
+            "dry_run": {
+              "default": false,
+              "title": "Dry Run",
+              "type": "boolean"
+            },
+            "expected_revision": {
+              "anyOf": [
+                {
+                  "pattern": "^sha256:[a-f0-9]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Expected Revision"
+            },
+            "filename": {
+              "title": "Filename",
+              "type": "string"
+            },
+            "idempotency_key": {
+              "default": null,
+              "title": "Idempotency Key",
+              "type": "string"
+            },
+            "output": {
+              "title": "Output",
+              "type": "string"
+            },
+            "overwrite": {
+              "default": false,
+              "title": "Overwrite",
+              "type": "boolean"
+            },
+            "quality": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": true,
+                  "properties": {},
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "transparent",
+              "title": "Quality"
+            },
+            "verification_requirements": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Verification Requirements"
+            }
+          },
+          "required": [
+            "filename",
+            "output",
+            "commands"
+          ],
+          "title": "apply_document_commandsArguments",
+          "type": "object"
+        }
+      },
+      "dump_document_blueprint": {
+        "description": "Dump one revision-bound HWPX document/subtree into a validated typed .hwpxbp; returns bounded manifest/fidelity evidence and never exposes raw XML. Shared blueprint catalog sha256:cd8fa6ef9240ed7f1452789feeea7732ddd36dfeed785ddb592b43fb60e6730d.\n\nHWPX typed blueprint v1\n  dump: revision-bound document/subtree -> deterministic .hwpxbp\n  replay: source-bound|portable -> one atomic SavePipeline commit\n  fidelity: exact, mapped; strict replay rejects degraded/unsupported\n  limits: nodes=10000, assets=128, manifest=16777216 bytes\n  raw XML, package parts, resident sessions, watch, and OfficeCLI are unavailable"
+      },
+      "replay_document_blueprint": {
+        "description": "Atomically replay one validated typed blueprint request with strict dependency mapping, caller-owned idempotency, one save, rollback, lossless/openSafety evidence, and no session state. Shared blueprint catalog sha256:cd8fa6ef9240ed7f1452789feeea7732ddd36dfeed785ddb592b43fb60e6730d."
+      },
+      "verify_form_fill": {
+        "inputSchema": {
+          "$defs": {
+            "MixedFormCompiledPlanInput": {
+              "additionalProperties": false,
+              "description": "Detached, revision-bound plan returned by ``analyze_form_fill``.",
+              "properties": {
+                "batch": {
+                  "$ref": "#/$defs/_CompiledBatch"
+                },
+                "inputRevision": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Inputrevision",
+                  "type": "string"
+                },
+                "planHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Planhash",
+                  "type": "string"
+                },
+                "requestHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Requesthash",
+                  "type": "string"
+                },
+                "resolutions": {
+                  "items": {
+                    "$ref": "#/$defs/MixedFormResolution"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "title": "Resolutions",
+                  "type": "array"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.mixed-form-compiled-plan/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "inputRevision",
+                "requestHash",
+                "resolutions",
+                "batch",
+                "planHash"
+              ],
+              "title": "MixedFormCompiledPlanInput",
+              "type": "object"
+            },
+            "MixedFormQuality": {
+              "additionalProperties": false,
+              "properties": {
+                "layoutLint": {
+                  "enum": [
+                    "off",
+                    "warn",
+                    "strict"
+                  ],
+                  "title": "Layoutlint",
+                  "type": "string"
+                },
+                "mode": {
+                  "enum": [
+                    "transparent",
+                    "strict"
+                  ],
+                  "title": "Mode",
+                  "type": "string"
+                },
+                "overflowPolicy": {
+                  "enum": [
+                    "fail",
+                    "warn",
+                    "truncate"
+                  ],
+                  "title": "Overflowpolicy",
+                  "type": "string"
+                },
+                "preserveUnmodifiedParts": {
+                  "title": "Preserveunmodifiedparts",
+                  "type": "boolean"
+                },
+                "renderCheck": {
+                  "enum": [
+                    "off",
+                    "auto",
+                    "required"
+                  ],
+                  "title": "Rendercheck",
+                  "type": "string"
+                },
+                "requireReferenceIntegrity": {
+                  "title": "Requirereferenceintegrity",
+                  "type": "boolean"
+                },
+                "xsdMode": {
+                  "enum": [
+                    "off",
+                    "lint"
+                  ],
+                  "title": "Xsdmode",
+                  "type": "string"
+                }
+              },
+              "title": "MixedFormQuality",
+              "type": "object"
+            },
+            "MixedFormResolution": {
+              "additionalProperties": false,
+              "properties": {
+                "locatorKind": {
+                  "enum": [
+                    "nativeField",
+                    "labelCell",
+                    "canonicalPath",
+                    "bodyAnchor"
+                  ],
+                  "title": "Locatorkind",
+                  "type": "string"
+                },
+                "logicalColumn": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Logicalcolumn"
+                },
+                "logicalRow": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Logicalrow"
+                },
+                "nodeKind": {
+                  "enum": [
+                    "paragraph",
+                    "run",
+                    "cell",
+                    "form-field"
+                  ],
+                  "title": "Nodekind",
+                  "type": "string"
+                },
+                "operationId": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                  "title": "Operationid",
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "title": "Path",
+                  "type": "string"
+                },
+                "physicalColumn": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Physicalcolumn"
+                },
+                "physicalRow": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Physicalrow"
+                },
+                "section": {
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Section"
+                },
+                "stability": {
+                  "enum": [
+                    "native",
+                    "derived",
+                    "positional"
+                  ],
+                  "title": "Stability",
+                  "type": "string"
+                },
+                "tableIndex": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Tableindex"
+                }
+              },
+              "required": [
+                "operationId",
+                "locatorKind",
+                "path",
+                "nodeKind",
+                "stability",
+                "section",
+                "tableIndex",
+                "logicalRow",
+                "logicalColumn",
+                "physicalRow",
+                "physicalColumn"
+              ],
+              "title": "MixedFormResolution",
+              "type": "object"
+            },
+            "_CompiledBatch": {
+              "additionalProperties": false,
+              "properties": {
+                "commands": {
+                  "items": {
+                    "$ref": "#/$defs/_CompiledSetCommand"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "title": "Commands",
+                  "type": "array"
+                },
+                "dryRun": {
+                  "title": "Dryrun",
+                  "type": "boolean"
+                },
+                "expectedRevision": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Expectedrevision",
+                  "type": "string"
+                },
+                "idempotencyKey": {
+                  "anyOf": [
+                    {
+                      "maxLength": 128,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Idempotencykey"
+                },
+                "input": {
+                  "$ref": "#/$defs/_FilenameRef"
+                },
+                "output": {
+                  "$ref": "#/$defs/_OutputRef"
+                },
+                "quality": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "transparent",
+                        "strict"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/MixedFormQuality"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Quality"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.agent-batch/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "verificationRequirements": {
+                  "items": {
+                    "enum": [
+                      "package",
+                      "reopen",
+                      "openSafety",
+                      "semanticDiff",
+                      "bytePreservation",
+                      "domain",
+                      "realHancom"
+                    ],
+                    "type": "string"
+                  },
+                  "title": "Verificationrequirements",
+                  "type": "array",
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "input",
+                "output",
+                "commands",
+                "expectedRevision",
+                "idempotencyKey",
+                "dryRun",
+                "quality",
+                "verificationRequirements"
+              ],
+              "title": "_CompiledBatch",
+              "type": "object"
+            },
+            "_CompiledSetCommand": {
+              "additionalProperties": false,
+              "properties": {
+                "commandId": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                  "title": "Commandid",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "set",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "title": "Path",
+                  "type": "string"
+                },
+                "properties": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/_TextSetProperties"
+                    },
+                    {
+                      "$ref": "#/$defs/_ValueSetProperties"
+                    }
+                  ],
+                  "title": "Properties"
+                }
+              },
+              "required": [
+                "commandId",
+                "op",
+                "path",
+                "properties"
+              ],
+              "title": "_CompiledSetCommand",
+              "type": "object"
+            },
+            "_FilenameRef": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "minLength": 1,
+                  "title": "Filename",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename"
+              ],
+              "title": "_FilenameRef",
+              "type": "object"
+            },
+            "_OutputRef": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "minLength": 1,
+                  "title": "Filename",
+                  "type": "string"
+                },
+                "overwrite": {
+                  "title": "Overwrite",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "filename",
+                "overwrite"
+              ],
+              "title": "_OutputRef",
+              "type": "object"
+            },
+            "_TextSetProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "text": {
+                  "maxLength": 4096,
+                  "title": "Text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "title": "_TextSetProperties",
+              "type": "object"
+            },
+            "_ValueSetProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "maxLength": 4096,
+                  "title": "Value",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "title": "_ValueSetProperties",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "before_path": {
+              "default": null,
+              "title": "Before Path",
+              "type": "string"
+            },
+            "expected_output_revision": {
+              "anyOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Expected Output Revision"
+            },
+            "filename": {
+              "default": null,
+              "title": "Filename",
+              "type": "string"
+            },
+            "plan": {
+              "$ref": "#/$defs/MixedFormCompiledPlanInput",
+              "default": null
+            },
+            "require": {
+              "default": false,
+              "title": "Require",
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "title": "verify_form_fillArguments",
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "not": {
+                    "type": "null"
+                  }
+                }
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "filename"
+                    ],
+                    "properties": {
+                      "filename": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "before_path"
+                    ],
+                    "properties": {
+                      "before_path": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "required": [
+                "filename",
+                "before_path"
+              ],
+              "properties": {
+                "filename": {
+                  "not": {
+                    "type": "null"
+                  }
+                },
+                "before_path": {
+                  "not": {
+                    "type": "null"
+                  }
+                },
+                "plan": {
+                  "type": "null"
+                },
+                "expected_output_revision": {
+                  "type": "null"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "analyze_form_fill": {
+        "outputSchema": {
+          "$defs": {
+            "CanonicalMixedFormAnalysisOutput": {
+              "additionalProperties": false,
+              "properties": {
+                "compiledPlan": {
+                  "$ref": "#/$defs/MixedFormCompiledPlanInput"
+                },
+                "mutated": {
+                  "const": false,
+                  "title": "Mutated",
+                  "type": "boolean"
+                },
+                "nextTool": {
+                  "const": "apply_form_fill",
+                  "title": "Nexttool",
+                  "type": "string"
+                },
+                "openSafety": {
+                  "additionalProperties": true,
+                  "title": "Opensafety",
+                  "type": "object",
+                  "properties": {}
+                },
+                "output": {
+                  "$ref": "#/$defs/_AnalysisOutputRef"
+                },
+                "planHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Planhash",
+                  "type": "string"
+                },
+                "requestHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Requesthash",
+                  "type": "string"
+                },
+                "resolutions": {
+                  "items": {
+                    "$ref": "#/$defs/MixedFormResolution"
+                  },
+                  "title": "Resolutions",
+                  "type": "array"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.mixed-form-analysis/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "source": {
+                  "$ref": "#/$defs/_AnalysisSource"
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "mutated",
+                "source",
+                "output",
+                "compiledPlan",
+                "planHash",
+                "requestHash",
+                "resolutions",
+                "openSafety",
+                "nextTool"
+              ],
+              "title": "CanonicalMixedFormAnalysisOutput",
+              "type": "object"
+            },
+            "LegacyFormFillAnalysisOutput": {
+              "additionalProperties": true,
+              "properties": {
+                "compatibility": {
+                  "$ref": "#/$defs/_LegacyFormFillCompatibility"
+                },
+                "mutated": {
+                  "const": false,
+                  "title": "Mutated",
+                  "type": "boolean"
+                },
+                "plan_id": {
+                  "minLength": 1,
+                  "title": "Plan Id",
+                  "type": "string"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.formfill.v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "plan_id",
+                "mutated",
+                "compatibility"
+              ],
+              "title": "LegacyFormFillAnalysisOutput",
+              "type": "object"
+            },
+            "MixedFormCompiledPlanInput": {
+              "additionalProperties": false,
+              "description": "Detached, revision-bound plan returned by ``analyze_form_fill``.",
+              "properties": {
+                "batch": {
+                  "$ref": "#/$defs/_CompiledBatch"
+                },
+                "inputRevision": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Inputrevision",
+                  "type": "string"
+                },
+                "planHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Planhash",
+                  "type": "string"
+                },
+                "requestHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Requesthash",
+                  "type": "string"
+                },
+                "resolutions": {
+                  "items": {
+                    "$ref": "#/$defs/MixedFormResolution"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "title": "Resolutions",
+                  "type": "array"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.mixed-form-compiled-plan/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "inputRevision",
+                "requestHash",
+                "resolutions",
+                "batch",
+                "planHash"
+              ],
+              "title": "MixedFormCompiledPlanInput",
+              "type": "object"
+            },
+            "MixedFormQuality": {
+              "additionalProperties": false,
+              "properties": {
+                "layoutLint": {
+                  "enum": [
+                    "off",
+                    "warn",
+                    "strict"
+                  ],
+                  "title": "Layoutlint",
+                  "type": "string"
+                },
+                "mode": {
+                  "enum": [
+                    "transparent",
+                    "strict"
+                  ],
+                  "title": "Mode",
+                  "type": "string"
+                },
+                "overflowPolicy": {
+                  "enum": [
+                    "fail",
+                    "warn",
+                    "truncate"
+                  ],
+                  "title": "Overflowpolicy",
+                  "type": "string"
+                },
+                "preserveUnmodifiedParts": {
+                  "title": "Preserveunmodifiedparts",
+                  "type": "boolean"
+                },
+                "renderCheck": {
+                  "enum": [
+                    "off",
+                    "auto",
+                    "required"
+                  ],
+                  "title": "Rendercheck",
+                  "type": "string"
+                },
+                "requireReferenceIntegrity": {
+                  "title": "Requirereferenceintegrity",
+                  "type": "boolean"
+                },
+                "xsdMode": {
+                  "enum": [
+                    "off",
+                    "lint"
+                  ],
+                  "title": "Xsdmode",
+                  "type": "string"
+                }
+              },
+              "title": "MixedFormQuality",
+              "type": "object"
+            },
+            "MixedFormResolution": {
+              "additionalProperties": false,
+              "properties": {
+                "locatorKind": {
+                  "enum": [
+                    "nativeField",
+                    "labelCell",
+                    "canonicalPath",
+                    "bodyAnchor"
+                  ],
+                  "title": "Locatorkind",
+                  "type": "string"
+                },
+                "logicalColumn": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Logicalcolumn"
+                },
+                "logicalRow": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Logicalrow"
+                },
+                "nodeKind": {
+                  "enum": [
+                    "paragraph",
+                    "run",
+                    "cell",
+                    "form-field"
+                  ],
+                  "title": "Nodekind",
+                  "type": "string"
+                },
+                "operationId": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                  "title": "Operationid",
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "title": "Path",
+                  "type": "string"
+                },
+                "physicalColumn": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Physicalcolumn"
+                },
+                "physicalRow": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Physicalrow"
+                },
+                "section": {
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Section"
+                },
+                "stability": {
+                  "enum": [
+                    "native",
+                    "derived",
+                    "positional"
+                  ],
+                  "title": "Stability",
+                  "type": "string"
+                },
+                "tableIndex": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Tableindex"
+                }
+              },
+              "required": [
+                "operationId",
+                "locatorKind",
+                "path",
+                "nodeKind",
+                "stability",
+                "section",
+                "tableIndex",
+                "logicalRow",
+                "logicalColumn",
+                "physicalRow",
+                "physicalColumn"
+              ],
+              "title": "MixedFormResolution",
+              "type": "object"
+            },
+            "_AnalysisOutputRef": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "title": "Filename",
+                  "type": "string"
+                },
+                "unchangedAfterAnalysis": {
+                  "const": true,
+                  "title": "Unchangedafteranalysis",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "filename",
+                "unchangedAfterAnalysis"
+              ],
+              "title": "_AnalysisOutputRef",
+              "type": "object"
+            },
+            "_AnalysisSource": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "title": "Filename",
+                  "type": "string"
+                },
+                "revision": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Revision",
+                  "type": "string"
+                },
+                "unchangedAfterAnalysis": {
+                  "const": true,
+                  "title": "Unchangedafteranalysis",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "filename",
+                "revision",
+                "unchangedAfterAnalysis"
+              ],
+              "title": "_AnalysisSource",
+              "type": "object"
+            },
+            "_CompiledBatch": {
+              "additionalProperties": false,
+              "properties": {
+                "commands": {
+                  "items": {
+                    "$ref": "#/$defs/_CompiledSetCommand"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "title": "Commands",
+                  "type": "array"
+                },
+                "dryRun": {
+                  "title": "Dryrun",
+                  "type": "boolean"
+                },
+                "expectedRevision": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Expectedrevision",
+                  "type": "string"
+                },
+                "idempotencyKey": {
+                  "anyOf": [
+                    {
+                      "maxLength": 128,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Idempotencykey"
+                },
+                "input": {
+                  "$ref": "#/$defs/_FilenameRef"
+                },
+                "output": {
+                  "$ref": "#/$defs/_OutputRef"
+                },
+                "quality": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "transparent",
+                        "strict"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/MixedFormQuality"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Quality"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.agent-batch/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "verificationRequirements": {
+                  "items": {
+                    "enum": [
+                      "package",
+                      "reopen",
+                      "openSafety",
+                      "semanticDiff",
+                      "bytePreservation",
+                      "domain",
+                      "realHancom"
+                    ],
+                    "type": "string"
+                  },
+                  "title": "Verificationrequirements",
+                  "type": "array",
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "input",
+                "output",
+                "commands",
+                "expectedRevision",
+                "idempotencyKey",
+                "dryRun",
+                "quality",
+                "verificationRequirements"
+              ],
+              "title": "_CompiledBatch",
+              "type": "object"
+            },
+            "_CompiledSetCommand": {
+              "additionalProperties": false,
+              "properties": {
+                "commandId": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                  "title": "Commandid",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "set",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "title": "Path",
+                  "type": "string"
+                },
+                "properties": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/_TextSetProperties"
+                    },
+                    {
+                      "$ref": "#/$defs/_ValueSetProperties"
+                    }
+                  ],
+                  "title": "Properties"
+                }
+              },
+              "required": [
+                "commandId",
+                "op",
+                "path",
+                "properties"
+              ],
+              "title": "_CompiledSetCommand",
+              "type": "object"
+            },
+            "_FilenameRef": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "minLength": 1,
+                  "title": "Filename",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename"
+              ],
+              "title": "_FilenameRef",
+              "type": "object"
+            },
+            "_LegacyFormFillCompatibility": {
+              "additionalProperties": false,
+              "properties": {
+                "canonicalInput": {
+                  "minLength": 1,
+                  "title": "Canonicalinput",
+                  "type": "string"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.formfill.v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "status": {
+                  "const": "retained",
+                  "title": "Status",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "status",
+                "canonicalInput"
+              ],
+              "title": "_LegacyFormFillCompatibility",
+              "type": "object"
+            },
+            "_OutputRef": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "minLength": 1,
+                  "title": "Filename",
+                  "type": "string"
+                },
+                "overwrite": {
+                  "title": "Overwrite",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "filename",
+                "overwrite"
+              ],
+              "title": "_OutputRef",
+              "type": "object"
+            },
+            "_TextSetProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "text": {
+                  "maxLength": 4096,
+                  "title": "Text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "title": "_TextSetProperties",
+              "type": "object"
+            },
+            "_ValueSetProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "maxLength": 4096,
+                  "title": "Value",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "title": "_ValueSetProperties",
+              "type": "object"
+            }
+          },
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CanonicalMixedFormAnalysisOutput"
+            },
+            {
+              "$ref": "#/$defs/LegacyFormFillAnalysisOutput"
+            }
+          ],
+          "description": "Canonical analysis or the retained ``hwpx.formfill.v1`` response.",
+          "title": "AnalyzeFormFillOutput",
+          "type": "object"
+        }
+      },
+      "apply_form_fill": {
+        "inputSchema": {
+          "$defs": {
+            "BodyAnchorTarget": {
+              "additionalProperties": false,
+              "properties": {
+                "anchor": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "title": "Anchor",
+                  "type": "string"
+                },
+                "expectedCount": {
+                  "const": 1,
+                  "title": "Expectedcount",
+                  "type": "integer"
+                },
+                "kind": {
+                  "const": "bodyAnchor",
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "sectionPath": {
+                  "pattern": "^/section\\[[1-9][0-9]*\\]$",
+                  "title": "Sectionpath",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "sectionPath",
+                "anchor",
+                "expectedCount"
+              ],
+              "title": "BodyAnchorTarget",
+              "type": "object"
+            },
+            "CanonicalFormFillInput": {
+              "additionalProperties": true,
+              "properties": {
+                "fields": {
+                  "items": {
+                    "$ref": "#/$defs/FormFillFieldInput"
+                  },
+                  "title": "Fields",
+                  "type": "array"
+                },
+                "paragraphs": {
+                  "items": {
+                    "$ref": "#/$defs/FormFillFieldInput"
+                  },
+                  "title": "Paragraphs",
+                  "type": "array"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.formfill.v1",
+                  "default": "hwpx.formfill.v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "source": {
+                  "$ref": "#/$defs/FormFillSourceInput"
+                }
+              },
+              "title": "CanonicalFormFillInput",
+              "type": "object"
+            },
+            "CanonicalPathTarget": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "canonicalPath",
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "title": "Path",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "path"
+              ],
+              "title": "CanonicalPathTarget",
+              "type": "object"
+            },
+            "FormFillAnalyzeOptions": {
+              "additionalProperties": true,
+              "properties": {
+                "allowFuzzyLabels": {
+                  "default": true,
+                  "title": "Allowfuzzylabels",
+                  "type": "boolean"
+                },
+                "preserveUnmappedParts": {
+                  "default": true,
+                  "title": "Preserveunmappedparts",
+                  "type": "boolean"
+                },
+                "requireUniqueAnchors": {
+                  "default": true,
+                  "title": "Requireuniqueanchors",
+                  "type": "boolean"
+                }
+              },
+              "title": "FormFillAnalyzeOptions",
+              "type": "object"
+            },
+            "FormFillFieldInput": {
+              "additionalProperties": true,
+              "properties": {
+                "key": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Key"
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Label"
+                },
+                "stylePolicy": {
+                  "default": "preserve-target",
+                  "title": "Stylepolicy",
+                  "type": "string"
+                },
+                "target": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/FormFillTargetInput"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "text": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Text"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": "",
+                  "title": "Value"
+                }
+              },
+              "title": "FormFillFieldInput",
+              "type": "object"
+            },
+            "FormFillMappingSet": {
+              "additionalProperties": true,
+              "properties": {
+                "resolved": {
+                  "items": {
+                    "$ref": "#/$defs/FormFillResolvedMapping"
+                  },
+                  "title": "Resolved",
+                  "type": "array"
+                },
+                "unresolved": {
+                  "items": {
+                    "$ref": "#/$defs/FormFillResolvedMapping"
+                  },
+                  "title": "Unresolved",
+                  "type": "array"
+                }
+              },
+              "title": "FormFillMappingSet",
+              "type": "object"
+            },
+            "FormFillPlanFile": {
+              "additionalProperties": true,
+              "properties": {
+                "filename": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Filename"
+                },
+                "mtime_ns": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Mtime Ns"
+                },
+                "path": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Path"
+                },
+                "sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Sha256"
+                }
+              },
+              "title": "FormFillPlanFile",
+              "type": "object"
+            },
+            "FormFillPlanInput": {
+              "additionalProperties": true,
+              "description": "Serializable output of analyze_form_fill accepted by apply_form_fill.",
+              "properties": {
+                "canonicalInput": {
+                  "$ref": "#/$defs/CanonicalFormFillInput"
+                },
+                "destination": {
+                  "$ref": "#/$defs/FormFillPlanFile"
+                },
+                "mappings": {
+                  "$ref": "#/$defs/FormFillMappingSet"
+                },
+                "mutated": {
+                  "default": false,
+                  "title": "Mutated",
+                  "type": "boolean"
+                },
+                "options": {
+                  "$ref": "#/$defs/FormFillAnalyzeOptions"
+                },
+                "plan_id": {
+                  "title": "Plan Id",
+                  "type": "string"
+                },
+                "resolved_count": {
+                  "default": 0,
+                  "title": "Resolved Count",
+                  "type": "integer"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.formfill.v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "source": {
+                  "$ref": "#/$defs/FormFillPlanFile"
+                },
+                "unresolved_count": {
+                  "default": 0,
+                  "title": "Unresolved Count",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "plan_id",
+                "schemaVersion",
+                "source",
+                "destination",
+                "canonicalInput",
+                "mappings"
+              ],
+              "title": "FormFillPlanInput",
+              "type": "object"
+            },
+            "FormFillResolvedMapping": {
+              "additionalProperties": true,
+              "properties": {
+                "confidence": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Confidence"
+                },
+                "confidenceGrade": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Confidencegrade"
+                },
+                "key": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Key"
+                },
+                "kind": {
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Label"
+                },
+                "method": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Method"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Value"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "title": "FormFillResolvedMapping",
+              "type": "object"
+            },
+            "FormFillSourceInput": {
+              "additionalProperties": true,
+              "properties": {
+                "path": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Path"
+                },
+                "sha256": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Sha256"
+                },
+                "type": {
+                  "default": "structured",
+                  "title": "Type",
+                  "type": "string"
+                }
+              },
+              "title": "FormFillSourceInput",
+              "type": "object"
+            },
+            "FormFillTargetInput": {
+              "additionalProperties": true,
+              "properties": {
+                "col": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Col"
+                },
+                "field_id": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Field Id"
+                },
+                "field_index": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Field Index"
+                },
+                "kind": {
+                  "default": "label-path",
+                  "enum": [
+                    "label-path",
+                    "cell",
+                    "coordinate",
+                    "form-field",
+                    "placeholder",
+                    "canonical-path",
+                    "body-anchor"
+                  ],
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Name"
+                },
+                "path": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Path"
+                },
+                "row": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Row"
+                },
+                "table_index": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Table Index"
+                },
+                "token": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Token"
+                }
+              },
+              "title": "FormFillTargetInput",
+              "type": "object"
+            },
+            "LabelCellAnchor": {
+              "additionalProperties": false,
+              "properties": {
+                "direction": {
+                  "enum": [
+                    "right",
+                    "left",
+                    "below",
+                    "above"
+                  ],
+                  "title": "Direction",
+                  "type": "string"
+                },
+                "label": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "title": "Label",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "label",
+                "direction"
+              ],
+              "title": "LabelCellAnchor",
+              "type": "object"
+            },
+            "LabelCellTarget": {
+              "additionalProperties": false,
+              "oneOf": [
+                {
+                  "not": {
+                    "required": [
+                      "tableIndex"
+                    ]
+                  },
+                  "properties": {
+                    "tableAnchor": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tableAnchor"
+                  ]
+                },
+                {
+                  "not": {
+                    "required": [
+                      "tableAnchor"
+                    ]
+                  },
+                  "properties": {
+                    "tableIndex": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "tableIndex"
+                  ]
+                }
+              ],
+              "properties": {
+                "cellAnchor": {
+                  "$ref": "#/$defs/LabelCellAnchor"
+                },
+                "kind": {
+                  "const": "labelCell",
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "sectionPath": {
+                  "pattern": "^/section\\[[1-9][0-9]*\\]$",
+                  "title": "Sectionpath",
+                  "type": "string"
+                },
+                "tableAnchor": {
+                  "anyOf": [
+                    {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Tableanchor"
+                },
+                "tableIndex": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Tableindex"
+                }
+              },
+              "required": [
+                "kind",
+                "sectionPath",
+                "cellAnchor"
+              ],
+              "title": "LabelCellTarget",
+              "type": "object"
+            },
+            "MixedFormCompiledPlanInput": {
+              "additionalProperties": false,
+              "description": "Detached, revision-bound plan returned by ``analyze_form_fill``.",
+              "properties": {
+                "batch": {
+                  "$ref": "#/$defs/_CompiledBatch"
+                },
+                "inputRevision": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Inputrevision",
+                  "type": "string"
+                },
+                "planHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Planhash",
+                  "type": "string"
+                },
+                "requestHash": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Requesthash",
+                  "type": "string"
+                },
+                "resolutions": {
+                  "items": {
+                    "$ref": "#/$defs/MixedFormResolution"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "title": "Resolutions",
+                  "type": "array"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.mixed-form-compiled-plan/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "inputRevision",
+                "requestHash",
+                "resolutions",
+                "batch",
+                "planHash"
+              ],
+              "title": "MixedFormCompiledPlanInput",
+              "type": "object"
+            },
+            "MixedFormOperation": {
+              "additionalProperties": false,
+              "properties": {
+                "operationId": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                  "title": "Operationid",
+                  "type": "string"
+                },
+                "target": {
+                  "discriminator": {
+                    "mapping": {
+                      "bodyAnchor": "#/$defs/BodyAnchorTarget",
+                      "canonicalPath": "#/$defs/CanonicalPathTarget",
+                      "labelCell": "#/$defs/LabelCellTarget",
+                      "nativeField": "#/$defs/NativeFieldTarget"
+                    },
+                    "propertyName": "kind"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/NativeFieldTarget"
+                    },
+                    {
+                      "$ref": "#/$defs/LabelCellTarget"
+                    },
+                    {
+                      "$ref": "#/$defs/CanonicalPathTarget"
+                    },
+                    {
+                      "$ref": "#/$defs/BodyAnchorTarget"
+                    }
+                  ],
+                  "title": "Target"
+                },
+                "value": {
+                  "maxLength": 4096,
+                  "title": "Value",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "operationId",
+                "target",
+                "value"
+              ],
+              "title": "MixedFormOperation",
+              "type": "object"
+            },
+            "MixedFormPlanInput": {
+              "additionalProperties": false,
+              "description": "Strict public ``hwpx.mixed-form-plan/v1`` request.",
+              "properties": {
+                "dryRun": {
+                  "title": "Dryrun",
+                  "type": "boolean"
+                },
+                "expectedRevision": {
+                  "anyOf": [
+                    {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Expectedrevision"
+                },
+                "idempotencyKey": {
+                  "anyOf": [
+                    {
+                      "maxLength": 128,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Idempotencykey"
+                },
+                "operations": {
+                  "items": {
+                    "$ref": "#/$defs/MixedFormOperation"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "title": "Operations",
+                  "type": "array"
+                },
+                "output": {
+                  "minLength": 1,
+                  "title": "Output",
+                  "type": "string"
+                },
+                "overwrite": {
+                  "title": "Overwrite",
+                  "type": "boolean"
+                },
+                "quality": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "transparent",
+                        "strict"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/MixedFormQuality"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Quality"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.mixed-form-plan/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "source": {
+                  "minLength": 1,
+                  "title": "Source",
+                  "type": "string"
+                },
+                "verificationRequirements": {
+                  "items": {
+                    "enum": [
+                      "package",
+                      "reopen",
+                      "openSafety",
+                      "semanticDiff",
+                      "bytePreservation",
+                      "domain",
+                      "realHancom"
+                    ],
+                    "type": "string"
+                  },
+                  "title": "Verificationrequirements",
+                  "type": "array",
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "source",
+                "output",
+                "expectedRevision",
+                "idempotencyKey",
+                "dryRun",
+                "overwrite",
+                "quality",
+                "verificationRequirements",
+                "operations"
+              ],
+              "title": "MixedFormPlanInput",
+              "type": "object"
+            },
+            "MixedFormQuality": {
+              "additionalProperties": false,
+              "properties": {
+                "layoutLint": {
+                  "enum": [
+                    "off",
+                    "warn",
+                    "strict"
+                  ],
+                  "title": "Layoutlint",
+                  "type": "string"
+                },
+                "mode": {
+                  "enum": [
+                    "transparent",
+                    "strict"
+                  ],
+                  "title": "Mode",
+                  "type": "string"
+                },
+                "overflowPolicy": {
+                  "enum": [
+                    "fail",
+                    "warn",
+                    "truncate"
+                  ],
+                  "title": "Overflowpolicy",
+                  "type": "string"
+                },
+                "preserveUnmodifiedParts": {
+                  "title": "Preserveunmodifiedparts",
+                  "type": "boolean"
+                },
+                "renderCheck": {
+                  "enum": [
+                    "off",
+                    "auto",
+                    "required"
+                  ],
+                  "title": "Rendercheck",
+                  "type": "string"
+                },
+                "requireReferenceIntegrity": {
+                  "title": "Requirereferenceintegrity",
+                  "type": "boolean"
+                },
+                "xsdMode": {
+                  "enum": [
+                    "off",
+                    "lint"
+                  ],
+                  "title": "Xsdmode",
+                  "type": "string"
+                }
+              },
+              "title": "MixedFormQuality",
+              "type": "object"
+            },
+            "MixedFormResolution": {
+              "additionalProperties": false,
+              "properties": {
+                "locatorKind": {
+                  "enum": [
+                    "nativeField",
+                    "labelCell",
+                    "canonicalPath",
+                    "bodyAnchor"
+                  ],
+                  "title": "Locatorkind",
+                  "type": "string"
+                },
+                "logicalColumn": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Logicalcolumn"
+                },
+                "logicalRow": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Logicalrow"
+                },
+                "nodeKind": {
+                  "enum": [
+                    "paragraph",
+                    "run",
+                    "cell",
+                    "form-field"
+                  ],
+                  "title": "Nodekind",
+                  "type": "string"
+                },
+                "operationId": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                  "title": "Operationid",
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "title": "Path",
+                  "type": "string"
+                },
+                "physicalColumn": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Physicalcolumn"
+                },
+                "physicalRow": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Physicalrow"
+                },
+                "section": {
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Section"
+                },
+                "stability": {
+                  "enum": [
+                    "native",
+                    "derived",
+                    "positional"
+                  ],
+                  "title": "Stability",
+                  "type": "string"
+                },
+                "tableIndex": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Tableindex"
+                }
+              },
+              "required": [
+                "operationId",
+                "locatorKind",
+                "path",
+                "nodeKind",
+                "stability",
+                "section",
+                "tableIndex",
+                "logicalRow",
+                "logicalColumn",
+                "physicalRow",
+                "physicalColumn"
+              ],
+              "title": "MixedFormResolution",
+              "type": "object"
+            },
+            "NativeFieldTarget": {
+              "additionalProperties": false,
+              "oneOf": [
+                {
+                  "not": {
+                    "required": [
+                      "name"
+                    ]
+                  },
+                  "properties": {
+                    "fieldId": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fieldId"
+                  ]
+                },
+                {
+                  "not": {
+                    "required": [
+                      "fieldId"
+                    ]
+                  },
+                  "properties": {
+                    "name": {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              ],
+              "properties": {
+                "fieldId": {
+                  "anyOf": [
+                    {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Fieldid"
+                },
+                "kind": {
+                  "const": "nativeField",
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "maxLength": 4096,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "title": "Name"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "title": "NativeFieldTarget",
+              "type": "object"
+            },
+            "_CompiledBatch": {
+              "additionalProperties": false,
+              "properties": {
+                "commands": {
+                  "items": {
+                    "$ref": "#/$defs/_CompiledSetCommand"
+                  },
+                  "maxItems": 100,
+                  "minItems": 1,
+                  "title": "Commands",
+                  "type": "array"
+                },
+                "dryRun": {
+                  "title": "Dryrun",
+                  "type": "boolean"
+                },
+                "expectedRevision": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "title": "Expectedrevision",
+                  "type": "string"
+                },
+                "idempotencyKey": {
+                  "anyOf": [
+                    {
+                      "maxLength": 128,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Idempotencykey"
+                },
+                "input": {
+                  "$ref": "#/$defs/_FilenameRef"
+                },
+                "output": {
+                  "$ref": "#/$defs/_OutputRef"
+                },
+                "quality": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "transparent",
+                        "strict"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/$defs/MixedFormQuality"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Quality"
+                },
+                "schemaVersion": {
+                  "const": "hwpx.agent-batch/v1",
+                  "title": "Schemaversion",
+                  "type": "string"
+                },
+                "verificationRequirements": {
+                  "items": {
+                    "enum": [
+                      "package",
+                      "reopen",
+                      "openSafety",
+                      "semanticDiff",
+                      "bytePreservation",
+                      "domain",
+                      "realHancom"
+                    ],
+                    "type": "string"
+                  },
+                  "title": "Verificationrequirements",
+                  "type": "array",
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "input",
+                "output",
+                "commands",
+                "expectedRevision",
+                "idempotencyKey",
+                "dryRun",
+                "quality",
+                "verificationRequirements"
+              ],
+              "title": "_CompiledBatch",
+              "type": "object"
+            },
+            "_CompiledSetCommand": {
+              "additionalProperties": false,
+              "properties": {
+                "commandId": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+                  "title": "Commandid",
+                  "type": "string"
+                },
+                "op": {
+                  "const": "set",
+                  "title": "Op",
+                  "type": "string"
+                },
+                "path": {
+                  "minLength": 1,
+                  "title": "Path",
+                  "type": "string"
+                },
+                "properties": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/_TextSetProperties"
+                    },
+                    {
+                      "$ref": "#/$defs/_ValueSetProperties"
+                    }
+                  ],
+                  "title": "Properties"
+                }
+              },
+              "required": [
+                "commandId",
+                "op",
+                "path",
+                "properties"
+              ],
+              "title": "_CompiledSetCommand",
+              "type": "object"
+            },
+            "_FilenameRef": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "minLength": 1,
+                  "title": "Filename",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename"
+              ],
+              "title": "_FilenameRef",
+              "type": "object"
+            },
+            "_OutputRef": {
+              "additionalProperties": false,
+              "properties": {
+                "filename": {
+                  "minLength": 1,
+                  "title": "Filename",
+                  "type": "string"
+                },
+                "overwrite": {
+                  "title": "Overwrite",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "filename",
+                "overwrite"
+              ],
+              "title": "_OutputRef",
+              "type": "object"
+            },
+            "_TextSetProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "text": {
+                  "maxLength": 4096,
+                  "title": "Text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "title": "_TextSetProperties",
+              "type": "object"
+            },
+            "_ValueSetProperties": {
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "maxLength": 4096,
+                  "title": "Value",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "title": "_ValueSetProperties",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "properties": {
+            "analysis": {
+              "$ref": "#/$defs/FormFillPlanInput",
+              "default": null
+            },
+            "canonical_input": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CanonicalFormFillInput"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "default": null,
+              "title": "Canonical Input"
+            },
+            "confirm": {
+              "default": true,
+              "title": "Confirm",
+              "type": "boolean"
+            },
+            "destination_filename": {
+              "default": null,
+              "title": "Destination Filename",
+              "type": "string"
+            },
+            "plan": {
+              "default": null,
+              "discriminator": {
+                "mapping": {
+                  "hwpx.mixed-form-compiled-plan/v1": "#/$defs/MixedFormCompiledPlanInput",
+                  "hwpx.mixed-form-plan/v1": "#/$defs/MixedFormPlanInput"
+                },
+                "propertyName": "schemaVersion"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MixedFormPlanInput"
+                },
+                {
+                  "$ref": "#/$defs/MixedFormCompiledPlanInput"
+                }
+              ],
+              "title": "Plan"
+            },
+            "plan_id": {
+              "default": null,
+              "title": "Plan Id",
+              "type": "string"
+            },
+            "source_filename": {
+              "default": null,
+              "title": "Source Filename",
+              "type": "string"
+            }
+          },
+          "required": [],
+          "title": "apply_form_fillArguments",
+          "type": "object",
+          "oneOf": [
+            {
+              "required": [
+                "plan"
+              ],
+              "properties": {
+                "plan": {
+                  "not": {
+                    "type": "null"
+                  }
+                },
+                "confirm": {
+                  "const": true
+                }
+              },
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "plan_id"
+                    ],
+                    "properties": {
+                      "plan_id": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "analysis"
+                    ],
+                    "properties": {
+                      "analysis": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "source_filename"
+                    ],
+                    "properties": {
+                      "source_filename": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "destination_filename"
+                    ],
+                    "properties": {
+                      "destination_filename": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "canonical_input"
+                    ],
+                    "properties": {
+                      "canonical_input": {
+                        "not": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "properties": {
+                "plan": {
+                  "type": "null"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "baselineClassification": {}
+  }
+}

@@ -5,7 +5,7 @@ import json
 import pytest
 
 from hwpx_automation.office.agent.catalog import agent_catalog, agent_json_schemas, catalog_hash, human_help, node_help
-from hwpx_automation.office.agent.model import AgentContractError, NODE_KINDS, NODE_PROPERTY_CATALOG_V1
+from hwpx_automation.office.agent.model import AgentContractError, NODE_KINDS_V2 as NODE_KINDS, NODE_PROPERTY_CATALOG_V2
 
 
 def test_catalog_help_and_schemas_share_one_kind_catalog() -> None:
@@ -16,8 +16,8 @@ def test_catalog_help_and_schemas_share_one_kind_catalog() -> None:
     assert schemas["node"]["properties"]["kind"]["enum"] == list(NODE_KINDS)
     for kind in NODE_KINDS:
         info = node_help(kind)
-        assert info["readableProperties"] == list(NODE_PROPERTY_CATALOG_V1[kind]["readable"])
-        assert info["editableProperties"] == list(NODE_PROPERTY_CATALOG_V1[kind]["editable"])
+        assert info["readableProperties"] == list(NODE_PROPERTY_CATALOG_V2[kind]["readable"])
+        assert info["editableProperties"] == list(NODE_PROPERTY_CATALOG_V2[kind]["editable"])
         assert f"\n{kind}\n" in "\n" + human_help()
 
 

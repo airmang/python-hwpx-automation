@@ -28,7 +28,7 @@ else:
 
 from .core.document import open_doc
 from .storage import build_hwpx_open_safety_report
-from .upstream import new_document, validate_document_path
+from .upstream import new_document, request_seed, validate_document_path
 from .utils.helpers import resolve_path
 
 try:  # python-hwpx >= proposal preset feature
@@ -517,7 +517,7 @@ def _write_and_inspect(destination: str, content_spec: Mapping[str, Any], *, rev
 def _create_quality_document_fallback(content_spec: Mapping[str, Any]) -> Any:
     """Create a presentable document when proposal presets are unavailable."""
 
-    doc = new_document()
+    doc = new_document(seed=request_seed(content_spec))
     title_style = doc.styles.ensure_run(bold=True)
     heading_style = doc.styles.ensure_run(bold=True, underline=True)
     body_style = doc.styles.ensure_run()

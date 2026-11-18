@@ -12,6 +12,7 @@ from typing import Any
 
 from ..model import (
     AGENT_CATALOG_SCHEMA,
+    AGENT_CATALOG_SCHEMA_V2,
     NODE_KINDS,
     REVISION_PATTERN,
     VERIFICATION_REQUIREMENTS,
@@ -21,7 +22,12 @@ from ..model import (
     _validate_quality,
 )
 
-BLUEPRINT_SCHEMA = "hwpx.agent-blueprint/v1"
+#: v2 (hwpx-automation 8.0): an object or note sits at ``properties.offset`` of its paragraph's text and a
+#: form field wraps ``properties.start``..``end``; v1 placed them by runs (``hostRun``/``endRun``) and is
+#: still read, then upgraded (``replay.upgrade_v1_manifest``).
+BLUEPRINT_SCHEMA = "hwpx.agent-blueprint/v2"
+BLUEPRINT_SCHEMA_V1 = "hwpx.agent-blueprint/v1"
+_CATALOG_VERSION_OF = {BLUEPRINT_SCHEMA: AGENT_CATALOG_SCHEMA_V2, BLUEPRINT_SCHEMA_V1: AGENT_CATALOG_SCHEMA}
 BLUEPRINT_REPLAY_SCHEMA = "hwpx.agent-blueprint-replay/v1"
 BLUEPRINT_REPLAY_RESULT_SCHEMA = "hwpx.agent-blueprint-replay-result/v1"
 BLUEPRINT_CATALOG_SCHEMA = "hwpx.agent-blueprint-catalog/v1"
@@ -244,9 +250,9 @@ def _validate_resource(value: object, *, name: str) -> dict[str, Any]:
 
 def _validate_manifest_header(manifest: dict[str, Any]) -> None:
     _exact_keys(manifest, required=_MANIFEST_KEYS, name="blueprint")
-    if manifest["schemaVersion"] != BLUEPRINT_SCHEMA:
+    if manifest["schemaVersion"] not in _CATALOG_VERSION_OF:
         raise AgentContractError("invalid_syntax", "unsupported blueprint schema", target="schemaVersion")
-    if manifest["catalogVersion"] != AGENT_CATALOG_SCHEMA:
+    if manifest["catalogVersion"] != _CATALOG_VERSION_OF[manifest["schemaVersion"]]:
         raise AgentContractError("verification_failed", "agent catalog version skew", target="catalogVersion")
     if not SHA256_PATTERN.fullmatch(str(manifest["catalogHash"])):
         raise AgentContractError("invalid_syntax", "catalogHash must be sha256", target="catalogHash")
@@ -548,7 +554,7 @@ def _verify_manifest_integrity(manifest: dict[str, Any], verify_hash: bool) -> N
 
 
 def validate_blueprint_manifest(value: Mapping[str, Any], *, verify_hash: bool = True) -> dict[str, Any]:
-    """Validate and detach one strict ``hwpx.agent-blueprint/v1`` manifest."""
+    """Validate and detach one strict ``hwpx.agent-blueprint/v2`` (or v1) manifest."""
 
     manifest = _object(value, "blueprint")
     _validate_manifest_header(manifest)
@@ -703,6 +709,7 @@ __all__ = [
     "BLUEPRINT_REPLAY_RESULT_SCHEMA",
     "BLUEPRINT_REPLAY_SCHEMA",
     "BLUEPRINT_SCHEMA",
+    "BLUEPRINT_SCHEMA_V1",
     "BlueprintReplayResult",
     "FIDELITY_LEVELS",
     "MAX_ASSETS",

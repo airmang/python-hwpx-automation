@@ -7,7 +7,7 @@ import json
 import re
 from dataclasses import dataclass
 
-from .model import AgentContractError, NODE_KINDS
+from .model import AgentContractError, NODE_KINDS_V2
 
 MAX_PATH_CHARS = 2048
 MAX_PATH_SEGMENTS = 32
@@ -18,6 +18,9 @@ _SEGMENT_RE = re.compile(
     r"(?:(?P<index>0*[1-9][0-9]*)|"
     r"@(?P<attribute>[a-z]+)=(?P<value>\"(?:[^\"\\]|\\.)*\"))\]$"
 )
+# agent-command v2: a character range of the paragraph above, ``text[<start>:<end>]``
+# (offsets count as ``paragraph.text`` does; ``end`` is exclusive).
+_TEXT_SEGMENT_RE = re.compile(r"^text\[(?P<start>0|[1-9][0-9]*):(?P<end>0|[1-9][0-9]*)\]$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,10 +29,26 @@ class PathSegment:
     index: int | None = None
     attribute: str | None = None
     value: str | None = None
+    start: int | None = None
+    end: int | None = None
 
     def __post_init__(self) -> None:
-        if self.kind not in NODE_KINDS or self.kind in {"document", "unsupported"}:
+        if self.kind not in NODE_KINDS_V2 or self.kind in {"document", "unsupported"}:
             raise AgentContractError("unknown_kind", f"unknown path kind: {self.kind}", target="path")
+        if self.kind == "text":
+            if (
+                self.index is not None
+                or self.attribute is not None
+                or not isinstance(self.start, int)
+                or not isinstance(self.end, int)
+                or not 0 <= self.start <= self.end
+            ):
+                raise AgentContractError(
+                    "invalid_syntax", "a text segment is text[<start>:<end>] with start <= end", target="path"
+                )
+            return
+        if self.start is not None or self.end is not None:
+            raise AgentContractError("invalid_syntax", "only a text segment takes a range", target="path")
         positional = self.index is not None
         attributed = self.attribute is not None or self.value is not None
         if positional == attributed:
@@ -46,6 +65,8 @@ class PathSegment:
             raise AgentContractError("resource_limit", "path attribute value is invalid", target="path")
 
     def canonical(self) -> str:
+        if self.kind == "text":
+            return f"text[{self.start}:{self.end}]"
         if self.index is not None:
             return f"{self.kind}[{self.index}]"
         value = json.dumps(self.value, ensure_ascii=False, separators=(",", ":"))
@@ -109,25 +130,47 @@ def parse_path(value: str) -> SemanticPath:
         raise AgentContractError("invalid_syntax", "path contains an empty segment", target="path")
     if len(raw_segments) > MAX_PATH_SEGMENTS:
         raise AgentContractError("resource_limit", "path nesting exceeds limit", target="path")
-    segments: list[PathSegment] = []
-    for raw in raw_segments:
-        match = _SEGMENT_RE.fullmatch(raw)
-        if match is None:
-            raise AgentContractError("invalid_syntax", f"invalid path segment: {raw!r}", target="path")
-        kind = match.group("kind")
-        index_text = match.group("index")
-        if index_text is not None:
-            segments.append(PathSegment(kind=kind, index=int(index_text)))
-            continue
-        quoted_value = match.group("value")
-        try:
-            decoded = json.loads(quoted_value)
-        except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise AgentContractError("invalid_syntax", "invalid path string literal", target="path") from exc
-        segments.append(
-            PathSegment(kind=kind, attribute=match.group("attribute"), value=decoded)
-        )
+    segments = [_text_segment_of(raw) or _segment_of(raw) for raw in raw_segments]
+    _check_text_place(segments)
     return SemanticPath(tuple(segments))
+
+
+def _segment_of(raw: str) -> PathSegment:
+    match = _SEGMENT_RE.fullmatch(raw)
+    if match is None:
+        raise AgentContractError("invalid_syntax", f"invalid path segment: {raw!r}", target="path")
+    kind = match.group("kind")
+    index_text = match.group("index")
+    if index_text is not None:
+        return PathSegment(kind=kind, index=int(index_text))
+    try:
+        decoded = json.loads(match.group("value"))
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise AgentContractError("invalid_syntax", "invalid path string literal", target="path") from exc
+    return PathSegment(kind=kind, attribute=match.group("attribute"), value=decoded)
+
+
+def _text_segment_of(raw: str) -> PathSegment | None:
+    match = _TEXT_SEGMENT_RE.fullmatch(raw)
+    if match is None:
+        return None
+    return PathSegment(kind="text", start=int(match.group("start")), end=int(match.group("end")))
+
+
+def _check_text_place(segments: list[PathSegment]) -> None:
+    """A text range is the last segment, right under a paragraph."""
+
+    kinds = [segment.kind for segment in segments]
+    if "text" not in kinds:
+        return
+    if kinds.index("text") != len(kinds) - 1 or len(kinds) < 2 or kinds[-2] != "paragraph":
+        raise AgentContractError(
+            "invalid_syntax", "a text range is the last segment, under a paragraph", target="path"
+        )
+
+
+def text_segment(start: int, end: int) -> PathSegment:
+    return PathSegment(kind="text", start=start, end=end)
 
 
 def canonicalize_path(value: str) -> str:
@@ -152,4 +195,5 @@ __all__ = [
     "identified_segment",
     "indexed_segment",
     "parse_path",
+    "text_segment",
 ]

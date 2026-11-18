@@ -8,7 +8,7 @@
       },
       "AGENT_BATCH_SCHEMA": {
         "kind": "constant",
-        "value": "hwpx.agent-batch/v1"
+        "value": "hwpx.agent-batch/v2"
       },
       "AGENT_CATALOG_SCHEMA": {
         "kind": "constant",
@@ -16,7 +16,7 @@
       },
       "AGENT_COMMAND_SCHEMA": {
         "kind": "constant",
-        "value": "hwpx.agent-command/v1"
+        "value": "hwpx.agent-command/v2"
       },
       "AGENT_ERROR_SCHEMA": {
         "kind": "constant",
@@ -192,7 +192,7 @@
       },
       "BLUEPRINT_SCHEMA": {
         "kind": "constant",
-        "value": "hwpx.agent-blueprint/v1"
+        "value": "hwpx.agent-blueprint/v2"
       },
       "BlueprintBundle": {
         "bases": [],
@@ -454,6 +454,10 @@
             "hasDefault": false,
             "type": "str"
           },
+          "place": {
+            "hasDefault": true,
+            "type": "dict[str, Any] | None"
+          },
           "search_text": {
             "hasDefault": true,
             "type": "str"
@@ -491,6 +495,10 @@
             "hasDefault": true,
             "type": "str | None"
           },
+          "end": {
+            "hasDefault": true,
+            "type": "int | None"
+          },
           "index": {
             "hasDefault": true,
             "type": "int | None"
@@ -498,6 +506,10 @@
           "kind": {
             "hasDefault": false,
             "type": "str"
+          },
+          "start": {
+            "hasDefault": true,
+            "type": "int | None"
           },
           "value": {
             "hasDefault": true,
@@ -595,11 +607,11 @@
       },
       "agent_catalog": {
         "kind": "function",
-        "signature": "() -> 'dict[str, Any]'"
+        "signature": "(version: 'int' = 2) -> 'dict[str, Any]'"
       },
       "agent_contract_manifest": {
         "kind": "function",
-        "signature": "() -> 'dict[str, Any]'"
+        "signature": "(version: 'int' = 2) -> 'dict[str, Any]'"
       },
       "agent_json_schemas": {
         "kind": "function",
@@ -651,7 +663,7 @@
       },
       "catalog_hash": {
         "kind": "function",
-        "signature": "() -> 'str'"
+        "signature": "(version: 'int' = 2) -> 'str'"
       },
       "dump_document_blueprint": {
         "kind": "function",
@@ -699,7 +711,7 @@
       },
       "validate_agent_command": {
         "kind": "function",
-        "signature": "(value: 'Mapping[str, Any]') -> 'dict[str, Any]'"
+        "signature": "(value: 'Mapping[str, Any]', *, batch_schema: 'str | None' = None) -> 'dict[str, Any]'"
       },
       "validate_blueprint_manifest": {
         "kind": "function",
@@ -737,7 +749,7 @@
       },
       "BLUEPRINT_SCHEMA": {
         "kind": "constant",
-        "value": "hwpx.agent-blueprint/v1"
+        "value": "hwpx.agent-blueprint/v2"
       },
       "BlueprintBundle": {
         "bases": [],

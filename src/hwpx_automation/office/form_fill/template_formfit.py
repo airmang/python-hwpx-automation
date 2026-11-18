@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from hwpx.document import HwpxDocument
+
+from ...upstream import open_seeded_input
 from hwpx.tools.package_validator import (
     validate_editor_open_safety,
     validate_package,
@@ -131,7 +133,7 @@ def apply_template_formfit(
         copied_hash = _sha256_file(tmp_path)
 
         applied: list[dict[str, Any]] = []
-        doc = HwpxDocument.open(tmp_path)
+        doc = open_seeded_input(tmp_path)  # a byte copy of the source: its seed
         try:
             for target in plan.get("resolved", []):
                 applied.append(_apply_target(doc, dict(target)))

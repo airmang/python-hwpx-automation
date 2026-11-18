@@ -7,13 +7,14 @@ import hashlib
 import json
 from typing import Any
 
-from ..model import AGENT_CATALOG_SCHEMA, NODE_KINDS
+from ..model import AGENT_CATALOG_SCHEMA, AGENT_CATALOG_SCHEMA_V2, NODE_KINDS
 from .model import (
     BLUEPRINT_CATALOG_SCHEMA,
     BLUEPRINT_MODES,
     BLUEPRINT_REPLAY_RESULT_SCHEMA,
     BLUEPRINT_REPLAY_SCHEMA,
     BLUEPRINT_SCHEMA,
+    BLUEPRINT_SCHEMA_V1,
     FIDELITY_LEVELS,
     blueprint_limits,
 )
@@ -22,7 +23,8 @@ from .model import (
 def blueprint_catalog() -> dict[str, Any]:
     return {
         "schemaVersion": BLUEPRINT_CATALOG_SCHEMA,
-        "agentCatalogVersion": AGENT_CATALOG_SCHEMA,
+        "agentCatalogVersion": AGENT_CATALOG_SCHEMA_V2,
+        "readsBlueprints": [BLUEPRINT_SCHEMA_V1, BLUEPRINT_SCHEMA],
         "schemas": {
             "blueprint": BLUEPRINT_SCHEMA,
             "replay": BLUEPRINT_REPLAY_SCHEMA,
@@ -77,8 +79,8 @@ def blueprint_json_schemas() -> dict[str, Any]:
             ],
             "additionalProperties": False,
             "properties": {
-                "schemaVersion": {"const": BLUEPRINT_SCHEMA},
-                "catalogVersion": {"const": AGENT_CATALOG_SCHEMA},
+                "schemaVersion": {"enum": [BLUEPRINT_SCHEMA_V1, BLUEPRINT_SCHEMA]},
+                "catalogVersion": {"enum": [AGENT_CATALOG_SCHEMA, AGENT_CATALOG_SCHEMA_V2]},
                 "catalogHash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
                 "mode": {"enum": list(BLUEPRINT_MODES)},
                 "nodes": {"type": "array", "minItems": 1, "maxItems": catalog["limits"]["maxNodes"]},

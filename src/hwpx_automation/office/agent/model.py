@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Strict v1 contracts for the semantic HWPX agent interface.
+"""Strict contracts for the semantic HWPX agent interface (agent-command v2).
 
 This module intentionally defines only public, JSON-serialisable semantics.  It
 does not expose lxml elements, package part paths, namespace URIs, XPath, or a
@@ -25,11 +25,19 @@ from hwpx.mutation_report import (
 )
 
 AGENT_NODE_SCHEMA = "hwpx.agent-node/v1"
-AGENT_COMMAND_SCHEMA = "hwpx.agent-command/v1"
-AGENT_BATCH_SCHEMA = "hwpx.agent-batch/v1"
+AGENT_COMMAND_SCHEMA = "hwpx.agent-command/v2"
+AGENT_BATCH_SCHEMA = "hwpx.agent-batch/v2"
 AGENT_BATCH_RESULT_SCHEMA = "hwpx.agent-batch-result/v1"
 AGENT_ERROR_SCHEMA = "hwpx.agent-error/v1"
+#: The catalog schema the blueprint catalog names (``agentCatalogVersion``); blueprints stay v1
+#: until blueprint v2 (asks10c), so this name and the v1 catalog they hash stay as they were.
 AGENT_CATALOG_SCHEMA = "hwpx.agent-catalog/v1"
+AGENT_CATALOG_SCHEMA_V2 = "hwpx.agent-catalog/v2"
+#: The v1 forms, still read: a v1 command whose meaning did not change is taken as it is.
+AGENT_COMMAND_SCHEMA_V1 = "hwpx.agent-command/v1"
+AGENT_BATCH_SCHEMA_V1 = "hwpx.agent-batch/v1"
+AGENT_COMMAND_SCHEMAS = (AGENT_COMMAND_SCHEMA_V1, AGENT_COMMAND_SCHEMA)
+AGENT_BATCH_SCHEMAS = (AGENT_BATCH_SCHEMA_V1, AGENT_BATCH_SCHEMA)
 
 NODE_KINDS = (
     "document",
@@ -47,6 +55,9 @@ NODE_KINDS = (
     "shape",
     "unsupported",
 )
+#: v2 adds ``text``: a character range of one paragraph, ``<paragraph path>/text[start:end]``.
+#: ``NODE_KINDS`` stays the v1 list the blueprint catalog (still v1) is made of.
+NODE_KINDS_V2 = (*NODE_KINDS[:4], "text", *NODE_KINDS[4:])
 STABILITY_LEVELS = ("native", "derived", "positional")
 AGENT_OPERATIONS = ("set", "add", "remove", "move", "copy")
 
@@ -75,7 +86,7 @@ COMMAND_REF_PATTERN = re.compile(
 )
 CANONICAL_PATH_PATTERN = re.compile(r"^/(?:[^\x00-\x1f]*)$")
 
-ERROR_CODES = (
+ERROR_CODES_V1 = (
     "invalid_syntax",
     "unknown_kind",
     "unknown_property",
@@ -92,6 +103,8 @@ ERROR_CODES = (
     "verification_failed",
     "idempotency_conflict",
 )
+#: v2 adds ``contract_changed``: a v1 form whose meaning changed in hwpx-automation 8.0.
+ERROR_CODES = (*ERROR_CODES_V1, "contract_changed")
 RECOVERABILITY = ("retryable", "needs-review", "terminal")
 
 VERIFICATION_REQUIREMENTS = (
@@ -219,6 +232,27 @@ NODE_PROPERTY_CATALOG_V1: dict[str, dict[str, tuple[str, ...]]] = {
     "unsupported": {"readable": ("localName", "reason"), "editable": (), "operations": ()},
 }
 
+_TEXT_FORMAT_PROPERTIES = ("bold", "italic", "underline", "fontName", "fontSizePt", "color")
+
+# agent-command v2 (hwpx-automation 8.0): a run is only re-formatted in place; text is
+# added, removed, moved and copied as a character range (``text``), and objects and
+# notes in a paragraph sit at a character offset (python-hwpx places a note at one
+# since asks10c, so a footnote or endnote is also added and moved).
+_CATALOG_V2: dict[str, dict[str, tuple[str, ...]]] = {
+    **NODE_PROPERTY_CATALOG_V1,
+    "run": {**NODE_PROPERTY_CATALOG_V1["run"], "operations": ("set",)},
+    "footnote": {**NODE_PROPERTY_CATALOG_V1["footnote"], "operations": AGENT_OPERATIONS},
+    "endnote": {**NODE_PROPERTY_CATALOG_V1["endnote"], "operations": AGENT_OPERATIONS},
+    "text": {
+        "readable": ("text", "start", "end", "runs"),
+        "editable": ("text", *_TEXT_FORMAT_PROPERTIES),
+        "operations": AGENT_OPERATIONS,
+    },
+}
+NODE_PROPERTY_CATALOG_V2: dict[str, dict[str, tuple[str, ...]]] = {
+    kind: _CATALOG_V2[kind] for kind in NODE_KINDS_V2
+}
+
 _RAW_KEYS = frozenset(
     {"xml", "raw", "rawxml", "xpath", "namespace", "namespaceuri", "packagepath", "partpath"}
 )
@@ -227,12 +261,45 @@ _RAW_KEYS = frozenset(
 class AgentContractError(ValueError):
     """A stable-code contract validation error."""
 
-    def __init__(self, code: str, message: str, *, target: str | None = None) -> None:
+    def __init__(
+        self, code: str, message: str, *, target: str | None = None, suggestion: str | None = None
+    ) -> None:
         if code not in ERROR_CODES:
             raise ValueError(f"unknown agent error code: {code}")
         super().__init__(message)
         self.code = code
         self.target = target
+        self.suggestion = suggestion
+
+
+# The refusals of v1 forms whose meaning changed (design 6): (message, suggestion).
+CONTRACT_CHANGED_RUN = (
+    "run add/remove/copy was replaced in hwpx-automation 8.0 (agent-command v2): "
+    "runs are no longer placed by their order",
+    'Use kind "text" with a character range: {"op": "add", "kind": "text", "parent": <paragraph>, '
+    '"position": {"mode": "offset", "offset": n}, "properties": {"text": ...}}',
+)
+CONTRACT_CHANGED_INDEX = (
+    'position.mode "index" is not taken inside a paragraph since hwpx-automation 8.0: '
+    "objects sit at a character offset",
+    'Use {"mode": "offset", "offset": n} (n counts paragraph.text: a tab or line break is 1, an object 0), '
+    "or before/after an object path",
+)
+CONTRACT_CHANGED_RUN_ANCHOR = (
+    "position.path names a run; since hwpx-automation 8.0 a place in a paragraph is a character offset",
+    'Use {"mode": "offset", "offset": <the run\'s start>}; read it from the run node\'s "place"',
+)
+CONTRACT_CHANGED_MIXED = (
+    "command mixes agent-command v1 and v2 forms",
+    'Send schemaVersion "hwpx.agent-command/v2"',
+)
+
+
+def contract_changed(form: tuple[str, str], *, target: str | None = None) -> AgentContractError:
+    """The ``contract_changed`` refusal of a v1 form whose meaning changed."""
+
+    message, suggestion = form
+    return AgentContractError("contract_changed", message, target=target, suggestion=suggestion)
 
 
 def _require_mapping(value: object, name: str) -> Mapping[str, Any]:
@@ -314,6 +381,14 @@ def _validate_properties(value: object, name: str) -> dict[str, Any]:
 def _validate_position(value: object, name: str = "command.position") -> dict[str, Any]:
     position = dict(_require_mapping(value, name))
     mode = str(position.get("mode", ""))
+    if mode == "offset":
+        _require_exact_keys(position, required={"mode", "offset"}, name=name)
+        offset = position["offset"]
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            raise AgentContractError(
+                "invalid_syntax", f"{name}.offset must be a non-negative integer", target=f"{name}.offset"
+            )
+        return {"mode": mode, "offset": offset}
     if mode in {"append", "prepend"}:
         _require_exact_keys(position, required={"mode"}, name=name)
         return {"mode": mode}
@@ -329,7 +404,7 @@ def _validate_position(value: object, name: str = "command.position") -> dict[st
         _require_exact_keys(position, required={"mode", "path"}, name=name)
         return {"mode": mode, "path": _validate_path_or_reference(position["path"], f"{name}.path")}
     raise AgentContractError(
-        "invalid_syntax", f"{name}.mode must be append, prepend, index, before, or after", target=f"{name}.mode"
+        "invalid_syntax", f"{name}.mode must be append, prepend, index, offset, before, or after", target=f"{name}.mode"
     )
 
 
@@ -385,7 +460,7 @@ class AgentNode:
     revision: str = ""
 
     def __post_init__(self) -> None:
-        if self.kind not in NODE_KINDS:
+        if self.kind not in NODE_KINDS_V2:
             raise AgentContractError("unknown_kind", f"unknown node kind: {self.kind}", target="node.kind")
         if not CANONICAL_PATH_PATTERN.fullmatch(self.path):
             raise AgentContractError(
@@ -424,18 +499,18 @@ class AgentNode:
         if not REVISION_PATTERN.fullmatch(self.revision):
             raise AgentContractError("invalid_syntax", "node.revision must be sha256", target="node.revision")
         _validate_json_value(self.summary, name="node.summary")
-        catalog = NODE_PROPERTY_CATALOG_V1[self.kind]
+        catalog = NODE_PROPERTY_CATALOG_V2[self.kind]
         if tuple(self.readable_properties) != tuple(catalog["readable"]):
             raise AgentContractError(
-                "invariant_violation", "node readable properties do not match v1 catalog", target="node.readableProperties"
+                "invariant_violation", "node readable properties do not match the catalog", target="node.readableProperties"
             )
         if tuple(self.editable_properties) != tuple(catalog["editable"]):
             raise AgentContractError(
-                "invariant_violation", "node editable properties do not match v1 catalog", target="node.editableProperties"
+                "invariant_violation", "node editable properties do not match the catalog", target="node.editableProperties"
             )
         if tuple(self.operations) != tuple(catalog["operations"]):
             raise AgentContractError(
-                "invariant_violation", "node operations do not match v1 catalog", target="node.operations"
+                "invariant_violation", "node operations do not match the catalog", target="node.operations"
             )
 
     @property
@@ -494,10 +569,48 @@ class AgentError:
         }
 
 
-def validate_agent_command(value: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate and normalize one strict op-specific command union."""
+_TEXT_SEGMENT = re.compile(r"/text\[[^\]]*\]$")
+
+
+def _v2_only_forms(raw: Mapping[str, Any]) -> bool:
+    """Whether *raw* uses a form only agent-command v2 has (a text range, an offset place)."""
+
+    position = raw.get("position")
+    return (
+        raw.get("kind") == "text"
+        or any(_TEXT_SEGMENT.search(str(raw.get(key) or "")) for key in ("path", "parent"))
+        or (isinstance(position, Mapping) and position.get("mode") == "offset")
+    )
+
+
+def _command_schema(raw: dict[str, Any], batch_schema: str | None) -> str:
+    """The command's agent-command version: its own ``schemaVersion``, else its batch's (v2 alone)."""
+
+    declared = raw.pop("schemaVersion", None)
+    if declared is not None and declared not in AGENT_COMMAND_SCHEMAS:
+        raise AgentContractError(
+            "invalid_syntax", "unsupported command schemaVersion", target="command.schemaVersion"
+        )
+    if declared is None:
+        declared = AGENT_COMMAND_SCHEMA_V1 if batch_schema == AGENT_BATCH_SCHEMA_V1 else AGENT_COMMAND_SCHEMA
+    if declared == AGENT_COMMAND_SCHEMA_V1 and _v2_only_forms(raw):
+        raise contract_changed(CONTRACT_CHANGED_MIXED, target="command.schemaVersion")
+    return str(declared)
+
+
+def validate_agent_command(value: Mapping[str, Any], *, batch_schema: str | None = None) -> dict[str, Any]:
+    """Validate and normalize one strict op-specific command union.
+
+    A command may name its ``schemaVersion`` (v1 or v2); without one it is of its
+    batch's version, and alone of v2.  A v1 command is taken as it is where its
+    meaning did not change: a v1 command using a v2-only form is refused here, and
+    the v1 forms whose meaning changed (run add/remove/copy, ``index`` or a run
+    anchor inside a paragraph) with ``contract_changed`` when the batch is checked
+    against the catalog.  The normalized command keeps the version it was written in.
+    """
 
     raw = dict(_require_mapping(value, "command"))
+    schema = _command_schema(raw, batch_schema)
     command_id = str(raw.get("commandId", ""))
     if not COMMAND_ID_PATTERN.fullmatch(command_id):
         raise AgentContractError("invalid_syntax", "commandId is invalid", target="command.commandId")
@@ -506,7 +619,9 @@ def validate_agent_command(value: Mapping[str, Any]) -> dict[str, Any]:
         raise AgentContractError("unsupported_operation", f"unsupported command op: {op}", target="command.op")
 
     normalized: dict[str, Any] = {
-        "schemaVersion": AGENT_COMMAND_SCHEMA,
+        # The version the command was written in: a v1 append/prepend in a paragraph is taken
+        # only where its v1 place is the v2 one (commands._check_v1_end_place).
+        "schemaVersion": schema,
         "commandId": command_id,
         "op": op,
     }
@@ -522,7 +637,7 @@ def validate_agent_command(value: Mapping[str, Any]) -> dict[str, Any]:
             name="command",
         )
         kind = str(raw["kind"])
-        if kind not in NODE_KINDS or kind in {"document", "unsupported"}:
+        if kind not in NODE_KINDS_V2 or kind in {"document", "unsupported"}:
             raise AgentContractError("unknown_kind", f"cannot add node kind: {kind}", target="command.kind")
         normalized["parent"] = _validate_path_or_reference(raw["parent"], "command.parent")
         normalized["kind"] = kind
@@ -560,8 +675,9 @@ def validate_agent_batch(value: Mapping[str, Any]) -> dict[str, Any]:
         "verificationRequirements",
     }
     _require_exact_keys(raw, required=required, name="batch")
-    if raw["schemaVersion"] != AGENT_BATCH_SCHEMA:
+    if raw["schemaVersion"] not in AGENT_BATCH_SCHEMAS:
         raise AgentContractError("invalid_syntax", "unsupported batch schemaVersion", target="batch.schemaVersion")
+    batch_schema = str(raw["schemaVersion"])
 
     input_ref = dict(_require_mapping(raw["input"], "batch.input"))
     _require_exact_keys(input_ref, required={"filename"}, name="batch.input")
@@ -578,7 +694,10 @@ def validate_agent_batch(value: Mapping[str, Any]) -> dict[str, Any]:
         raise AgentContractError("invalid_syntax", "batch.commands must be an array", target="batch.commands")
     if not commands_value or len(commands_value) > MAX_COMMANDS:
         raise AgentContractError("resource_limit", "batch.commands count is out of bounds", target="batch.commands")
-    commands = [validate_agent_command(_require_mapping(item, "command")) for item in commands_value]
+    commands = [
+        validate_agent_command(_require_mapping(item, "command"), batch_schema=batch_schema)
+        for item in commands_value
+    ]
     command_ids = [command["commandId"] for command in commands]
     if len(command_ids) != len(set(command_ids)):
         raise AgentContractError("invariant_violation", "batch commandId values must be unique", target="batch.commands")
@@ -724,15 +843,38 @@ class AgentBatchResult:
         )
 
 
-def agent_contract_manifest() -> dict[str, Any]:
-    """Return the deterministic, inspectable v1 contract manifest."""
+def agent_contract_manifest(version: int = 2) -> dict[str, Any]:
+    """Return the deterministic, inspectable contract manifest.
 
+    ``version=1`` is the frozen v1 manifest, exactly as hwpx-automation 7 made it: v1
+    blueprints carry its hash (``catalogHash``) until blueprint v2 (asks10c).
+    """
+
+    positions: dict[str, Any] = {}
+    if version == 1:
+        catalog, kinds, errors = NODE_PROPERTY_CATALOG_V1, NODE_KINDS, ERROR_CODES_V1
+        catalog_schema, command_schema, batch_schema = (
+            AGENT_CATALOG_SCHEMA, AGENT_COMMAND_SCHEMA_V1, AGENT_BATCH_SCHEMA_V1
+        )
+    else:
+        catalog, kinds, errors = NODE_PROPERTY_CATALOG_V2, NODE_KINDS_V2, ERROR_CODES
+        catalog_schema, command_schema, batch_schema = (
+            AGENT_CATALOG_SCHEMA_V2, AGENT_COMMAND_SCHEMA, AGENT_BATCH_SCHEMA
+        )
+        positions["positions"] = {
+            "block": ["append", "prepend", "index", "before", "after"],
+            "inParagraph": ["append", "prepend", "offset", "before", "after"],
+            "offsetCounts": "paragraph.text: a tab or a line break is 1, a control or an object 0",
+            "textPath": "<paragraph path>/text[<start>:<end>]",
+            "acceptedCommandSchemas": list(AGENT_COMMAND_SCHEMAS),
+            "acceptedBatchSchemas": list(AGENT_BATCH_SCHEMAS),
+        }
     return {
-        "schemaVersion": AGENT_CATALOG_SCHEMA,
+        "schemaVersion": catalog_schema,
         "schemas": {
             "node": AGENT_NODE_SCHEMA,
-            "command": AGENT_COMMAND_SCHEMA,
-            "batch": AGENT_BATCH_SCHEMA,
+            "command": command_schema,
+            "batch": batch_schema,
             "batchResult": AGENT_BATCH_RESULT_SCHEMA,
             "error": AGENT_ERROR_SCHEMA,
         },
@@ -751,6 +893,7 @@ def agent_contract_manifest() -> dict[str, Any]:
             "stabilityLevels": list(STABILITY_LEVELS),
             "commandReference": "$<commandId>.path",
         },
+        **positions,
         "selector": {
             "features": list(SELECTOR_FEATURES),
             "kinds": list(SELECTOR_KINDS),
@@ -763,15 +906,15 @@ def agent_contract_manifest() -> dict[str, Any]:
         "operations": list(AGENT_OPERATIONS),
         "nodeKinds": {
             kind: {
-                "readableProperties": list(NODE_PROPERTY_CATALOG_V1[kind]["readable"]),
-                "editableProperties": list(NODE_PROPERTY_CATALOG_V1[kind]["editable"]),
-                "operations": list(NODE_PROPERTY_CATALOG_V1[kind]["operations"]),
+                "readableProperties": list(catalog[kind]["readable"]),
+                "editableProperties": list(catalog[kind]["editable"]),
+                "operations": list(catalog[kind]["operations"]),
             }
-            for kind in NODE_KINDS
+            for kind in kinds
         },
         "verificationRequirements": list(VERIFICATION_REQUIREMENTS),
         "qualityModes": list(QUALITY_MODES),
-        "errorCodes": list(ERROR_CODES),
+        "errorCodes": list(errors),
         "recoverability": list(RECOVERABILITY),
     }
 
@@ -779,8 +922,13 @@ def agent_contract_manifest() -> dict[str, Any]:
 __all__ = [
     "AGENT_BATCH_RESULT_SCHEMA",
     "AGENT_BATCH_SCHEMA",
+    "AGENT_BATCH_SCHEMA_V1",
+    "AGENT_BATCH_SCHEMAS",
     "AGENT_CATALOG_SCHEMA",
+    "AGENT_CATALOG_SCHEMA_V2",
     "AGENT_COMMAND_SCHEMA",
+    "AGENT_COMMAND_SCHEMA_V1",
+    "AGENT_COMMAND_SCHEMAS",
     "AGENT_ERROR_SCHEMA",
     "AGENT_NODE_SCHEMA",
     "AGENT_OPERATIONS",
@@ -789,6 +937,7 @@ __all__ = [
     "AgentError",
     "AgentNode",
     "ERROR_CODES",
+    "ERROR_CODES_V1",
     "MAX_CHILDREN_PER_NODE",
     "MAX_COMMANDS",
     "MAX_PROPERTIES_PER_COMMAND",
@@ -797,12 +946,15 @@ __all__ = [
     "MAX_TEXT_CHARS",
     "MAX_VIEW_DEPTH",
     "NODE_KINDS",
+    "NODE_KINDS_V2",
     "NODE_PROPERTY_CATALOG_V1",
+    "NODE_PROPERTY_CATALOG_V2",
     "SELECTOR_ATTRIBUTES",
     "SELECTOR_FEATURES",
     "STABILITY_LEVELS",
     "VERIFICATION_REQUIREMENTS",
     "agent_contract_manifest",
+    "contract_changed",
     "validate_agent_batch",
     "validate_agent_command",
 ]

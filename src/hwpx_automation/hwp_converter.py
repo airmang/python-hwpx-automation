@@ -19,6 +19,8 @@ from typing import Any, List, Mapping
 
 from hwpx.document import HwpxDocument
 
+from .upstream import open_seeded_input
+
 from .core.document import save_doc
 
 
@@ -101,7 +103,7 @@ def convert_hwp_to_hwpx(hwp_path: str, output_path: str) -> ConversionResult:
         with warnings.catch_warnings():
             # The conversion report below carries what the open would warn about.
             warnings.simplefilter("ignore")
-            document = HwpxDocument.open(str(source))
+            document = open_seeded_input(str(source))
     except Exception as exc:
         raise HwpConversionError(f"python-hwpx가 HWP 문서를 열지 못했습니다: {exc}") from exc
 

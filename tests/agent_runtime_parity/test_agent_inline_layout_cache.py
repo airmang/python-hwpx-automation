@@ -106,7 +106,7 @@ def test_reordering_a_picture_inside_its_paragraph_drops_its_cache(tmp_path: Pat
         last, home = _record(agent, "picture", "803"), _record(agent, "paragraph", "701")
     caches = _run(source, output, [
         {"commandId": "m", "op": "move", "path": last.path, "parent": home.path,
-         "position": {"mode": "index", "index": 1}},
+         "position": {"mode": "prepend"}},
     ])
     assert caches == {"702": ["0"], "703": ["0"], "704": ["0"]}
 
@@ -131,7 +131,10 @@ def test_removing_a_run_drops_the_cache_of_its_paragraph(tmp_path: Path) -> None
     _write(source)
     with HwpxAgentDocument.open(source) as agent:
         run = next(record for record in agent.records if record.kind == "run" and record.summary.get("text") == "글")
+        assert run.place is not None
+        start = run.place["offset"]
+        text_path = f"{run.parent_path}/text[{start}:{start + run.place['length']}]"
     removed = _run(source, tmp_path / "removed.hwpx", [
-        {"commandId": "r", "op": "remove", "path": run.path},
+        {"commandId": "r", "op": "remove", "path": text_path},
     ])
     assert removed == {"702": ["0"], "703": ["0"], "704": ["0"]}

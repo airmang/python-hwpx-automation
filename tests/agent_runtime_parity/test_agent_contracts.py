@@ -14,6 +14,7 @@ from hwpx_automation.office.agent.model import (
     AgentError,
     AgentNode,
     NODE_PROPERTY_CATALOG_V1,
+    NODE_PROPERTY_CATALOG_V2,
     agent_contract_manifest,
     validate_agent_batch,
     validate_agent_command,
@@ -23,7 +24,7 @@ REVISION = "sha256:" + "a" * 64
 
 
 def _node(kind: str = "paragraph", **changes: object) -> AgentNode:
-    catalog = NODE_PROPERTY_CATALOG_V1[kind]
+    catalog = NODE_PROPERTY_CATALOG_V2[kind]
     values: dict[str, object] = {
         "kind": kind,
         "path": '/section[1]/paragraph[@id="173821"]',
@@ -207,9 +208,18 @@ def test_contract_rejects_raw_xml_and_package_escape_hatches(key: str) -> None:
 
 
 def test_contract_manifest_is_deterministic_and_freezes_v1_surface() -> None:
+    # v1 stays as hwpx-automation 7 froze it: v1 blueprints carry its catalog hash.
+    v1 = agent_contract_manifest(1)
+    encoded_v1 = json.dumps(v1, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    assert hashlib.sha256(encoded_v1).hexdigest() == "1a0f31dd9468be8d4ba619e7651dfd7845148d3b99f19d1e5fa5bd79934377fd"
+    assert v1["nodeKinds"]["run"]["operations"] == ["set", "add", "remove", "copy"]
     manifest = agent_contract_manifest()
     encoded = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-    assert hashlib.sha256(encoded).hexdigest() == "1a0f31dd9468be8d4ba619e7651dfd7845148d3b99f19d1e5fa5bd79934377fd"
+    assert hashlib.sha256(encoded).hexdigest() == "169b3d21f017c933cb24a11885456c02b9e7db1732ca96e6d7004fd786c186a6"
+    assert manifest["schemas"]["command"] == "hwpx.agent-command/v2"
+    assert manifest["nodeKinds"]["run"]["operations"] == ["set"]
+    assert manifest["nodeKinds"]["text"]["operations"] == ["set", "add", "remove", "move", "copy"]
+    assert manifest["errorCodes"][-1] == "contract_changed"
     assert manifest["path"]["externalIndexBase"] == 1
     assert manifest["selector"]["xpath"] is False
     assert manifest["selector"]["rawXml"] is False

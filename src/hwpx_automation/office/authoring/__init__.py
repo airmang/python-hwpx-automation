@@ -13,6 +13,7 @@ from typing import Any, Callable, Iterable, Literal, Mapping, Sequence, cast, ov
 from hwpx.document import HwpxDocument
 from hwpx.tools.package_validator import validate_package
 
+from ...upstream import content_seed, request_seed
 from ..utilities.report_utils import (
     calculate_age,
     calculate_ratios,
@@ -1372,7 +1373,8 @@ def _create_document_from_plan(
         if isinstance(preset, DocumentStylePreset)
         else DocumentStylePreset(name=str(preset or normalized.style_preset or DEFAULT_STYLE_PRESET))
     )
-    document = HwpxDocument.new(empty_first_line=True)  # 6.x layout (core 7.0 default changed)
+    # 6.x layout (core 7.0 default changed); ids seeded from the plan: same plan, same bytes.
+    document = HwpxDocument.new(empty_first_line=True, seed=request_seed(plan))
     document.page.setup(
         margins_mm={
             "left": _DEFAULT_PAGE_MARGIN_MM,
@@ -1476,7 +1478,7 @@ def _compose_from_profile(
             for warning in result.warnings
             if warning.startswith(TABLE_FALLBACK_NOTICE) or warning.startswith("table column-count")
         )
-    document = HwpxDocument.open(data)
+    document = HwpxDocument.open(data, seed=content_seed(data))  # the memos' ids follow the composed bytes
     try:
         _attach_profile_memos(document, memos)
     except Exception:

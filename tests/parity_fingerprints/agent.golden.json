@@ -4,7 +4,8 @@
       "commands": {
         "add": {
           "optional": [
-            "position"
+            "position",
+            "schemaVersion"
           ],
           "required": [
             "commandId",
@@ -16,7 +17,8 @@
         },
         "copy": {
           "optional": [
-            "position"
+            "position",
+            "schemaVersion"
           ],
           "required": [
             "commandId",
@@ -27,7 +29,8 @@
         },
         "move": {
           "optional": [
-            "position"
+            "position",
+            "schemaVersion"
           ],
           "required": [
             "commandId",
@@ -37,6 +40,9 @@
           ]
         },
         "remove": {
+          "optional": [
+            "schemaVersion"
+          ],
           "required": [
             "commandId",
             "op",
@@ -44,6 +50,9 @@
           ]
         },
         "set": {
+          "optional": [
+            "schemaVersion"
+          ],
           "required": [
             "commandId",
             "op",
@@ -67,7 +76,8 @@
         "unsupported_content",
         "resource_limit",
         "verification_failed",
-        "idempotency_conflict"
+        "idempotency_conflict",
+        "contract_changed"
       ],
       "limits": {
         "maxChildrenPerNode": 200,
@@ -117,7 +127,9 @@
           ],
           "operations": [
             "set",
+            "add",
             "remove",
+            "move",
             "copy"
           ],
           "readableProperties": [
@@ -130,7 +142,9 @@
           ],
           "operations": [
             "set",
+            "add",
             "remove",
+            "move",
             "copy"
           ],
           "readableProperties": [
@@ -237,10 +251,7 @@
             "color"
           ],
           "operations": [
-            "set",
-            "add",
-            "remove",
-            "copy"
+            "set"
           ],
           "readableProperties": [
             "text",
@@ -305,6 +316,30 @@
             "alignment"
           ]
         },
+        "text": {
+          "editableProperties": [
+            "text",
+            "bold",
+            "italic",
+            "underline",
+            "fontName",
+            "fontSizePt",
+            "color"
+          ],
+          "operations": [
+            "set",
+            "add",
+            "remove",
+            "move",
+            "copy"
+          ],
+          "readableProperties": [
+            "text",
+            "start",
+            "end",
+            "runs"
+          ]
+        },
         "unsupported": {
           "editableProperties": [],
           "operations": [],
@@ -331,6 +366,32 @@
           "positional"
         ]
       },
+      "positions": {
+        "acceptedBatchSchemas": [
+          "hwpx.agent-batch/v1",
+          "hwpx.agent-batch/v2"
+        ],
+        "acceptedCommandSchemas": [
+          "hwpx.agent-command/v1",
+          "hwpx.agent-command/v2"
+        ],
+        "block": [
+          "append",
+          "prepend",
+          "index",
+          "before",
+          "after"
+        ],
+        "inParagraph": [
+          "append",
+          "prepend",
+          "offset",
+          "before",
+          "after"
+        ],
+        "offsetCounts": "paragraph.text: a tab or a line break is 1, a control or an object 0",
+        "textPath": "<paragraph path>/text[<start>:<end>]"
+      },
       "qualityModes": [
         "transparent",
         "strict"
@@ -349,11 +410,11 @@
         "needs-review",
         "terminal"
       ],
-      "schemaVersion": "hwpx.agent-catalog/v1",
+      "schemaVersion": "hwpx.agent-catalog/v2",
       "schemas": {
-        "batch": "hwpx.agent-batch/v1",
+        "batch": "hwpx.agent-batch/v2",
         "batchResult": "hwpx.agent-batch-result/v1",
-        "command": "hwpx.agent-command/v1",
+        "command": "hwpx.agent-command/v2",
         "error": "hwpx.agent-error/v1",
         "node": "hwpx.agent-node/v1"
       },
@@ -416,7 +477,8 @@
         "unsupported_content",
         "resource_limit",
         "verification_failed",
-        "idempotency_conflict"
+        "idempotency_conflict",
+        "contract_changed"
       ],
       "limits": {
         "maxChildrenPerNode": 200,
@@ -466,7 +528,9 @@
           ],
           "operations": [
             "set",
+            "add",
             "remove",
+            "move",
             "copy"
           ],
           "readableProperties": [
@@ -479,7 +543,9 @@
           ],
           "operations": [
             "set",
+            "add",
             "remove",
+            "move",
             "copy"
           ],
           "readableProperties": [
@@ -586,10 +652,7 @@
             "color"
           ],
           "operations": [
-            "set",
-            "add",
-            "remove",
-            "copy"
+            "set"
           ],
           "readableProperties": [
             "text",
@@ -654,6 +717,30 @@
             "alignment"
           ]
         },
+        "text": {
+          "editableProperties": [
+            "text",
+            "bold",
+            "italic",
+            "underline",
+            "fontName",
+            "fontSizePt",
+            "color"
+          ],
+          "operations": [
+            "set",
+            "add",
+            "remove",
+            "move",
+            "copy"
+          ],
+          "readableProperties": [
+            "text",
+            "start",
+            "end",
+            "runs"
+          ]
+        },
         "unsupported": {
           "editableProperties": [],
           "operations": [],
@@ -680,6 +767,32 @@
           "positional"
         ]
       },
+      "positions": {
+        "acceptedBatchSchemas": [
+          "hwpx.agent-batch/v1",
+          "hwpx.agent-batch/v2"
+        ],
+        "acceptedCommandSchemas": [
+          "hwpx.agent-command/v1",
+          "hwpx.agent-command/v2"
+        ],
+        "block": [
+          "append",
+          "prepend",
+          "index",
+          "before",
+          "after"
+        ],
+        "inParagraph": [
+          "append",
+          "prepend",
+          "offset",
+          "before",
+          "after"
+        ],
+        "offsetCounts": "paragraph.text: a tab or a line break is 1, a control or an object 0",
+        "textPath": "<paragraph path>/text[<start>:<end>]"
+      },
       "qualityModes": [
         "transparent",
         "strict"
@@ -689,11 +802,11 @@
         "needs-review",
         "terminal"
       ],
-      "schemaVersion": "hwpx.agent-catalog/v1",
+      "schemaVersion": "hwpx.agent-catalog/v2",
       "schemas": {
-        "batch": "hwpx.agent-batch/v1",
+        "batch": "hwpx.agent-batch/v2",
         "batchResult": "hwpx.agent-batch-result/v1",
-        "command": "hwpx.agent-command/v1",
+        "command": "hwpx.agent-command/v2",
         "error": "hwpx.agent-error/v1",
         "node": "hwpx.agent-node/v1"
       },
@@ -777,6 +890,12 @@
                       "maxProperties": 32,
                       "minProperties": 1,
                       "type": "object"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   },
                   "required": [
@@ -799,6 +918,7 @@
                         "section",
                         "paragraph",
                         "run",
+                        "text",
                         "table",
                         "row",
                         "cell",
@@ -823,6 +943,12 @@
                       "maxProperties": 32,
                       "minProperties": 1,
                       "type": "object"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   },
                   "required": [
@@ -846,6 +972,12 @@
                     },
                     "path": {
                       "type": "string"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   },
                   "required": [
@@ -873,6 +1005,12 @@
                     },
                     "position": {
                       "type": "object"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   },
                   "required": [
@@ -901,6 +1039,12 @@
                     },
                     "position": {
                       "type": "object"
+                    },
+                    "schemaVersion": {
+                      "enum": [
+                        "hwpx.agent-command/v1",
+                        "hwpx.agent-command/v2"
+                      ]
                     }
                   },
                   "required": [
@@ -1024,7 +1168,10 @@
             ]
           },
           "schemaVersion": {
-            "const": "hwpx.agent-batch/v1"
+            "enum": [
+              "hwpx.agent-batch/v1",
+              "hwpx.agent-batch/v2"
+            ]
           },
           "verificationRequirements": {
             "items": {
@@ -1053,7 +1200,7 @@
           "quality",
           "verificationRequirements"
         ],
-        "title": "HwpxAgentBatch v1",
+        "title": "HwpxAgentBatch v2",
         "type": "object"
       },
       "command": {
@@ -1076,6 +1223,12 @@
                 "maxProperties": 32,
                 "minProperties": 1,
                 "type": "object"
+              },
+              "schemaVersion": {
+                "enum": [
+                  "hwpx.agent-command/v1",
+                  "hwpx.agent-command/v2"
+                ]
               }
             },
             "required": [
@@ -1098,6 +1251,7 @@
                   "section",
                   "paragraph",
                   "run",
+                  "text",
                   "table",
                   "row",
                   "cell",
@@ -1122,6 +1276,12 @@
                 "maxProperties": 32,
                 "minProperties": 1,
                 "type": "object"
+              },
+              "schemaVersion": {
+                "enum": [
+                  "hwpx.agent-command/v1",
+                  "hwpx.agent-command/v2"
+                ]
               }
             },
             "required": [
@@ -1145,6 +1305,12 @@
               },
               "path": {
                 "type": "string"
+              },
+              "schemaVersion": {
+                "enum": [
+                  "hwpx.agent-command/v1",
+                  "hwpx.agent-command/v2"
+                ]
               }
             },
             "required": [
@@ -1172,6 +1338,12 @@
               },
               "position": {
                 "type": "object"
+              },
+              "schemaVersion": {
+                "enum": [
+                  "hwpx.agent-command/v1",
+                  "hwpx.agent-command/v2"
+                ]
               }
             },
             "required": [
@@ -1200,6 +1372,12 @@
               },
               "position": {
                 "type": "object"
+              },
+              "schemaVersion": {
+                "enum": [
+                  "hwpx.agent-command/v1",
+                  "hwpx.agent-command/v2"
+                ]
               }
             },
             "required": [
@@ -1211,7 +1389,7 @@
             "type": "object"
           }
         ],
-        "title": "HwpxAgentCommand v1"
+        "title": "HwpxAgentCommand v2"
       },
       "node": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1232,6 +1410,7 @@
               "section",
               "paragraph",
               "run",
+              "text",
               "table",
               "row",
               "cell",
@@ -1283,7 +1462,7 @@
           "coverage",
           "revision"
         ],
-        "title": "HwpxAgentNode v1",
+        "title": "HwpxAgentNode v2",
         "type": "object"
       },
       "queryInput": {
@@ -1309,7 +1488,7 @@
       }
     },
     "blueprintCatalog": {
-      "agentCatalogVersion": "hwpx.agent-catalog/v1",
+      "agentCatalogVersion": "hwpx.agent-catalog/v2",
       "bundle": {
         "allowedMediaPrefixes": [
           "image/"
@@ -1361,9 +1540,13 @@
         "source-bound",
         "portable"
       ],
+      "readsBlueprints": [
+        "hwpx.agent-blueprint/v1",
+        "hwpx.agent-blueprint/v2"
+      ],
       "schemaVersion": "hwpx.agent-blueprint-catalog/v1",
       "schemas": {
-        "blueprint": "hwpx.agent-blueprint/v1",
+        "blueprint": "hwpx.agent-blueprint/v2",
         "replay": "hwpx.agent-blueprint-replay/v1",
         "replayResult": "hwpx.agent-blueprint-replay-result/v1"
       },
@@ -1389,7 +1572,10 @@
             "type": "string"
           },
           "catalogVersion": {
-            "const": "hwpx.agent-catalog/v1"
+            "enum": [
+              "hwpx.agent-catalog/v1",
+              "hwpx.agent-catalog/v2"
+            ]
           },
           "mode": {
             "enum": [
@@ -1407,7 +1593,10 @@
             "type": "array"
           },
           "schemaVersion": {
-            "const": "hwpx.agent-blueprint/v1"
+            "enum": [
+              "hwpx.agent-blueprint/v1",
+              "hwpx.agent-blueprint/v2"
+            ]
           }
         },
         "required": [
@@ -1493,12 +1682,12 @@
       "help --json": {
         "exitCode": 0,
         "stderr": "",
-        "stdout": "{\"commands\":{\"add\":{\"optional\":[\"position\"],\"required\":[\"commandId\",\"op\",\"parent\",\"kind\",\"properties\"]},\"copy\":{\"optional\":[\"position\"],\"required\":[\"commandId\",\"op\",\"path\",\"parent\"]},\"move\":{\"optional\":[\"position\"],\"required\":[\"commandId\",\"op\",\"path\",\"parent\"]},\"remove\":{\"required\":[\"commandId\",\"op\",\"path\"]},\"set\":{\"required\":[\"commandId\",\"op\",\"path\",\"properties\"]}},\"errorCodes\":[\"invalid_syntax\",\"unknown_kind\",\"unknown_property\",\"unsupported_operation\",\"not_found\",\"ambiguous_target\",\"stale_revision\",\"volatile_target\",\"incompatible_parent\",\"identity_collision\",\"invariant_violation\",\"unsupported_content\",\"resource_limit\",\"verification_failed\",\"idempotency_conflict\"],\"limits\":{\"maxChildrenPerNode\":200,\"maxCommands\":100,\"maxPropertiesPerCommand\":32,\"maxQueryResults\":100,\"maxSelectorChars\":512,\"maxTextChars\":4096,\"maxViewDepth\":8},\"nodeKinds\":{\"cell\":{\"editableProperties\":[\"text\",\"verticalAlignment\",\"backgroundColor\"],\"operations\":[\"set\"],\"readableProperties\":[\"text\",\"row\",\"column\",\"rowSpan\",\"columnSpan\",\"verticalAlignment\",\"backgroundColor\"]},\"document\":{\"editableProperties\":[],\"operations\":[\"add\"],\"readableProperties\":[\"title\",\"author\",\"sectionCount\",\"paragraphCount\",\"tableCount\"]},\"endnote\":{\"editableProperties\":[\"text\"],\"operations\":[\"set\",\"remove\",\"copy\"],\"readableProperties\":[\"text\"]},\"footnote\":{\"editableProperties\":[\"text\"],\"operations\":[\"set\",\"remove\",\"copy\"],\"readableProperties\":[\"text\"]},\"form-field\":{\"editableProperties\":[\"value\",\"readOnly\"],\"operations\":[\"set\"],\"readableProperties\":[\"name\",\"value\",\"fieldType\",\"readOnly\"]},\"memo\":{\"editableProperties\":[\"text\"],\"operations\":[\"set\",\"remove\",\"copy\"],\"readableProperties\":[\"text\",\"author\"]},\"paragraph\":{\"editableProperties\":[\"text\",\"style\",\"alignment\",\"breakBefore\",\"keepWithNext\",\"lineSpacingPercent\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"text\",\"style\",\"alignment\",\"breakBefore\",\"keepWithNext\",\"lineSpacingPercent\"]},\"picture\":{\"editableProperties\":[\"altText\"],\"operations\":[\"set\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"name\",\"altText\",\"widthMm\",\"heightMm\",\"mediaType\"]},\"row\":{\"editableProperties\":[\"heightMm\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"index\",\"cellCount\",\"heightMm\"]},\"run\":{\"editableProperties\":[\"text\",\"bold\",\"italic\",\"underline\",\"fontName\",\"fontSizePt\",\"color\"],\"operations\":[\"set\",\"add\",\"remove\",\"copy\"],\"readableProperties\":[\"text\",\"bold\",\"italic\",\"underline\",\"fontName\",\"fontSizePt\",\"color\"]},\"section\":{\"editableProperties\":[],\"operations\":[\"add\"],\"readableProperties\":[\"index\",\"partId\",\"paragraphCount\",\"pageWidthMm\",\"pageHeightMm\"]},\"shape\":{\"editableProperties\":[\"altText\"],\"operations\":[\"set\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"shapeType\",\"name\",\"altText\",\"xMm\",\"yMm\",\"widthMm\",\"heightMm\"]},\"table\":{\"editableProperties\":[\"caption\",\"alignment\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"rowCount\",\"columnCount\",\"caption\",\"widthMm\",\"alignment\"]},\"unsupported\":{\"editableProperties\":[],\"operations\":[],\"readableProperties\":[\"localName\",\"reason\"]}},\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"path\":{\"commandReference\":\"$<commandId>.path\",\"externalIndexBase\":1,\"root\":\"/\",\"stabilityLevels\":[\"native\",\"derived\",\"positional\"]},\"qualityModes\":[\"transparent\",\"strict\"],\"query\":{\"examples\":[\"paragraph[style=\\\"개요 1\\\"]:contains(\\\"평가\\\")\",\"section > paragraph[type=\\\"normal\\\"]\",\"table[id=\\\"123\\\"] > row > cell\"],\"limitRequired\":true,\"normalization\":\"Unicode NFKC + whitespace collapse + casefold\"},\"recoverability\":[\"retryable\",\"needs-review\",\"terminal\"],\"schemaVersion\":\"hwpx.agent-catalog/v1\",\"schemas\":{\"batch\":\"hwpx.agent-batch/v1\",\"batchResult\":\"hwpx.agent-batch-result/v1\",\"command\":\"hwpx.agent-command/v1\",\"error\":\"hwpx.agent-error/v1\",\"node\":\"hwpx.agent-node/v1\"},\"selector\":{\"attributes\":[\"id\",\"name\",\"style\",\"type\"],\"features\":[\"kind\",\"exact-attribute\",\"contains\",\"direct-child\"],\"kinds\":[\"document\",\"section\",\"paragraph\",\"run\",\"table\",\"row\",\"cell\",\"form-field\",\"picture\",\"memo\",\"footnote\",\"endnote\",\"shape\"],\"rawXml\":false,\"regex\":false,\"resultOrder\":\"document\",\"xpath\":false},\"verificationRequirements\":[\"package\",\"reopen\",\"openSafety\",\"semanticDiff\",\"bytePreservation\",\"domain\",\"realHancom\"]}\n"
+        "stdout": "{\"commands\":{\"add\":{\"optional\":[\"position\",\"schemaVersion\"],\"required\":[\"commandId\",\"op\",\"parent\",\"kind\",\"properties\"]},\"copy\":{\"optional\":[\"position\",\"schemaVersion\"],\"required\":[\"commandId\",\"op\",\"path\",\"parent\"]},\"move\":{\"optional\":[\"position\",\"schemaVersion\"],\"required\":[\"commandId\",\"op\",\"path\",\"parent\"]},\"remove\":{\"optional\":[\"schemaVersion\"],\"required\":[\"commandId\",\"op\",\"path\"]},\"set\":{\"optional\":[\"schemaVersion\"],\"required\":[\"commandId\",\"op\",\"path\",\"properties\"]}},\"errorCodes\":[\"invalid_syntax\",\"unknown_kind\",\"unknown_property\",\"unsupported_operation\",\"not_found\",\"ambiguous_target\",\"stale_revision\",\"volatile_target\",\"incompatible_parent\",\"identity_collision\",\"invariant_violation\",\"unsupported_content\",\"resource_limit\",\"verification_failed\",\"idempotency_conflict\",\"contract_changed\"],\"limits\":{\"maxChildrenPerNode\":200,\"maxCommands\":100,\"maxPropertiesPerCommand\":32,\"maxQueryResults\":100,\"maxSelectorChars\":512,\"maxTextChars\":4096,\"maxViewDepth\":8},\"nodeKinds\":{\"cell\":{\"editableProperties\":[\"text\",\"verticalAlignment\",\"backgroundColor\"],\"operations\":[\"set\"],\"readableProperties\":[\"text\",\"row\",\"column\",\"rowSpan\",\"columnSpan\",\"verticalAlignment\",\"backgroundColor\"]},\"document\":{\"editableProperties\":[],\"operations\":[\"add\"],\"readableProperties\":[\"title\",\"author\",\"sectionCount\",\"paragraphCount\",\"tableCount\"]},\"endnote\":{\"editableProperties\":[\"text\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"text\"]},\"footnote\":{\"editableProperties\":[\"text\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"text\"]},\"form-field\":{\"editableProperties\":[\"value\",\"readOnly\"],\"operations\":[\"set\"],\"readableProperties\":[\"name\",\"value\",\"fieldType\",\"readOnly\"]},\"memo\":{\"editableProperties\":[\"text\"],\"operations\":[\"set\",\"remove\",\"copy\"],\"readableProperties\":[\"text\",\"author\"]},\"paragraph\":{\"editableProperties\":[\"text\",\"style\",\"alignment\",\"breakBefore\",\"keepWithNext\",\"lineSpacingPercent\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"text\",\"style\",\"alignment\",\"breakBefore\",\"keepWithNext\",\"lineSpacingPercent\"]},\"picture\":{\"editableProperties\":[\"altText\"],\"operations\":[\"set\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"name\",\"altText\",\"widthMm\",\"heightMm\",\"mediaType\"]},\"row\":{\"editableProperties\":[\"heightMm\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"index\",\"cellCount\",\"heightMm\"]},\"run\":{\"editableProperties\":[\"text\",\"bold\",\"italic\",\"underline\",\"fontName\",\"fontSizePt\",\"color\"],\"operations\":[\"set\"],\"readableProperties\":[\"text\",\"bold\",\"italic\",\"underline\",\"fontName\",\"fontSizePt\",\"color\"]},\"section\":{\"editableProperties\":[],\"operations\":[\"add\"],\"readableProperties\":[\"index\",\"partId\",\"paragraphCount\",\"pageWidthMm\",\"pageHeightMm\"]},\"shape\":{\"editableProperties\":[\"altText\"],\"operations\":[\"set\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"shapeType\",\"name\",\"altText\",\"xMm\",\"yMm\",\"widthMm\",\"heightMm\"]},\"table\":{\"editableProperties\":[\"caption\",\"alignment\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"rowCount\",\"columnCount\",\"caption\",\"widthMm\",\"alignment\"]},\"text\":{\"editableProperties\":[\"text\",\"bold\",\"italic\",\"underline\",\"fontName\",\"fontSizePt\",\"color\"],\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"readableProperties\":[\"text\",\"start\",\"end\",\"runs\"]},\"unsupported\":{\"editableProperties\":[],\"operations\":[],\"readableProperties\":[\"localName\",\"reason\"]}},\"operations\":[\"set\",\"add\",\"remove\",\"move\",\"copy\"],\"path\":{\"commandReference\":\"$<commandId>.path\",\"externalIndexBase\":1,\"root\":\"/\",\"stabilityLevels\":[\"native\",\"derived\",\"positional\"]},\"positions\":{\"acceptedBatchSchemas\":[\"hwpx.agent-batch/v1\",\"hwpx.agent-batch/v2\"],\"acceptedCommandSchemas\":[\"hwpx.agent-command/v1\",\"hwpx.agent-command/v2\"],\"block\":[\"append\",\"prepend\",\"index\",\"before\",\"after\"],\"inParagraph\":[\"append\",\"prepend\",\"offset\",\"before\",\"after\"],\"offsetCounts\":\"paragraph.text: a tab or a line break is 1, a control or an object 0\",\"textPath\":\"<paragraph path>/text[<start>:<end>]\"},\"qualityModes\":[\"transparent\",\"strict\"],\"query\":{\"examples\":[\"paragraph[style=\\\"개요 1\\\"]:contains(\\\"평가\\\")\",\"section > paragraph[type=\\\"normal\\\"]\",\"table[id=\\\"123\\\"] > row > cell\"],\"limitRequired\":true,\"normalization\":\"Unicode NFKC + whitespace collapse + casefold\"},\"recoverability\":[\"retryable\",\"needs-review\",\"terminal\"],\"schemaVersion\":\"hwpx.agent-catalog/v2\",\"schemas\":{\"batch\":\"hwpx.agent-batch/v2\",\"batchResult\":\"hwpx.agent-batch-result/v1\",\"command\":\"hwpx.agent-command/v2\",\"error\":\"hwpx.agent-error/v1\",\"node\":\"hwpx.agent-node/v1\"},\"selector\":{\"attributes\":[\"id\",\"name\",\"style\",\"type\"],\"features\":[\"kind\",\"exact-attribute\",\"contains\",\"direct-child\"],\"kinds\":[\"document\",\"section\",\"paragraph\",\"run\",\"table\",\"row\",\"cell\",\"form-field\",\"picture\",\"memo\",\"footnote\",\"endnote\",\"shape\"],\"rawXml\":false,\"regex\":false,\"resultOrder\":\"document\",\"xpath\":false},\"verificationRequirements\":[\"package\",\"reopen\",\"openSafety\",\"semanticDiff\",\"bytePreservation\",\"domain\",\"realHancom\"]}\n"
       },
       "help blueprint --json": {
         "exitCode": 0,
         "stderr": "",
-        "stdout": "{\"agentCatalogVersion\":\"hwpx.agent-catalog/v1\",\"bundle\":{\"allowedMediaPrefixes\":[\"image/\"],\"assetPattern\":\"assets/<sha256>.<safe-extension>\",\"extension\":\".hwpxbp\",\"forbidden\":[\"xml\",\"script\",\"symlink\",\"nested-archive\",\"absolute-path\",\"parent-path\"],\"manifest\":\"blueprint.json\"},\"fidelity\":[\"exact\",\"mapped\",\"degraded\",\"unsupported\"],\"kinds\":[\"document\",\"section\",\"paragraph\",\"run\",\"table\",\"row\",\"cell\",\"form-field\",\"picture\",\"memo\",\"footnote\",\"endnote\",\"shape\"],\"limits\":{\"maxAssetBytes\":16777216,\"maxAssets\":128,\"maxDependencies\":4096,\"maxDepth\":32,\"maxManifestBytes\":16777216,\"maxNodes\":10000,\"maxReferences\":50000,\"maxTotalAssetBytes\":67108864},\"modes\":[\"source-bound\",\"portable\"],\"schemaVersion\":\"hwpx.agent-blueprint-catalog/v1\",\"schemas\":{\"blueprint\":\"hwpx.agent-blueprint/v1\",\"replay\":\"hwpx.agent-blueprint-replay/v1\",\"replayResult\":\"hwpx.agent-blueprint-replay-result/v1\"},\"surfaces\":{\"cli\":[\"dump\",\"replay\"],\"mcpMaximumTools\":2}}\n"
+        "stdout": "{\"agentCatalogVersion\":\"hwpx.agent-catalog/v2\",\"bundle\":{\"allowedMediaPrefixes\":[\"image/\"],\"assetPattern\":\"assets/<sha256>.<safe-extension>\",\"extension\":\".hwpxbp\",\"forbidden\":[\"xml\",\"script\",\"symlink\",\"nested-archive\",\"absolute-path\",\"parent-path\"],\"manifest\":\"blueprint.json\"},\"fidelity\":[\"exact\",\"mapped\",\"degraded\",\"unsupported\"],\"kinds\":[\"document\",\"section\",\"paragraph\",\"run\",\"table\",\"row\",\"cell\",\"form-field\",\"picture\",\"memo\",\"footnote\",\"endnote\",\"shape\"],\"limits\":{\"maxAssetBytes\":16777216,\"maxAssets\":128,\"maxDependencies\":4096,\"maxDepth\":32,\"maxManifestBytes\":16777216,\"maxNodes\":10000,\"maxReferences\":50000,\"maxTotalAssetBytes\":67108864},\"modes\":[\"source-bound\",\"portable\"],\"readsBlueprints\":[\"hwpx.agent-blueprint/v1\",\"hwpx.agent-blueprint/v2\"],\"schemaVersion\":\"hwpx.agent-blueprint-catalog/v1\",\"schemas\":{\"blueprint\":\"hwpx.agent-blueprint/v2\",\"replay\":\"hwpx.agent-blueprint-replay/v1\",\"replayResult\":\"hwpx.agent-blueprint-replay-result/v1\"},\"surfaces\":{\"cli\":[\"dump\",\"replay\"],\"mcpMaximumTools\":2}}\n"
       },
       "unknown-command": {
         "exitCode": 2,
@@ -1540,6 +1729,12 @@
                           "maxProperties": 32,
                           "minProperties": 1,
                           "type": "object"
+                        },
+                        "schemaVersion": {
+                          "enum": [
+                            "hwpx.agent-command/v1",
+                            "hwpx.agent-command/v2"
+                          ]
                         }
                       },
                       "required": [
@@ -1562,6 +1757,7 @@
                             "section",
                             "paragraph",
                             "run",
+                            "text",
                             "table",
                             "row",
                             "cell",
@@ -1586,6 +1782,12 @@
                           "maxProperties": 32,
                           "minProperties": 1,
                           "type": "object"
+                        },
+                        "schemaVersion": {
+                          "enum": [
+                            "hwpx.agent-command/v1",
+                            "hwpx.agent-command/v2"
+                          ]
                         }
                       },
                       "required": [
@@ -1609,6 +1811,12 @@
                         },
                         "path": {
                           "type": "string"
+                        },
+                        "schemaVersion": {
+                          "enum": [
+                            "hwpx.agent-command/v1",
+                            "hwpx.agent-command/v2"
+                          ]
                         }
                       },
                       "required": [
@@ -1636,6 +1844,12 @@
                         },
                         "position": {
                           "type": "object"
+                        },
+                        "schemaVersion": {
+                          "enum": [
+                            "hwpx.agent-command/v1",
+                            "hwpx.agent-command/v2"
+                          ]
                         }
                       },
                       "required": [
@@ -1664,6 +1878,12 @@
                         },
                         "position": {
                           "type": "object"
+                        },
+                        "schemaVersion": {
+                          "enum": [
+                            "hwpx.agent-command/v1",
+                            "hwpx.agent-command/v2"
+                          ]
                         }
                       },
                       "required": [
@@ -1787,7 +2007,10 @@
                 ]
               },
               "schemaVersion": {
-                "const": "hwpx.agent-batch/v1"
+                "enum": [
+                  "hwpx.agent-batch/v1",
+                  "hwpx.agent-batch/v2"
+                ]
               },
               "verificationRequirements": {
                 "items": {
@@ -2590,7 +2813,7 @@
       "properties": {
         "text": "동결"
       },
-      "schemaVersion": "hwpx.agent-command/v1"
+      "schemaVersion": "hwpx.agent-command/v2"
     }
   },
   "frozenFrom": "python-hwpx 503d652a730c6d9e4ab27c274a641684dbf77cb7",

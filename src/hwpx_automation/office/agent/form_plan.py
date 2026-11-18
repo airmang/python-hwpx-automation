@@ -3,7 +3,7 @@
 
 The module deliberately owns *planning only*.  It resolves four public locator
 types against one immutable document revision, compiles them to ordinary
-``hwpx.agent-batch/v1`` ``set`` commands, and delegates execution to
+``hwpx.agent-batch/v2`` ``set`` commands, and delegates execution to
 ``apply_document_commands``.  There is no second mutation or save engine here.
 """
 
@@ -47,7 +47,7 @@ from .path import parse_path
 MIXED_FORM_PLAN_SCHEMA = "hwpx.mixed-form-plan/v1"
 # Internal normalized form (``operations[].locator``); not an MCP wire promise.
 MIXED_FORM_REQUEST_SCHEMA = "hwpx.mixed-form-request/v1"
-# Revision-bound output containing the single ``hwpx.agent-batch/v1`` request.
+# Revision-bound output containing the single ``hwpx.agent-batch/v2`` request.
 MIXED_FORM_COMPILED_PLAN_SCHEMA = "hwpx.mixed-form-compiled-plan/v1"
 MIXED_FORM_LOCATOR_KINDS = (
     "nativeField",
@@ -302,7 +302,7 @@ def _batch_request_shape(normalized: Mapping[str, Any]) -> dict[str, Any]:
     """Detach validator output into the request shape the executor accepts.
 
     ``validate_agent_command`` annotates normalized commands with their schema
-    version, while an ``hwpx.agent-batch/v1`` request intentionally omits that
+    version, while an ``hwpx.agent-batch/v2`` request intentionally omits that
     derived field.  The executor validates requests again, so compiled plans
     must retain the request shape rather than feed normalized commands back
     through a non-idempotent validator.

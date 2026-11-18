@@ -10,6 +10,19 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 
 ### Breaking
 
+- 문서 에이전트 명령이 `hwpx.agent-command/v2`(일괄 `hwpx.agent-batch/v2`)로 오릅니다. 글은 런의 차례가 아니라
+  문단의 글자 범위(`kind "text"`, `<문단>/text[시작:끝]`)로 넣고 지우고 옮기고 복사합니다. 표·그림·도형·각주·미주는
+  글자 자리(`position.mode "offset"`)에 놓고, 결과에 `place`(문단·글자 자리·길이)가 실립니다. 각주·미주는 더하고
+  옮길 수 있습니다. 행 옮기기·복사는 python-hwpx의 `move_rows`·`copy_rows`로 하며, 다른 표로 옮기면 그 행의 칸
+  id가 새 값이 됩니다. 뜻이 바뀐 v1 꼴(런 add·remove·copy, 문단 안 `index`, 런 기준 before·after, v1과 v2가 섞인
+  명령, 옛 자리와 새 자리가 다른 v1 append·prepend)은 새 오류 코드 `contract_changed`로 거부하고 `suggestion`에 새
+  꼴을 싣습니다. 뜻이 같은 v1 명령은 그대로 받습니다(`docs/agent-command-v2.md`).
+- 블루프린트가 `hwpx.agent-blueprint/v2`로 오릅니다(개체·각주는 `offset`, 누름틀은 `start`·`end`). v1 블루프린트는
+  읽어 올려 재생합니다(`verificationReport.upgradedFrom`).
+- 도구 계약 해시가 `c895883d5f4350ae`가 됩니다(`docs/tool-contract-delta-8.0.0.json`). 도구 이름·프로필·하한은
+  그대로이고, 바뀐 것은 문서 에이전트·블루프린트 도구 여섯과 양식 채우기 계획의 일괄 판(셋)입니다.
+- 같은 파일에 같은 요청이면 같은 바이트가 납니다. 파일을 고쳐 쓰는 길은 입력 바이트의 sha256로, 새 문서를 짓는 길은
+  요청 내용으로 새 id의 씨앗을 정합니다(저장 시각은 시계를 따릅니다).
 - python-hwpx 7.0 이상이 필요합니다(`python-hwpx>=7.0,<8`). 6.x 엔진과는 설치되지 않고, 그보다 낮은 엔진이 깔려 있으면
   쓰기 도구가 버전 불일치(`CAPABILITY_SKEW`)로 거부합니다.
 - 옮겨 온 기능의 옛 경로(`hwpx.tools.markdown_import`, `doc.text.markdown()`·`html()`·`append_markdown()`,

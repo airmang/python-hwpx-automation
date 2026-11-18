@@ -12,6 +12,7 @@ from typing import Any, Sequence, cast
 
 from hwpx.document import HwpxDocument
 from hwpx.oxml import HwpxOxmlShape
+from hwpx.oxml.objects import wrap_object
 
 from .model import (
     MAX_CHILDREN_PER_NODE,
@@ -19,9 +20,16 @@ from .model import (
     MAX_VIEW_DEPTH,
     AgentContractError,
     AgentNode,
-    NODE_PROPERTY_CATALOG_V1,
+    NODE_PROPERTY_CATALOG_V2,
 )
-from .path import SemanticPath, canonicalize_path, identified_segment, indexed_segment, parse_path
+from .path import (
+    SemanticPath,
+    canonicalize_path,
+    identified_segment,
+    indexed_segment,
+    parse_path,
+    text_segment,
+)
 from .query import QueryRecord as _QueryRecord
 from .query import QueryResult, evaluate_selector, parse_selector
 from .story import (
@@ -175,6 +183,24 @@ def _form_field_matches(document: HwpxDocument) -> list[dict[str, Any]]:
     return matches
 
 
+def place(paragraph_path: str, offset: int | None, length: int = 0) -> dict[str, Any] | None:
+    """Where a node stands in its paragraph's text (agent-command v2): the paragraph and the
+    character offset, counted as ``paragraph.text`` counts, and the characters it spans."""
+
+    if offset is None:
+        return None
+    return {"paragraph": paragraph_path, "offset": offset, "length": length}
+
+
+@dataclass(frozen=True, slots=True)
+class TextRange:
+    """The native binding of a ``text`` node: characters ``[start, end)`` of one paragraph."""
+
+    paragraph: Any
+    start: int
+    end: int
+
+
 @dataclass(slots=True)
 class NodeRecord:
     """Request-local native binding; never serialized directly."""
@@ -191,6 +217,9 @@ class NodeRecord:
     child_paths: list[str] = field(default_factory=list)
     unsupported_child_count: int = 0
     unsupported_child_kinds: Counter[str] = field(default_factory=Counter)
+    #: Where it stands in its paragraph's text (runs, texts, objects in a paragraph); shown in the
+    #: public node's summary, kept out of ``summary`` so blueprints (still v1) stay as they were.
+    place: dict[str, Any] | None = None
 
     def mark_unsupported(self, local_name: str, count: int = 1) -> None:
         self.unsupported_child_kinds[local_name] += count
@@ -528,9 +557,13 @@ class HwpxAgentDocument:
             fields_by_position[(int(match["run_index"]), int(match["child_index"]))].append(match)
 
         object_indexes: Counter[str] = Counter()
+        run_offset = 0
         for run_index, run in enumerate(paragraph.runs, start=1):
             run_path = path.child(indexed_segment("run", run_index))
-            run_summary = {"text": _bounded_text(run.text), **self._run_style_summary(run)}
+            run_text = run.text
+            run_summary = {"text": _bounded_text(run_text), **self._run_style_summary(run)}
+            run_place = place(path.canonical, run_offset, len(run_text))
+            run_offset += len(run_text)
             self._add_record(
                 NodeRecord(
                     kind="run",
@@ -542,6 +575,7 @@ class HwpxAgentDocument:
                     parent_path=path.canonical,
                     attributes={"type": "run"},
                     search_text=run.text,
+                    place=run_place,
                 )
             )
             for child_index, child in enumerate(run.element):
@@ -647,6 +681,7 @@ class HwpxAgentDocument:
             parent_path=parent.canonical,
             attributes={"id": identity or "", "type": element.get("numberingType", "table")},
             search_text=paragraph.text,
+            place=place(parent.canonical, table.offset),
         )
         self._add_record(table_record)
         for child in element:
@@ -748,6 +783,7 @@ class HwpxAgentDocument:
                 parent_path=parent.canonical,
                 attributes={"id": identity or "", "name": name or "", "type": "picture"},
                 search_text=name or "",
+                place=place(parent.canonical, wrap_object(element, paragraph).offset),
             )
         )
 
@@ -785,6 +821,7 @@ class HwpxAgentDocument:
                 parent_path=parent.canonical,
                 attributes={"id": identity or "", "name": name or "", "type": shape.shape_type},
                 search_text=name or "",
+                place=place(parent.canonical, shape.offset),
             )
         )
 
@@ -805,6 +842,7 @@ class HwpxAgentDocument:
                 parent_path=parent.canonical,
                 attributes={"id": identity or "", "type": kind},
                 search_text=note.text,
+                place=place(parent.canonical, note.offset),
             )
         )
 
@@ -874,12 +912,55 @@ class HwpxAgentDocument:
         canonical = canonicalize_path(path)
         if canonical in self._ambiguous_paths:
             raise AgentContractError("ambiguous_target", "path identity is duplicated", target=canonical)
+        parsed = parse_path(canonical)
+        if parsed.segments and parsed.segments[-1].kind == "text":
+            return self._text_record(parsed)
         record = self._records.get(canonical)
         if record is None:
             raise AgentContractError("not_found", f"semantic path not found: {canonical}", target=canonical)
         if require_stable and record.stability == "positional":
             raise AgentContractError("volatile_target", "target has a positional path", target=canonical)
         return record
+
+    def _text_record(self, parsed: SemanticPath) -> NodeRecord:
+        """The ``text`` node ``<paragraph>/text[start:end]`` (agent-command v2), made on request:
+        a range is not a projected child, so ``get_document_map`` lists the runs it spans instead."""
+
+        parent = cast(SemanticPath, parsed.parent)
+        paragraph_record = self.resolve_record(parent.canonical)
+        segment = parsed.segments[-1]
+        start, end = cast(int, segment.start), cast(int, segment.end)
+        text = paragraph_record.native.text or ""
+        if end > len(text):
+            raise AgentContractError(
+                "not_found",
+                f"text range {start}:{end} is past the paragraph's {len(text)} characters",
+                target=parsed.canonical,
+            )
+        runs = [
+            child
+            for child in paragraph_record.child_paths
+            if self._records[child].kind == "run"
+            and _overlaps(self._records[child].place, start, end)
+        ]
+        path = parent.child(text_segment(start, end)).canonical
+        return NodeRecord(
+            kind="text",
+            path=path,
+            stable_id=None,
+            stability="positional",
+            summary={
+                "text": _bounded_text(text[start:end], limit=MAX_TEXT_CHARS),
+                "start": start,
+                "end": end,
+                "runs": runs,
+            },
+            native=TextRange(paragraph_record.native, start, end),
+            parent_path=parent.canonical,
+            attributes={"type": "text"},
+            search_text=text[start:end],
+            place=place(parent.canonical, start, end - start),
+        )
 
     def _resolve_header_story(
         self,
@@ -908,13 +989,14 @@ class HwpxAgentDocument:
             for path in selected_paths
         )
         truncated = supported_total - len(selected_paths)
-        catalog = NODE_PROPERTY_CATALOG_V1[record.kind]
+        catalog = NODE_PROPERTY_CATALOG_V2[record.kind]
+        summary = record.summary if record.place is None else {**record.summary, "place": record.place}
         return AgentNode(
             kind=record.kind,
             path=record.path,
             stable_id=record.stable_id,
             stability=record.stability,
-            summary=record.summary,
+            summary=summary,
             child_count=supported_total + record.unsupported_child_count,
             children=children,
             unsupported_child_count=record.unsupported_child_count,
@@ -1011,4 +1093,16 @@ class HwpxAgentDocument:
         )
 
 
-__all__ = ["HwpxAgentDocument", "NodeRecord"]
+def _overlaps(run_place: Any, start: int, end: int) -> bool:
+    """Whether a run at *run_place* holds a character of ``[start, end)`` (or, empty range, the place)."""
+
+    if not isinstance(run_place, dict):
+        return False
+    run_start = int(run_place["offset"])
+    run_end = run_start + int(run_place["length"])
+    if start == end:
+        return run_start <= start <= run_end
+    return run_start < end and start < run_end
+
+
+__all__ = ["HwpxAgentDocument", "NodeRecord", "TextRange", "place"]
