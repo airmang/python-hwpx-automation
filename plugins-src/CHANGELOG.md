@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- 도구 계약 사본을 automation 8.0 후보(`c895883d5f4350ae`)로 맞춥니다. python-hwpx 하한이 7.0.0으로 함께 맞춰집니다
+  (사본이 6.5.0을 적고 있었습니다). 문서 에이전트 명령이 v2로 오르며, 문단 안 글은 글자 범위로, 개체·각주는 글자 자리로
+  다룹니다. 뜻이 바뀐 옛 명령은 `contract_changed`로 새 꼴을 안내합니다. `references/workflows-agent-document.md`·
+  `workflows-agent-blueprint.md`에 그 꼴을 적고, `references/migration-mcp-8.0.md`를 더합니다.
+
 - `.hwp`를 입력 형식으로 안내합니다. 스킬과 참고 문서가 "결과는 원본과 같은 형식으로 저장"하라고 하던 것을, `.hwpx`
   사본을 만들어 고치고 결과를 `.hwpx`로 내도록 바꿨습니다. `.hwp`로 다시 쓰는 기능은 실험 단계로 적고, 원본 `.hwp`를
   덮어쓰지 않게 했습니다. 한/글이 저장한 `.hwp`를 같은 경로에 다시 저장하면 경고 없이 내용이 빠질 수 있었습니다.

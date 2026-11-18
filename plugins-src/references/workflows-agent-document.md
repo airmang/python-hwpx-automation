@@ -119,12 +119,25 @@ dry-run과 commit은 request hash가 다르므로 **같은 idempotency key를 �
 앞 명령이 만든 노드는 뒤 명령에서 `$renameHeading.path` 또는 `$copyBlock.path`처럼 참조할 수 있다.
 copy 결과의 `generatedIdentities`와 반환된 새 path를 사용하고 ID를 추측하지 않는다.
 
+## 문단 안 글과 개체: 글자 자리(명령 v2)
+
+문단 안의 글은 런의 차례가 아니라 **글자 범위**로 다룬다. 범위 경로는 `<문단 경로>/text[시작:끝]`이다.
+글자 자리는 `paragraph.text`로 센다(탭·줄바꿈 1, 개체 0).
+- 글 넣기: `{"op":"add","kind":"text","parent":<문단>,"position":{"mode":"offset","offset":3},"properties":{"text":"…","bold":true}}`
+- 글 고치기·지우기·옮기기·복사: `path`에 `…/text[3:5]`를 준다. 옮기기·복사의 자리는 `{"mode":"offset","offset":n}`이다.
+- 표·그림·도형·각주·미주를 문단 안에 놓을 때도 `{"mode":"offset","offset":n}`이나 같은 문단 개체의 `before`/`after`를 쓴다.
+- 결과의 `place`(`paragraph`·`offset`·`length`)와 노드 `summary.place`로 자리를 읽는다. 자리를 추측하지 않는다.
+
+`contract_changed`가 오면 옛 꼴(런 add·remove·copy, 문단 안 `index`, 런 경로 기준 before/after)을 보낸 것이다.
+`suggestion`의 새 꼴로 고쳐 다시 보낸다([migration-mcp-8.0](migration-mcp-8.0.md)).
+
 ## 실패 처리
 
 - `ambiguous_target`, `not_found`: 후보를 다시 읽고 고유 path를 확정한다.
 - `stale_revision`, `volatile_target`: 현재 문서를 다시 view/query한다.
 - `unknown_property`, `unsupported_operation`, `incompatible_parent`: 노드의
   `editableProperties`·`operations`와 shared catalog를 확인한다.
+- `contract_changed`: 8.0 명령 v2에서 뜻이 바뀐 옛 꼴이다. `suggestion`의 새 꼴로 고쳐 다시 보낸다.
 - `identity_collision`, `invariant_violation`, `unsupported_content`: generic 우회를 시도하지 말고
   전문 도구 또는 사람 검토로 넘긴다.
 - 기존 머리글 경로의 `invalid_syntax`: 설치 core/MCP/skill 버전을 health에서 다시 확인한다.

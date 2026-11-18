@@ -71,7 +71,7 @@ def test_generated_contract_covers_recovered_skill_tools() -> None:
     assert BLUEPRINT_TOOLS <= names
     assert BLUEPRINT_TOOLS <= required
     assert REMOVED_PRIVATE_PRACTICE_TOOLS.isdisjoint(required)
-    assert contract["contractHash"] == "5e5c23651f92785a"
+    assert contract["contractHash"] == "c895883d5f4350ae"  # 8.0: agent-command v2, blueprint v2
     assert contract["defaultToolCount"] == 128
     assert contract["advancedToolCount"] == 136
     assert len(contract["skillRequiredTools"]) == 29

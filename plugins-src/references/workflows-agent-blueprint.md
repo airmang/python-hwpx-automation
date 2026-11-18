@@ -6,6 +6,10 @@
 스타일·글자속성·번호매기기·그림·참조·ID 충돌이 있는 다른 HWPX에 원자적으로 이식할 때 쓴다.
 이 경로는 raw XML 복사, 세션형 편집기, watch, OfficeCLI adapter가 아니다.
 
+8.0부터 덤프는 `hwpx.agent-blueprint/v2`다. 표·그림·도형·각주는 문단 글의 글자 자리(`offset`)에, 누름틀은
+글자 범위(`start`·`end`)에 놓인다. 7.x가 만든 v1 블루프린트도 그대로 재생된다. 서버가 읽어 v2로 올리고
+`verificationReport.upgradedFrom`에 적는다([migration-mcp-8.0](migration-mcp-8.0.md)).
+
 양식 채움, 시험지 조판, 메일머지, PII, 공문 lint처럼 더 풍부한 도메인 검증이 있는 작업은 기존
 전문 workflow를 유지한다. blueprint replay가 전문 workflow의 증거를 대신하지 않는다.
 
