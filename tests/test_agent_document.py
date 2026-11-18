@@ -241,7 +241,8 @@ def test_apply_document_commands_routes_body_table_header_transaction_once(
     assert result["verificationReport"]["storyPreservation"]["ok"] is True
     assert result["verificationReport"]["storyPreservation"]["storyCount"] == 1
     assert result["verificationReport"]["bytePreservation"]["changedMembers"] == [
-        "Contents/section0.xml"
+        "Contents/content.hpf",  # the save's dates
+        "Contents/section0.xml",
     ]
     assert result["verificationReport"]["openSafety"]["ok"] is True
     with HwpxDocument.open(output) as reopened:

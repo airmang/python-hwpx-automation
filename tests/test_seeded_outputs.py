@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Same input, same request, same document (owner 18차): the ids python-hwpx mints on the way come
 from the input file's sha256 (a path that rewrites a file) or from the request (a path that makes a
-new one). The save time (``content.hpf`` ModifiedDate) follows the clock, which stays as it was
-(the owner decides it apart), so it is masked and documents are compared part by part; the command path keeps the input's entries and is compared byte for byte in
+new one). The save time (``content.hpf`` CreatedDate/ModifiedDate) is the real time (owner 23차,
+``test_save_dates.py``), so it is masked and documents are compared part by part; the command path
+keeps the input's entries but its save dates and is compared in
 ``agent_runtime_parity/test_agent_command_v2.py``."""
 
 from __future__ import annotations

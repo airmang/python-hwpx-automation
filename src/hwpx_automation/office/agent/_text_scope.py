@@ -18,6 +18,7 @@ from typing import Any, NoReturn
 
 from hwpx.opc.security import guard_zip_file, parse_xml_stdlib, read_member
 
+from ...upstream import same_but_save_dates
 from .document import HwpxAgentDocument
 from .model import AgentContractError
 from .story import try_parse_header_story_path
@@ -311,7 +312,10 @@ class TextScope:
         assert self.targets is not None
         members = {target.member for target in self.targets}
         for name in before.namelist():
-            if name not in members and read_member(before, name) != read_member(after, name):
+            if name in members:
+                continue
+            old, new = read_member(before, name), read_member(after, name)
+            if old != new and not (name.endswith(".hpf") and same_but_save_dates(old, new)):
                 self._fail("non-target package payload changed", name)
         for member in members:
             old = parse_xml_stdlib(read_member(before, member), part_name=member)

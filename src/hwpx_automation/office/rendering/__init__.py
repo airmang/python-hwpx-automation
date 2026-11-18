@@ -148,7 +148,10 @@ def save_gate_report(
 
     from hwpx.quality import QualityPolicy
 
+    from ...upstream import stamp_save_dates
+
     policy = QualityPolicy.transparent() if quality is None else quality
+    stamp_save_dates(document)  # dated as Hangul dates a save: ModifiedDate now, CreatedDate kept
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings(

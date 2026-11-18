@@ -21,7 +21,7 @@ from hwpx.quality import SavePipeline
 
 from ._batch_publication import BatchPublication
 from ._text_scope import TextScope
-from ...upstream import content_seed
+from ...upstream import content_seed, stamp_save_dates
 from .catalog import catalog_hash
 from .document import HwpxAgentDocument, NodeRecord, TextRange, place
 from .model import (
@@ -1725,6 +1725,7 @@ def apply_document_commands(
                 )
 
             _call_fault(fault_injector, "before_serialize")
+            stamp_save_dates(document)  # Hangul's save dates: ModifiedDate now, CreatedDate kept
             candidate_data = document.to_bytes()
             _call_fault(fault_injector, "after_serialize")
 

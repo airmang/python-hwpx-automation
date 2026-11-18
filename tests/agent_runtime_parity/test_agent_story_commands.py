@@ -24,6 +24,8 @@ from hwpx_automation.office.agent.model import (
 )
 from hwpx_automation.office.agent.path import parse_path
 from hwpx_automation.office.agent.story import parse_header_story_path
+from hwpx_automation.upstream import same_but_save_dates
+
 
 _SEED = (
     Path(__file__).parent
@@ -251,7 +253,8 @@ def test_body_table_header_batch_preserves_structure_and_even_mirror(
         ],
     }
     byte_report = result.verification_report["bytePreservation"]
-    assert byte_report["changedMembers"] == ["Contents/section0.xml"]
+    # content.hpf carries the save's dates (ModifiedDate now), as a Hangul save does
+    assert byte_report["changedMembers"] == ["Contents/content.hpf", "Contents/section0.xml"]
     assert byte_report["addedMembers"] == []
     assert byte_report["removedMembers"] == []
     assert validate_editor_open_safety(output).ok
@@ -262,8 +265,9 @@ def test_body_table_header_batch_preserves_structure_and_even_mirror(
     assert all(
         source_members[name] == output_members[name]
         for name in source_members
-        if name != "Contents/section0.xml"
+        if name not in ("Contents/section0.xml", "Contents/content.hpf")
     )
+    assert same_but_save_dates(source_members["Contents/content.hpf"], output_members["Contents/content.hpf"])
     with HwpxDocument.open(output) as reopened:
         section = reopened.sections[0]
         both = section.properties.header("BOTH")
@@ -627,7 +631,8 @@ def test_multisection_header_edit_preserves_other_section_and_story(
 
     assert result.ok, result.to_dict()
     assert result.verification_report["bytePreservation"]["changedMembers"] == [
-        "Contents/section0.xml"
+        "Contents/content.hpf",  # the save's dates
+        "Contents/section0.xml",
     ]
     after_members = _members(output.read_bytes())
     assert after_members["Contents/section1.xml"] == before_members["Contents/section1.xml"]

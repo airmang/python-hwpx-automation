@@ -11,13 +11,13 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 6,
-    "loc": 810,
-    "manifestSha256": "799b31ac33a2fbccd56d5a4e8e469aa6b304d48bc55c50089273722c3d2bf2dc",
+    "loc": 812,
+    "manifestSha256": "90c35e3a941f3010be87e6cccf19a3e6803422dd723e165e4084a1800f157d81",
     "refrozenNote": "WP-F (core 6.0 namespace adaptation): profile.py's doc.style(sid) call moved to doc.styles.get(sid) (design §2.4, id·이름 겸용 조회로 승격). Same line count, no behavior change.",
     "refrozenFrom": {
-      "loc": 808,
-      "manifestSha256": "cb92d6852ad40a55c29e0cf1616eb1b181e4fe73a3a5dcafaf228e23fb72f6e6",
-      "reason": "8.0 18차: 고쳐 쓰는 길이 입력 바이트의 sha256 씨앗으로 문서를 연다(시험지 조판·양식 맞춤)"
+      "loc": 810,
+      "manifestSha256": "799b31ac33a2fbccd56d5a4e8e469aa6b304d48bc55c50089273722c3d2bf2dc",
+      "reason": "23차 B: 저장 날짜(ModifiedDate 지금, CreatedDate 그대로) — exam compose·save_gate_report가 stamp_save_dates를 부름"
     }
   },
   "packageFiles": [

@@ -42,6 +42,7 @@ from .execution_lock import PUBLIC_MUTATION_LOCK
 from .office.agent._batch_publication import GuardedSavePipeline
 from .office.rendering import resolve_hancom_backend
 from .storage import build_hwpx_open_safety_report, require_hwpx_package
+from .upstream import same_but_save_dates
 from .utils.helpers import BoundedExpiringStore, resolve_path
 from .workspace import (
     WorkspaceMissingParentGuard,
@@ -917,8 +918,18 @@ def _member_diff(
                 if allowed_changed_members is not None
                 else None
             )
+            # The save's own dates (content.hpf CreatedDate/ModifiedDate, as Hangul writes on a
+            # save) may change in a member no operation owns; nothing else in it may.
+            dated_only = {
+                name
+                for name in changed
+                if name.endswith(".hpf")
+                and same_but_save_dates(
+                    old_zip.read(old_infos[name][0]), new_zip.read(new_infos[name][0])
+                )
+            }
             unexpected = (
-                sorted(set(changed) - allowed_changed_members)
+                sorted(set(changed) - allowed_changed_members - dated_only)
                 if allowed_changed_members is not None
                 else []
             )
