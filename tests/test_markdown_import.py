@@ -810,14 +810,46 @@ def test_a_two_column_table_spreads_its_labels_and_a_wider_one_centres_what_fits
     assert [_align(doc, labels.cell(row, 0)) for row in (1, 2)] == ["DISTRIBUTE", "DISTRIBUTE"]
     assert _align(doc, labels.cell(1, 1)) not in ("CENTER", "DISTRIBUTE")  # what a label names reads from the left
     assert _align(doc, labels.cell(0, 0)) == "CENTER"  # the header row is centred as before
-    # a column whose cells fit on one line is centred, the one that wraps is not
-    assert [_align(doc, wide.cell(1, col)) == "CENTER" for col in range(4)] == [True, True, False, True]
+    # a column whose cells fit on one line is centred, the one that wraps is not; a column of numbers
+    # reads from the right (22차)
+    assert [_align(doc, wide.cell(1, col)) for col in (0, 1, 3)] == ["CENTER", "CENTER", "RIGHT"]
+    assert _align(doc, wide.cell(1, 2)) not in ("CENTER", "RIGHT")
     # a column the Markdown aligns itself is left to it
-    assert [_align(doc, given.cell(1, col)) for col in range(3)] == ["CENTER", _align(doc, labels.cell(1, 1)), "RIGHT"]
+    assert [_align(doc, given.cell(1, col)) for col in range(3)] == ["RIGHT", _align(doc, labels.cell(1, 1)), "RIGHT"]
 
     # the plain look leaves body cells as they are
     plain = _tables(from_markdown("| 구분 | 내용 |\n|---|---|\n| 행사명 | 책 잔치 |\n", style="plain"))[0]
     assert plain.cell(1, 0).paragraphs[0].para_pr_id_ref == plain.cell(1, 1).paragraphs[0].para_pr_id_ref
+
+
+def test_only_short_one_word_labels_are_spread() -> None:
+    """22차: the first column spreads only when each label is one word of at most six characters."""
+
+    doc_spread = from_markdown("| 항목 | 금액 |\n|---|---|\n| 장식 | 가 |\n| 간식비 | 나 |\n| 합계 | 다 |\n")
+    doc_centred = from_markdown("| 준비물 | 비고 |\n|---|---|\n| 도시락 | 가 |\n| 편한 운동화 | 나 |\n| 모자 | 다 |\n")
+    doc_long = from_markdown("| 구분 | 비고 |\n|---|---|\n| 일곱글자이름표 | 가 |\n| 장소 | 나 |\n")
+    spread, centred, long_word = (_tables(doc)[0] for doc in (doc_spread, doc_centred, doc_long))
+
+    assert [_align(doc_spread, spread.cell(row, 0)) for row in (1, 2, 3)] == ["DISTRIBUTE"] * 3
+    assert [_align(doc_centred, centred.cell(row, 0)) for row in (1, 2, 3)] == ["CENTER"] * 3
+    assert [_align(doc_long, long_word.cell(row, 0)) for row in (1, 2)] == ["CENTER"] * 2
+
+
+def test_a_column_of_numbers_reads_from_the_right() -> None:
+    """22차: body cells of numbers (commas, decimals, signs, %, units) align right; an empty cell does not
+    stop it; the header stays centred; a column the Markdown aligns is left to it."""
+
+    doc = from_markdown(
+        "| 항목 | 금액 | 비율 | 인원 | 메모 |\n|---|---|---|---|:---|\n"
+        "| 장식 | 15,000원 | 12.5% | 3명 | 1 |\n| 상품 | -2,000 |  | 10 명 | 2 |\n| 합계 | 13,000원 | +0.5% | 13명 | 3 |\n"
+    )
+    table = _tables(doc)[0]
+
+    assert [_align(doc, table.cell(row, col)) for row in (1, 2, 3) for col in (1, 2, 3)] == ["RIGHT"] * 9
+    assert [_align(doc, table.cell(0, col)) for col in (1, 2, 3)] == ["CENTER"] * 3
+    assert _align(doc, table.cell(1, 4)) != "RIGHT"  # the Markdown's own alignment (left) stands
+    mixed_doc = from_markdown("| 가 | 나 | 다 |\n|---|---|---|\n| 1 | 둘 | 3쪽분 |\n")
+    assert _align(mixed_doc, _tables(mixed_doc)[0].cell(1, 2)) == "CENTER"
 
 
 def test_one_letter_labels_are_centred_not_spread() -> None:

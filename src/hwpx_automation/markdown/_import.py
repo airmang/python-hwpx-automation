@@ -2008,25 +2008,64 @@ def _column_needs(rows: list[list[str]], cols: int, font_pt: float) -> tuple[lis
     return needs, floor
 
 
+#: A label column spreads its labels only when each is one word of at most this many characters
+#: (owner, 22차): "도시락" spreads, "편한 운동화" is centred as other one-line columns are.
+SPREAD_LABEL_MAX_CHARS = 6
+
+#: A number a column of numbers holds (owner, 22차), the whole cell:
+#: - an optional sign (``+ - − ±``) and an optional currency mark (``₩ ￦ $``);
+#: - digits, with thousands commas (``1,234``) or without, and an optional decimal part (``.5``);
+#: - an optional unit after it, a space between allowed: ``%``, ``‰``, money (``원 천원 만원 억원 달러``),
+#:   counts (``명 개 건 회 곳 권 대 장 쪽 점 배 개월 세``), time (``년 일 시간 분 초``), and
+#:   ``kg g km m cm mm ℃``; also ``만``/``억``/``천`` alone.
+#: An empty cell does not stop a column being one of numbers (it needs one number at least).
+NUMBER_CELL = re.compile(
+    r"^[+\-−±]?[₩￦$]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
+    r"(?:\s?(?:%|‰|천원|만원|억원|원|달러|명|개월|개|건|회|곳|권|대|장|쪽|점|배|세|년|일|시간|분|초|kg|km|cm|mm|g|m|℃|만|억|천))?$"
+)
+
+
+def _numbers_column(body: list[list[str]], col_index: int) -> bool:
+    """Whether the body cells of *col_index* are numbers (:data:`NUMBER_CELL`), empty cells aside."""
+
+    cells = [_plain_cell(row[col_index]).strip() if col_index < len(row) else "" for row in body]
+    filled = [cell for cell in cells if cell]
+    return bool(filled) and all(NUMBER_CELL.fullmatch(cell) for cell in filled)
+
+
+def _spreads_labels(body: list[list[str]]) -> bool:
+    """Whether a two-column table's first column is labels to spread: each one word (no space) of 2 to
+    :data:`SPREAD_LABEL_MAX_CHARS` characters (owner, 22차)."""
+
+    labels = [_plain_cell(row[0]).strip() if row else "" for row in body]
+    return all(
+        not any(ch.isspace() for ch in label) and 2 <= len(label) <= SPREAD_LABEL_MAX_CHARS
+        for label in labels
+    )
+
+
 def _body_aligns(block: _Table, cols: int, font_pt: float, widths: list[int]) -> list[str | None]:
     """How the look aligns the body cells of each column (``table_align="auto"``); ``None`` leaves them.
 
-    A column whose cells each fit on one line is centred, and one that wraps reads from the left. A table of
-    two columns is read as labels and what they name: the labels are spread over their column's width and
-    the other column reads from the left. A column the Markdown aligns itself is left to it.
+    A column of numbers (:data:`NUMBER_CELL`) reads from the right. A column whose cells each fit on one
+    line is centred, and one that wraps reads from the left. A table of two columns is read as labels and
+    what they name: short one-word labels (:func:`_spreads_labels`) are spread over their column's width,
+    other labels are centred, and the other column reads from the left. A column the Markdown aligns
+    itself is left to it. The header row keeps its own alignment.
     """
 
     body = block.rows[1:] if block.header else block.rows
     if not body:
         return [None] * cols
     needs, _floor = _column_needs(body, cols, font_pt)
-    labels = [_plain_cell(row[0]) if row else "" for row in body]
-    spread = all("\n" not in label and len("".join(label.split())) >= 2 for label in labels)
+    spread = _spreads_labels(body)
     aligns: list[str | None] = []
     for col_index in range(cols):
         given = block.aligns[col_index] if col_index < len(block.aligns) else None
         if given is not None:
             aligns.append(None)
+        elif _numbers_column(body, col_index):
+            aligns.append("right")
         elif needs[col_index] > widths[col_index]:
             aligns.append("left")  # lines that wrap read from the left: justified, their words spread apart
         elif cols == 2 and col_index == 1:
