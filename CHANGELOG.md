@@ -170,6 +170,17 @@ MCP 도구의 이름은 그대로입니다. 도구 계약 해시는 `c895883d5f4
 
 ### Fixed
 
+- 여러 런에 걸친 찾아 바꾸기(`search_and_replace`, `batch_replace`, `count` 없는 `replace_in_paragraph`, 표 칸 포함)가
+  문단 글 전체를 첫 런에 몰아 쓰고 나머지 런을 비우던 것. 이제 python-hwpx `paragraph.replace_range`로 바꿔 새 글자가
+  그 자리 옛 글자의 런(글자 모양)을 잇고 런은 그대로 남는다. 찾은 글 안에 탭·줄 바꿈·누름틀·개체가 끼면 한 덩이 글이
+  아니므로 바꾸지 않고 바꾼 수에서 뺀다(전에는 그 탭의 너비·채움 속성, 전각 빈칸, 누름틀 경계를 잃으며 바꿨다).
+- `add_table`·`set_table_border_fill`(`HwpxOps`)이 테두리 정의를 직접 지으며 채우기를 한/글이 쓰지 않는
+  `hh:fillBrush/hh:solidBrush`로, 선 없는 면을 `0 mm`로, 한/글 굵기 목록 밖의 굵기(예 0.45 mm)를 그대로 적던 것.
+  이제 python-hwpx `doc.styles.ensure_border_fill`이 한/글 꼴(`hc:fillBrush/hc:winBrush faceColor`, 선 없는 면 0.1 mm)로
+  짓고, 목록 밖 굵기는 `set_table_border`처럼 가장 가까운 것(가운데면 굵은 쪽)으로 그린다.
+- 글자 색·크기·글꼴을 바꿀 때(`format_text` 등) 색·크기·글꼴과 진하게·기울임·밑줄만 같은 기존 글자 모양을 다시 써서
+  원래 글자의 장평·자간·글자 테두리가 바뀌던 것. 이제 python-hwpx `doc.styles.ensure_run`으로 원래 글자 모양에서
+  요청한 값만 바꾼다. 새 글자 모양의 자식 차례는 한/글 꼴(밑줄이 취소선 앞)이다.
 - MCP 도구 `apply_document_commands`에 판(`schemaVersion`)을 적지 않은 명령이 v1과 v2에서 자리가 다른 꼴(문단 안 개체의
   `prepend`)이면, 8.0에서는 조용히 문단 맨 앞에 넣고 성공을 돌려주었다(7.x는 같은 종류의 첫 개체 앞, 없으면 글 끝).
   이제 `contract_changed`로 거부하고 판과 자리를 적으라고 안내한다. 뜻이 같은 꼴은 그대로 받는다.
