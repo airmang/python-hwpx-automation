@@ -5,8 +5,9 @@
 python-hwpx 7.0이 "파일에 적힌 대로 읽고 쓰는" 엔진만 남기면서 내보낸 기능(Markdown·HTML 변환, 색인용 변환, 이름표로
 칸 찾기와 선택 칸, 메일 머지, 미리보기, 서식 규칙 검사, 표 정리·보고서 수치 도우미, 참조 일관성 검사)을 이 패키지가
 받습니다. 인자와 결과는 python-hwpx 6.x와 같습니다(본체 시험 문서와 공개 견본 1,298개로 옛 경로와 새 경로를 견줬습니다).
-MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python-hwpx 하한만 7.0.0으로 올라 해시가 `1b572e4ed5e410e6`이
-됩니다(`docs/tool-contract-delta-source-core-floor-7.json`).
+MCP 도구의 이름은 그대로입니다. 도구 계약 해시는 `c895883d5f4350ae`입니다. python-hwpx 하한을 7.0.0으로 올린 것
+(`docs/tool-contract-delta-source-core-floor-7.json`, 그때 해시 `1b572e4ed5e410e6`)에 문서 에이전트·블루프린트 도구 여섯과
+양식 채우기 계획의 일괄 판이 v2로 바뀐 것(`docs/tool-contract-delta-8.0.0.json`, 아래 Breaking)이 더해졌습니다.
 
 ### Breaking
 
