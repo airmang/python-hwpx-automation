@@ -6,22 +6,15 @@ import logging
 import math
 import re as _re
 from typing import Any, Dict, List, Optional, Sequence, TypedDict
-from xml.etree import ElementTree as ET
 
 from ..upstream import (
-    HH_NS,
     HwpxDocument,
     HwpxOxmlTable,
+    border_width_mm,
     default_cell_width,
 )
 
-from ._border_fill import (
-    _build_border_fill_element,
-    _find_matching_border_fill,
-    _next_border_fill_id,
-    _resolve_border_fill_spec,
-    _shortcut_border_fill_id,
-)
+from ._border_fill import _shortcut_border_fill_id
 from .context import DocumentContext
 from .save_policy import SavePolicy
 from .memo_style import MemoStyleService
@@ -162,39 +155,17 @@ class TableService:
                 "document does not contain any headers to host border fills",
             )
 
-        header = document.parts.headers[0]
-        spec = _resolve_border_fill_spec(
-            normalized_style,
-            normalized_border_color,
-            normalized_fill_color,
-            border_width,
+        # python-hwpx finds a border fill with the same lines and fill or adds one.
+        # "none" draws no line on any side: Hancom writes such a side 0.1 mm wide.
+        no_line = normalized_style == "none"
+        return document.styles.ensure_border_fill(
+            border_color=normalized_border_color or "#000000",
+            border_width_mm=(
+                0.1 if no_line and border_width is None else border_width_mm(border_width)
+            ),
+            fill_color=normalized_fill_color,
+            active_borders=() if no_line else None,
         )
-
-        ref_list = header.element.find(f"{HH_NS}refList")
-        if ref_list is None:
-            ref_list = ET.SubElement(header.element, f"{HH_NS}refList")
-            header.mark_dirty()
-
-        border_fills_element = ref_list.find(f"{HH_NS}borderFills")
-        if border_fills_element is None:
-            border_fills_element = ET.SubElement(
-                ref_list, f"{HH_NS}borderFills", {"itemCnt": "0"}
-            )
-            header.mark_dirty()
-
-        matched = _find_matching_border_fill(border_fills_element, spec)
-        if matched is not None:
-            return matched
-
-        # doc.styles.ensure_border_fill cannot express this spec (its diagonal and
-        # matching differ), so the element is built here with the next free id.
-        new_id = _next_border_fill_id(border_fills_element)
-        _build_border_fill_element(border_fills_element, new_id, spec)
-
-        count = len(border_fills_element.findall(f"{HH_NS}borderFill"))
-        border_fills_element.set("itemCnt", str(count))
-        header.mark_dirty()
-        return new_id
 
     def add_table(
         self,

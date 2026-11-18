@@ -10,7 +10,8 @@ import hwpx_automation.hwpx_ops as ops_module
 import hwpx_automation.ops_services.context as context_module
 import hwpx_automation.ops_services.read_query as read_query_module
 
-PNG_1X1_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
+HC_NS = "{http://www.hancom.co.kr/hwpml/2011/core}"
+PNG_1X1_B64 ="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
 PNG_1X1_ALT_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/l8EydgAAAABJRU5ErkJggg=="
 
 
@@ -436,13 +437,15 @@ def test_add_table_custom_border_fill_reuses_definition(ops_with_sample):
     assert left_border is not None
     assert (left_border.get("color") or "").upper() == "#336699"
     assert left_border.get("type") == "SOLID"
-    assert (left_border.get("width") or "").replace(" ", "").lower() == "0.45mm"
+    # 0.45 mm is not one of Hancom's line widths: the nearest (the thicker when halfway) is drawn,
+    # as set_table_border does, and python-hwpx writes the definition the way Hancom does.
+    assert left_border.get("width") == "0.5 mm"
 
-    fill_brush = target.find(f"{HH_NS}fillBrush")
+    fill_brush = target.find(f"{HC_NS}fillBrush")
     assert fill_brush is not None
-    solid_brush = fill_brush.find(f"{HH_NS}solidBrush")
-    assert solid_brush is not None
-    assert (solid_brush.get("color") or "").upper() == "#ABC123"
+    win_brush = fill_brush.find(f"{HC_NS}winBrush")
+    assert win_brush is not None
+    assert (win_brush.get("faceColor") or "").upper() == "#ABC123"
 
     second = ops.add_table(
         str(path),
@@ -768,12 +771,14 @@ def test_set_table_border_fill_updates_anchor_cells(ops_with_sample):
     left_border = target.find(f"{HH_NS}leftBorder")
     assert left_border is not None
     assert left_border.get("type") == "NONE"
+    # Hancom writes a side with no line 0.1 mm wide (python-hwpx's Hancom-saved fixtures).
+    assert left_border.get("width") == "0.1 mm"
 
-    fill_brush = target.find(f"{HH_NS}fillBrush")
+    fill_brush = target.find(f"{HC_NS}fillBrush")
     assert fill_brush is not None
-    solid_brush = fill_brush.find(f"{HH_NS}solidBrush")
-    assert solid_brush is not None
-    assert (solid_brush.get("color") or "").upper() == "#112233"
+    win_brush = fill_brush.find(f"{HC_NS}winBrush")
+    assert win_brush is not None
+    assert (win_brush.get("faceColor") or "").upper() == "#112233"
 
 
 def test_set_table_cell_text_auto_fit_adjusts_widths(ops_with_sample):
