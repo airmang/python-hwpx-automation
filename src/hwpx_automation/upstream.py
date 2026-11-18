@@ -492,125 +492,33 @@ def ensure_char_style(
     font_name: str | None = None,
     color: str | None = None,
 ) -> str:
-    """Return a ``charPr`` id matching the requested formatting.
+    """Return a ``charPr`` id with the requested formatting, by python-hwpx's
+    ``document.styles.ensure_run``.
 
-    This prefers the public-ish upstream helper ``document.styles.ensure_run()``
-    when only bold/italic/underline flags are involved. When color, font size,
-    or font family overrides are requested, we fall back to the header-level
-    ``ensure_char_property()`` hook so downstream behavior stays aligned with the
-    current upstream document engine.
+    The character shape is *base_char_pr_id*'s with only the requested values changed (a flag left
+    as ``None`` keeps the base's); python-hwpx reuses a character shape with the same content or
+    adds one, and registers *font_name* in every language block.
     """
 
-    base_style = document.styles.char_property(base_char_pr_id)
-    base_flags = run_style_flags(base_style)
-    target_flags = (
-        base_flags[0] if bold is None else bool(bold),
-        base_flags[1] if italic is None else bool(italic),
-        base_flags[2] if underline is None else bool(underline),
-    )
-
-    if font_size is None and font_name is None and color is None:
-        return document.styles.ensure_run(
-            bold=target_flags[0],
-            italic=target_flags[1],
-            underline=target_flags[2],
-            base_char_pr_id_ref=base_char_pr_id,
-        )
-
-    header = primary_header(document)
-    target_color = normalize_hex_color(color) or (
-        (base_style.color if base_style is not None else None) or _DEFAULT_TEXT_COLOR
-    ).upper()
-    target_height = normalize_font_size(font_size) or run_style_height(base_style) or _DEFAULT_CHAR_HEIGHT
-    target_font_refs = {
-        key: value for key, value in run_style_font_refs(base_style).items() if key in _FONT_REF_KEYS
+    base_flags = run_style_flags(document.styles.char_property(base_char_pr_id))
+    changes: dict[str, Any] = {
+        "bold": base_flags[0] if bold is None else bool(bold),
+        "italic": base_flags[1] if italic is None else bool(italic),
+        "underline": base_flags[2] if underline is None else bool(underline),
     }
-    if not target_font_refs:
-        target_font_refs = {key: "0" for key in _FONT_REF_KEYS}
+    if color is not None:
+        changes["color"] = normalize_hex_color(color)
+        if changes["underline"]:
+            # the underline takes the text colour asked for, as this tool has always drawn it
+            changes["underline_color"] = changes["color"]
+    if font_size is not None:
+        normalize_font_size(font_size)  # refuses a size that is not above 0, as before
+        changes["size"] = font_size
     if font_name is not None:
-        target_font_refs.update(ensure_font_face_refs(header, font_name))
-
-    if base_char_pr_id is not None and char_style_matches(
-        base_style,
-        flags=target_flags,
-        color=target_color,
-        height=target_height,
-        font_refs=target_font_refs,
-    ) and (
-        not target_flags[2]
-        or base_style is not None
-        and base_style.child_attributes.get("underline", {}).get("type", "").upper()
-        in {"BOTTOM", "CENTER", "TOP"}
-    ):
-        return str(base_char_pr_id)
-
-    def predicate(element: ET.Element) -> bool:
-        if element_style_flags(element) != target_flags:
-            return False
-        if target_flags[2]:
-            underline_element = element.find(f"{HH_NS}underline")
-            if underline_element is None or underline_element.get("type", "").upper() not in {"BOTTOM", "CENTER", "TOP"}:
-                return False
-        if (element.get("textColor", _DEFAULT_TEXT_COLOR) or _DEFAULT_TEXT_COLOR).upper() != target_color:
-            return False
-        if element.get("height", _DEFAULT_CHAR_HEIGHT) != target_height:
-            return False
-        existing_font_refs = element_font_refs(element)
-        for key in _FONT_REF_KEYS:
-            if existing_font_refs.get(key) != target_font_refs.get(key):
-                return False
-        return True
-
-    def modifier(element: ET.Element) -> None:
-        underline_nodes = list(element.findall(f"{HH_NS}underline"))
-        existing_underline = dict(underline_nodes[0].attrib) if underline_nodes else {}
-
-        for child in list(element.findall(f"{HH_NS}bold")):
-            element.remove(child)
-        for child in list(element.findall(f"{HH_NS}italic")):
-            element.remove(child)
-        for child in underline_nodes:
-            element.remove(child)
-
-        if target_flags[0]:
-            append_xml_child(element, f"{HH_NS}bold")
-        if target_flags[1]:
-            append_xml_child(element, f"{HH_NS}italic")
-
-        underline_attrs = dict(existing_underline)
-        underline_attrs.setdefault("shape", existing_underline.get("shape", "SOLID"))
-        underline_attrs["color"] = underline_attrs.get("color", target_color) or target_color
-        if target_flags[2]:
-            # OWPML uses type for underline position and shape for line style.
-            # SOLID in type can round-trip through our reader but is invisible
-            # in Hancom. Preserve a valid existing position when present.
-            if underline_attrs.get("type", "").upper() not in {"BOTTOM", "CENTER", "TOP"}:
-                underline_attrs["type"] = "BOTTOM"
-            underline_attrs["color"] = target_color
-        else:
-            underline_attrs["type"] = "NONE"
-        append_xml_child(element, f"{HH_NS}underline", underline_attrs)
-
-        element.set("textColor", target_color)
-        element.set("height", target_height)
-
-        font_ref = element.find(f"{HH_NS}fontRef")
-        if font_ref is None:
-            font_ref = append_xml_child(element, f"{HH_NS}fontRef")
-        for key in _FONT_REF_KEYS:
-            value = target_font_refs.get(key)
-            if value is not None:
-                font_ref.set(key, str(value))
-
-    char_element = header.ensure_char_property(
-        predicate=predicate,
-        modifier=modifier,
-        base_char_pr_id=base_char_pr_id,
-    )
-    char_id = char_element.get("id")
-    if not char_id:
-        raise RuntimeError("char property does not expose an identifier")
-    return char_id
+        # every language, declared in each language block that lacks it (``font=`` would set only
+        # the languages that already declare the face when some do)
+        changes["font_by_lang"] = {lang.upper(): font_name for lang in _FONT_REF_KEYS}
+    return document.styles.ensure_run(base_char_pr_id_ref=base_char_pr_id, **changes)
 
 
 def _char_property_element(

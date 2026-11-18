@@ -101,6 +101,49 @@ def test_format_text_colored_underline_uses_position_type(tmp_path: Path):
     assert underline.attrib == {"type": "BOTTOM", "shape": "SOLID", "color": "#0000FF"}
 
 
+def test_char_style_with_a_colour_keeps_the_rest_of_the_base_shape():
+    """Only the asked values change: a shape that merely shares the colour, size and fonts is not
+    taken in place of the base (it would drop the base's 장평)."""
+
+    from hwpx import HwpxDocument
+
+    from hwpx_automation.upstream import ensure_char_style
+
+    doc = HwpxDocument.new()
+    narrow = doc.styles.ensure_run(ratio=80)
+    red = doc.styles.ensure_run(color="#C00000")
+
+    result = ensure_char_style(doc, base_char_pr_id=narrow, color="#C00000")
+
+    assert result != red
+    shape = doc.styles.char_property(result)
+    assert (shape.color or "").upper() == "#C00000"
+    assert shape.child_attributes["ratio"]["hangul"] == "80"
+
+
+def test_char_style_font_goes_to_every_language_even_when_some_declare_it():
+    """A font one language block already declares still becomes every language's font."""
+
+    from hwpx import HwpxDocument
+
+    from hwpx_automation.upstream import ensure_char_style
+
+    doc = HwpxDocument.new()
+    latin_only = doc.styles.ensure_run(font_by_lang={"LATIN": "나눔고딕"})
+
+    result = ensure_char_style(doc, base_char_pr_id=latin_only, font_name="나눔고딕")
+
+    header = doc.parts.headers[0].element
+    hh = "{http://www.hancom.co.kr/hwpml/2011/head}"
+    faces = {
+        block.get("lang").lower(): {font.get("id"): font.get("face") for font in block.findall(f"{hh}font")}
+        for block in header.iter(f"{hh}fontface")
+    }
+    char_pr = next(node for node in header.iter(f"{hh}charPr") if node.get("id") == result)
+    font_ref = char_pr.find(f"{hh}fontRef")
+    assert {lang: faces[lang][font_ref.get(lang)] for lang in faces} == {lang: "나눔고딕" for lang in faces}
+
+
 def test_create_custom_style_creates_distinct_style_and_name_resolves_on_insert(tmp_path: Path):
     target = tmp_path / "custom_style.hwpx"
     create_document(str(target))
