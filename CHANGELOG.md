@@ -103,6 +103,14 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   주민등록번호를 가린 값(`010-****-****`)이 문서에 들어갔습니다. 양식 채움의 `mask`(기본 켬)는 이제 응답에 되돌려 주는
   `applied`·`touched`만 가리고, 응답의 `responseMasked`로 가렸는지 알립니다. 메일 머지 보고에는 값이 실리지 않으므로
   가릴 것이 없고, `maskedFields`는 빈 목록입니다.
+- 도구가 쓰는 문서의 날짜(`content.hpf`의 `CreatedDate`·`ModifiedDate`)를 한/글이 저장할 때처럼 실제 시각으로
+  적습니다. 새 문서는 만든 날짜와 고친 날짜가 모두 지금이고, 고쳐 쓰는 문서(편집 도구, 문서 에이전트 명령, 블루프린트
+  재생, 메일 머지 틀, 시험지 조판, 양식 채움)는 만든 날짜를 받은 그대로 두고 고친 날짜만 지금으로 씁니다. 비어 있거나
+  없던 날짜는 지금으로 채웁니다(한/글도 저장할 때 둘 다 씁니다). 꼴은 한/글과 같은 UTC `…Z`이고, `content.hpf`의 나머지
+  바이트는 그대로입니다. 그래서 문서 에이전트·양식 채움의 결과 보고 `changedMembers`에 `Contents/content.hpf`가 함께
+  나옵니다(바이트 보존 검사는 저장 날짜만 바뀐 것을 받아들입니다). 전에는 고쳐 쓴 문서가 받은 고친 날짜를 그대로
+  지녔고, 디자인 프로필로 지은 문서는 두 날짜가 비어 있었습니다. 재현 시험과 출력 견줌에서만
+  `hwpx_automation.upstream.fixed_save_time`으로 시각을 고정합니다(`SOURCE_DATE_EPOCH`도 따릅니다).
 - `create_document_from_plan`이 계획 최상위의 `designProfile`(`report`·`official_notice`·`home_notice`·
   `application_form`)로 디자인 프로필을 바로 고릅니다. 주면 `document_type`·`look`보다 먼저이고, 없는 이름은
   `INVALID_ARGUMENT`입니다. `document_type`이 보고서(`report`)인 계획은 report 프로필 대신 정해 둔 보고서

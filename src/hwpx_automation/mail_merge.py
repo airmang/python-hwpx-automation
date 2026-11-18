@@ -20,7 +20,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from hwpx import HwpxDocument, validate_editor_open_safety
 
-from .upstream import open_seeded_input
+from .upstream import open_seeded_input, stamp_save_dates
 
 MAIL_MERGE_REPORT_VERSION = "mail-merge-v1"
 
@@ -291,6 +291,7 @@ def merge_template_rows(
                     if (not fit_result.ok) or fit_result.overflow_detected:
                         fit_fields.append(_fit_field_report(key, fit_result))
                 replaced_count += _replace_token(document, token, apply_value)
+            stamp_save_dates(document)  # Hangul's save dates: ModifiedDate now, CreatedDate kept
             receipt = document.save(out_path)
         finally:
             document.close()

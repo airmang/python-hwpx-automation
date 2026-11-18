@@ -1300,7 +1300,8 @@ def test_allowed_members_follow_manifest_spine_not_section_filename_convention(
         "Contents/section7.xml"
     ]
     assert result["verificationReceipt"]["memberDiff"]["changedMembers"] == [
-        "Contents/section7.xml"
+        "Contents/content.hpf",  # the save's dates, allowed apart from the owned members
+        "Contents/section7.xml",
     ]
 
 

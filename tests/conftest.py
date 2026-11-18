@@ -13,8 +13,9 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 from xml.etree import ElementTree as _ET
 
 import pytest
@@ -68,6 +69,27 @@ if _LOCAL_PYTHON_HWPX_SRC is not None and _LOCAL_PYTHON_HWPX_SRC.exists():
     local_hwpx_src = str(_LOCAL_PYTHON_HWPX_SRC)
     if local_hwpx_src not in sys.path:
         sys.path.insert(0, local_hwpx_src)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers", "real_save_time: the documents the test writes are dated with the clock"
+    )
+
+
+@pytest.fixture(autouse=True)
+def _fixed_save_time_for_reproducible_tests(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Tools date what they write with the real time (owner 8.0 23차); tests fix that moment so
+    the same request writes the same bytes and the save's dates always differ from a fixture's
+    (made now). ``@pytest.mark.real_save_time`` keeps the clock (``test_save_dates.py``)."""
+
+    if request.node.get_closest_marker("real_save_time") is not None:
+        yield
+        return
+    from hwpx_automation.upstream import fixed_save_time
+
+    with fixed_save_time(datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)):
+        yield
 
 
 @pytest.fixture(autouse=True)

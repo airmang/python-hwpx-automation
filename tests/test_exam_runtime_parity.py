@@ -66,6 +66,7 @@ from hwpx_automation.office.exam import parser as mcp_parser
 from hwpx_automation.office.exam import profile as mcp_profile
 from hwpx_automation.office.form_fill.fit.wordbox import WordBox
 from hwpx_automation.office.rendering.oracle import NullOracle
+from hwpx_automation.upstream import same_but_save_dates
 
 # The exam corpus lives in the core repository and is read from there rather
 # than copied. hwpx.exam.ir is going away, so its __file__ can no longer locate
@@ -226,6 +227,14 @@ def test_fixture_composition_bytes_reopen_and_open_safety_match_frozen_core(
             expected["Contents/header.xml"] = CORE_780_HEADER_SHA256
         if hashes.get("Contents/section0.xml") == SEEDED_SECTION_SHA256:
             expected["Contents/section0.xml"] = SEEDED_SECTION_SHA256
+        # The composition is a save of the form: content.hpf takes the save's dates (ModifiedDate
+        # now, CreatedDate kept, as Hangul writes them) and is otherwise the form's own bytes.
+        written_hpf = mcp_zip.read("Contents/content.hpf")
+        with zipfile.ZipFile(source) as form_zip:
+            form_hpf = form_zip.read("Contents/content.hpf")
+        assert hashlib.sha256(form_hpf).hexdigest() == expected.pop("Contents/content.hpf")
+        assert same_but_save_dates(form_hpf, written_hpf)
+        hashes.pop("Contents/content.hpf")
         assert hashes == expected
 
     assert validate_editor_open_safety(mcp_out).ok is True

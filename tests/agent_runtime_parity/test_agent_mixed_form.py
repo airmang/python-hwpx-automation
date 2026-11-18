@@ -30,6 +30,7 @@ from hwpx_automation.office.agent import (
 )
 from hwpx_automation.office.agent import form_plan as mixed_form_module
 from hwpx_automation.office.agent.catalog import agent_json_schemas
+from hwpx_automation.upstream import same_but_save_dates
 from hwpx.oxml.namespaces import HP
 from hwpx.quality import SavePipeline
 from hwpx.quality.rendering import UnavailableRenderBackend as NullOracle
@@ -384,7 +385,7 @@ def test_apply_uses_one_executor_preserves_members_and_reopens(tmp_path: Path) -
     assert validate_editor_open_safety(output).ok
     byte_report = result.verification_report["bytePreservation"]
     assert byte_report["ok"] is True
-    assert byte_report["changedMembers"] == ["Contents/section0.xml"]
+    assert byte_report["changedMembers"] == ["Contents/content.hpf", "Contents/section0.xml"]  # + save dates
     assert byte_report["unchangedMemberCount"] > 0
 
     before = _member_payloads(source)
@@ -393,8 +394,9 @@ def test_apply_uses_one_executor_preserves_members_and_reopens(tmp_path: Path) -
     assert all(
         before[name] == after[name]
         for name in before
-        if name != "Contents/section0.xml"
+        if name not in ("Contents/section0.xml", "Contents/content.hpf")
     )
+    assert same_but_save_dates(before["Contents/content.hpf"], after["Contents/content.hpf"])
 
     with HwpxAgentDocument.open(output) as agent:
         field = next(record for record in agent.records if record.kind == "form-field")

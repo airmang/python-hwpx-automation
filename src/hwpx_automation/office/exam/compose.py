@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from hwpx.document import HwpxDocument
 
-from ...upstream import open_seeded_input
+from ...upstream import open_seeded_input, stamp_save_dates
 
 from ..form_fill.fit.wordbox import (
     detect_overflow,
@@ -203,6 +203,7 @@ def compose_exam_into_form(
     prof = profile_form(doc, role_style_names=role_style_names)
     specs = lower_exam(exam, prof)
     anchors = replace_body_region(doc, prof, specs)
+    stamp_save_dates(doc)
     doc.save(out_path)
     notes.append(
         f"composed {len(list(exam.iter_questions()))} 문항 into body"
@@ -272,6 +273,7 @@ def compose_exam_into_form(
         kind = "page" if report.kinds.get("page") else "column"
         for block_id in report.split_ids:
             _insert_break(section, anchors[block_id], kind)
+        stamp_save_dates(doc)
         doc.save(out_path)
 
     needs_review = splits is None or splits > 0 or not placeholders_ok

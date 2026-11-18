@@ -16,7 +16,7 @@ from hwpx.quality import SavePipeline
 from hwpx.tools.package_validator import validate_editor_open_safety
 
 from ..catalog import catalog_hash
-from ....upstream import content_seed
+from ....upstream import content_seed, stamp_save_dates
 from ..commands import _error_from_exception, _member_diff, _quality_policy, _record_for_native, _revision
 from ..document import HwpxAgentDocument
 from ..model import AgentContractError
@@ -460,6 +460,7 @@ def _replay_build_and_verify_candidate(
     fault_injector: FaultInjector | None,
 ) -> tuple[bytes, str, dict[str, Any], dict[str, Any], dict[str, Any]]:
     _call(fault_injector, "before_serialize")
+    stamp_save_dates(document)  # Hangul's save dates: ModifiedDate now, CreatedDate kept
     candidate_data = document.to_bytes()
     candidate_revision = _revision(candidate_data)
     _call(fault_injector, "after_serialize")
