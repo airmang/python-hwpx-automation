@@ -10,14 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import re
-from contextlib import contextmanager
 from copy import deepcopy
-from datetime import datetime, timezone
 from os import PathLike
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Literal
+from typing import Any, Iterable, Literal
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
@@ -170,150 +166,26 @@ def hwpx_view_bytes(source: str | PathLike[str] | bytes) -> bytes:
         document.close()
 
 
-#: How Hangul writes ``CreatedDate``/``ModifiedDate`` in ``content.hpf``: UTC with a ``Z``
-#: (``2026-11-18T01:46:14Z``), the same form python-hwpx gives a new document.
-_SAVE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-_fixed_save_time: list[datetime] = []
-
-
-def save_time() -> datetime:
-    """The moment a document this package writes is dated with (UTC).
-
-    The clock, unless a reproducibility test or comparison fixed it (:func:`fixed_save_time`) or
-    ``SOURCE_DATE_EPOCH`` is set (as python-hwpx's ``HwpxDocument.new`` reads it).
-    """
-
-    if _fixed_save_time:
-        return _fixed_save_time[-1]
-    epoch = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
-    if epoch:
-        try:
-            return datetime.fromtimestamp(int(epoch), tz=timezone.utc)
-        except (ValueError, OverflowError, OSError):
-            pass
-    return datetime.now(timezone.utc)
-
-
-@contextmanager
-def fixed_save_time(moment: datetime) -> Iterator[datetime]:
-    """Date the documents written inside the block with *moment* instead of the clock.
-
-    For reproducibility tests and output comparisons only (owner 8.0 23차): a document a tool
-    writes is otherwise dated with the real time. A naive *moment* is local time.
-    """
-
-    fixed = (moment if moment.tzinfo is not None else moment.astimezone()).astimezone(timezone.utc)
-    _fixed_save_time.append(fixed)
-    try:
-        yield fixed
-    finally:
-        _fixed_save_time.pop()
-
-
-def stamp_save_dates(document: HwpxDocument) -> None:
-    """Date *document* the way Hangul does when it saves: ``ModifiedDate`` is the save time, and
-    ``CreatedDate`` is kept as the document had it, or set to the save time when it is empty.
-
-    Hangul's re-saves keep ``CreatedDate`` and write the save time to ``ModifiedDate``; a document
-    whose ``CreatedDate`` was empty (a design-profile skeleton's) gets its save time there too.
-    A new document (``HwpxDocument.new``) already holds its creation time in both. The free-form
-    ``date`` is left alone (python-hwpx empties it in a new document; Hangul fills it).
-    """
-
-    parts = getattr(document, "parts", None)
-    if parts is None:  # not a python-hwpx document (a test double): nothing to date
-        return
-    stamp = save_time().strftime(_SAVE_TIME_FORMAT)
-    metadata = parts.metadata
-    keep_created = bool(metadata is not None and metadata.created_date)
-    outcome = _stamp_manifest_text(document, stamp, keep_created=keep_created)
-    if outcome == "rewritten-anyway":  # the save writes the whole part again: the setter is as good
-        parts.set_document_metadata(created_date=None if keep_created else stamp, modified_date=stamp)
-
-
-_SAVE_DATE_META = re.compile(
-    rb'(<opf:meta name="(CreatedDate|ModifiedDate)" content="text")(?:/>|>[^<]*</opf:meta>)'
+from .save_dates import (  # noqa: E402 - re-exported: the save-date helpers live apart (light layer)
+    date_new_document,
+    fixed_save_time,
+    same_but_save_dates,
+    save_time,
+    stamp_save_dates,
 )
-_OPF_META = "{http://www.idpf.org/2007/opf/}meta"
-_OPF_METADATA = "{http://www.idpf.org/2007/opf/}metadata"
-_METADATA_END = b"</opf:metadata>"
-
-
-def _stamp_manifest_text(document: HwpxDocument, stamp: str, *, keep_created: bool) -> str:
-    """Write the save dates into ``content.hpf`` changing only their text, so the rest of the part
-    stays the bytes the document had (python-hwpx's ``set_document_metadata`` writes the whole part
-    again, with its own XML declaration and namespace list). A date the part lacks is added at the
-    end of ``opf:metadata``, in Hangul's form (Hangul writes both on every save). As the setter
-    does, the dates also go into the package's manifest tree, which the document writes when it
-    changes the manifest itself (a new section or picture).
-
-    Returns ``"stamped"``; ``"rewritten-anyway"``, with nothing changed, when the manifest holds
-    changes its part does not (the save writes the whole part again, so the caller uses the setter);
-    or ``"left"``, with nothing changed, when the part holds a date in another form or has no
-    ``opf:metadata`` to add to -- such a part is kept as it is rather than written again."""
-
-    from lxml import etree
-
-    package = document.package
-    name = package.main_content.full_path
-    data = package.get_part(name)
-    found = [match.group(2) for match in _SAVE_DATE_META.finditer(data)]
-    if len(found) != len(set(found)) or data.count(b'name="CreatedDate"') + data.count(
-        b'name="ModifiedDate"'
-    ) != len(found):
-        return "left"  # a date written in another form, or twice
-    missing = [field for field in (b"CreatedDate", b"ModifiedDate") if field not in found]
-    if missing and data.count(_METADATA_END) != 1:
-        return "left"
-    tree = package.manifest_tree()
-    if etree.tostring(tree, method="c14n") != etree.tostring(package.get_xml(name), method="c14n"):
-        return "rewritten-anyway"  # the manifest has changes its part does not hold yet (a new section)
-    metadata = tree.find(_OPF_METADATA)
-    if missing and metadata is None:
-        return "left"
-    new_text = stamp.encode("ascii")
-
-    def date_text(match: "re.Match[bytes]") -> bytes:
-        if match.group(2) == b"CreatedDate" and keep_created:
-            return match.group(0)
-        return match.group(1) + b">" + new_text + b"</opf:meta>"
-
-    patched = _SAVE_DATE_META.sub(date_text, data)
-    if missing:
-        added = b"".join(
-            b'<opf:meta name="' + field + b'" content="text">' + new_text + b"</opf:meta>"
-            for field in missing
-        )
-        patched = patched.replace(_METADATA_END, added + _METADATA_END)
-        for field in missing:
-            element = metadata.makeelement(_OPF_META, {"name": field.decode(), "content": "text"})
-            element.text = stamp
-            metadata.append(element)
-    for element in tree.iter(_OPF_META):
-        field = element.get("name")
-        if field == "ModifiedDate" or (field == "CreatedDate" and not keep_created):
-            element.text = stamp
-    package.set_part(name, patched)
-    return "stamped"
-
-
-def same_but_save_dates(before: bytes, after: bytes) -> bool:
-    """Whether two ``content.hpf`` payloads differ in nothing but the dates :func:`stamp_save_dates`
-    writes (``CreatedDate``/``ModifiedDate``, given or added): a check that keeps the parts a command
-    did not touch byte for byte lets the save's own dates through, and nothing else."""
-
-    if before == after:
-        return True
-    return _SAVE_DATE_META.sub(b"", before) == _SAVE_DATE_META.sub(b"", after)
 
 
 def new_document(*, seed: int | None = None) -> HwpxDocument:
     """A new document (6.x layout: core 7.0 changed the default first line). With *seed*
-    (:func:`request_seed` of the request) the ids it gets are the same each time."""
+    (:func:`request_seed` of the request) the ids it gets are the same each time. Made now
+    (:func:`date_new_document`)."""
 
     if seed is None:
-        return HwpxDocument.new(empty_first_line=True)
-    return HwpxDocument.new(empty_first_line=True, seed=seed)
+        document = HwpxDocument.new(empty_first_line=True)
+    else:
+        document = HwpxDocument.new(empty_first_line=True, seed=seed)
+    date_new_document(document)
+    return document
 
 
 def blank_document_template_bytes() -> bytes:
@@ -968,6 +840,7 @@ __all__ = [
     "char_style_matches",
     "create_object_finder",
     "create_text_extractor",
+    "date_new_document",
     "default_base_style_id",
     "default_cell_width",
     "element_font_refs",

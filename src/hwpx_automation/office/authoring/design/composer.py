@@ -20,6 +20,7 @@ from hwpx.document import HwpxDocument
 from hwpx.quality import QualityPolicy
 
 import hwpx_automation.office.authoring.design._support as S
+from ....upstream import date_new_document
 from ...rendering import save_gate_report
 from .marked import PLACEHOLDER_RE, is_marked_profile
 from .plan import Block, DocumentPlan
@@ -73,7 +74,8 @@ def compose(
     prof = profile or load_profile(plan.profile)
     warnings: list[str] = []
 
-    doc = _open_seeded(prof.template_bytes)
+    doc = _open_seeded(S.with_hangul_declarations(prof.template_bytes))
+    date_new_document(doc)  # a new document: no names from the profile's source, made now
     fragments_doc = HwpxDocument.open(prof.fragments_bytes)
     try:
         section = doc.sections[0]

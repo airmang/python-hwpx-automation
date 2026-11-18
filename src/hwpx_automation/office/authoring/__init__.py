@@ -13,7 +13,7 @@ from typing import Any, Callable, Iterable, Literal, Mapping, Sequence, cast, ov
 from hwpx.document import HwpxDocument
 from hwpx.tools.package_validator import validate_package
 
-from ...upstream import content_seed, request_seed
+from ...upstream import content_seed, date_new_document, request_seed
 from ..utilities.report_utils import (
     calculate_age,
     calculate_ratios,
@@ -1375,6 +1375,7 @@ def _create_document_from_plan(
     )
     # 6.x layout (core 7.0 default changed); ids seeded from the plan: same plan, same bytes.
     document = HwpxDocument.new(empty_first_line=True, seed=request_seed(plan))
+    date_new_document(document)
     document.page.setup(
         margins_mm={
             "left": _DEFAULT_PAGE_MARGIN_MM,

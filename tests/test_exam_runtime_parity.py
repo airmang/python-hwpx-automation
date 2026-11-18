@@ -191,6 +191,11 @@ CORE_780_HEADER_SHA256 = "e35a10afcebc99f19740cade3298fb8e532ff4fa99e3c11444e470
 # 8.0 (owner 18차): compose_exam_into_form opens the form seeded from its bytes, so the ids it mints
 # come from that seed rather than the patched uuid4; ids only differ (gate_classify: id-only).
 SEEDED_SECTION_SHA256 = "f7a1f32842ea325d27e2b963a010c84f79daee3af58a8f23be43ed631c9ba630"
+# python-hwpx #791 (85e1b7c8) keeps the XML declaration a part was read with and writes Hangul's
+# (<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>) where the form had one without
+# standalone="yes": the two parts above are then these bytes, the same past the declaration.
+CORE_791_HEADER_SHA256 = "b65833bbdb8ebbd3ed0c5ca274956877f4a56d54925d53c14f48e5a467a4dd92"
+CORE_791_SECTION_SHA256 = "8c0a11fae2f93abc91f35c0d1d042649779ec13a1dc4dd6d74297bebada83a5b"
 
 
 def test_fixture_composition_bytes_reopen_and_open_safety_match_frozen_core(
@@ -227,6 +232,10 @@ def test_fixture_composition_bytes_reopen_and_open_safety_match_frozen_core(
             expected["Contents/header.xml"] = CORE_780_HEADER_SHA256
         if hashes.get("Contents/section0.xml") == SEEDED_SECTION_SHA256:
             expected["Contents/section0.xml"] = SEEDED_SECTION_SHA256
+        if hashes.get("Contents/header.xml") == CORE_791_HEADER_SHA256:
+            expected["Contents/header.xml"] = CORE_791_HEADER_SHA256
+        if hashes.get("Contents/section0.xml") == CORE_791_SECTION_SHA256:
+            expected["Contents/section0.xml"] = CORE_791_SECTION_SHA256
         # The composition is a save of the form: content.hpf takes the save's dates (ModifiedDate
         # now, CreatedDate kept, as Hangul writes them) and is otherwise the form's own bytes.
         written_hpf = mcp_zip.read("Contents/content.hpf")
