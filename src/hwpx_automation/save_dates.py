@@ -82,7 +82,7 @@ def stamp_save_dates(document: HwpxDocument) -> None:
         fields["created_date"] = stamp
     if not (metadata is not None and metadata.date) and created_moment is not None:
         fields["date"] = created_moment
-    _set_metadata(document, **fields)
+    document.parts.set_document_metadata(**fields)  # python-hwpx: only the written fields' text
 
 
 def date_new_document(document: HwpxDocument) -> None:
@@ -94,7 +94,7 @@ def date_new_document(document: HwpxDocument) -> None:
     moment = save_time()
     stamp = moment.strftime(_SAVE_TIME_FORMAT)
     document.parts.clear_document_authors()
-    _set_metadata(document, created_date=stamp, modified_date=stamp, date=moment)
+    document.parts.set_document_metadata(created_date=stamp, modified_date=stamp, date=moment)
 
 
 def _parse_save_time(text: str) -> datetime | None:
@@ -103,40 +103,6 @@ def _parse_save_time(text: str) -> datetime | None:
     except ValueError:
         return None
     return moment.replace(tzinfo=timezone.utc)
-
-
-_OPF_META = "{http://www.idpf.org/2007/opf/}meta"
-_OPF_METADATA = "{http://www.idpf.org/2007/opf/}metadata"
-_META_NAMES = {"created_date": "CreatedDate", "modified_date": "ModifiedDate", "date": "date"}
-
-
-def _set_metadata(document: HwpxDocument, **fields: Any) -> None:
-    """python-hwpx's ``set_document_metadata`` (it changes only the text of the fields it writes and
-    keeps the rest of ``content.hpf`` as read, python-hwpx #790), except while the manifest holds
-    changes its part does not yet (a section just added): then the setter writes the part from the
-    stale tree and the save fails, so the fields go into the manifest tree the save writes."""
-
-    from lxml import etree
-
-    package = document.package
-    name = package.main_content.full_path
-    tree = package.manifest_tree()
-    if etree.tostring(tree, method="c14n") == etree.tostring(package.get_xml(name), method="c14n"):
-        document.parts.set_document_metadata(**fields)
-        return
-    from hwpx.oxml.document_metadata import hangul_date_text
-
-    metadata = tree.find(_OPF_METADATA)
-    if metadata is None:
-        return
-    for key, value in fields.items():
-        field = _META_NAMES[key]
-        text = hangul_date_text(value) if isinstance(value, datetime) else value
-        element = next((meta for meta in metadata.iter(_OPF_META) if meta.get("name") == field), None)
-        if element is None:
-            element = metadata.makeelement(_OPF_META, {"name": field, "content": "text"})
-            metadata.append(element)
-        element.text = text or None
 
 
 _SAVE_DATE_META = re.compile(

@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from repo_build_lock import repo_build_lock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "check_public_hygiene.py"
@@ -55,27 +56,28 @@ def public_artifacts(
     compat = output / "compat"
     canonical.mkdir()
     compat.mkdir()
-    subprocess.run(
-        [sys.executable, "-m", "build", "--outdir", str(canonical)],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "build",
-            "--outdir",
-            str(compat),
-            str(ROOT / "compat" / "hwpx-mcp-server"),
-        ],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    with repo_build_lock():  # one build of the repository root at a time (xdist workers)
+        subprocess.run(
+            [sys.executable, "-m", "build", "--outdir", str(canonical)],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "build",
+                "--outdir",
+                str(compat),
+                str(ROOT / "compat" / "hwpx-mcp-server"),
+            ],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
     return tuple(sorted((*canonical.iterdir(), *compat.iterdir())))
 
 

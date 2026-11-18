@@ -23,6 +23,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from repo_build_lock import repo_build_lock
 
 try:
     import tomllib
@@ -67,15 +68,20 @@ def test_wheel_top_level_matches_the_declaration(tmp_path: Path, distribution: s
     pytest.importorskip("build")
 
     # 빌드 캐시를 쓰지 않는다. 재사용하는 그 트리가 문제의 원인이다.
-    stale = ROOT / "build"
-    if stale.exists():
-        shutil.rmtree(stale)
+    with repo_build_lock():  # one build of the repository root at a time (xdist workers)
+        stale = ROOT / "build"
+        if stale.exists():
+            shutil.rmtree(stale)
 
-    subprocess.run(
-        [sys.executable, "-m", "build", f"--{distribution}", "--outdir", str(tmp_path)],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
+        completed = subprocess.run(
+            [sys.executable, "-m", "build", f"--{distribution}", "--outdir", str(tmp_path)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+    assert completed.returncode == 0, (
+        f"python -m build --{distribution} 실패({completed.returncode}):\n"
+        f"{completed.stdout[-2000:]}\n{completed.stderr[-4000:]}"
     )
 
     built = sorted(tmp_path.glob("*.whl"))

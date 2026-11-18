@@ -64,6 +64,9 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   `hwpx_automation.integrations.langchain.HwpxLoader`와 LlamaIndex 리더 `hwpx_automation.integrations.llama_index.HwpxReader`.
 - `hwpx_automation.forms`: `find_cell_by_label(doc, …)`, `form_slots(doc, …)`, `fill_by_path(doc, …)`, `form_choices(doc)`,
   `choose(doc, …)`.
+- `hwpx_automation.save_dates`: 이 패키지가 쓰는 문서의 날짜(`stamp_save_dates`, `date_new_document`)와 그 시각
+  (`save_time`), 재현 시험·견줌에서만 쓰는 시각 고정(`fixed_save_time`), 저장 날짜만 다른지 보는
+  `same_but_save_dates`. `hwpx_automation.upstream`도 같은 이름을 내보냅니다.
 - `hwpx_automation.mail_merge`: `merge_template_rows`, `load_mail_merge_rows`, `inspect_mail_merge_placeholders`,
   `MAIL_MERGE_REPORT_VERSION`.
 - `hwpx_automation.preview`: `render_layout_preview`, `render_document_viewer`, 수식 그리기(`render_equation`,
