@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from repo_build_lock import repo_build_lock
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_FENCE = re.compile(
@@ -101,20 +102,21 @@ def test_readme_python_example_runs_saves_and_reopens_from_base_wheel(
         capture_output=True,
         text=True,
     )
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "build",
-            "--wheel",
-            "--outdir",
-            str(dist),
-        ],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    with repo_build_lock():  # one build of the repository root at a time (xdist workers)
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "build",
+                "--wheel",
+                "--outdir",
+                str(dist),
+            ],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
     core_wheel = next(dist.glob("python_hwpx-*.whl"))
     automation_wheel = next(dist.glob("python_hwpx_automation-*.whl"))
     with zipfile.ZipFile(automation_wheel) as archive:
