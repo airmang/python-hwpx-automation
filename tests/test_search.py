@@ -3,7 +3,6 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from hwpx_automation.core.search import _clear_xml_paragraph_layout_cache, _replace_in_xml_runs
 from hwpx_automation.core.document import open_doc, save_doc
 from hwpx_automation.server import (
     add_memo_by_anchor,
@@ -105,36 +104,36 @@ def test_search_and_replace_cross_run_in_paragraph(sample_file: Path):
 
     assert result["replaced_count"] == 1
     assert find_result["total_matches"] == 0
-    assert paragraph.text.startswith("2027")
-    assert len(paragraph.runs) >= 2
-    assert paragraph.runs[0].text == "2027학년도 운영"
-    assert [run.text for run in paragraph.runs[1:]] == [""]
+    # Each new character takes the run of the old one at its place, as Hancom's 찾아 바꾸기 writes.
+    assert [(run.text, run.bold, run.italic) for run in paragraph.runs if run.text] == [
+        ("20", True, False),
+        ("27학년도 운영", False, True),
+    ]
     assert _linesegarray_count(paragraph.element) == 0
 
 
-def test_xml_cross_run_replacement_collapses_text_and_clears_layout_cache() -> None:
-    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
-    paragraph = ET.Element(f"{hp}p")
-    ET.SubElement(paragraph, f"{hp}lineSegArray")
-    first = ET.SubElement(paragraph, f"{hp}run", {"charPrIDRef": "1"})
-    ET.SubElement(first, f"{hp}t").text = "REQUIRED_DATA_FILES"
-    second = ET.SubElement(paragraph, f"{hp}run", {"charPrIDRef": "2"})
-    ET.SubElement(second, f"{hp}t").text = " = []"
+def test_cross_run_replace_keeps_the_runs_of_every_match(sample_file: Path):
+    _append_paragraph(sample_file, "")
+    _set_split_runs(sample_file, 1, ["가나", "다	라 가나다"])
 
-    replaced = _replace_in_xml_runs(
-        [first, second],
-        "REQUIRED_DATA_FILES = []",
-        "REQUIRED_DATA_FILES = ['인천항_물동량.csv', '인천_해양쓰레기.csv']",
-    )
-    if replaced:
-        _clear_xml_paragraph_layout_cache(paragraph)
+    result = search_and_replace(str(sample_file), "가나다", "마바")
+    paragraph = open_doc(str(sample_file)).paragraphs[1]
 
-    assert replaced == 1
-    assert "".join(text for node in first.findall(f"{hp}t") for text in node.itertext()).startswith(
-        "REQUIRED_DATA_FILES = ['인천항_물동량.csv'"
-    )
-    assert "".join(text for node in second.findall(f"{hp}t") for text in node.itertext()) == ""
-    assert _linesegarray_count(paragraph) == 0
+    assert result["replaced_count"] == 2
+    assert paragraph.text == "마바	라 마바"
+    assert [(run.text, run.bold) for run in paragraph.runs if run.text] == [("마바", True), ("	라 마바", False)]
+
+
+def test_cross_run_match_with_a_tab_inside_is_left_whole(sample_file: Path):
+    _append_paragraph(sample_file, "")
+    _set_split_runs(sample_file, 1, ["가나", "다	라"])
+
+    result = search_and_replace(str(sample_file), "나다	라", "X")
+    paragraph = open_doc(str(sample_file)).paragraphs[1]
+
+    assert result["replaced_count"] == 0
+    assert paragraph.text == "가나다	라"
+    assert [(run.text, run.bold) for run in paragraph.runs if run.text] == [("가나", True), ("다	라", False)]
 
 
 def test_search_and_replace_cross_run_in_table_cell(sample_file: Path):
@@ -175,6 +174,43 @@ def test_search_and_replace_cross_run_in_table_cell(sample_file: Path):
     assert result["replaced_count"] == 1
     assert "2027 데이터" in table_result["text"]
     assert "2026 데이터" not in table_result["text"]
+
+
+def test_cross_run_replace_in_table_cell_keeps_the_runs(sample_file: Path):
+    doc = open_doc(str(sample_file))
+    cell = doc.add_table(rows=1, cols=1).rows[0].cells[0]
+    cell.text = ""
+    paragraph = cell.paragraphs[0]
+    for run in list(paragraph.runs):
+        run.remove()
+    paragraph.add_run("20", bold=True)
+    paragraph.add_run("26 데이터", italic=True)
+    save_doc(doc, str(sample_file))
+
+    result = search_and_replace(str(sample_file), "2026", "2027")
+    cell_paragraph = open_doc(str(sample_file)).paragraphs[1].tables[0].rows[0].cells[0].paragraphs[0]
+
+    assert result["replaced_count"] == 1
+    assert [(run.text, run.bold, run.italic) for run in cell_paragraph.runs if run.text] == [
+        ("20", True, False),
+        ("27 데이터", False, True),
+    ]
+
+
+def test_replace_in_paragraph_across_runs_keeps_the_runs(sample_file: Path):
+    from hwpx_automation.server import replace_in_paragraph
+
+    _append_paragraph(sample_file, "")
+    _set_split_runs(sample_file, 1, ["홍길", "동 귀하"])
+
+    result = replace_in_paragraph(str(sample_file), "홍길동", "김철수", paragraph_index=1)
+    paragraph = open_doc(str(sample_file)).paragraphs[1]
+
+    assert result["replaced_count"] == 1
+    assert [(run.text, run.bold, run.italic) for run in paragraph.runs if run.text] == [
+        ("김철", True, False),
+        ("수 귀하", False, True),
+    ]
 
 
 def test_get_document_text_truncation(sample_file: Path):
@@ -279,18 +315,3 @@ def test_cross_run_replace_does_not_replace_its_own_output(sample_file: Path):
 
     assert result["replaced_count"] == 1
     assert doc.paragraphs[1].text == "홍길동(인) 귀하"
-
-
-def test_xml_runs_replace_does_not_replace_its_own_output() -> None:
-    hp = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
-    paragraph = ET.Element(f"{hp}p")
-    run = ET.SubElement(paragraph, f"{hp}run", {"charPrIDRef": "1"})
-    ET.SubElement(run, f"{hp}t").text = "마바사아 그리고 마바사아"
-    other = ET.SubElement(paragraph, f"{hp}run", {"charPrIDRef": "2"})
-    ET.SubElement(other, f"{hp}t").text = " 끝"
-
-    replaced = _replace_in_xml_runs([run, other], "마바사아", "마바사아ZZ")
-
-    assert replaced == 2
-    assert "".join(run.itertext()) == "마바사아ZZ 그리고 마바사아ZZ"
-    assert "".join(other.itertext()) == " 끝"  # within-run matches keep the other run as it was
