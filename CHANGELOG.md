@@ -181,6 +181,8 @@ MCP 도구의 이름은 그대로입니다. 도구 계약 해시는 `c895883d5f4
   `move_to(offset, keep_order=True)`로 뒤따르는 개체를 다시 세운다).
 - 런 `remove`·`copy`의 `contract_changed` 안내가 글 추가 예만 보여 주던 것, 런 앞·뒤 안내가 둘 다 런 시작을
   가리키던 것. 이제 글 범위 `text[s:e]`로 지우고 복사하는 꼴과, 뒤는 `place.offset + place.length`를 안내한다.
+- `office.form_fill.fill_section_bytes`가 자리표시자를 채운 문단의 줄 배치 캐시만이 아니라 그 문단 안 표 칸 문단들의
+  캐시까지 지우던 것. 이제 고친 문단 자신의 캐시만 지운다.
 - 디자인 프로필로 문서를 지을 때 뼈대의 모든 ZIP 항목 첫 바이트를 보고 XML 선언처럼 보이는 글을 바꾸던 것(첨부한
   텍스트 항목까지 바뀌었다). 이제 뼈대를 읽은 그대로 연다. 패키지에 든 프로필 넷은 XML 파트에 한/글 꼴 선언을
   지니게 한 번 고쳐 두었다(`scripts/normalize_profile_declarations.py`, 시험이 `--check`로 지킨다).
