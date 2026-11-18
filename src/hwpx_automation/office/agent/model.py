@@ -285,9 +285,21 @@ CONTRACT_CHANGED_INDEX = (
     'Use {"mode": "offset", "offset": n} (n counts paragraph.text: a tab or line break is 1, an object 0), '
     "or before/after an object path",
 )
+CONTRACT_CHANGED_RUN_REMOVE = (
+    CONTRACT_CHANGED_RUN[0],
+    'Remove the characters of the run as a text range: {"op": "remove", "path": "<paragraph>/text[s:e]"}, '
+    'where s is the "place" offset of the run node and e is s plus its length',
+)
+CONTRACT_CHANGED_RUN_COPY = (
+    CONTRACT_CHANGED_RUN[0],
+    'Copy the characters of the run as a text range: {"op": "copy", "path": "<paragraph>/text[s:e]", '
+    '"parent": <paragraph>, "position": {"mode": "offset", "offset": n}}, where s is the "place" offset '
+    'of the run node and e is s plus its length',
+)
 CONTRACT_CHANGED_RUN_ANCHOR = (
     "position.path names a run; since hwpx-automation 8.0 a place in a paragraph is a character offset",
-    'Use {"mode": "offset", "offset": <the run\'s start>}; read it from the run node\'s "place"',
+    'Before the run: {"mode": "offset", "offset": s}; after it: {"mode": "offset", "offset": s + length}, '
+    'where s and length are the "place" offset and length of the run node',
 )
 CONTRACT_CHANGED_MIXED = (
     "command mixes agent-command v1 and v2 forms",
@@ -599,6 +611,14 @@ def _command_schema(raw: dict[str, Any], batch_schema: str | None) -> str:
 
 
 def validate_agent_command(value: Mapping[str, Any], *, batch_schema: str | None = None) -> dict[str, Any]:
+    """Validate and normalize one strict op-specific command union (see :func:`_validate_agent_command`)."""
+
+    return _validate_agent_command(value, batch_schema=batch_schema)
+
+
+def _validate_agent_command(
+    value: Mapping[str, Any], *, batch_schema: str | None = None, versionless: bool = False
+) -> dict[str, Any]:
     """Validate and normalize one strict op-specific command union.
 
     A command may name its ``schemaVersion`` (v1 or v2); without one it is of its
@@ -607,9 +627,16 @@ def validate_agent_command(value: Mapping[str, Any], *, batch_schema: str | None
     the v1 forms whose meaning changed (run add/remove/copy, ``index`` or a run
     anchor inside a paragraph) with ``contract_changed`` when the batch is checked
     against the catalog.  The normalized command keeps the version it was written in.
+
+    *versionless*: the batch was not written by the caller (the MCP tool builds it), so a command
+    without its own ``schemaVersion`` names no version.  Unless it uses a v2-only form it is marked
+    (``versionDeclared: False``) and refused where v1 and v2 put it in different places
+    (``commands._check_v1_end_place``): 7.x callers sent such requests, and their meaning is not
+    changed without a word.
     """
 
     raw = dict(_require_mapping(value, "command"))
+    undeclared = versionless and "schemaVersion" not in raw and not _v2_only_forms(raw)
     schema = _command_schema(raw, batch_schema)
     command_id = str(raw.get("commandId", ""))
     if not COMMAND_ID_PATTERN.fullmatch(command_id):
@@ -625,6 +652,8 @@ def validate_agent_command(value: Mapping[str, Any], *, batch_schema: str | None
         "commandId": command_id,
         "op": op,
     }
+    if undeclared:
+        normalized["versionDeclared"] = False
     if op == "set":
         _require_exact_keys(raw, required={"commandId", "op", "path", "properties"}, name="command")
         normalized["path"] = _validate_path_or_reference(raw["path"], "command.path")
@@ -662,6 +691,16 @@ def validate_agent_command(value: Mapping[str, Any], *, batch_schema: str | None
 def validate_agent_batch(value: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a complete atomic batch envelope without touching a document."""
 
+    return _validate_agent_batch(value)
+
+
+def _validate_agent_batch(value: Mapping[str, Any], *, versionless_commands: bool = False) -> dict[str, Any]:
+    """Validate a complete atomic batch envelope without touching a document.
+
+    *versionless_commands*: the caller did not write the batch (the MCP tool builds it); see
+    :func:`validate_agent_command`.
+    """
+
     raw = dict(_require_mapping(value, "batch"))
     required = {
         "schemaVersion",
@@ -695,7 +734,9 @@ def validate_agent_batch(value: Mapping[str, Any]) -> dict[str, Any]:
     if not commands_value or len(commands_value) > MAX_COMMANDS:
         raise AgentContractError("resource_limit", "batch.commands count is out of bounds", target="batch.commands")
     commands = [
-        validate_agent_command(_require_mapping(item, "command"), batch_schema=batch_schema)
+        _validate_agent_command(
+            _require_mapping(item, "command"), batch_schema=batch_schema, versionless=versionless_commands
+        )
         for item in commands_value
     ]
     command_ids = [command["commandId"] for command in commands]

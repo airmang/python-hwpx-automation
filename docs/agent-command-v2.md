@@ -28,14 +28,18 @@ v1(7.x)과 달라진 점만 적는다. 계약 차이는 `docs/tool-contract-delt
 
 | v1 꼴 | v2 |
 |---|---|
-| 런 `add`·`remove`·`copy` | `contract_changed` — `kind "text"`로 |
+| 런 `add`·`remove`·`copy` | `contract_changed` — `kind "text"`의 글 범위(`<문단>/text[s:e]`)로 |
 | 문단 안 개체·글·각주의 `"mode": "index"` | `contract_changed` — `offset`으로 |
-| 문단 안 `before`·`after`가 런 경로 | `contract_changed` — 런의 `place.offset`으로 |
+| 문단 안 `before`·`after`가 런 경로 | `contract_changed` — 앞은 런의 `place.offset`, 뒤는 `place.offset + place.length`로 |
 | v1 명령에 v2 꼴(`text`, `offset`, `text[..]`)을 섞음 | `contract_changed` — `schemaVersion` v2로 |
-| 문단 안 `append`·`prepend`(v1 명령) | 옛 자리(같은 종류의 뒤·앞)와 새 자리(글 끝·맨 앞)가 같으면 받는다. 다르면 `contract_changed`, `suggestion`에 옛 자리의 offset |
+| 문단 안 `append`(v1 명령) | 받는다. v1도 글 끝, 그 자리의 모든 것 뒤에 놓았다(7.5.0으로 잼) |
+| 문단 안 `prepend`(v1 명령) | v1은 같은 종류의 첫 개체 앞(없으면 글 끝), v2는 맨 앞. 둘이 다르면 `contract_changed`, `suggestion`에 옛 자리를 그대로 만드는 v2 `position`(`before` 그 개체, 또는 글 끝 `offset`) |
+| 판을 적지 않은 명령(MCP 도구 `apply_document_commands`) | v1과 v2에서 자리가 다른 꼴(위의 `prepend`)이면 `contract_changed` — `schemaVersion`과 자리를 적으라고 안내한다. 뜻이 같은 꼴은 그대로 받는다 |
 | 런 `set`, 문단·표·칸·행·누름틀·메모 명령 | 그대로 받는다 |
 
-`contract_changed`는 `recoverability: "needs-review"`이고 `suggestion`에 새 꼴 한 줄이 있다.
+`contract_changed`는 `recoverability: "needs-review"`이고 `suggestion`에 새 꼴 한 줄이 있다(그 안의 `position`은 JSON으로 읽힌다).
+
+같은 글자 자리에 개체가 여럿이면 `before`·`after` 개체는 그 개체 바로 앞·뒤다(글을 넣거나 옮길 때도).
 
 ## 블루프린트 v2
 

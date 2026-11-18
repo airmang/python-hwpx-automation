@@ -24,10 +24,11 @@ from hwpx_automation.office.agent import (
     HwpxAgentDocument,
     agent_catalog,
     agent_json_schemas,
-    apply_document_commands as apply_core_document_commands,
+    apply_document_commands as apply_core_document_commands,  # noqa: F401 - kept for callers of this module
     catalog_hash,
     human_help,
 )
+from hwpx_automation.office.agent.commands import _apply_document_commands
 from hwpx_automation.office.agent.blueprint import (
     BLUEPRINT_REPLAY_RESULT_SCHEMA,
     BlueprintReplayResult,
@@ -262,9 +263,12 @@ def apply_document_command_batch(
             verification_requirements or _DEFAULT_REQUIREMENTS
         ),
     }
-    return apply_core_document_commands(
+    # The MCP caller sends commands, not the batch: a command without its own schemaVersion names no
+    # version, and is refused where agent-command v1 and v2 would put it in different places.
+    return _apply_document_commands(
         batch,
         idempotency_store=idempotency_store,
+        versionless_commands=True,
     ).to_dict()
 
 

@@ -200,7 +200,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/agent/form_plan.py", "_validate_public_plan_request", 11),
     ("src/hwpx_automation/office/agent/form_plan.py", "validate_mixed_form_request", 13),
     ("src/hwpx_automation/office/agent/model.py", "__post_init__", 15),
-    ("src/hwpx_automation/office/agent/model.py", "validate_agent_batch", 16),
+    ("src/hwpx_automation/office/agent/model.py", "_validate_agent_batch", 16),
     ("src/hwpx_automation/office/agent/path.py", "parse_path", 15),
     ("src/hwpx_automation/office/agent/query.py", "_split_steps", 15),
     ("src/hwpx_automation/office/authoring/__init__.py", "_bridge_to_design_plan", 14),

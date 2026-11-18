@@ -170,6 +170,20 @@ MCP 도구의 이름은 그대로입니다. 도구 계약 해시는 `c895883d5f4
 
 ### Fixed
 
+- MCP 도구 `apply_document_commands`에 판(`schemaVersion`)을 적지 않은 명령이 v1과 v2에서 자리가 다른 꼴(문단 안 개체의
+  `prepend`)이면, 8.0에서는 조용히 문단 맨 앞에 넣고 성공을 돌려주었다(7.x는 같은 종류의 첫 개체 앞, 없으면 글 끝).
+  이제 `contract_changed`로 거부하고 판과 자리를 적으라고 안내한다. 뜻이 같은 꼴은 그대로 받는다.
+- v1 명령의 문단 안 `append`를 "같은 종류의 마지막 개체 뒤"로 잘못 보고 거부하던 것. 7.5.0도 글 끝에 놓았으므로
+  받는다. `prepend`의 `suggestion`은 옛 자리를 그대로 만드는 꼴(`before` 그 개체, 또는 글 끝 `offset`)을 먼저 주고,
+  그 안의 `position`이 JSON으로 읽히게 경로의 따옴표를 이스케이프한다.
+- 같은 글자 자리에 개체가 여럿일 때 `after` 개체가 그 개체 바로 뒤가 아니라 그 자리의 모든 개체 뒤에 넣던 것, 글을
+  넣거나 옮길 때 `before`·`after` 개체가 같은 결과를 내던 것. 이제 그 개체 바로 앞·뒤다(python-hwpx
+  `move_to(offset, keep_order=True)`로 뒤따르는 개체를 다시 세운다).
+- 런 `remove`·`copy`의 `contract_changed` 안내가 글 추가 예만 보여 주던 것, 런 앞·뒤 안내가 둘 다 런 시작을
+  가리키던 것. 이제 글 범위 `text[s:e]`로 지우고 복사하는 꼴과, 뒤는 `place.offset + place.length`를 안내한다.
+- 디자인 프로필로 문서를 지을 때 뼈대의 모든 ZIP 항목 첫 바이트를 보고 XML 선언처럼 보이는 글을 바꾸던 것(첨부한
+  텍스트 항목까지 바뀌었다). 이제 뼈대를 읽은 그대로 연다. 패키지에 든 프로필 넷은 XML 파트에 한/글 꼴 선언을
+  지니게 한 번 고쳐 두었다(`scripts/normalize_profile_declarations.py`, 시험이 `--check`로 지킨다).
 - `document_to_markdown`·`document_extract_json`: python-hwpx가 열지 못한 `.hwp`·`.hwpx`(HWP 3.x, 암호, 깨진 파일)를
   MarkItDown이 받아 파일 바이트를 Markdown으로 돌려주며 성공으로 끝나던 것을, 그 사유를 담은 실패로 끝냅니다.
 - 경로 없이 넘긴 문서를 MarkItDown으로 바꿀 때 만든 임시 파일을 지웁니다(실패할 때도).
