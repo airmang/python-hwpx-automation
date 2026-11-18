@@ -103,7 +103,27 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
   주민등록번호를 가린 값(`010-****-****`)이 문서에 들어갔습니다. 양식 채움의 `mask`(기본 켬)는 이제 응답에 되돌려 주는
   `applied`·`touched`만 가리고, 응답의 `responseMasked`로 가렸는지 알립니다. 메일 머지 보고에는 값이 실리지 않으므로
   가릴 것이 없고, `maskedFields`는 빈 목록입니다.
+- `create_document_from_plan`이 계획 최상위의 `designProfile`(`report`·`official_notice`·`home_notice`·
+  `application_form`)로 디자인 프로필을 바로 고릅니다. 주면 `document_type`·`look`보다 먼저이고, 없는 이름은
+  `INVALID_ARGUMENT`입니다. `document_type`이 보고서(`report`)인 계획은 report 프로필 대신 정해 둔 보고서
+  모양(`from_markdown`)으로 짓고, report 프로필은 `designProfile`로 고를 때만 씁니다. `government_report`는 일반 꼴에
+  정부보고서 스타일 프리셋입니다. 공문·가정통신문은 전처럼 유형으로 제 프로필을 고릅니다. `markdown_to_document_plan`은
+  계획에 `"look": "report"`를 적어, 그 계획도 보고서 모양으로 지어집니다.
+- 새 문서를 짓는 길의 일반 표(계획의 표, "문서 정보" 표, builder 표, 프로필 대체 표)가 보고서 모양의 표 규칙을 같이
+  씁니다: 위·아래 굵은 선, 양옆 열림, 머리 행 아래 이중선, 굵고 음영 든 가운데 머리 행(쪽마다 반복), 글 길이대로의 열 폭.
+  계획이 `cellStyles`·`headerShading`·1이 아닌 `widthWeight`를 주면 준 대로 짓습니다.
+- 디자인 프로필에 맞는 표 조각이 없거나 칸이 모자라면(가정통신문 프로필의 표, 공문 프로필의 결재란) `PROFILE_REQUIRED`·
+  `TABLE_COLUMN_MISMATCH`로 멈추지 않고 프로필 본문 문단 안에 기본 표로 짓고, 결과의 `warnings`에
+  `PROFILE_TABLE_FALLBACK`으로 알립니다.
+- 공문 계획의 `metadata` 수신·경유는 두문 줄로, 발신명의·생산등록번호·시행·공개구분은 결문 줄로 씁니다(블록에 이미
+  있으면 그것이 먼저). 블록이 이미 제목을 담고 있으면 계획 제목을 위에 한 번 더 찍지 않습니다.
+- 일반 꼴의 글머리표 항목은 글 앞에 `• `를 글자로 붙이지 않고 한/글 글머리표 정의(`hh:bullet`)를 겁니다. 원고에 제
+  번호가 있는 제목(`1. 개요`)은 개요 번호를 더 붙이지 않습니다.
+- 프로필로 지은 문서의 첫 문단에서 쪽 설정(`hp:secPr`)만 든 런이 뒤따르는 글 런의 글자 모양을 씁니다(한/글 저장본과
+  같은 꼴).
 - 표·문단 편집 몇 가지가 python-hwpx 7.0의 한/글식 동작을 그대로 씁니다. 결과 문서가 이렇게 달라질 수 있습니다:
+  - 문단을 지워 `settings.xml`의 캐럿이 가리키던 문단이 없어지면, 저장할 때 캐럿이 본문 첫 문단의 글 앞(한/글이
+    문서를 여는 자리)으로 옮겨 갑니다. 전에는 지운 문단의 번호가 남았습니다.
   - `add_table(auto_fit=True)`의 열 폭은 `table.set_column_width`로 씁니다. 칸 좌우 여백 + 283보다 좁은 열은 거부되고,
     병합 칸은 걸친 열 폭의 합이 됩니다(자동 맞춤의 최소 폭은 이보다 넓어 지금 쓰임에서는 같은 결과입니다).
   - `apply_document_commands`의 행 추가는 한/글의 "줄 추가"처럼 이웃 행의 칸 서식(테두리·여백·크기·`dirty` 등)을
@@ -154,6 +174,14 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 - `apply_document_commands`의 `move`로 문단을 구역 맨 앞에 옮기거나 첫 문단을 옮기면 구역 설정(`hp:secPr`)이 첫
   문단이 아닌 곳에 남아, python-hwpx 7.0(#765)이 저장을 거절하던 것. 이제 python-hwpx의
   `paragraph.move_before`·`move_after`로 옮겨 구역 설정이 늘 첫 문단에 있습니다.
+- `apply_document_commands`의 문단 `copy`가 구역의 첫 문단을 복사하면 구역 설정(`hp:secPr`)과 단 정의(`hp:colPr`)까지
+  사본에 옮겨, 한 구역에 쪽 설정이 둘 생기던 것. 이제 사본에는 글과 그 모양만 갑니다(python-hwpx `paragraph.copy_to`).
+- 문서에 없는 글꼴을 등록할 때(`format_text`의 `font_name` 등) 언어 블록이 하나뿐인 문서에 나머지 언어 블록을 더하고도
+  `hh:fontfaces`의 `itemCnt`를 그대로 두던 것. 이제 실제 블록 수를 적습니다(python-hwpx `header.ensure_font`).
+- 디자인 프로필로 지은 문서(공문·가정통신문·보고서·신청서)의 첫 문단에 단 정의(`hp:colPr`)가 없어, 한/글이 쪽 여백을
+  기본값으로 바꿔 열던 것. 첫 문단에 한/글 새 문서와 같은 1단 정의를 넣습니다(앞으로 뽑는 프로필 뼈대에도).
+- 공문 프로필의 내어쓰기 있는 본문 문단에 기본 표(결재란·결문)를 넣어 한/글에서 기안문이 제대로 그려지지 않던 것. 표를
+  담는 문단은 왼쪽·오른쪽 여백과 내어쓰기를 0으로 둡니다.
 
 ## [7.5.0] - 2026-11-11
 
