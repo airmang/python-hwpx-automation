@@ -31,7 +31,7 @@ from pathlib import Path
 
 PREINSTALLED = ["lxml", "pydantic", "cryptography"]
 BLOCKED_INDEX = "http://127.0.0.1:9/simple"
-ALLOWED_IMPORTS = {"hwpx", "hwpx_automation", "importlib", "json", "os", "re", "site", "subprocess", "sys"}
+ALLOWED_IMPORTS = {"hwpx", "hwpx_automation", "importlib", "json", "os", "re", "site", "subprocess", "sys", "tempfile"}
 # Beside the ``api`` facade, the automation modules python-hwpx 7.0 moved document
 # methods to (``hwpx._removed_names``: doc.text.markdown, doc.tables.find_cell_by_label/fill_by_path).
 ALLOWED_AUTOMATION_MODULES = {"hwpx_automation.markdown", "hwpx_automation.forms"}

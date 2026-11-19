@@ -12,6 +12,15 @@
   python-hwpx-automation이 없는 환경(`AUTOMATION`이 거짓)에서 W1은 `doc.text.plain()`으로 일반 글을 읽고,
   W3(표 라벨 칸 채우기)은 저장하지 않고 쓸 수 없다고 멈춥니다. W2·W5의 확인 단계도 `doc.text.plain()`·`doc.save(…)`를 씁니다.
 
+- 채팅 안내의 W2~W5가 저장에 실패하거나 멈출 때 원본을 그대로 두고 아무 파일도 남기지 않습니다. 원본과 결과가
+  같은 파일인지는 이름이 아니라 실제 파일로 견주고(다른 표기·링크 포함), 중간 파일은 늘 새로 만든 이름이라 입력과
+  겹치지 않습니다. 전에는 입력이 중간 파일 이름(`…checking.hwpx`)이면 원본 위에 편집본을 쓰고 원본 경로를
+  없앴습니다. W2는 글을 지우는(`""`로 바꾸는) 요청을 확인하고 저장하며 빈 원문은 거절합니다. W3은 누름틀의 자리를
+  본체의 누름틀·표 API로 가립니다: 값 칸이 누름틀 하나뿐이면 그 누름틀에 넣고, 같은 줄에 다른 누름틀이 있으면 W4로
+  보냅니다. 표 밖 누름틀의 글은 더 이상 판정에 쓰지 않습니다. W4는 목록 번호를 0부터 마지막까지만 받고, 이름과
+  번호가 같은 누름틀을 두 번 가리키면 쓰기 전에 거절하며, 이름이 같은 누름틀 여럿 가운데 하나를 번호로 채울 수
+  있습니다.
+
 - 함께 배포되는 예제·데모·참고 문서의 코드를 python-hwpx 7.0·python-hwpx-automation 8.0에서 그대로 돌게 맞춥니다.
   `examples/*.py`의 `save_to_path`는 `save`로, `hwpx.tools.report_utils`는 `hwpx_automation.office.utilities`로,
   `hwpx.inspect_mail_merge_placeholders`는 `hwpx_automation.mail_merge`로, `export_text()`는 `doc.text.plain()`으로
