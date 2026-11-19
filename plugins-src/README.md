@@ -50,6 +50,13 @@ codex plugin marketplace add airmang/hwpx-plugins
 codex plugin add hwpx-plugin@hwpx
 ```
 
+**ChatGPT**에서는 플러그인 디렉터리(Customize → Plugins)에서 `python-hwpx`를 찾아 설치합니다. 플러그인 대신
+스킬만 올리려면 Skills → Create → Upload from your computer에서 스킬 zip(`python-hwpx-skill-<판>.zip`, 저장소의
+`scripts/build_chatgpt_skill.py`가 만듭니다)을 올립니다. Enterprise·Edu 워크스페이스는 관리자가 스킬과 스킬 올리기를
+켜 두어야 합니다. 엔진은 묶음 안에 있어 인터넷 없이 설치되지만, ChatGPT 코드 실행 환경에 `lxml`이 있어야 하고
+표 라벨 칸 채우기·새 문서 만들기에는 `pydantic`·`cryptography`도 있어야 합니다. ChatGPT에서는 결과를 늘 새
+`.hwpx` 파일로 돌려주고 `.hwp`는 읽기만 합니다.
+
 Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 잠긴 정확한 버전으로
 `uv run --frozen`으로 실행합니다. 잠긴 버전은 아래 표의 검증 좌표가 아니라 설치 제약 창 안에서 갱신 절차가 마지막으로 올린 조합이며,
 값은 번들의 `server/pyproject.toml`에 적혀 있습니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 새 엔진은 CI 봇이 검증해 PR로 올리고, 유지보수자가 승인한 뒤 플러그인 업데이트로 전달합니다.
@@ -87,6 +94,39 @@ Cursor용 번들과 규칙 파일(`.mdc`)은 이 저장소에 없습니다. Curs
 `plugins/hermes/hwpx`)에 MCP 배선 안내가 함께 들어 있습니다. 저장소 이름 `hwpx-plugins`와 설치되는
 skill 이름 `hwpx`를 혼동하지 마세요.
 
+## 이미 설치했다면 — 새 판으로 갱신하기
+
+호스트는 설치한 플러그인을 저절로 바꾸지 않을 수 있습니다. 아래 명령으로 갱신한 뒤 **새 세션**을 시작하세요.
+
+```bash
+# Claude Code — 마켓플레이스 목록을 새로 받고 플러그인을 갱신한 뒤 새 세션(또는 /reload-plugins)
+claude plugin marketplace update hwpx
+claude plugin update hwpx-plugin@hwpx
+
+# Codex CLI — 마켓플레이스를 새로 받은 뒤 새 세션(필요하면 codex plugin add hwpx-plugin@hwpx 다시)
+codex plugin marketplace upgrade
+```
+
+- Claude Code에서 `hwpx` 같은 사용자 추가 마켓플레이스는 **자동 갱신이 기본으로 꺼져 있습니다.** `/plugin` →
+  Marketplaces → `hwpx`에서 자동 갱신을 켜 두면 다음부터는 Claude Code가 새 판을 받아 옵니다. `/plugin`의 Installed
+  탭에서 Update now를 눌러도 됩니다.
+- Codex 번들의 런처는 같은 큰 판 안에서만 런타임을 스스로 갱신합니다. 2.4.0 플러그인의 런처는
+  `python-hwpx <7`·`python-hwpx-automation <8` 안에서만 움직이므로, **플러그인을 갱신해야** 엔진 7.0·8.0을 받습니다.
+- ChatGPT 플러그인은 디렉터리에 새 판이 게시되면 새 대화부터 쓰입니다. 스킬 zip을 직접 올렸다면 새 zip을 다시 올립니다.
+
+## 8.0에서 달라지는 것
+
+- **엔진**: python-hwpx 7.0과 python-hwpx-automation 8.0 위에서 동작합니다. 도구 계약이 바뀐 큰 판이라 플러그인
+  판도 automation과 같은 8.0.0입니다.
+- **도구 요청 꼴**: 문서 에이전트 명령(`apply_document_commands`)이 v2가 되어 문단 안의 글과 개체를 **글자 자리**
+  (`paragraph.text`로 센 위치)로 가리킵니다. 7.x의 런 기준 요청처럼 뜻이 바뀐 옛 꼴은 조용히 다르게 처리하지 않고
+  `contract_changed` 오류로 거절하며, `suggestion`에 새 꼴을 실어 줍니다. 자세한 내용은
+  [8.0 마이그레이션 가이드](references/migration-mcp-8.0.md).
+- **`.hwp`는 읽기 전용**: `.hwp`(HWP 5.0)는 열어 읽고 고칠 수 있지만, 결과는 늘 `.hwpx`로 냅니다. 원본 `.hwp`는
+  그대로 둡니다. `.hwp` 파일이 필요하면 결과를 한/글에서 열어 `.hwp`로 저장합니다.
+- **채팅 경로(ChatGPT·claude.ai)**: 거절되거나 실패한 요청은 원본을 그대로 두고 결과·중간 파일을 남기지 않습니다.
+  표의 값 칸이 누름틀이면 그 누름틀을 채웁니다.
+
 ## 에이전트에게 말 걸기
 
 기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](references/workflows-existing-edit.md)를 먼저 확인하세요. 새 문서는 document-plan, 에이전트 연결은 선택 MCP와 호스트 플러그인을 사용합니다.
@@ -96,7 +136,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 | 이렇게 말하면 | 에이전트가 하는 일 |
 |---|---|
 | "이 hwpx 텍스트 전부 뽑아줘" | 표 안 문단·각주 포함 텍스트 추출 |
-| "이 양식은 그대로 두고 내용만 채워줘" | 바이트 보존 양식 form-fit (셀 채움·행/열 조정·한컴 검증) |
+| "이 양식은 그대로 두고 내용만 채워줘" | 바이트 보존 양식 form-fit (셀 채움·행/열 조정, 렌더 환경이 있으면 한컴 확인) |
 | "머리글·쪽번호 들어간 계획서 새로 만들어줘" | 문서 빌더(document plan)로 레이아웃 민감 문서 조립 |
 | "한컴에서 안 열리는 hwpx인데 복구해줘" | repair/recover 복구 복사본 생성 |
 
@@ -109,7 +149,7 @@ skill 이름 `hwpx`를 혼동하지 마세요.
 - **문서 능력 한 벌** — 읽기·양식 채움·생성·편집·공문서·신구대조표·mail merge
 - **MCP 서버 동봉 배선** — 호스트별 MCP 설정과 런처가 포함되어 스킬과 도구가 한 번에 로드
 - **호스트별 번들** — Claude Code·Codex·OpenClaw·Hermes 진입점을 한 canonical 소스에서 빌드
-- **신뢰 루프** — `render_preview` 페이지 PNG 자기검증, package/schema/text 검증, 시각 검토 기록
+- **신뢰 루프** — package/schema/text 검증, 미리보기 HTML(`render_preview`), 시각 검토 기록. 페이지 PNG와 한컴 렌더 확인은 렌더 구성(Claude Code는 번들의 `render` 그룹)을 더했을 때
 
 자세한 내용: [SKILL.md](SKILL.md) · [references/](references/)
 
@@ -155,7 +195,9 @@ automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인
 
 ## 알려진 제약
 
-- `.hwpx`와 HWP 5.0 `.hwp`를 다룹니다. `.hwp`는 python-hwpx 6.6.0 이상이 같은 문서 모델로 읽고 HWP 5.0으로 다시 씁니다. 옮기지 못한 내용과 쓸 수 없는 내용(암호·배포용·DRM 포함)은 숨기지 않고 보고합니다. MCP 도구는 automation 7.3.3부터 `.hwp`를 직접 다루며, 표·본문 바이트를 고치는 도구만 `.hwpx` 사본을 거칩니다.
+- `.hwpx`와 HWP 5.0 `.hwp`를 다룹니다. `.hwp`는 같은 문서 모델로 읽기만 하고, 고친 결과는 `.hwpx`로 냅니다
+  (python-hwpx 7.0에서 `.hwp` 쓰기는 실험 기능이라 이 플러그인은 쓰지 않습니다). 옮기지 못한 내용과 열 수 없는
+  문서(암호·배포용·DRM 포함)는 숨기지 않고 보고합니다.
 - `visual_review_required=true`는 package/schema/text 검사는 통과했지만 열린 문서의 페이지 나눔·표 맞춤은 아직 미확인이라는 뜻입니다. 최종 제출이라고 하려면 한/글이나 뷰어에서 직접 열어 확인한 결과(`observed_pass`)를 남깁니다.
 - 예제·문서에는 이름·전화번호·이메일·주소 등 PII를 redaction 없이 넣지 않습니다.
 

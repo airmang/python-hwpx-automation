@@ -12,6 +12,12 @@
   python-hwpx-automation이 없는 환경(`AUTOMATION`이 거짓)에서 W1은 `doc.text.plain()`으로 일반 글을 읽고,
   W3(표 라벨 칸 채우기)은 저장하지 않고 쓸 수 없다고 멈춥니다. W2·W5의 확인 단계도 `doc.text.plain()`·`doc.save(…)`를 씁니다.
 
+- README에 ChatGPT 설치(플러그인 디렉터리, 스킬 zip 올리기), 이미 설치한 사용자의 갱신 명령(Claude Code·Codex·ChatGPT,
+  Claude Code 사용자 마켓플레이스는 자동 갱신이 기본으로 꺼져 있다는 것), 8.0에서 달라지는 것(글자 자리 기준 도구
+  요청과 `contract_changed`, `.hwp` 읽기 전용)을 더합니다. 렌더(페이지 PNG·한컴 확인)는 렌더 구성을 더했을 때만 된다고
+  고칩니다. Claude 번들에 실을 README의 원본(`packaging/templates/claude-bundle-README.md`)을 둡니다: 플러그인이 실행하고,
+  내려받고, 보내는 것을 모두 적습니다.
+
 - 목록·매니페스트 문구를 실제 동작에 맞춥니다. ChatGPT 플러그인의 설명(영어 기본·ko-KR)은 `.hwp`를 `.hwp`로 다시
   저장한다고 하던 것을 "읽기만 하고 결과는 `.hwpx`"로, "인터넷 없이 설치"에 코드 실행 환경에 `lxml`이 있어야 한다는
   전제와 `pydantic`·`cryptography`가 없을 때 되는 일을 더합니다. `release_notes`를 이번 판 내용으로 바꿉니다
