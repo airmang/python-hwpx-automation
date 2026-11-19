@@ -297,6 +297,6 @@ def test_readme_python_example_runs_saves_and_reopens_from_base_wheel(
         text=True,
     )
     assert catalog_help.returncode == 0, catalog_help.stderr
-    assert "HWPX agent document interface v1" in catalog_help.stdout
+    assert "HWPX agent document interface v2" in catalog_help.stdout
     assert "document" in catalog_help.stdout
     assert "table" in catalog_help.stdout
