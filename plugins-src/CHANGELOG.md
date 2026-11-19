@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- 플러그인 판이 2.4.0에서 8.0.0으로 뜁니다(소유자 결정). 플러그인은 같은 판의 python-hwpx-automation을 묶어 내고,
+  이번 판은 도구 계약이 바뀐 큰 판(`c895883d5f4350ae`)이라 자동화 판과 같은 번호를 씁니다.
+
+- 채팅 경로 안내의 python-hwpx 이름을 7.0에 맞춥니다. ChatGPT 스킬(`web-workflows.md`)의 `doc.text.markdown()`은
+  `hwpx_automation.markdown.to_markdown(doc)`, `doc.tables.find_cell_by_label`·`fill_by_path`는
+  `hwpx_automation.forms`의 함수, `doc.save_to_path(…, return_report=True)`는 `doc.save(…)`가 됩니다. 같은 표 한 칸이
+  `SKILL.md`·`claude-chat-engine.md`에, 7.0에서 지운 문서 facade 이름이 `references/workflows-editing.md`에 있었습니다.
+
 - 도구 계약 사본을 automation 8.0 후보(`c895883d5f4350ae`)로 맞춥니다. python-hwpx 하한이 7.0.0으로 함께 맞춰집니다
   (사본이 6.5.0을 적고 있었습니다). 문서 에이전트 명령이 v2로 오르며, 문단 안 글은 글자 범위로, 개체·각주는 글자 자리로
   다룹니다. 뜻이 바뀐 옛 명령은 `contract_changed`로 새 꼴을 안내합니다. `references/workflows-agent-document.md`·

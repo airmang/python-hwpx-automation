@@ -72,7 +72,7 @@ print("준비 완료: python-hwpx", hwpx.__version__, "/ 새 문서 만들기(W5
 
 | 요청 | 경로 | 참조 |
 |---|---|---|
-| 내용 읽기·요약·표 내용 보기 | `doc.text.markdown()`, `doc.tables.map()` | [W1](references/web-workflows.md#w1--문서-읽기요약) |
+| 내용 읽기·요약·표 내용 보기 | `to_markdown(doc)`(`hwpx_automation.markdown`), `doc.tables.map()` | [W1](references/web-workflows.md#w1--문서-읽기요약) |
 | 문구·날짜·이름 바꾸기 | `doc.text.replace(old, new, everywhere=True)` | [W2](references/web-workflows.md#w2--문구-바꾸기) |
 | 표에서 라벨(성명·소속 등) 옆 빈 칸 채우기 | `find_cell_by_label` → `fill_by_path` | [W3](references/web-workflows.md#w3--표에서-라벨-옆-칸-채우기) |
 | 누름틀("이곳을 클릭하여…" 안내문이 있는 칸) 채우기 | `doc.fields.all` → `doc.fields.fill` | [W4](references/web-workflows.md#w4--누름틀클릭하여-입력-채우기) |

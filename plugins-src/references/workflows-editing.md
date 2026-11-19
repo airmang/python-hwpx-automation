@@ -290,11 +290,11 @@ run_edit_plan(plan, dry_run=False)
 
 ## 7. MCP가 없을 때 (local Python 대안)
 
-- 동일 기능의 facade 메서드: `HwpxDocument.open(path)` 후 `doc.set_paragraph_format(...)`,
-  `doc.set_page_setup(...)`, `doc.set_header_footer(...)`, `doc.set_page_number(...)`,
-  `doc.set_list_format(...)`, `doc.add_picture(...)`, `doc.replace_picture(...)` →
-  `doc.save_to_path(path)`. 시그니처는 [`api.md`](api.md).
-- 런 수준 치환: `doc.replace_text_in_runs(...)`. 표 셀 포함 전역 치환:
+- 동일 기능의 facade 메서드: `HwpxDocument.open(path)` 후 `doc.styles.apply_paragraph_format(...)`,
+  `doc.page.setup(...)`, `doc.page.set_header(...)`·`doc.page.set_footer(...)`, `doc.page.set_page_number(...)`,
+  `doc.styles.apply_list_format(...)`, `doc.add_picture(...)`, `doc.media.replace_picture(...)` →
+  `doc.save(path)`. 시그니처는 [`api.md`](api.md).
+- 런 수준 치환: `doc.text.replace(...)`. 표 셀 포함 전역 치환:
   `python3 scripts/zip_replace_all.py input.hwpx output.hwpx --replace "키=값" [--auto-fix-ns]`
   (텍스트 노드만 치환, 속성 값·글꼴 이름은 그대로. open-safety 통과 시에만 대상 교체).
 - ZIP-level 수정 후 네임스페이스 정리: `python3 scripts/fix_namespaces.py input.hwpx --inplace --backup`.

@@ -17,11 +17,12 @@
 ```python
 # W1 문서 읽기
 from hwpx import HwpxDocument
+from hwpx_automation.markdown import to_markdown
 
 P = {"src": "/mnt/data/input.hwpx"}
 
 doc = HwpxDocument.open(P["src"])
-markdown = doc.text.markdown()
+markdown = to_markdown(doc)
 tables = doc.tables.map()["tables"]
 fields = [(i, f.name, f.prompt, f.value) for i, f in enumerate(doc.fields.all)]
 print(f"글자 수 {len(markdown)}, 표 {len(tables)}개, 누름틀 {len(fields)}개")
@@ -68,9 +69,9 @@ root, ext = os.path.splitext(P["out"])
 tmp = f"{root}.checking{ext}"  # 확장자가 저장 형식을 정한다(.hwp / .hwpx)
 try:
     try:
-        report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
+        report = doc.save(tmp, mode="patch", fallback="error")
     except PreservationDowngradeError:
-        report = doc.save_to_path(tmp, return_report=True)
+        report = doc.save(tmp)
 except Hwp5Error as exc:
     raise SystemExit(f".hwp로 쓸 수 없는 내용이 있다({exc}). .hwpx로 저장할지 사용자에게 묻는다.")
 
@@ -107,6 +108,7 @@ for old, new in pairs:
 # W3 표 라벨 칸 채우기
 import os
 from hwpx import Hwp5Error, HwpxDocument, PreservationDowngradeError
+from hwpx_automation.forms import fill_by_path, find_cell_by_label
 
 P = {
     "src": "/mnt/data/input.hwpx",
@@ -130,7 +132,7 @@ paths, targets, problems = {}, {}, []
 for label, value in P["values"].items():
     candidates, duplicates = {}, 0
     for direction in ("right", "down"):
-        found = doc.tables.find_cell_by_label(label, direction=direction)
+        found = find_cell_by_label(doc, label, direction=direction)
         if found["count"] > 1:
             duplicates = found["count"]
         elif found["count"] == 1:
@@ -163,7 +165,7 @@ for label, value in P["values"].items():
 if problems:
     raise SystemExit("저장하지 않았다:\n- " + "\n- ".join(problems))
 
-result = doc.tables.fill_by_path(paths)
+result = fill_by_path(doc, paths)
 if result["failed"]:
     raise SystemExit(f"채우지 못한 항목 {result['failed']}: 저장하지 않았다.")
 
@@ -171,9 +173,9 @@ root, ext = os.path.splitext(P["out"])
 tmp = f"{root}.checking{ext}"  # 확장자가 저장 형식을 정한다(.hwp / .hwpx)
 try:
     try:
-        report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
+        report = doc.save(tmp, mode="patch", fallback="error")
     except PreservationDowngradeError:
-        report = doc.save_to_path(tmp, return_report=True)
+        report = doc.save(tmp)
 except Hwp5Error as exc:
     raise SystemExit(f".hwp로 쓸 수 없는 내용이 있다({exc}). .hwpx로 저장할지 사용자에게 묻는다.")
 
@@ -224,9 +226,9 @@ root, ext = os.path.splitext(P["out"])
 tmp = f"{root}.checking{ext}"  # 확장자가 저장 형식을 정한다(.hwp / .hwpx)
 try:
     try:
-        report = doc.save_to_path(tmp, mode="patch", fallback="error", return_report=True)
+        report = doc.save(tmp, mode="patch", fallback="error")
     except PreservationDowngradeError:
-        report = doc.save_to_path(tmp, return_report=True)
+        report = doc.save(tmp)
 except Hwp5Error as exc:
     raise SystemExit(f".hwp로 쓸 수 없는 내용이 있다({exc}). .hwpx로 저장할지 사용자에게 묻는다.")
 

@@ -103,6 +103,8 @@ jobs:
           python scripts/build_hwpx_plugins.py
           python scripts/validate_hwpx_plugin.py
           python scripts/check_bundle_limits.py
+          # The ChatGPT lock pins the published wheels: refresh it now that PyPI has them.
+          python scripts/build_chatgpt_skill.py --refresh-lock
           python scripts/build_chatgpt_skill.py --check
 
       - name: Assemble the dist tree
