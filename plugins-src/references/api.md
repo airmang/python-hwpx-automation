@@ -349,7 +349,7 @@ builder는 직접 XML을 조작하지 않고 python-hwpx 7.0의 공개 API로 �
 placeholder 형식은 `{{field}}`, `${field}`, `<<field>>`다.
 
 ```python
-from hwpx import inspect_mail_merge_placeholders
+from hwpx_automation.mail_merge import inspect_mail_merge_placeholders
 from hwpx_automation.office.document_ops import build_mail_merge
 
 placeholders = inspect_mail_merge_placeholders("template.hwpx")

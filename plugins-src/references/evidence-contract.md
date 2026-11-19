@@ -75,7 +75,7 @@ Evidence schema 전문과 필드 설명은 `examples/09_visual_review_loop.md`,
 
 ## 3. BuilderSaveReport hard gates
 
-`hwpx.builder`의 `document.save_to_path(path)`가 반환하는 `BuilderSaveReport`:
+`hwpx_automation.office.authoring.builder`의 `document.save_to_path(path)`가 반환하는 `BuilderSaveReport`:
 
 - `hard_gates["package_validation"] == "pass"` — package validator 통과 (필수)
 - `hard_gates["document_errors"] == "pass"` — document validator error 없음 (필수)

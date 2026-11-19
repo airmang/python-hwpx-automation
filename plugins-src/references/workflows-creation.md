@@ -63,7 +63,7 @@ MCP가 없으면 local Python에서 `validate_document_plan()` → `create_docum
 ## 3. builder 조립 생성 (코드 수준 레이아웃 제어)
 
 머리글/바닥글, 쪽번호, 리치 런, 다단계 목록, 병합/음영/열너비 표, 이미지, 페이지 나눔을
-한 번에 조립해야 하면 local `hwpx.builder`를 사용한다.
+한 번에 조립해야 하면 local `hwpx_automation.office.authoring.builder`를 사용한다.
 
 1. `Document(metadata=..., sections=[Section(...)])`로 객체모델을 만든다. automation 7.3.1부터
    `metadata`는 문서 정보(`content.hpf`의 제목·작성자)에만 기록되고 본문에는 나타나지 않는다
