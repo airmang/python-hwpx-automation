@@ -27,7 +27,10 @@ MAX_CONTAINER_DEPTH = 32
 SUPPORTED_FENCE_LANGUAGES = frozenset({"python", "py", "python3", "json"})
 STACK_ROOTS = frozenset({"hwpx", "hwpx_automation", "hwpx_mcp_server"})
 # Optional repository-QA projections are intentionally not shipped in bundles.
-ABSOLUTE_IMPORT_ALLOWLIST = frozenset({"benchmark"})
+# tomli is the tomllib backport: imported only where the stdlib module is absent
+# (Python 3.10), and installed only there (pyproject marker, the chat-engine lock
+# group), so on 3.11+ it is rightly not importable.
+ABSOLUTE_IMPORT_ALLOWLIST = frozenset({"benchmark", "tomli"})
 
 
 class PythonSource(NamedTuple):
