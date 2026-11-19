@@ -19,6 +19,7 @@ from . import __version__
 from . import quality as quality_contract
 from .configuration import env_value
 from .errors import (
+    CORE_SAVE_REFUSALS,
     HwpDocumentError,
     build_error_payload,
     core_save_refusal_payload,
@@ -227,12 +228,44 @@ def _failure_code_from_payload(payload: object) -> str | None:
     return "TOOL_EXECUTION_FAILED"
 
 
+def _plan_step_save_refusal(payload: object) -> dict[str, Any] | None:
+    """The error for an edit-plan report (``hwpx.plan-report/v1``) whose failed step python-hwpx
+    refused as a save refusal (``CORE_SAVE_REFUSALS``): the same DOCUMENT_SAVE_FAILED the step's own
+    tool gives, with the engine code and the failed step id. None for any other payload."""
+
+    if not isinstance(payload, dict) or payload.get("ok") is not False:
+        return None
+    failed_step = payload.get("failedStepId")
+    steps = payload.get("steps")
+    if not isinstance(failed_step, str) or not isinstance(steps, list):
+        return None
+    for step in steps:
+        if not isinstance(step, dict) or step.get("stepId") != failed_step:
+            continue
+        error = step.get("error")
+        structured = error.get("structured") if isinstance(error, dict) else None
+        core_code = structured.get("code") if isinstance(structured, dict) else None
+        if isinstance(core_code, str) and core_code in CORE_SAVE_REFUSALS:
+            details: dict[str, Any] = {"coreCode": core_code}
+            if re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", failed_step):
+                details["failedStepId"] = failed_step
+            return build_error_payload(
+                code="DOCUMENT_SAVE_FAILED",
+                message=CORE_SAVE_REFUSALS[core_code],
+                details=details,
+            )
+    return None
+
+
 def _result_failure_error(
     tool_name: str, payload: object
 ) -> mcp_types.ErrorData | None:
     error_code = _failure_code_from_payload(payload)
     if error_code is None:
         return None
+    plan_refusal = _plan_step_save_refusal(payload)
+    if plan_refusal is not None:
+        return _error_data(plan_refusal, tool_name=tool_name)
     gate_error = _gate_or_plain_error(tool_name)
     if cast(dict[str, Any], gate_error.data).get("errorCode") != "TOOL_EXECUTION_FAILED":
         return gate_error
