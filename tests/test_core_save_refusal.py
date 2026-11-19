@@ -74,7 +74,10 @@ def _archive_with_one_name_twice(path: Path) -> Path:
             if info.filename == "Contents/section0.xml":
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", UserWarning)  # zipfile: duplicate name
-                    target.writestr(info, data)
+                    # By name, so the second entry has a record of its own: the same ZipInfo written
+                    # twice makes two directory entries of one record, which Python 3.10 and 3.11
+                    # read as a broken ZIP.
+                    target.writestr(info.filename, data)
     return path
 
 
