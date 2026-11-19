@@ -866,7 +866,12 @@ class AgentBatchResult:
                 verified=unchanged if isinstance(unchanged, int) else 0, changed=0
             ),
             untouched_local_zip_records=PreservationCounts(verified=0, changed=0),
-            whole_package_identical=bool(byte) and not changed_names,
+            # Every member's payload matching is not the file matching: an archive rebuilt with the
+            # same payloads can still differ in its records, their order or bytes in front of them.
+            # The two revisions are the sha256 of the whole input and the whole candidate.
+            whole_package_identical=(
+                bool(byte) and not changed_names and self.input_revision == self.document_revision
+            ),
         )
         real_hancom = report.get("realHancom") or {}
         verification = verification_from_open_safety(

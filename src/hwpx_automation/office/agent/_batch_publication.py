@@ -21,6 +21,12 @@ class GuardedSavePipeline(SavePipeline):
 
     Existing domain publishers subclass this seam so the batch can retain their
     guarded publication and recovery receipts after running their quality gate.
+
+    Subclasses replace python-hwpx's ``SavePipeline._publish`` -- the one engine name with a leading
+    underscore this package still depends on. They keep its shape (``(data, output_path,
+    output_stream) -> (path written or None, stream read back)``, python-hwpx 7.0), so a publish the
+    engine makes through one of them works as its own does; ``tests/test_engine_publish_seam.py``
+    fails when the engine changes that shape.
     """
 
     publication: WorkspaceOutputGuard | None = None
@@ -32,7 +38,7 @@ class _BatchSavePipeline(GuardedSavePipeline):
         self.binding = binding
         self.publication = None
 
-    def _publish(self, data: bytes, output_path: Any, output_stream: Any) -> str:
+    def _publish(self, data: bytes, output_path: Any, output_stream: Any) -> tuple[str | None, bool]:
         if (
             output_stream is not None
             or Path(output_path).resolve() != self.binding.output
@@ -48,7 +54,7 @@ class _BatchSavePipeline(GuardedSavePipeline):
         except BaseException:
             self.binding.workspace.cleanup_owned_parent_directories(guard)
             raise
-        return str(self.publication.path)
+        return str(self.publication.path), True
 
 
 def _existing_parent(path: Path) -> Path:
@@ -112,7 +118,7 @@ class BatchPublication:
         )
         self.publisher.publication = None
         self.publication_attempted = True
-        written = self.publisher._publish(data, self.output, None)
+        written, _read_back = self.publisher._publish(data, self.output, None)
         publication = self.publisher.publication
         if publication is None:
             verification["publication"] = {

@@ -170,6 +170,24 @@ MCP 도구의 이름은 그대로입니다. 도구 계약 해시는 `c895883d5f4
 
 ### Fixed
 
+- 누름틀에 든 글에 탭이나 줄 바꿈이 있으면 블루프린트 재생(`replay_document_blueprint`)이 `invariant_violation`으로
+  실패하던 것. 재생은 그 글을 안내문으로도 적는데, python-hwpx 7.0은 안내문의 탭·줄 바꿈을 거부한다(한/글 저장본에
+  그런 안내문이 없다). 이제 안내문에는 그 자리를 빈칸으로 적고, 누름틀의 글은 그대로 둔다.
+- 파일(ZIP)에 이름이 같은 항목이 둘 이상 있어 python-hwpx가 저장·바이트 패치를 거부할 때 MCP 도구가
+  `TOOL_EXECUTION_FAILED`(내부 오류)나 `INVALID_ARGUMENT`로 알리던 것. 이제 `DOCUMENT_SAVE_FAILED`와
+  `details.coreCode: "save-duplicate-entry-names"`로 알린다(`apply_table_ops`·`apply_body_ops`·`search_and_replace`·
+  `set_table_cell_text`·`byte_preserving_patch` 등). `run_edit_plan`은 실패한 단계 id(`failedStepId`)도 함께 준다.
+- `apply_table_ops`·`apply_body_ops`의 `dry_run`이 실패하면 문서 폴더에 복구 사본(`.hwpx-mixed-form-recovery-…`)을
+  남기던 것. dry run은 아무것도 쓰지 않으므로 복구할 것이 없다. 쓸 수 없는 폴더에서는 그 사본을 쓰려다 진짜 거부
+  사유 대신 `PERMISSION_DENIED`가 나왔다.
+- 문서 에이전트 결과의 `as_mutation_report()`가 모든 항목의 내용이 같기만 하면 `wholePackageIdentical: true`라고 하던
+  것. 내용이 같아도 파일 바이트는 다를 수 있다(ZIP 앞에 붙은 바이트가 빠지거나 기록이 다시 놓인 경우). 이제 입력과
+  결과의 sha256(`inputRevision`·`documentRevision`)이 같을 때만 참이다.
+- 겹쳐 찍히는 자간(-40 이하)을 고칠 때 가져오는 문단 자간을 50에서 자르던 것. 자간은 -50~100이다
+  (python-hwpx 7.0, 한/글은 51~100을 다시 저장해도 그대로 둔다). +85인 문단의 글이 +50이 되지 않는다.
+- python-hwpx `SavePipeline._publish`를 바꿔 끼운 발행기(`GuardedSavePipeline`)가 7.0이 바꾼 반환 모양(경로 →
+  경로와 스트림을 다시 읽었는지)을 따르지 않던 것. 엔진이 그 발행기로 직접 발행하는 길이 없어 드러나지 않았다.
+  모양을 맞추고, 엔진이 그 모양을 바꾸면 실패하는 시험(`tests/test_engine_publish_seam.py`)을 두었다.
 - 여러 런에 걸친 찾아 바꾸기(`search_and_replace`, `batch_replace`, `count` 없는 `replace_in_paragraph`, 표 칸 포함)가
   문단 글 전체를 첫 런에 몰아 쓰고 나머지 런을 비우던 것. 이제 python-hwpx `paragraph.replace_range`로 바꿔 새 글자가
   그 자리 옛 글자의 런(글자 모양)을 잇고 런은 그대로 남는다. 찾은 글 안에 탭·줄 바꿈·누름틀·개체가 끼면 한 덩이 글이
