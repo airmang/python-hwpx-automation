@@ -652,7 +652,7 @@ def repair_pathological_text_spacing(
                 for candidate in fallback_values:
                     value = candidate.get(key, 0)
                     if value > _PATHOLOGICAL_CHAR_SPACING_LIMIT:
-                        safe_value = min(value, 50)  # Hancom's 자간 range is -50..50
+                        safe_value = min(value, 100)  # 자간 is -50..100 (python-hwpx #801)
                         break
                 target_values[key] = safe_value
             target_ref = document.styles.ensure_run(

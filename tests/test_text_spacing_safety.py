@@ -11,7 +11,12 @@ import pytest
 import hwpx_automation.server as server
 from hwpx.tools.package_validator import validate_editor_open_safety
 from hwpx_automation.core.document import open_doc, save_doc
-from hwpx_automation.upstream import HH_NS, HP_NS, append_xml_child
+from hwpx_automation.upstream import (
+    HH_NS,
+    HP_NS,
+    append_xml_child,
+    repair_pathological_text_spacing,
+)
 
 
 _SPACING_KEYS = ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user")
@@ -208,3 +213,25 @@ def test_replace_preserves_non_pathological_template_spacing(
     assert str(paragraph.runs[0].char_pr_id_ref) == original_ref
     assert set(_spacing(doc, original_ref).values()) == {spacing_value}
     _assert_open_safe(target)
+
+
+@pytest.mark.parametrize("fallback", [20, 85, 100])
+def test_the_fallback_spacing_is_kept_up_to_the_engine_range(tmp_path: Path, fallback: int) -> None:
+    """자간 is -50..100 (Hancom keeps 51..100 when it saves a file again; python-hwpx #801). The repair
+    used to clip the fallback it copies at 50, so a paragraph set at +85 came back at +50."""
+
+    target = tmp_path / "wide.hwpx"
+    server.create_document(str(target))
+    doc = open_doc(str(target))
+    pathological = _add_char_pr(doc, spacing_value=-50, preferred_id="901")
+    wide = _add_char_pr(doc, spacing_value=fallback, preferred_id="902")
+    paragraph = _append_paragraph(doc, "겹쳐 찍히는 글", pathological)
+
+    assert repair_pathological_text_spacing(doc, paragraph=paragraph, fallback_char_pr_id=wide) == 1
+
+    repaired = str(paragraph.runs[-1].char_pr_id_ref)
+    assert repaired != pathological
+    assert set(_spacing(doc, repaired).values()) == {fallback}
+    save_doc(doc, str(target))
+    _assert_open_safe(target)
+

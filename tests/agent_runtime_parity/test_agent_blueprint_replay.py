@@ -216,6 +216,34 @@ def test_replayed_form_field_is_written_under_hancom_type_name(tmp_path: Path, f
     assert types == ["CLICK_HERE"]
 
 
+@pytest.mark.parametrize("value", ["AB", "A\tB", "A\nB"], ids=["plain", "tab", "line-break"])
+def test_a_field_value_holding_a_tab_or_a_line_break_replays(tmp_path: Path, value: str) -> None:
+    """The field wraps its characters as they are; its 안내문 cannot hold a tab or a line break
+    (python-hwpx refuses one since 7.0), so the replay writes a space there instead of failing."""
+
+    source, target = tmp_path / "source.hwpx", tmp_path / "target.hwpx"
+    bundle, output = tmp_path / "field.hwpxbp", tmp_path / "output.hwpx"
+    with HwpxDocument.new() as document:
+        paragraph = document.add_paragraph(value + " 뒤")
+        paragraph.add_form_field("담당자", start=0, end=len(value))
+        document.save(source)
+    with HwpxDocument.new() as document:
+        document.add_paragraph("TARGET")
+        document.save(target)
+    with HwpxAgentDocument.open(source) as agent:
+        field = next(record for record in agent.records if record.kind == "form-field")
+        root = field.parent_path
+    dumped = dump_document_blueprint(source, path=root, mode="portable", output=bundle)
+
+    result = replay_document_blueprint(_request(bundle, str(dumped.manifest["blueprintHash"]), target, output))
+
+    assert result.ok is True, result.to_dict().get("error")
+    with HwpxDocument.open(output) as document:
+        replayed = document.fields.all[-1]
+        assert replayed.value == value
+        assert replayed.prompt == value.replace("\t", " ").replace("\n", " ")
+
+
 def test_source_bound_replay_reuses_exact_fingerprints(tmp_path: Path) -> None:
     source = tmp_path / "source.hwpx"
     bundle = tmp_path / "bound.hwpxbp"

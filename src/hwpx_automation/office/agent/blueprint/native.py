@@ -7,6 +7,7 @@ XML, namespace, package-part, or arbitrary-attribute input.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -46,6 +47,8 @@ _INLINE_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
 #: Names a blueprint may give a click-here field. Hancom opens the field only
 #: under its own type name, CLICK_HERE.
 _CLICK_HERE_NAMES = frozenset({"FORM", "CLICKHERE", "NURUMTUL", "누름틀"})
+#: What a click-here field's 안내문 cannot hold (python-hwpx ``check_click_here_text``).
+_PROMPT_CONTROLS = re.compile(r"[\t\n\r]")
 
 
 def hancom_field_type(field_type: object) -> str | None:
@@ -464,7 +467,11 @@ class TypedNativeBridge:
     def _create_form_field(self, node_id: str, paragraph: Any) -> None:
         """A click-here field over the characters ``[start, end)`` of its paragraph (blueprint v2), made by
         python-hwpx's ``add_form_field(start=, end=)`` (asks10c, N7): those characters are its value, the
-        ``value`` property its 안내문 as the v1 replay wrote it, ``readOnly`` its editable flag."""
+        ``value`` property its 안내문 as the v1 replay wrote it, ``readOnly`` its editable flag.
+
+        The value may hold a tab or a line break (the field wraps the characters as they are); an 안내문
+        cannot -- python-hwpx refuses one (``field-text-control-unsupported``, no Hancom-saved field has
+        one) and says to pass a space instead. So the 안내문 is the value with each of them as a space."""
 
         node = self.nodes[node_id]
         properties = node["properties"]
@@ -476,7 +483,7 @@ class TypedNativeBridge:
         try:
             field = paragraph.add_form_field(
                 str(properties.get("name") or "")[:512],
-                prompt=str(properties.get("value") or "")[:4096],
+                prompt=_PROMPT_CONTROLS.sub(" ", str(properties.get("value") or ""))[:4096],
                 editable=not properties.get("readOnly"),
                 start=start,
                 end=end,
