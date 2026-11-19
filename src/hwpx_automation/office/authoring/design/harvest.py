@@ -129,7 +129,7 @@ def _write_fragments_document(
 
     places: dict[str, dict[str, int]] = {}
     # The copies get new ids: from a fixed seed, so the same source harvests to the same bytes.
-    with S.open_seeded(skeleton, S.HARVEST_SEED) as document:  # type: ignore[attr-defined]
+    with S.open_seeded(skeleton, S.HARVEST_SEED) as document:
         last = document.sections[0].paragraphs[-1]
         index = len(document.sections[0].paragraphs)
         for role, paragraphs in groups:

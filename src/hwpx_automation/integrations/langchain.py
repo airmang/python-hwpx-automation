@@ -22,8 +22,8 @@ from os import PathLike, fspath
 from typing import Any, Iterator
 
 try:
-    from langchain_core.document_loaders import BaseLoader
-    from langchain_core.documents import Document
+    from langchain_core.document_loaders import BaseLoader  # pyright: ignore[reportMissingImports] - optional dependency, guarded
+    from langchain_core.documents import Document  # pyright: ignore[reportMissingImports] - optional dependency, guarded
 except ImportError as exc:  # pragma: no cover - exercised only without the extra
     # ModuleNotFoundError (an ImportError) naming the missing framework, so a
     # walk over this package can tell "extra not installed" from a broken import.

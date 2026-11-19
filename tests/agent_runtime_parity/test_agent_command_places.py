@@ -14,7 +14,6 @@ the new table or text goes right before / right after that object, not after all
 
 from __future__ import annotations
 
-import io
 import json
 import re
 import zipfile
@@ -22,7 +21,6 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-import pytest
 from hwpx import HwpxDocument
 from lxml import etree
 
