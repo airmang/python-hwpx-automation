@@ -22,7 +22,7 @@ from ..core.content import (
 )
 from ..core.document import open_doc
 from ..core.locations import location_from_anchor, resolve_paragraph_reference
-from ..core.search import _replace_in_runs, batch_replace_in_doc, replace_in_doc
+from ..core.search import _replace_in_paragraph, batch_replace_in_doc, replace_in_doc
 from ..mutation_models import (
     EditOperation,
     operation_payloads,
@@ -963,7 +963,7 @@ def replace_in_paragraph(
     before_run_texts = [run.text or "" for run in runs]
 
     if count is None:
-        replaced = _replace_in_runs(runs, old_text, new_text) if runs else 0
+        replaced = _replace_in_paragraph(paragraph, old_text, new_text)
     else:
         replaced = 0
         for run in runs:

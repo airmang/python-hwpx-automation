@@ -5,8 +5,9 @@
 python-hwpx 7.0이 "파일에 적힌 대로 읽고 쓰는" 엔진만 남기면서 내보낸 기능(Markdown·HTML 변환, 색인용 변환, 이름표로
 칸 찾기와 선택 칸, 메일 머지, 미리보기, 서식 규칙 검사, 표 정리·보고서 수치 도우미, 참조 일관성 검사)을 이 패키지가
 받습니다. 인자와 결과는 python-hwpx 6.x와 같습니다(본체 시험 문서와 공개 견본 1,298개로 옛 경로와 새 경로를 견줬습니다).
-MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python-hwpx 하한만 7.0.0으로 올라 해시가 `1b572e4ed5e410e6`이
-됩니다(`docs/tool-contract-delta-source-core-floor-7.json`).
+MCP 도구의 이름은 그대로입니다. 도구 계약 해시는 `c895883d5f4350ae`입니다. python-hwpx 하한을 7.0.0으로 올린 것
+(`docs/tool-contract-delta-source-core-floor-7.json`, 그때 해시 `1b572e4ed5e410e6`)에 문서 에이전트·블루프린트 도구 여섯과
+양식 채우기 계획의 일괄 판이 v2로 바뀐 것(`docs/tool-contract-delta-8.0.0.json`, 아래 Breaking)이 더해졌습니다.
 
 ### Breaking
 
@@ -169,6 +170,33 @@ MCP 도구의 이름·인자·출력은 그대로이고, 도구 계약은 python
 
 ### Fixed
 
+- 여러 런에 걸친 찾아 바꾸기(`search_and_replace`, `batch_replace`, `count` 없는 `replace_in_paragraph`, 표 칸 포함)가
+  문단 글 전체를 첫 런에 몰아 쓰고 나머지 런을 비우던 것. 이제 python-hwpx `paragraph.replace_range`로 바꿔 새 글자가
+  그 자리 옛 글자의 런(글자 모양)을 잇고 런은 그대로 남는다. 찾은 글 안에 탭·줄 바꿈·누름틀·개체가 끼면 한 덩이 글이
+  아니므로 바꾸지 않고 바꾼 수에서 뺀다(전에는 그 탭의 너비·채움 속성, 전각 빈칸, 누름틀 경계를 잃으며 바꿨다).
+- `add_table`·`set_table_border_fill`(`HwpxOps`)이 테두리 정의를 직접 지으며 채우기를 한/글이 쓰지 않는
+  `hh:fillBrush/hh:solidBrush`로, 선 없는 면을 `0 mm`로, 한/글 굵기 목록 밖의 굵기(예 0.45 mm)를 그대로 적던 것.
+  이제 python-hwpx `doc.styles.ensure_border_fill`이 한/글 꼴(`hc:fillBrush/hc:winBrush faceColor`, 선 없는 면 0.1 mm)로
+  짓고, 목록 밖 굵기는 `set_table_border`처럼 가장 가까운 것(가운데면 굵은 쪽)으로 그린다.
+- 글자 색·크기·글꼴을 바꿀 때(`format_text` 등) 색·크기·글꼴과 진하게·기울임·밑줄만 같은 기존 글자 모양을 다시 써서
+  원래 글자의 장평·자간·글자 테두리가 바뀌던 것. 이제 python-hwpx `doc.styles.ensure_run`으로 원래 글자 모양에서
+  요청한 값만 바꾼다. 새 글자 모양의 자식 차례는 한/글 꼴(밑줄이 취소선 앞)이다.
+- MCP 도구 `apply_document_commands`에 판(`schemaVersion`)을 적지 않은 명령이 v1과 v2에서 자리가 다른 꼴(문단 안 개체의
+  `prepend`)이면, 8.0에서는 조용히 문단 맨 앞에 넣고 성공을 돌려주었다(7.x는 같은 종류의 첫 개체 앞, 없으면 글 끝).
+  이제 `contract_changed`로 거부하고 판과 자리를 적으라고 안내한다. 뜻이 같은 꼴은 그대로 받는다.
+- v1 명령의 문단 안 `append`를 "같은 종류의 마지막 개체 뒤"로 잘못 보고 거부하던 것. 7.5.0도 글 끝에 놓았으므로
+  받는다. `prepend`의 `suggestion`은 옛 자리를 그대로 만드는 꼴(`before` 그 개체, 또는 글 끝 `offset`)을 먼저 주고,
+  그 안의 `position`이 JSON으로 읽히게 경로의 따옴표를 이스케이프한다.
+- 같은 글자 자리에 개체가 여럿일 때 `after` 개체가 그 개체 바로 뒤가 아니라 그 자리의 모든 개체 뒤에 넣던 것, 글을
+  넣거나 옮길 때 `before`·`after` 개체가 같은 결과를 내던 것. 이제 그 개체 바로 앞·뒤다(python-hwpx
+  `move_to(offset, keep_order=True)`로 뒤따르는 개체를 다시 세운다).
+- 런 `remove`·`copy`의 `contract_changed` 안내가 글 추가 예만 보여 주던 것, 런 앞·뒤 안내가 둘 다 런 시작을
+  가리키던 것. 이제 글 범위 `text[s:e]`로 지우고 복사하는 꼴과, 뒤는 `place.offset + place.length`를 안내한다.
+- `office.form_fill.fill_section_bytes`가 자리표시자를 채운 문단의 줄 배치 캐시만이 아니라 그 문단 안 표 칸 문단들의
+  캐시까지 지우던 것. 이제 고친 문단 자신의 캐시만 지운다.
+- 디자인 프로필로 문서를 지을 때 뼈대의 모든 ZIP 항목 첫 바이트를 보고 XML 선언처럼 보이는 글을 바꾸던 것(첨부한
+  텍스트 항목까지 바뀌었다). 이제 뼈대를 읽은 그대로 연다. 패키지에 든 프로필 넷은 XML 파트에 한/글 꼴 선언을
+  지니게 한 번 고쳐 두었다(`scripts/normalize_profile_declarations.py`, 시험이 `--check`로 지킨다).
 - `document_to_markdown`·`document_extract_json`: python-hwpx가 열지 못한 `.hwp`·`.hwpx`(HWP 3.x, 암호, 깨진 파일)를
   MarkItDown이 받아 파일 바이트를 Markdown으로 돌려주며 성공으로 끝나던 것을, 그 사유를 담은 실패로 끝냅니다.
 - 경로 없이 넘긴 문서를 MarkItDown으로 바꿀 때 만든 임시 파일을 지웁니다(실패할 때도).

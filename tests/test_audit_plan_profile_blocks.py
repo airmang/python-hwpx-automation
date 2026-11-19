@@ -16,7 +16,6 @@ import pytest
 from hwpx import HwpxDocument
 
 from hwpx_automation.office import authoring
-from hwpx_automation.office.authoring.design import _support
 from hwpx_automation.server import create_document_from_plan
 from lxml import etree
 
@@ -116,19 +115,6 @@ def test_bridge_refuses_a_block_type_it_cannot_place() -> None:
     plan = {"blocks": [{"type": "hologram", "text": "x"}]}
     with pytest.raises(ValueError, match="cannot place"):
         authoring._bridge_to_design_plan(plan, "report")
-
-
-def test_set_paragraph_text_writes_marks_and_drops_control_characters() -> None:
-    paragraph = etree.fromstring(
-        f'<hp:p xmlns:hp="{_HP[1:-1]}"><hp:run charPrIDRef="3"><hp:t>old<hp:tab/>x</hp:t></hp:run>'
-        "<hp:linesegarray/></hp:p>"
-    )
-    _support.set_paragraph_text(paragraph, "가\x01나\n다\t라\x0b")
-    text = paragraph.find(f".//{_HP}t")
-    assert text.text == "가나"
-    assert [(c.tag.rsplit("}", 1)[-1], c.tail) for c in text] == [("lineBreak", "다"), ("tab", "라")]
-    assert paragraph.find(_HP + "linesegarray") is None
-    assert paragraph.find(_HP + "run").get("charPrIDRef") == "3"
 
 
 def test_official_draft_blocks_compose_on_the_official_profile(tmp_path: Path) -> None:

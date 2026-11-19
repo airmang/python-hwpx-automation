@@ -308,30 +308,13 @@ def _header_binary_refs(package) -> set[str]:
     return refs
 
 
-# Manifest (content.hpf) metadata that carries source PII — author, the person who
-# last saved, the source title, and timestamps. Cleared so generated docs inherit
-# nothing identifying.
-_SCRUB_META_NAMES = {
-    "creator", "lastsaveby", "subject", "description", "keyword",
-    "date", "CreatedDate", "ModifiedDate",
-}
-
-
 def _scrub_metadata(doc) -> None:
-    """Blank source-identifying OPF metadata in Contents/content.hpf (PII)."""
+    """Blank source-identifying OPF metadata in Contents/content.hpf (PII): the title, author, the
+    person who last saved, subject, description, keyword and the dates. python-hwpx
+    ``doc.parts.clear_document_metadata`` keeps only the language and empties every other field
+    (the dates too: a composed document gets its own, ``save_dates.date_new_document``)."""
 
-    package = doc.package
-    try:
-        tree = package.manifest_tree()
-    except Exception:  # pragma: no cover - defensive
-        return
-    for element in tree.iter():
-        name = S.ln(element.tag)
-        if name == "title":
-            element.text = ""
-        elif name == "meta" and element.get("name") in _SCRUB_META_NAMES:
-            element.text = ""
-    package.set_part(package.main_content.full_path, tree)
+    doc.parts.clear_document_metadata(keep=("language",), timestamp="")
 
 
 def harvest_profile(source: str | Path, profile_id: str, out_root: str | Path) -> dict:

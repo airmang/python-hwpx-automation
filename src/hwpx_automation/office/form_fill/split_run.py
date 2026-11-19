@@ -254,12 +254,12 @@ def heterogeneous_warnings(
 
 
 def _remove_linesegarray(paragraph: etree._Element) -> None:
-    for element in list(paragraph.iter()):
-        if _local_name(element.tag).lower() != "linesegarray":
-            continue
-        parent = element.getparent()
-        if parent is not None:
-            parent.remove(element)
+    """Drop the layout cache of *paragraph* itself, whose text was edited. The paragraphs inside its
+    table cells or text boxes were not edited here and keep theirs."""
+
+    for element in list(paragraph):
+        if _local_name(element.tag).lower() == "linesegarray":
+            paragraph.remove(element)
 
 
 # Characters XML 1.0 cannot carry in a text node. A value holding one used to

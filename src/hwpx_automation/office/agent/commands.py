@@ -10,6 +10,7 @@ the normal :class:`~hwpx.quality.SavePipeline` exactly once.
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -29,11 +30,13 @@ from .model import (
     CONTRACT_CHANGED_INDEX,
     CONTRACT_CHANGED_RUN,
     CONTRACT_CHANGED_RUN_ANCHOR,
+    CONTRACT_CHANGED_RUN_COPY,
+    CONTRACT_CHANGED_RUN_REMOVE,
     NODE_PROPERTY_CATALOG_V2,
     AgentBatchResult,
     AgentContractError,
     contract_changed,
-    validate_agent_batch,
+    _validate_agent_batch,
 )
 from .path import parse_path
 from .story import (
@@ -246,15 +249,19 @@ def _add_text(
     properties: Mapping[str, Any],
     position: Mapping[str, Any],
 ) -> TextRange:
-    offset, _anchor = _offset_in(view, paragraph, position)
+    offset, anchor = _offset_in(view, paragraph, position)
+    followers = _anchor_followers(view, paragraph, offset, anchor, position["mode"])
     native = paragraph.native
     changes = _format_changes(document, properties, target="text")
     before = len(native.text or "")
     try:
         native.insert_text(offset, str(properties.get("text", "")), **changes)
+        end = offset + len(native.text or "") - before
+        for follower in followers:  # inserted text follows the objects at its offset: put them back
+            _move_object(follower, native, end)
     except ValueError as exc:
         raise _core_refusal(exc, target=paragraph.path) from exc
-    return TextRange(native, offset, offset + len(native.text or "") - before)
+    return TextRange(native, offset, end)
 
 
 def _set_text(document: HwpxDocument, record: NodeRecord, properties: Mapping[str, Any]) -> TextRange:
@@ -291,10 +298,13 @@ def _place_text(
     copy: bool,
 ) -> TextRange:
     span: TextRange = record.native
-    offset, _anchor = _offset_in(view, paragraph, position)
+    offset, anchor = _offset_in(view, paragraph, position)
+    followers = _anchor_followers(view, paragraph, offset, anchor, position["mode"])
     call = span.paragraph.copy_range if copy else span.paragraph.move_range
     try:
         start, end = call(span.start, span.end, to=paragraph.native, offset=offset)
+        for follower in followers:  # the text follows the objects at its offset: put them back
+            _move_object(follower, paragraph.native, end)
     except ValueError as exc:
         raise _core_refusal(exc, target=record.path) from exc
     return TextRange(paragraph.native, start, end)
@@ -322,7 +332,7 @@ def _same_offset_followers(
             continue
         if record.path == anchor.path:
             seen_anchor = True
-        if not seen_anchor:
+        if not seen_anchor or _object_offset(view, record) != offset:
             continue
         if record.kind not in _OFFSET_KINDS:
             raise AgentContractError(
@@ -333,6 +343,20 @@ def _same_offset_followers(
         if _object_offset(view, record) == offset:
             found.append(_object_wrapper(view, record))
     return found
+
+
+def _anchor_followers(
+    view: HwpxAgentDocument, paragraph: NodeRecord, offset: int, anchor: NodeRecord | None, mode: str
+) -> list[Any]:
+    """The objects at *anchor*'s offset that must stand behind what goes ``before``/``after`` it:
+    the anchor and those after it (``before``), or those after it (``after``). python-hwpx puts a
+    new object, or inserted text, after everything already at an offset; these are moved back
+    behind it, in their order, with ``move_to(offset, keep_order=True)``."""
+
+    if anchor is None or mode not in {"before", "after"}:
+        return []
+    found = _same_offset_followers(view, paragraph, offset, anchor)
+    return found if mode == "before" else found[1:]
 
 
 def _move_object(native: Any, paragraph: Any, offset: int | None) -> None:
@@ -350,52 +374,57 @@ def _check_v1_end_place(
     *,
     leaving: Any = None,
 ) -> None:
-    """Take a v1 ``append``/``prepend`` in a paragraph only where its v1 place is the v2 one.
+    """Take a v1 (or version-less) ``prepend`` in a paragraph only where its v1 place is the v2 one.
 
-    v1 put the object after the last (before the first) object of its kind, or at the paragraph's
-    end when there was none; v2 puts it at the end of the text (at offset 0), after the objects
-    already there.  Where the two places differ the command is refused (``contract_changed``) with
-    the offset its v1 place has, rather than done somewhere else without a word (owner, 18차).
-    *leaving* is an object that is moved and so is not counted where it stands.
+    Measured against hwpx-automation 7.5.0 (python-hwpx 6.12.0): v1 ``append`` put the object at the
+    end of the paragraph's text, after everything there, as v2 does. v1 ``prepend`` put it before the
+    first object of its kind, or, with none, at the end of the paragraph; v2 puts it at offset 0.
+    Where the two differ the command is refused (``contract_changed``) with a position that puts it
+    at its v1 place -- ``before`` that first object, or the text's end offset -- rather than done
+    somewhere else without a word (owner, 18차·27차). A command that names no version (the MCP tool
+    builds the batch) is told to name one. *leaving* is an object that is moved and so is not counted
+    where it stands.
     """
 
     mode = position["mode"]
-    if not position.get("_v1") or mode not in {"append", "prepend"}:
+    if not position.get("_v1") or mode != "prepend":
         return
     length = len(paragraph.native.text or "")
-    items = [
+    same = [
         record
         for record in view.records
         if record.parent_path == paragraph.path
-        and record.kind in _ANCHOR_KINDS
+        and record.kind == kind
         and (leaving is None or _element(record.native) is not leaving)
     ]
-    same = [record for record in items if record.kind == kind]
-    if not same:  # v1 appended a new run at the paragraph's end: after everything there
-        old_offset = length
-        agrees = mode == "append" or length == 0
-    elif mode == "append":
-        old_offset = _object_offset(view, same[-1])
-        agrees = old_offset == length and items[-1] is same[-1]
-    else:  # v2 goes after the objects at offset 0, v1 went before the first of its kind
-        old_offset = _object_offset(view, same[0])
-        agrees = False
-    if agrees:
+    if not same and length == 0:  # the end of an empty paragraph is offset 0, after what is there
         return
-    anchor = same[-1 if mode == "append" else 0].path if same else None
-    exact = (
-        f'{{"mode": "{"after" if mode == "append" else "before"}", "path": "{anchor}"}}'
-        if anchor is not None
-        else f'{{"mode": "offset", "offset": {old_offset}}}'
+    v1_place = (
+        {"mode": "before", "path": same[0].path} if same else {"mode": "offset", "offset": length}
     )
-    raise AgentContractError(
-        "contract_changed",
-        f'position.mode "{mode}" in a paragraph means the {"end" if mode == "append" else "start"} of its text '
-        f"since hwpx-automation 8.0; this v1 command's place was offset {old_offset}",
-        target=paragraph.path,
-        suggestion=f'Use {{"mode": "offset", "offset": {old_offset}}} (or {exact}) for the v1 place, '
-        'or send schemaVersion "hwpx.agent-command/v2" for the new one',
-    )
+    v2_place = {"mode": "offset", "offset": 0}
+    where = f"before its first {kind}" if same else f"at the end of the text (offset {length})"
+    if position.get("_versionless"):
+        message = (
+            f'position.mode "prepend" in a paragraph names two places: agent-command v1 put the {kind} '
+            f"{where}, v2 puts it at the start of the text; this command names no schemaVersion"
+        )
+        suggestion = (
+            'Name the place: send schemaVersion "hwpx.agent-command/v2" with position '
+            f"{json.dumps(v1_place, ensure_ascii=False)} for the v1 place, or with {json.dumps(v2_place)} "
+            "for the start of the text"
+        )
+    else:
+        message = (
+            f'position.mode "prepend" in a paragraph means the start of its text since hwpx-automation 8.0; '
+            f"this v1 command put the {kind} {where}"
+        )
+        suggestion = (
+            f'Send schemaVersion "hwpx.agent-command/v2" with position '
+            f"{json.dumps(v1_place, ensure_ascii=False)} for the v1 place, or with {json.dumps(v2_place)} "
+            "for the start of the text"
+        )
+    raise AgentContractError("contract_changed", message, target=paragraph.path, suggestion=suggestion)
 
 
 def _place_object(
@@ -416,11 +445,7 @@ def _place_object(
         leaving=None if copy else native.element,
     )
     offset, anchor = _offset_in(view, paragraph, position)
-    followers = (
-        _same_offset_followers(view, paragraph, offset, anchor)
-        if anchor is not None and position["mode"] == "before"
-        else []
-    )
+    followers = _anchor_followers(view, paragraph, offset, anchor, position["mode"])
     if not copy:  # the moved object itself is not put back behind its new place
         followers = [item for item in followers if item.element is not native.element]
     try:
@@ -436,6 +461,12 @@ def _place_object(
     if followers and not _precedes(paragraph.native, placed.element, followers[0].element):
         raise AgentContractError(
             "incompatible_parent", "the object could not be put before its anchor", target=target
+        )
+    if anchor is not None and position["mode"] == "after" and not _precedes(
+        paragraph.native, _element(anchor.native), placed.element
+    ):
+        raise AgentContractError(
+            "incompatible_parent", "the object could not be put after its anchor", target=target
         )
     return placed
 
@@ -653,7 +684,8 @@ def _preflight_mutate_command(
         }
         return
     if source_kind == "run" and op in {"remove", "copy"}:
-        raise contract_changed(CONTRACT_CHANGED_RUN, target=command["commandId"])
+        form = CONTRACT_CHANGED_RUN_REMOVE if op == "remove" else CONTRACT_CHANGED_RUN_COPY
+        raise contract_changed(form, target=command["commandId"])
     if op not in NODE_PROPERTY_CATALOG_V2[source_kind]["operations"]:
         raise AgentContractError(
             "unsupported_operation",
@@ -712,6 +744,10 @@ def _resolved_position(
         result["path"] = _resolve_alias(str(result["path"]), aliases)
     if command.get("schemaVersion") == AGENT_COMMAND_SCHEMA_V1:
         result["_v1"] = True  # private: the command was written in agent-command v1
+    if command.get("versionDeclared") is False:
+        # private: the command names no version (the MCP tool built the batch); checked as v1 is
+        result["_v1"] = True
+        result["_versionless"] = True
     return result
 
 
@@ -1626,6 +1662,33 @@ def apply_document_commands(
 ) -> AgentBatchResult:
     """Validate and atomically apply one ``hwpx.agent-batch/v2`` request (v1 read as it was where it means the same).
 
+    ``idempotency_store`` is explicitly caller-owned.  Any failure returns a structured rolled-back
+    result and leaves the declared output untouched.
+    """
+
+    return _apply_document_commands(
+        batch,
+        idempotency_store=idempotency_store,
+        fault_injector=fault_injector,
+        domain_verifier=domain_verifier,
+        save_pipeline=save_pipeline,
+    )
+
+
+def _apply_document_commands(
+    batch: Mapping[str, Any],
+    *,
+    idempotency_store: IdempotencyStore | None = None,
+    fault_injector: FaultInjector | None = None,
+    domain_verifier: DomainVerifier | None = None,
+    save_pipeline: SavePipeline | None = None,
+    versionless_commands: bool = False,
+) -> AgentBatchResult:
+    """Validate and atomically apply one ``hwpx.agent-batch/v2`` request (v1 read as it was where it means the same).
+
+    *versionless_commands*: the caller did not write the batch envelope (the MCP tool builds it), so a
+    command without its own ``schemaVersion`` names no version (``model.validate_agent_command``).
+
     ``idempotency_store`` is explicitly caller-owned.  The core keeps no hidden
     resident state in Leap A; MCP/CLI adapters may supply their existing scoped
     stores.  Any failure returns a structured rolled-back result and leaves the
@@ -1638,7 +1701,7 @@ def apply_document_commands(
     command_results: list[Mapping[str, Any]] = []
     verification: dict[str, Any] = {}
     try:
-        normalized = validate_agent_batch(batch)
+        normalized = _validate_agent_batch(batch, versionless_commands=versionless_commands)
         _preflight(normalized)
         verification.update(
             {

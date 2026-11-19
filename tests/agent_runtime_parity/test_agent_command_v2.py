@@ -234,8 +234,10 @@ def _with_table(path: Path, *, text_after: bool) -> None:
 @pytest.mark.parametrize(
     ("mode", "text_after", "taken"),
     [
-        ("append", False, True),   # v1 (after the last table) = v2 (end of the text)
-        ("append", True, False),   # text after the last table: the two places differ
+        # Measured against hwpx-automation 7.5.0 (python-hwpx 6.12.0): v1 append put the table at the
+        # end of the text, after the text following the last table too -- the v2 place.
+        ("append", False, True),
+        ("append", True, True),
         ("prepend", False, False),  # v1 before the first table, v2 at offset 0
     ],
 )

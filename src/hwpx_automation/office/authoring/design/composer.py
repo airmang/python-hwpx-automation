@@ -74,7 +74,7 @@ def compose(
     prof = profile or load_profile(plan.profile)
     warnings: list[str] = []
 
-    doc = _open_seeded(S.with_hangul_declarations(prof.template_bytes))
+    doc = _open_seeded(prof.template_bytes)  # read as it is: no entry of a profile is rewritten here
     date_new_document(doc)  # a new document: no names from the profile's source, made now
     fragments_doc = HwpxDocument.open(prof.fragments_bytes)
     try:

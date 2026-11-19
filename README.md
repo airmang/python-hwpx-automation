@@ -12,11 +12,11 @@
   </p>
 </p>
 
-> Source update: analyzer delegation and the dependent public-style refactors require `python-hwpx >= 6.10.0`; the 2026-11 audit fixes changed `get_table_map` and seven `mutates` flags (source contract `71622c28a07913d1`, delta in `docs/tool-contract-delta-source-audit-2026-11.json`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
+> Source update: this source requires `python-hwpx >= 7.0` (source contract `c895883d5f4350ae`, delta in `docs/tool-contract-delta-8.0.0.json`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
 
 <!-- release-state: release-approved -->
 > [!NOTE]
-> 발행이 승인된 7.5.0 후보 (release-approved; 원격 발행 대기): `python-hwpx 6.12.0 → python-hwpx-automation 7.5.0 → hwpx-plugin 2.4.0` (`71622c28a07913d1`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`와 같아야 합니다(`tests/test_audit_identity_docs.py`).
+> 발행이 승인된 8.0.0 후보 (release-approved; 원격 발행 대기): `python-hwpx 7.0.0 → python-hwpx-automation 8.0.0 → hwpx-plugin 8.0.0` (`c895883d5f4350ae`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`와 같아야 합니다(`tests/test_audit_identity_docs.py`).
 > 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`.
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
@@ -50,7 +50,7 @@ document = create_document_from_plan(
         "blocks": [{"type": "paragraph", "text": "결정 사항"}],
     }
 )
-document.save_to_path("meeting-result.hwpx")
+document.save("meeting-result.hwpx")
 ```
 
 `python -m hwpx_automation --help`와 `hwpx help`는 같은 task CLI를 실행합니다.
@@ -92,7 +92,7 @@ Gemini CLI는 `~/.gemini/settings.json`, Cursor·Windsurf는 각 에디터의 MC
 
 > 비-HWPX 문서(PDF/DOCX/XLSX/HTML/TXT)를 `document_to_markdown`으로 읽으려면
 > `pip install "python-hwpx-automation[ingest]"`로 MarkItDown adapter를 함께
-> 설치합니다. 요구 사항: `Python >= 3.10` · `python-hwpx >= 6.5.0`.
+> 설치합니다. 요구 사항: `Python >= 3.10` · `python-hwpx >= 7.0`.
 
 기존 `hwpx-mcp-server` 배포·import·콘솔·설정 키도 그대로 동작합니다 —
 전체 목록과 유지 규칙: [호환 표면](docs/compatibility-6x.md)
@@ -106,8 +106,6 @@ Ollama·Open WebUI의 27B급 모델처럼 도구가 많으면 길을 잃는 환�
 `stage_text` → `create_from_markdown`, `validate_document`. 긴 본문은 도구 인수에
 한 번에 싣지 않고 `stage_text`로 1,000자 안팎씩 나눠 보낸 뒤 `draft_id`로 넘깁니다.
 `create_from_markdown`의 `byline`(200자까지)은 제목 아래 오른쪽에 쓰는 부서·날짜 줄입니다.
-`from_markdown`이 `byline`을 받지 않는 python-hwpx(6.12.0까지)에서는 문서를 만들지 않고
-`DEPENDENCY_MISSING`으로 답합니다.
 결과에는 문서 본문을 싣지 않고, 수정본은 기본으로 `<이름>.edited.hwpx`에 저장합니다.
 
 ## 한컴으로 PDF 렌더하기
@@ -117,7 +115,7 @@ PDF와 쪽 PNG로 렌더합니다. 별도 환경에서 실행하므로 호출하
 고정 버전을 건드리지 않습니다.
 
 ```bash
-uvx --from "python-hwpx-automation[oracle]==7.5.0" \
+uvx --from "python-hwpx-automation[oracle]==8.0.0" \
   hwpx render-pdf in.hwpx out.pdf --png out/page --json
 ```
 

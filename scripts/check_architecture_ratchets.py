@@ -39,7 +39,9 @@ EXPECTED_SERVICE_LINES = {
     # no longer called).
     # 8.0: "no lines" is the document's no-line border fill (Hancom's id 1), not an undefined
     # id "0" (300 -> 313).
-    "_border_fill.py": 313,
+    # 8.0: the border fill is found or added by python-hwpx doc.styles.ensure_border_fill; only the
+    # two shortcuts stay here (313 -> 51).
+    "_border_fill.py": 51,
     # WP-F: add_equation/add_chart/set_header_footer/set_page_number now
     # dispatch to the page/shapes namespaces and .to_dict() the returned
     # living views before this op's dict-mutation contract (result.update()).
@@ -97,7 +99,8 @@ EXPECTED_SERVICE_LINES = {
     # (python-hwpx 7.0 #762) instead of an id() loop (534 -> 531).
     # 8.0: column widths go through table.set_column_width and the border fills through
     # the table/cell setters (531 -> 512).
-    "tables.py": 512,
+    # 8.0: the border fill comes from doc.styles.ensure_border_fill (512 -> 483).
+    "tables.py": 483,
     # 8.0: fill_by_path is hwpx_automation.forms.fill_by_path(doc, ...) now that
     # python-hwpx 7.0 moved it here (617 -> 618).
     "transactions.py": 618,
@@ -200,7 +203,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/agent/form_plan.py", "_validate_public_plan_request", 11),
     ("src/hwpx_automation/office/agent/form_plan.py", "validate_mixed_form_request", 13),
     ("src/hwpx_automation/office/agent/model.py", "__post_init__", 15),
-    ("src/hwpx_automation/office/agent/model.py", "validate_agent_batch", 16),
+    ("src/hwpx_automation/office/agent/model.py", "_validate_agent_batch", 16),
     ("src/hwpx_automation/office/agent/path.py", "parse_path", 15),
     ("src/hwpx_automation/office/agent/query.py", "_split_steps", 15),
     ("src/hwpx_automation/office/authoring/__init__.py", "_bridge_to_design_plan", 14),
