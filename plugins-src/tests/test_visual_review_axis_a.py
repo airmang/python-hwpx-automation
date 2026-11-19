@@ -19,7 +19,7 @@ def test_structural_acceptance_passes_for_valid_doc(tmp_path):
     doc = HwpxDocument.new()
     doc.add_paragraph("수용성 확인")
     path = tmp_path / "ok.hwpx"
-    doc.save_to_path(path)
+    doc.save(path)
 
     result = visual_review.structural_acceptance(path)
     assert result["opens"] is True

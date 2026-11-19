@@ -825,7 +825,7 @@ class _FallbackServer:
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
         doc = create_document_from_plan(document_plan, preset="government_report")
         try:
-            doc.save_to_path(filename)
+            doc.save(filename)
         finally:
             doc.close()
         return {
