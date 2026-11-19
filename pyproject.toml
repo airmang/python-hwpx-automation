@@ -177,6 +177,11 @@ filterwarnings = [
     # lack __module__ on some builtin types under newer CPython -- a
     # third-party artifact, never an hwpx-sourced warning.
     "ignore:builtin type \\w+ has no __module__ attribute:DeprecationWarning",
+    # langchain-core (a [test] dependency since the LangChain loader moved here in
+    # 8.0) installs langsmith, whose pytest plugin calls asyncio.iscoroutinefunction
+    # at import. Python 3.14 deprecates that call, so the plugin failed to load and
+    # pytest stopped before collecting anything. Third-party, never an hwpx call.
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:langsmith",
 ]
 
 [tool.coverage.run]
