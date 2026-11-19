@@ -9,6 +9,8 @@
   `hwpx_automation.markdown.to_markdown(doc)`, `doc.tables.find_cell_by_label`·`fill_by_path`는
   `hwpx_automation.forms`의 함수, `doc.save_to_path(…, return_report=True)`는 `doc.save(…)`가 됩니다. 같은 표 한 칸이
   `SKILL.md`·`claude-chat-engine.md`에, 7.0에서 지운 문서 facade 이름이 `references/workflows-editing.md`에 있었습니다.
+  python-hwpx-automation이 없는 환경(`AUTOMATION`이 거짓)에서 W1은 `doc.text.plain()`으로 일반 글을 읽고,
+  W3(표 라벨 칸 채우기)은 저장하지 않고 쓸 수 없다고 멈춥니다. W2·W5의 확인 단계도 `doc.text.plain()`·`doc.save(…)`를 씁니다.
 
 - 도구 계약 사본을 automation 8.0 후보(`c895883d5f4350ae`)로 맞춥니다. python-hwpx 하한이 7.0.0으로 함께 맞춰집니다
   (사본이 6.5.0을 적고 있었습니다). 문서 에이전트 명령이 v2로 오르며, 문단 안 글은 글자 범위로, 개체·각주는 글자 자리로

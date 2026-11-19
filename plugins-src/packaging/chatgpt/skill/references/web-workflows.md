@@ -17,12 +17,15 @@
 ```python
 # W1 문서 읽기
 from hwpx import HwpxDocument
-from hwpx_automation.markdown import to_markdown
 
 P = {"src": "/mnt/data/input.hwpx"}
 
 doc = HwpxDocument.open(P["src"])
-markdown = to_markdown(doc)
+if AUTOMATION:  # 시작 절차가 정한다. Markdown 내보내기는 python-hwpx-automation에 있다
+    from hwpx_automation.markdown import to_markdown
+    markdown = to_markdown(doc)
+else:
+    markdown = doc.text.plain()
 tables = doc.tables.map()["tables"]
 fields = [(i, f.name, f.prompt, f.value) for i, f in enumerate(doc.fields.all)]
 print(f"글자 수 {len(markdown)}, 표 {len(tables)}개, 누름틀 {len(fields)}개")
@@ -32,6 +35,7 @@ if report is not None and (report.unconverted or report.dropped):
 print(markdown[:6000])
 ```
 
+- `AUTOMATION`이 거짓이면 `markdown`은 표 모양 없는 일반 글이다. 표 내용은 `tables`로 본다.
 - 요약은 `markdown`에 실제로 있는 내용만 쓴다. 6000자를 넘으면 잘라서 나눠 읽는다.
 - 각주·미주·중첩 표 경로가 필요하면 [core/recipes-traversal.md](core/recipes-traversal.md)를 본다.
 
@@ -86,7 +90,7 @@ for old, new in pairs:
 os.replace(tmp, P["out"])
 print("저장 등급:", report.actual_mode, "/ 저장 검사 통과:", report.ok, "/ 재개봉 확인 통과:", P["out"])
 
-flat = re.sub(r"\s+", "", reopened.text.markdown())
+flat = re.sub(r"\s+", "", reopened.text.plain())
 for old, new in pairs:
     squeezed = re.sub(r"\s+", "", old)
     if squeezed not in re.sub(r"\s+", "", new) and squeezed in flat:
@@ -108,7 +112,6 @@ for old, new in pairs:
 # W3 표 라벨 칸 채우기
 import os
 from hwpx import Hwp5Error, HwpxDocument, PreservationDowngradeError
-from hwpx_automation.forms import fill_by_path, find_cell_by_label
 
 P = {
     "src": "/mnt/data/input.hwpx",
@@ -116,6 +119,10 @@ P = {
     "values": {"성명": "홍길동"},
     "directions": {},  # 예: {"학교명": "down"} — 기존 값을 바꾸거나 방향이 정해지지 않을 때만
 }
+
+if not AUTOMATION:  # 라벨 찾기·경로 채우기는 python-hwpx-automation에 있다
+    raise SystemExit("이 환경에서는 표 라벨 칸 채우기(W3)를 쓸 수 없다. 저장하지 않았다.")
+from hwpx_automation.forms import fill_by_path, find_cell_by_label
 
 if os.path.abspath(P["out"]) == os.path.abspath(P["src"]):
     raise SystemExit("원본과 같은 경로에는 저장하지 않는다.")
@@ -289,8 +296,8 @@ if not report.ok:
 
 root, ext = os.path.splitext(P["out"])
 tmp = f"{root}.checking{ext}"
-api.create_document_from_plan(P["plan"]).save_to_path(tmp)
-text = HwpxDocument.open(tmp).text.markdown()
+api.create_document_from_plan(P["plan"]).save(tmp)
+text = HwpxDocument.open(tmp).text.plain()
 needed = [b["text"] for b in P["plan"]["blocks"] if b["type"] in ("heading", "paragraph")]
 absent = [t for t in needed if t not in text]
 if absent:

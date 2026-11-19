@@ -1,7 +1,9 @@
 # python-hwpx-automation 파이썬 API (웹판)
 
 `from hwpx_automation import api`로 쓰는 공개 facade 가운데 이 스킬이 검증한 부분이다.
-깊은 모듈(`hwpx_automation.office.*`, `hwpx_ops`, MCP 서버)은 쓰지 않는다.
+깊은 모듈(`hwpx_automation.office.*`, `hwpx_ops`, MCP 서버)은 쓰지 않는다. 예외는 python-hwpx 7.0이 문서
+메서드를 옮겨 둔 두 모듈이다: W1의 `hwpx_automation.markdown.to_markdown`, W3의
+`hwpx_automation.forms.find_cell_by_label`·`fill_by_path`.
 여기 없는 이름은 추측해서 부르지 않는다.
 
 ## 문서 계획 v1
@@ -9,7 +11,7 @@
 | 함수 | 하는 일 |
 |---|---|
 | `api.validate_document_plan(plan)` | 계획을 검사한다. `ok`, `errors`, `warnings`, `issues`를 가진 보고서를 돌려준다. 각 issue는 `code`, `path`, `message`, `severity`, `suggestion`을 가진다. |
-| `api.create_document_from_plan(plan)` | 계획으로 새 `HwpxDocument`를 만든다. 계획이 잘못되면 `ValueError`. 저장은 돌려받은 문서의 `save_to_path(경로)`로 한다. |
+| `api.create_document_from_plan(plan)` | 계획으로 새 `HwpxDocument`를 만든다. 계획이 잘못되면 `ValueError`. 저장은 돌려받은 문서의 `save(경로)`로 한다. |
 
 계획은 JSON 객체다.
 
