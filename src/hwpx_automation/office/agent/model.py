@@ -869,8 +869,13 @@ class AgentBatchResult:
             # Every member's payload matching is not the file matching: an archive rebuilt with the
             # same payloads can still differ in its records, their order or bytes in front of them.
             # The two revisions are the sha256 of the whole input and the whole candidate.
+            # A batch rolled back reports the input as its document; the candidate it measured
+            # (``candidateRevision``) is what the preservation numbers are about.
             whole_package_identical=(
-                bool(byte) and not changed_names and self.input_revision == self.document_revision
+                bool(byte)
+                and not changed_names
+                and self.input_revision == self.document_revision
+                and report.get("candidateRevision") in (None, self.input_revision)
             ),
         )
         real_hancom = report.get("realHancom") or {}

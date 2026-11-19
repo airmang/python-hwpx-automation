@@ -348,3 +348,23 @@ def test_agent_whole_package_identical_means_the_file_not_its_payloads(same_file
 
     assert preservation["wholePackageIdentical"] is same_file
     assert preservation["untouchedPartPayloads"] == {"verified": 12, "changed": 0}
+
+
+def test_a_rolled_back_batch_is_measured_against_its_candidate() -> None:
+    """A batch that failed after its candidate was built reports the input as its document. The
+    candidate it measured is in ``candidateRevision``: when that differs, the file is not the input."""
+
+    result = _agent_result(real_hancom_status="unverified")
+    byte = dict(result.verification_report["bytePreservation"], changedMembers=[], unchangedMemberCount=12)
+
+    def rolled_back(candidate: str) -> AgentBatchResult:
+        return dataclasses.replace(  # as the failure result is made: the input as its document
+            result,
+            document_revision=result.input_revision,
+            verification_report={**result.verification_report, "bytePreservation": byte, "candidateRevision": candidate},
+        )
+
+    other = rolled_back(_revision(b"candidate")).as_mutation_report().to_dict()["preservation"]
+    same = rolled_back(result.input_revision).as_mutation_report().to_dict()["preservation"]
+    assert (other["wholePackageIdentical"], same["wholePackageIdentical"]) == (False, True)
+

@@ -92,6 +92,16 @@ def _exception_chain(exc: BaseException) -> list[BaseException]:
 def _document_error_payload(item: BaseException) -> dict[str, Any] | None:
     """The payload for an operation, ``.hwp`` or non-package failure; else None."""
 
+    if isinstance(item, HwpxOperationError):
+        # A save python-hwpx refused, wrapped by the save service: its message carries the target's
+        # absolute path and the engine's text (entry names). The client gets the fixed message.
+        core_code = item.details.get("coreCode") if isinstance(item.details, dict) else None
+        if isinstance(core_code, str) and core_code in CORE_SAVE_REFUSALS:
+            return build_error_payload(
+                code="DOCUMENT_SAVE_FAILED",
+                message=CORE_SAVE_REFUSALS[core_code],
+                details={"coreCode": core_code},
+            )
     if isinstance(item, (HwpxOperationError, HwpDocumentError)):
         return item.to_payload()
     hwp5_payload = hwp5_error_payload(item)
@@ -235,12 +245,14 @@ def _plan_step_save_refusal(payload: object) -> dict[str, Any] | None:
 
     if not isinstance(payload, dict) or payload.get("ok") is not False:
         return None
+    if payload.get("schemaVersion") != "hwpx.plan-report/v1":
+        return None  # another tool's failure keeps the code it gave
     failed_step = payload.get("failedStepId")
     steps = payload.get("steps")
     if not isinstance(failed_step, str) or not isinstance(steps, list):
         return None
     for step in steps:
-        if not isinstance(step, dict) or step.get("stepId") != failed_step:
+        if not isinstance(step, dict) or step.get("stepId") != failed_step or step.get("status") != "failed":
             continue
         error = step.get("error")
         structured = error.get("structured") if isinstance(error, dict) else None
