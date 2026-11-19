@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from copy import deepcopy
 from os import PathLike
 from pathlib import Path
 from typing import Any, Iterable, Literal
@@ -598,21 +597,6 @@ def _safe_spacing_fallback_refs(
     return refs
 
 
-def _element_signature(element: ET.Element) -> bytes:
-    clone = deepcopy(element)
-    clone.attrib.pop("id", None)
-    return ET.tostring(clone, encoding="utf-8")
-
-
-def _run_element(run: Any) -> ET.Element | None:
-    element = getattr(run, "element", None)
-    if element is not None:
-        return element
-    if hasattr(run, "get") and hasattr(run, "set"):
-        return run
-    return None
-
-
 def repair_pathological_text_spacing(
     document: HwpxDocument,
     *,
@@ -626,8 +610,9 @@ def repair_pathological_text_spacing(
     replacement or newly-added paragraph blindly keeps that ``charPr``, Hancom
     renders normal text with roughly half-width glyph advance and the letters
     overlap.  Only the touched runs are remapped: the source ``charPr`` remains
-    byte-for-byte intact, while a deduplicated clone changes only pathological
-    spacing values (``<= -40``) to a safe paragraph/body-style fallback.
+    byte-for-byte intact, while python-hwpx's ``document.styles.ensure_run``
+    (``letter_spacing_by_lang=``) gives a character shape that differs from it only in the
+    pathological spacing values (``<= -40``), set to a safe paragraph/body-style fallback.
     """
 
     selected_runs = list(runs if runs is not None else (getattr(paragraph, "runs", None) or []))
@@ -643,18 +628,16 @@ def repair_pathological_text_spacing(
     remapped = 0
     replacements_by_ref: dict[str, str] = {}
     for run in selected_runs:
-        element = _run_element(run)
-        if element is None:
+        if not hasattr(run, "char_pr_id_ref"):
             continue
-        base_ref = (element.get("charPrIDRef") or "").strip()
+        base_ref = str(run.char_pr_id_ref or "").strip()
         if not base_ref:
             continue
 
         found = _char_property_element(document, base_ref)
         if found is None:
             continue
-        header, base_element = found
-        base_spacing = _spacing_values(base_element)
+        base_spacing = _spacing_values(found[1])
         unsafe_keys = [
             key
             for key, value in base_spacing.items()
@@ -671,46 +654,16 @@ def repair_pathological_text_spacing(
                 for candidate in fallback_values:
                     value = candidate.get(key, 0)
                     if value > _PATHOLOGICAL_CHAR_SPACING_LIMIT:
-                        safe_value = value
+                        safe_value = min(value, 50)  # Hancom's 자간 range is -50..50
                         break
                 target_values[key] = safe_value
-
-            target_element = deepcopy(base_element)
-            target_element.attrib.pop("id", None)
-            target_spacing = target_element.find(f"{HH_NS}spacing")
-            if target_spacing is None:  # pragma: no cover - unsafe keys imply spacing exists
-                target_spacing = append_xml_child(target_element, f"{HH_NS}spacing")
-            for key, value in target_values.items():
-                target_spacing.set(key, str(value))
-            target_signature = _element_signature(target_element)
-
-            def predicate(candidate: ET.Element) -> bool:
-                return _element_signature(candidate) == target_signature
-
-            def modifier(candidate: ET.Element) -> None:
-                spacing = candidate.find(f"{HH_NS}spacing")
-                if spacing is None:  # pragma: no cover - cloned unsafe style has spacing
-                    spacing = append_xml_child(candidate, f"{HH_NS}spacing")
-                for key, value in target_values.items():
-                    spacing.set(key, str(value))
-
-            safe_element = header.ensure_char_property(
-                predicate=predicate,
-                modifier=modifier,
-                base_char_pr_id=base_ref,
+            target_ref = document.styles.ensure_run(
+                base_char_pr_id_ref=base_ref,
+                letter_spacing_by_lang={key.upper(): value for key, value in target_values.items()},
             )
-            target_ref = safe_element.get("id")
-            if not target_ref:  # pragma: no cover - upstream guarantees an id
-                raise RuntimeError("safe character property does not expose an identifier")
             replacements_by_ref[base_ref] = target_ref
 
-        if hasattr(run, "char_pr_id_ref"):
-            run.char_pr_id_ref = target_ref
-        else:
-            element.set("charPrIDRef", target_ref)
-            section = getattr(paragraph, "section", None)
-            if section is not None and hasattr(section, "mark_dirty"):
-                section.mark_dirty()
+        run.char_pr_id_ref = target_ref
         remapped += 1
 
     return remapped
