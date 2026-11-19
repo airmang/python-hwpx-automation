@@ -892,6 +892,8 @@ def agent_contract_manifest(version: int = 2) -> dict[str, Any]:
     """
 
     positions: dict[str, Any] = {}
+    kinds: tuple[str, ...]
+    errors: tuple[str, ...]
     if version == 1:
         catalog, kinds, errors = NODE_PROPERTY_CATALOG_V1, NODE_KINDS, ERROR_CODES_V1
         catalog_schema, command_schema, batch_schema = (

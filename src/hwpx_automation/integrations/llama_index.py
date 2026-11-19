@@ -22,8 +22,8 @@ from os import PathLike, fspath
 from typing import Any
 
 try:
-    from llama_index.core.readers.base import BaseReader
-    from llama_index.core.schema import Document
+    from llama_index.core.readers.base import BaseReader  # pyright: ignore[reportMissingImports] - optional dependency, guarded
+    from llama_index.core.schema import Document  # pyright: ignore[reportMissingImports] - optional dependency, guarded
 except ImportError as exc:  # pragma: no cover - exercised only without the extra
     # ModuleNotFoundError (an ImportError) naming the missing framework, so a
     # walk over this package can tell "extra not installed" from a broken import.

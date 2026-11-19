@@ -173,7 +173,7 @@ _COMPOSE_SEED = S.COMPOSE_SEED
 
 
 def _open_seeded(data: bytes) -> HwpxDocument:
-    return S.open_seeded(data, _COMPOSE_SEED)  # type: ignore[return-value]
+    return S.open_seeded(data, _COMPOSE_SEED)
 
 
 def _default_policy() -> QualityPolicy:

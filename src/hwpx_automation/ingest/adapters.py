@@ -79,7 +79,7 @@ class MarkItDownAdapter:
 
 def _load_markitdown_class() -> type:
     try:
-        from markitdown import MarkItDown
+        from markitdown import MarkItDown  # pyright: ignore[reportMissingImports] - optional dependency, guarded
     except ImportError as exc:
         raise MissingMarkItDownDependency(
             "install python-hwpx-automation[ingest] (or hwpx-mcp-server[ingest]) "

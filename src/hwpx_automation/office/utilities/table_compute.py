@@ -180,15 +180,15 @@ def _normalize_row_lists(rows_list: list[Any]) -> _NormalizedTable:
     if _is_header_row(rows_list):
         # A table read from a document (get_table_text) starts with its labels: they name the
         # columns and are kept above the rows, not read as values.
-        header = [str(item) for item in rows_list[0]]  # type: ignore[union-attr]
+        header = [str(item) for item in rows_list[0]]
         columns = [
             _Column(key=str(index), label=header[index] if index < len(header) else str(index), index=index)
             for index in range(width)
         ]
-        rows = [_row_sequence_to_mapping(row, columns) for row in rows_list[1:]]  # type: ignore[arg-type]
+        rows = [_row_sequence_to_mapping(row, columns) for row in rows_list[1:]]
         return _NormalizedTable("rows_sequence_header", columns, rows, rows_list)
     columns = [_Column(key=str(index), label=str(index), index=index) for index in range(width)]
-    rows = [_row_sequence_to_mapping(row, columns) for row in rows_list]  # type: ignore[arg-type]
+    rows = [_row_sequence_to_mapping(row, columns) for row in rows_list]
     return _NormalizedTable("rows_sequence", columns, rows, rows_list)
 
 

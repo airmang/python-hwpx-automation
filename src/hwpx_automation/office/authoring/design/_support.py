@@ -5,9 +5,13 @@ python-hwpx). The documents themselves are changed through python-hwpx's public 
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from os import PathLike
+from typing import TYPE_CHECKING, Iterable
 
 from lxml import etree  # pyright: ignore[reportAttributeAccessIssue]
+
+if TYPE_CHECKING:
+    from hwpx.document import HwpxDocument
 
 HP_NS = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 
@@ -62,15 +66,12 @@ COMPOSE_SEED = 0x48575058  # "HWPX": a document composed from a profile
 HARVEST_SEED = 0x48415256  # "HARV": a profile's template.hwpx and fragments.hwpx
 
 
-def open_seeded(source: object, seed: int) -> object:
+def open_seeded(source: str | PathLike[str] | bytes, seed: int) -> HwpxDocument:
     """``HwpxDocument.open(source, seed=seed)``; the clock (``now=``) is left alone."""
 
     from hwpx.document import HwpxDocument
 
-    try:
-        return HwpxDocument.open(source, seed=seed)
-    except TypeError:  # a python-hwpx 7.0 development build before seed= on open (#775)
-        return HwpxDocument.open(source)
+    return HwpxDocument.open(source, seed=seed)
 
 
 def ensure_section_columns(document: object, first: object) -> None:

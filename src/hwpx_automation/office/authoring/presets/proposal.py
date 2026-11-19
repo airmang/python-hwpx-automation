@@ -15,6 +15,8 @@ import zipfile
 
 from hwpx.document import HwpxDocument
 
+from ....upstream import date_new_document, request_seed
+
 DEFAULT_PROPOSAL_SECTIONS = (
     "추진 배경 및 문제 정의",
     "제안 내용",
@@ -34,7 +36,6 @@ _REQUIRED_SECTIONS = (
     "expected_outcomes",
     "closing",
 )
-from ....upstream import date_new_document, request_seed
 
 _EMPTY_ASSET_INFO = {"image_count": 0, "image_bytes": 0, "package_bytes": 0}
 
