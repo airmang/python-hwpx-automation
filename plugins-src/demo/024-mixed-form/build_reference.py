@@ -10,6 +10,7 @@ import os
 import zipfile
 from contextlib import contextmanager
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
@@ -24,6 +25,8 @@ from hwpx_automation.office.agent import (
     validate_mixed_form_request,
 )
 from hwpx.oxml.namespaces import HP
+from hwpx_automation.forms import find_cell_by_label
+from hwpx_automation.save_dates import fixed_save_time
 
 
 HERE = Path(__file__).resolve().parent
@@ -42,6 +45,10 @@ EXPECTED_NAME = EXPECTED_PATH.name
 PLAN_SCHEMA = "hwpx.mixed-form-plan/v1"
 SOURCE_SPEC_SCHEMA = "hwpx.demo.mixed-form-source/v1"
 RECEIPT_SCHEMA = "hwpx.demo.mixed-form-receipt/v1"
+# python-hwpx 7.0 and python-hwpx-automation 8.0 date what they write with the clock;
+# the reference is rebuilt byte for byte, so both are dated with this moment and ids are seeded.
+BUILD_TIME = datetime(2025, 9, 17, 4, 32, 50, tzinfo=timezone.utc)
+BUILD_SEED = 79
 TABLE_CELL_MARGIN = {
     "left": "510",
     "right": "510",
@@ -251,7 +258,7 @@ def _build_source(spec: Mapping[str, Any]) -> None:
     body_spec = spec["bodyAnchor"]
     canonical_spec = spec["canonicalTarget"]
 
-    with HwpxDocument.new() as document:
+    with HwpxDocument.new(seed=BUILD_SEED, now=BUILD_TIME) as document:
         title = document.sections[0].paragraphs[0]
         title.element.set("id", str(title_spec["paragraphId"]))
         title.text = str(title_spec["text"])
@@ -286,7 +293,7 @@ def _build_source(spec: Mapping[str, Any]) -> None:
         canonical = document.add_paragraph(str(canonical_spec["text"]))
         canonical.element.set("id", str(canonical_spec["paragraphId"]))
 
-        document.save_to_path(SOURCE_PATH)
+        document.save(SOURCE_PATH)
 
 
 def _public_plan(
@@ -396,11 +403,11 @@ def _member_identity(source: Path, output: Path) -> dict[str, Any]:
 
 def _readback_expected() -> dict[str, str]:
     with HwpxDocument.open(EXPECTED_PATH) as document:
-        fields = document.list_form_fields()
+        fields = document.fields.all
         if len(fields) != 1:
             raise AssertionError(f"expected exactly one native field, got {len(fields)}")
-        project_name = fields[0]["current_value"]
-        table_result = document.find_cell_by_label("담당 부서", direction="right")
+        project_name = fields[0].value
+        table_result = find_cell_by_label(document, "담당 부서", direction="right")
         matches = table_result["matches"]
         if len(matches) != 1:
             raise AssertionError(f"expected exactly one label-cell match, got {len(matches)}")
@@ -537,8 +544,9 @@ def build_reference() -> dict[str, Any]:
         byte_report.get("ok") is not True
         or not member_identity["ok"]
         or reported_changed != member_identity["changedMembers"]
-        or member_identity["changedMembers"] != ["Contents/section0.xml"]
-        or member_identity["unchangedMemberCount"] != 10
+        # python-hwpx-automation 8.0 dates the document it writes (content.hpf), as Hangul does on a save.
+        or member_identity["changedMembers"] != ["Contents/content.hpf", "Contents/section0.xml"]
+        or member_identity["unchangedMemberCount"] != 9
     ):
         raise AssertionError("OPC member identity evidence disagrees with the commit")
 
@@ -628,7 +636,8 @@ def main() -> int:
     # relations. Their fallback warnings are preserved in receipt.openSafety;
     # keep the command-line build summary focused on pass/fail evidence.
     logging.getLogger("hwpx.opc.package").setLevel(logging.ERROR)
-    receipt = build_reference()
+    with fixed_save_time(BUILD_TIME):
+        receipt = build_reference()
     summary = {
         "artifacts": receipt["artifacts"],
         "checks": {name: check["ok"] for name, check in receipt["checks"].items()},

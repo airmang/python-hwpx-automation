@@ -69,7 +69,8 @@ def test_demo_024_uses_hancom_native_click_here_field_shape() -> None:
             "type": "CLICK_HERE",
             "name": native["name"],
             "editable": "1",
-            "dirty": "0",
+            # Filled in: python-hwpx 7.0 marks it as Hancom does (FormField.filled).
+            "dirty": "1" if package_name == "expected.hwpx" else "0",
             "zorder": "-1",
             "metaTag": "",
         }
@@ -110,9 +111,9 @@ def test_demo_024_uses_hancom_native_click_here_field_shape() -> None:
         assert all(run.attrib["charPrIDRef"] in char_pr_ids for run in field_runs)
 
         with module.HwpxDocument.open(package_path) as document:
-            fields = document.list_form_fields()
+            fields = document.fields.all
         assert len(fields) == 1
-        # 6.0 return contract: list_form_fields() yields FormField objects.
+        # python-hwpx 7.0: doc.fields.all is a tuple of FormField objects.
         # The OWPML fieldid attribute stays an element-level fact, so the XML
         # expectation reads it from the fieldBegin element the object wraps.
         assert fields[0].field_id == native["controlId"]

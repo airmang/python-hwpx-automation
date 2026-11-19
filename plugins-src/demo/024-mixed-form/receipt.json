@@ -1,19 +1,19 @@
 {
   "artifacts": {
     "output": {
-      "bytes": 8401,
+      "bytes": 8356,
       "path": "expected.hwpx",
-      "sha256": "sha256:ec09fb9b6ff6e96bbcc270d314ceaea35357f2c5d150cafa41efbb238c2ded29"
+      "sha256": "sha256:52551fe3ceabce3728e9999eefe185282642306a58b32f5caa41c00a15fa97ed"
     },
     "plan": {
       "bytes": 1425,
       "path": "expected-plan.json",
-      "sha256": "sha256:a793a6d3862efda716fddf83427b31a71e05205f884a482330944113baf1c206"
+      "sha256": "sha256:ff96e0d66b5038e8b9b21d86916338ca5b37199386471bc0d38dbd1377bf59fa"
     },
     "source": {
-      "bytes": 8369,
+      "bytes": 8275,
       "path": "source.hwpx",
-      "sha256": "sha256:b3186f5870a6d8fc013594f8450aa9390fd140f723ef44af5f565caa0117db4c"
+      "sha256": "sha256:b5d3f89f797f402ede50fadf86ec883b3270ba7aa6cdb293f87149b363cb8363"
     },
     "sourceSpec": {
       "bytes": 1186,
@@ -40,27 +40,28 @@
     "opcMemberIdentity": {
       "addedMembers": [],
       "changedMembers": [
+        "Contents/content.hpf",
         "Contents/section0.xml"
       ],
       "memberCount": 11,
       "members": [
         {
-          "identical": true,
+          "identical": false,
           "name": "Contents/content.hpf",
-          "outputSha256": "sha256:b391203180c6c9f08593be77f47a99be4108b1c003a941e35f50c7a9eee07c08",
-          "sourceSha256": "sha256:b391203180c6c9f08593be77f47a99be4108b1c003a941e35f50c7a9eee07c08"
+          "outputSha256": "sha256:085f49cff52c0086b795e1d11e28759a6c6523720cff153a51da5eabcca054fd",
+          "sourceSha256": "sha256:edfd487fe00cb91d6e249bf86174ecf1b0c39b12c3932ff84b5e372e7ea53219"
         },
         {
           "identical": true,
           "name": "Contents/header.xml",
-          "outputSha256": "sha256:98e556aa6c94fa5b56899e712fcd1b88920191cb52158ef9ba2f346f1f5f5ac3",
-          "sourceSha256": "sha256:98e556aa6c94fa5b56899e712fcd1b88920191cb52158ef9ba2f346f1f5f5ac3"
+          "outputSha256": "sha256:a0885f1772ec94bb100f5e45cbca3396d9215c60cc5b187fa069c718911ab7cd",
+          "sourceSha256": "sha256:a0885f1772ec94bb100f5e45cbca3396d9215c60cc5b187fa069c718911ab7cd"
         },
         {
           "identical": false,
           "name": "Contents/section0.xml",
-          "outputSha256": "sha256:a059a603f3b2dd9e6bac3b06ef56611cf07353124922437681e41f03ba053313",
-          "sourceSha256": "sha256:e9d486cadfe64ed4d90ab0afa34e1fdd8fb23165d2e3662ed181764ebc214085"
+          "outputSha256": "sha256:145483d717986316fc9098d391d11b86a85f9b1f11a95f24f3567ebf0dfc19d2",
+          "sourceSha256": "sha256:186179bad79b2e9c2feac4138685c47890f01994461f62827a64a3ec73deb312"
         },
         {
           "identical": true,
@@ -113,9 +114,8 @@
       ],
       "ok": true,
       "removedMembers": [],
-      "unchangedMemberCount": 10,
+      "unchangedMemberCount": 9,
       "unchangedMembers": [
-        "Contents/content.hpf",
         "Contents/header.xml",
         "META-INF/container.rdf",
         "META-INF/container.xml",
@@ -145,9 +145,7 @@
           "blockingErrors": [],
           "errors": [],
           "ok": true,
-          "warnings": [
-            "Contents/content.hpf: manifest does not reference a version part; engine will fall back to 'version.xml'"
-          ]
+          "warnings": []
         }
       },
       "source": {
@@ -166,9 +164,7 @@
           "blockingErrors": [],
           "errors": [],
           "ok": true,
-          "warnings": [
-            "Contents/content.hpf: manifest does not reference a version part; engine will fall back to 'version.xml'"
-          ]
+          "warnings": []
         }
       }
     },
@@ -189,9 +185,9 @@
     }
   },
   "contract": {
-    "compiledPlanHash": "sha256:688bc55259cfb30125b52d6fef45bfe98efc9b70807e441aae9c8a436ad8b159",
-    "compiledRequestHash": "sha256:f56ee5c9dad607a90c7dac9c54f1b1b1415ab972dfa4a4a1d7a1ad421c8e5a4c",
-    "inputRevision": "sha256:b3186f5870a6d8fc013594f8450aa9390fd140f723ef44af5f565caa0117db4c",
+    "compiledPlanHash": "sha256:4a8c51c8d074186903154757d03248a12469b38d1502adeb680e5bd1ec3cc2e0",
+    "compiledRequestHash": "sha256:0ffba87f965b53b1562db929781318a2722cb144fd9deb43750bee5a1733bf73",
+    "inputRevision": "sha256:b5d3f89f797f402ede50fadf86ec883b3270ba7aa6cdb293f87149b363cb8363",
     "operationCount": 4,
     "publicPlanSchema": "hwpx.mixed-form-plan/v1",
     "resolutions": [
