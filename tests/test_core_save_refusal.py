@@ -177,3 +177,84 @@ def test_a_refused_dry_run_writes_nothing_beside_the_document(
     assert data["errorCode"] == "DOCUMENT_SAVE_FAILED"
     assert data["error"]["details"] == {"coreCode": "save-duplicate-entry-names"}
     assert sorted(entry.name for entry in folder.iterdir()) == before
+
+
+def test_a_wrapped_save_refusal_does_not_tell_the_client_the_path_or_the_entry_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The save service wraps the engine's refusal in a message holding the target's absolute path and
+    the engine's text. Over MCP the fixed message and the engine code go out, nothing else."""
+
+    from hwpx.opc.package import refuse_duplicate_entry_names
+
+    from hwpx_automation.storage import LocalDocumentStorage
+
+    target = tmp_path / "plain.hwpx"
+    document = HwpxDocument.new()
+    document.add_paragraph("본문")
+    document.save(target)
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        refuse_duplicate_entry_names(["private-entry.xml"])
+
+    monkeypatch.setattr(LocalDocumentStorage, "save_document", refuse)
+    request = SimpleNamespace(params=SimpleNamespace(name="add_form_field", arguments={"filename": str(target), "name": "F"}))
+    result = asyncio.run(server._strict_call_tool_handler(request))
+
+    assert isinstance(result, mcp_types.ErrorData)
+    assert result.data["errorCode"] == "DOCUMENT_SAVE_FAILED"
+    assert result.data["error"]["details"] == {"coreCode": "save-duplicate-entry-names"}
+    said = result.message + str(result.data)
+    assert str(tmp_path) not in said and "private-entry.xml" not in said
+
+
+def test_only_a_failed_step_of_an_edit_plan_report_is_read_as_a_save_refusal() -> None:
+    from hwpx_automation.runtime import _result_failure_error
+
+    step = {"stepId": "x", "status": "failed", "error": {"structured": {"code": "save-duplicate-entry-names"}}}
+    plan = {"schemaVersion": "hwpx.plan-report/v1", "ok": False, "failedStepId": "x", "steps": [step]}
+    other_tool = {**plan, "schemaVersion": "other/v1", "errorCode": "INVALID_ARGUMENT"}
+    not_failed = {**plan, "errorCode": "INVALID_ARGUMENT", "steps": [{**step, "status": "ok"}]}
+
+    assert _result_failure_error("run_edit_plan", plan).data["errorCode"] == "DOCUMENT_SAVE_FAILED"
+    assert _result_failure_error("other_tool", other_tool).data["errorCode"] == "INVALID_ARGUMENT"
+    assert _result_failure_error("run_edit_plan", not_failed).data["errorCode"] == "INVALID_ARGUMENT"
+
+
+def test_a_dry_run_asks_only_the_output_whether_there_is_anything_to_recover(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A source that cannot be read again says nothing about the output: the refused dry run keeps its
+    own error and writes no recovery copy."""
+
+    from hwpx_automation import mixed_form
+
+    source, output = tmp_path / "source.hwpx", tmp_path / "output.hwpx"
+    for path in (source, output):
+        document = HwpxDocument.new()
+        document.add_paragraph(path.stem)
+        document.save(path)
+    first = mixed_form._capture_path_snapshot(source)
+    answers = iter([first])
+
+    def source_snapshot(path: Path) -> object:
+        try:
+            return next(answers)
+        except StopIteration:
+            raise PermissionError("source read") from None
+
+    recovery: list[object] = []
+    monkeypatch.setattr(mixed_form, "_capture_path_snapshot", source_snapshot)
+    monkeypatch.setattr(
+        mixed_form, "_publish_exact_failure_recovery", lambda *args, **kwargs: recovery.append(args)
+    )
+
+    def refused() -> dict:
+        raise ValueError("edit refused")
+
+    with pytest.raises(ValueError, match="edit refused"):
+        mixed_form.run_specialized_form_operation(
+            operation="probe", source=source, output=output, dry_run=True, execute=refused
+        )
+    assert recovery == []
+

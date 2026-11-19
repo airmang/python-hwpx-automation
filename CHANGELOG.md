@@ -177,12 +177,14 @@ MCP 도구의 이름은 그대로입니다. 도구 계약 해시는 `c895883d5f4
   `TOOL_EXECUTION_FAILED`(내부 오류)나 `INVALID_ARGUMENT`로 알리던 것. 이제 `DOCUMENT_SAVE_FAILED`와
   `details.coreCode: "save-duplicate-entry-names"`로 알린다(`apply_table_ops`·`apply_body_ops`·`search_and_replace`·
   `set_table_cell_text`·`byte_preserving_patch` 등). `run_edit_plan`은 실패한 단계 id(`failedStepId`)도 함께 준다.
+  저장 서비스를 거친 거부(`add_form_field` 등)의 MCP 오류 글에 대상 파일의 절대 경로와 항목 이름이 실리던 것도 뺐다.
 - `apply_table_ops`·`apply_body_ops`의 `dry_run`이 실패하면 문서 폴더에 복구 사본(`.hwpx-mixed-form-recovery-…`)을
   남기던 것. dry run은 아무것도 쓰지 않으므로 복구할 것이 없다. 쓸 수 없는 폴더에서는 그 사본을 쓰려다 진짜 거부
-  사유 대신 `PERMISSION_DENIED`가 나왔다.
+  사유 대신 `PERMISSION_DENIED`가 나왔다. 복구할 것이 있는지는 출력 파일만 보고 정한다(원본을 다시 읽지 못해도).
 - 문서 에이전트 결과의 `as_mutation_report()`가 모든 항목의 내용이 같기만 하면 `wholePackageIdentical: true`라고 하던
   것. 내용이 같아도 파일 바이트는 다를 수 있다(ZIP 앞에 붙은 바이트가 빠지거나 기록이 다시 놓인 경우). 이제 입력과
-  결과의 sha256(`inputRevision`·`documentRevision`)이 같을 때만 참이다.
+  결과의 sha256(`inputRevision`·`documentRevision`)이 같을 때만 참이다. 되돌린 배치는 잰 후보(`candidateRevision`)와도
+  같아야 한다.
 - 겹쳐 찍히는 자간(-40 이하)을 고칠 때 가져오는 문단 자간을 50에서 자르던 것. 자간은 -50~100이다
   (python-hwpx 7.0, 한/글은 51~100을 다시 저장해도 그대로 둔다). +85인 문단의 글이 +50이 되지 않는다.
 - python-hwpx `SavePipeline._publish`를 바꿔 끼운 발행기(`GuardedSavePipeline`)가 7.0이 바꾼 반환 모양(경로 →

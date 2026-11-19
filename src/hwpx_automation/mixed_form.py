@@ -2731,8 +2731,10 @@ def _run_specialized_form_operation_locked(
         asked to look at, and in a read-only folder turned the real refusal into a permission error."""
 
         if dry_run:
-            try:
-                _source_now, output_now = snapshots()
+            try:  # the output alone: a source that cannot be read says nothing about the output
+                output_now = (
+                    _capture_path_snapshot(source) if same_path else _capture_optional_path_snapshot(output)
+                )
             except BaseException:
                 output_now = None
             if output_now is not None and _snapshots_match(output_now, output_before):
