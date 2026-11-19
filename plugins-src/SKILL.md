@@ -17,9 +17,8 @@ description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한�
   `.hwpx`로 낸다. 원본 경로를 편집 도구의 대상으로 주지 않는다.
 - 옮기지 못한 내용(`hwpConversion`, `doc.conversion_report`의 `unconverted`·`dropped`)과
   `Hwp5Error`(암호·배포용·DRM)는 그대로 보고한다.
-- 사용자가 결과를 꼭 `.hwp`로 달라고 하면, `.hwp`로 다시 쓰는 기능은 실험 단계라 원본에 있던 내용 일부가 빠질 수 있다고
-  알린 뒤 다른 이름의 `.hwp`로 `copy_document`한다. 원본 `.hwp`를 덮어쓰지 않으며, 옮기지 못한 내용이 있는 문서는
-  `.hwp`로 쓰지 않는다. 한/글에서 열어 확인하도록 안내한다.
+- **`.hwp`는 읽기만 한다.** 결과를 `.hwp`로 쓰지 않는다(python-hwpx 7.0에서 `.hwp` 쓰기는 실험 기능이다).
+  사용자가 `.hwp` 파일을 원하면 결과 `.hwpx`를 한/글에서 열어 `.hwp`로 저장하도록 안내한다.
 
 모든 작업은
 `python-hwpx-automation`의 MCP 도구를 1차 경로로 사용한다. 새 설정은 정식

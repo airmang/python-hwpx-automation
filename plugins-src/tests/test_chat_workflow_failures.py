@@ -213,3 +213,38 @@ def test_w4_fills_one_of_two_fields_with_the_same_name_by_number(tmp_path) -> No
         assert [f.value for f in saved.fields.all] == ["", "second"]
     refused = _run("W4", {"src": str(src), "out": str(tmp_path / "o2.hwpx"), "values": {"F": "x"}})
     assert "여러 개인 이름" in refused
+
+
+def _hwp_source(path: Path) -> bytes:
+    """The same small document written as HWP 5.0 (``.hwp``) — an input the blocks only read."""
+
+    import warnings
+
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("abc")
+    table = doc.add_table(1, 2)
+    table.cell(0, 0).text = "K"
+    paragraph.add_form_field("F", prompt="Z")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # the experimental HWP 5.0 writer warns
+        doc.save(path)
+    doc.close()
+    return path.read_bytes()
+
+
+@pytest.mark.parametrize("block", ["W1", "W2", "W3", "W4"])
+def test_an_hwp_input_is_read_only_and_the_result_is_hwpx(tmp_path, block) -> None:
+    src = tmp_path / "input.hwp"
+    original = _hwp_source(src)
+    asked = tmp_path / "out.hwp"  # asked for .hwp; the block writes .hwpx next to it
+    params = {"src": str(src), "out": str(asked), "replacements": {"abc": "xyz"},
+              "values": {"K": "1"} if block == "W3" else {0: "1"}}
+    assert _run(block, params) == "ok"
+    assert src.read_bytes() == original
+    assert not asked.exists()
+    written = tmp_path / "out.hwpx"
+    assert written.exists() == (block != "W1")
+    if block != "W1":
+        with HwpxDocument.open(written) as saved:
+            assert saved.package.part_names()  # opens as HWPX
+    assert _leftovers(tmp_path) == []
