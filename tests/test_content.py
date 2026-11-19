@@ -1719,7 +1719,10 @@ def test_format_table_border_width_keeps_the_6x_nearest_hancom_width(tmp_path: P
         bf for header in doc.parts.headers for bf in header.element.iter(f"{HH}borderFill")
         if bf.get("id") == result["border_fill_id"]
     )
-    assert {side.get("width") for side in fill if side.get("width")} == {"0.5 mm"}
+    sides = {side.tag.rsplit("}", 1)[-1]: side.get("width") for side in fill if side.get("width")}
+    # the four lines; the diagonal is Hancom's SOLID 0.1 mm whatever the line width (python-hwpx #798)
+    assert sides == {"leftBorder": "0.5 mm", "rightBorder": "0.5 mm", "topBorder": "0.5 mm",
+                     "bottomBorder": "0.5 mm", "diagonal": "0.1 mm"}
 
 
 def test_format_table_typed_refusals(tmp_path: Path):
