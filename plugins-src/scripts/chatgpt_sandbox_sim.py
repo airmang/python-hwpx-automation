@@ -32,6 +32,9 @@ from pathlib import Path
 PREINSTALLED = ["lxml", "pydantic", "cryptography"]
 BLOCKED_INDEX = "http://127.0.0.1:9/simple"
 ALLOWED_IMPORTS = {"hwpx", "hwpx_automation", "importlib", "json", "os", "re", "site", "subprocess", "sys"}
+# Beside the ``api`` facade, the automation modules python-hwpx 7.0 moved document
+# methods to (``hwpx._removed_names``: doc.text.markdown, doc.tables.find_cell_by_label/fill_by_path).
+ALLOWED_AUTOMATION_MODULES = {"hwpx_automation.markdown", "hwpx_automation.forms"}
 
 # (case id, block id, input fixture or None, P overrides, expected outcome, reason substring for refusals)
 DISASTER = "hwpxlib_corpus/error__20250808__2015년_12월_재난안전종합상황_분석_및_전망.hwpx"
@@ -89,7 +92,9 @@ def check_imports(label: str, code: str) -> list[str]:
         else:
             continue
         for name in names:
-            if name.split(".")[0] not in ALLOWED_IMPORTS or name.startswith("hwpx_automation."):
+            if name.split(".")[0] not in ALLOWED_IMPORTS or (
+                name.startswith("hwpx_automation.") and name not in ALLOWED_AUTOMATION_MODULES
+            ):
                 problems.append(f"{label}: import {name} is outside the public surface")
     return problems
 
