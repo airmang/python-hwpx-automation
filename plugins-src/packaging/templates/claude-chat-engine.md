@@ -6,7 +6,9 @@ Claude Code·Cowork에서 MCP 서버가 뜨지 않았을 때(`uv`가 없거나 �
 이 스킬의 `engine/` 폴더에는 공개 배포된 `python-hwpx`와 `python-hwpx-automation`이 원본 그대로
 들어 있다(버전과 파일 해시는 `engine/VENDOR.json`). MCP 서버가 쓰는 것과 같은 버전이다. Python 3.10용 `tomli`도
 함께 있다. 아래 시작 블록은 이 폴더를 `sys.path` 맨 앞에 넣어 불러올 뿐, 아무것도 설치하지 않고 인터넷에 접속하지 않는다.
-엔진(`python-hwpx`·`python-hwpx-automation`)을 `pip install`로 따로 받지 않는다.
+엔진(`python-hwpx`·`python-hwpx-automation`)을 `pip install`로 따로 받지 않는다. 엔진이 쓰는 `lxml`은 실려 있지
+않으므로 코드 실행 환경에 있어야 하고, 새 문서 만들기·표 라벨 칸 채우기는 `pydantic`·`cryptography`도 있어야 한다.
+없을 때의 절차는 아래 "필요한 패키지가 없을 때"에 있다.
 
 ## 1. 시작 — 대화마다 한 번
 

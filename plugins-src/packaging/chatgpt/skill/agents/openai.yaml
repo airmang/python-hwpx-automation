@@ -1,6 +1,6 @@
 interface:
   display_name: "한/글 문서"
-  short_description: "한/글 문서(HWPX·HWP) 읽기·편집·작성"
+  short_description: "한/글 HWPX 편집·작성, HWP 읽기"
 policy:
   products:
     - CHAT

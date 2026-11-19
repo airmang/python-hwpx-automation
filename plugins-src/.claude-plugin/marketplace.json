@@ -9,7 +9,7 @@
     {
       "name": "hwpx-plugin",
       "source": "./plugins/claude/hwpx-plugin",
-      "description": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬. 편집은 순수 Python이며 최종 시각 검증은 필요 시 한컴 오라클을 사용합니다."
+      "description": "python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 에이전트 스킬. 문서 편집은 순수 Python으로 하며, .hwp는 읽기만 하고 결과는 .hwpx로 냅니다. 한/글 화면 확인(한컴 렌더)은 렌더 환경을 따로 설정했을 때만 씁니다."
     }
   ]
 }

@@ -12,6 +12,13 @@
   python-hwpx-automation이 없는 환경(`AUTOMATION`이 거짓)에서 W1은 `doc.text.plain()`으로 일반 글을 읽고,
   W3(표 라벨 칸 채우기)은 저장하지 않고 쓸 수 없다고 멈춥니다. W2·W5의 확인 단계도 `doc.text.plain()`·`doc.save(…)`를 씁니다.
 
+- 목록·매니페스트 문구를 실제 동작에 맞춥니다. ChatGPT 플러그인의 설명(영어 기본·ko-KR)은 `.hwp`를 `.hwp`로 다시
+  저장한다고 하던 것을 "읽기만 하고 결과는 `.hwpx`"로, "인터넷 없이 설치"에 코드 실행 환경에 `lxml`이 있어야 한다는
+  전제와 `pydantic`·`cryptography`가 없을 때 되는 일을 더합니다. `release_notes`를 이번 판 내용으로 바꿉니다
+  (판은 `{{WEB_VERSION}}` 자리표시). Claude·Codex·OpenClaw 매니페스트와 Claude 마켓플레이스의 설명은 "최종 시각
+  검증은 필요 시 한컴 오라클"을 "한컴 렌더는 렌더 환경을 따로 설정했을 때만"으로 고칩니다(기본 설치에는 렌더가 없습니다).
+  Claude 채팅 안내도 실려 있지 않은 `lxml`이 환경에 있어야 한다고 적습니다.
+
 - `.hwp`는 읽기만 합니다. 채팅 안내의 W2~W5는 결과를 늘 `.hwpx`로 저장합니다(`out`을 `.hwp`로 주어도 `.hwpx`로
   바꿉니다). 원본 `.hwp`는 그대로 둡니다. 전에는 W 블록이 결과 확장자로 저장 형식을 골라 `.hwp` 입력을 `.hwp`로 다시
   썼습니다. 스킬(`SKILL.md`, ChatGPT·Claude 채팅 안내)도 `.hwp` 결과를 만들지 않고, `.hwp`가 필요하면 결과를
