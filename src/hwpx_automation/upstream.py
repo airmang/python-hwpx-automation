@@ -514,9 +514,7 @@ def ensure_char_style(
         normalize_font_size(font_size)  # refuses a size that is not above 0, as before
         changes["size"] = font_size
     if font_name is not None:
-        # every language, declared in each language block that lacks it (``font=`` would set only
-        # the languages that already declare the face when some do)
-        changes["font_by_lang"] = {lang.upper(): font_name for lang in _FONT_REF_KEYS}
+        changes["font"] = font_name  # python-hwpx gives it every language (#798)
     return document.styles.ensure_run(base_char_pr_id_ref=base_char_pr_id, **changes)
 
 
