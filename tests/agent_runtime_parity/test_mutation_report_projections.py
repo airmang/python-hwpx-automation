@@ -10,9 +10,12 @@ characterization — that the pre-existing ``to_dict()`` outputs are unchanged.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
+
+import pytest
 
 from hwpx_automation.office.agent.model import AgentBatchResult
 from hwpx.body_patch import BodyOpsResult
@@ -324,3 +327,24 @@ def test_cell_fill_result_to_dict_unchanged() -> None:
         "zipMethod": "deflate",
         "openSafety": {"ok": True},
     }
+
+
+@pytest.mark.parametrize("same_file", [True, False], ids=["same-bytes", "same-payloads-other-bytes"])
+def test_agent_whole_package_identical_means_the_file_not_its_payloads(same_file: bool) -> None:
+    """Every member payload matching is not the file matching: an archive rebuilt around the same
+    payloads (bytes in front of the ZIP dropped, records re-laid) has another sha256. The receipt
+    used to say ``wholePackageIdentical: true`` next to two different revisions."""
+
+    result = _agent_result(real_hancom_status="unverified")
+    byte = dict(result.verification_report["bytePreservation"], changedMembers=[], unchangedMemberCount=12)
+    result = dataclasses.replace(
+        result,
+        verification_report={**result.verification_report, "bytePreservation": byte},
+        document_revision=result.input_revision if same_file else result.document_revision,
+    )
+    assert (result.input_revision == result.document_revision) is same_file
+
+    preservation = result.as_mutation_report().to_dict()["preservation"]
+
+    assert preservation["wholePackageIdentical"] is same_file
+    assert preservation["untouchedPartPayloads"] == {"verified": 12, "changed": 0}

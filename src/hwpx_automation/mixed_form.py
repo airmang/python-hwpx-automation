@@ -610,11 +610,11 @@ class _WorkspaceSavePipeline(GuardedSavePipeline):
         data: bytes,
         output_path: str | os.PathLike[str] | None,
         output_stream: Any | None,
-    ) -> str | None:
+    ) -> tuple[str | None, bool]:
         if output_stream is not None:
             return super()._publish(data, output_path, output_stream)
         if output_path is None:
-            return None
+            return None, True
         target = Path(output_path).resolve(strict=False)
         if target != self._workspace_precondition.path:
             raise RuntimeError("quality pipeline attempted an unauthorized output path")
@@ -631,7 +631,7 @@ class _WorkspaceSavePipeline(GuardedSavePipeline):
             self._failure_preimage.preserve()
             self._workspace_resolver.cleanup_owned_parent_directories(guard)
             raise
-        return str(target)
+        return str(target), True
 
 
 def _payload(value: BaseModel | dict[str, Any], *, apply: bool) -> dict[str, Any]:
@@ -2724,9 +2724,24 @@ def _run_specialized_form_operation_locked(
         )
         return source_snapshot, output_snapshot
 
+    def preserve_preimage() -> None:
+        """Keep the output's bytes from before in a recovery sidecar beside it -- except after a dry
+        run that left the output as it was. A dry run publishes nothing, so there is nothing to
+        recover; writing the sidecar anyway left a file in the folder of a document the caller only
+        asked to look at, and in a read-only folder turned the real refusal into a permission error."""
+
+        if dry_run:
+            try:
+                _source_now, output_now = snapshots()
+            except BaseException:
+                output_now = None
+            if output_now is not None and _snapshots_match(output_now, output_before):
+                return
+        failure_preimage.preserve()
+
     def restore_publication(publication: WorkspaceOutputGuard | None) -> bool:
         nonlocal rollback_attempted
-        failure_preimage.preserve()
+        preserve_preimage()
         if publication is None:
             return False
         rollback_attempted = True
@@ -2808,11 +2823,11 @@ def _run_specialized_form_operation_locked(
             else None
         )
     except BaseException:
-        failure_preimage.preserve()
+        preserve_preimage()
         restore_publication(recorded_publication)
         raise
     if not isinstance(result, dict):
-        failure_preimage.preserve()
+        preserve_preimage()
         restore_publication(recorded_publication)
         raise TypeError(f"{operation} returned a non-object result")
 
@@ -2828,7 +2843,7 @@ def _run_specialized_form_operation_locked(
     try:
         candidate_source, candidate_output = snapshots()
     except BaseException:
-        failure_preimage.preserve()
+        preserve_preimage()
         restore_publication(publication)
         raise
     source_preserved = _snapshots_match(candidate_source, source_before)
@@ -2844,7 +2859,7 @@ def _run_specialized_form_operation_locked(
     explicit_failure = result.get("ok") is False
 
     if explicit_failure or source_mutated or dry_run_mutated or unowned_output:
-        failure_preimage.preserve()
+        preserve_preimage()
         restored = restore_publication(publication if candidate_owned else None)
         final_source, final_output = snapshots()
         failed = copy.deepcopy(result)
@@ -2881,14 +2896,14 @@ def _run_specialized_form_operation_locked(
     try:
         attached = attach(result, candidate_source, candidate_output)
     except BaseException:
-        failure_preimage.preserve()
+        preserve_preimage()
         restore_publication(publication if candidate_owned else None)
         raise
 
     try:
         final_source, final_output = snapshots()
     except BaseException:
-        failure_preimage.preserve()
+        preserve_preimage()
         restore_publication(publication if candidate_owned else None)
         raise
     source_matches = (
@@ -2902,7 +2917,7 @@ def _run_specialized_form_operation_locked(
         else _snapshots_match(final_output, output_before)
     )
     if not source_matches or not output_matches:
-        failure_preimage.preserve()
+        preserve_preimage()
         restored = restore_publication(
             publication
             if output_matches and publication is not None
@@ -2930,7 +2945,7 @@ def _run_specialized_form_operation_locked(
         )
 
     if not dry_run and not attached["verificationReceipt"]["ok"]:
-        failure_preimage.preserve()
+        preserve_preimage()
         restored = restore_publication(publication if output_matches else None)
         final_source, final_output = snapshots()
         failed = copy.deepcopy(result)
@@ -2961,7 +2976,7 @@ def _run_specialized_form_operation_locked(
     try:
         final_source, final_output = snapshots()
     except BaseException:
-        failure_preimage.preserve()
+        preserve_preimage()
         restore_publication(publication if output_matches else None)
         raise
     source_matches = (
@@ -2977,7 +2992,7 @@ def _run_specialized_form_operation_locked(
     if cleanup_ok and source_matches and output_matches:
         return attached
 
-    failure_preimage.preserve()
+    preserve_preimage()
     restored = restore_publication(
         publication if output_matches and publication is not None else None
     )
