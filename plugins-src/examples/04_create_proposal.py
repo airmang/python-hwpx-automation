@@ -39,7 +39,7 @@ def main() -> None:
 
     doc = create_proposal_document(proposal_spec)
     try:
-        doc.save_to_path(output_path)
+        doc.save(output_path)
     finally:
         doc.close()
 

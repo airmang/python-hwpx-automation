@@ -127,7 +127,7 @@ def main() -> int:
         target = OUTPUT_DIR / f"{slug}.hwpx"
         document = create_document_from_plan(plan)
         try:
-            document.save_to_path(target)
+            document.save(target)
         finally:
             document.close()
         open_safety = validate_editor_open_safety(target)

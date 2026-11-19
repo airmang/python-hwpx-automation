@@ -13,7 +13,7 @@ from hwpx_automation.office.authoring.advanced_generators import build_image_gri
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "out" / "13_advanced_generators"
 PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNo+A8AAgIBgP3y/PQAAAAASUVORK5CYII="
 )
 
 
@@ -33,7 +33,7 @@ def _save_plan(name: str, plan: dict) -> Path:
     target = OUTPUT_DIR / f"{name}.hwpx"
     document = create_document_from_plan(plan)
     try:
-        document.save_to_path(target)
+        document.save(target)
     finally:
         document.close()
     open_safety = validate_editor_open_safety(target)

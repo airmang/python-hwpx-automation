@@ -29,7 +29,7 @@ def main() -> None:
     table.set_cell_text(2, 1, "교무실 02-123-4567")
 
     # 파일로 저장한다.
-    doc.save_to_path(str(output_path))
+    doc.save(str(output_path))
     print(f"[OK] wrote: {output_path}")
 
 

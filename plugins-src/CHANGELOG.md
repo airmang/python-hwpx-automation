@@ -12,6 +12,14 @@
   python-hwpx-automation이 없는 환경(`AUTOMATION`이 거짓)에서 W1은 `doc.text.plain()`으로 일반 글을 읽고,
   W3(표 라벨 칸 채우기)은 저장하지 않고 쓸 수 없다고 멈춥니다. W2·W5의 확인 단계도 `doc.text.plain()`·`doc.save(…)`를 씁니다.
 
+- 함께 배포되는 예제·데모·참고 문서의 코드를 python-hwpx 7.0·python-hwpx-automation 8.0에서 그대로 돌게 맞춥니다.
+  `examples/*.py`의 `save_to_path`는 `save`로, `hwpx.tools.report_utils`는 `hwpx_automation.office.utilities`로,
+  `hwpx.inspect_mail_merge_placeholders`는 `hwpx_automation.mail_merge`로, `export_text()`는 `doc.text.plain()`으로
+  바꿉니다. 그림 예제 둘의 1×1 PNG가 깨져 있어(CRC 불일치) 8.0의 그림 검사에 걸리던 것을 바로잡고, 양식 맞춤 예제(08)는
+  다시 돌릴 때 자기 이전 결과를 지웁니다. `demo/024-mixed-form`은 7.0 이름(`doc.fields.all`, `find_cell_by_label(doc, …)`)과
+  8.0의 저장 날짜(`content.hpf`)에 맞춰 시각·id를 고정해 다시 지었습니다. 참고 문서의 `hwpx.builder`는
+  `hwpx_automation.office.authoring.builder`입니다.
+
 - 도구 계약 사본을 automation 8.0 후보(`c895883d5f4350ae`)로 맞춥니다. python-hwpx 하한이 7.0.0으로 함께 맞춰집니다
   (사본이 6.5.0을 적고 있었습니다). 문서 에이전트 명령이 v2로 오르며, 문단 안 글은 글자 범위로, 개체·각주는 글자 자리로
   다룹니다. 뜻이 바뀐 옛 명령은 `contract_changed`로 새 꼴을 안내합니다. `references/workflows-agent-document.md`·

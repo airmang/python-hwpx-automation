@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--builder",
         action="store_true",
-        help="also run the hwpx.builder layout-sensitive generation example",
+        help="also run the hwpx_automation builder layout-sensitive generation example",
     )
     parser.add_argument(
         "--operating-plan",
@@ -170,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
         check_code = (
             "from hwpx import HwpxDocument; "
             f"doc = HwpxDocument.open({str(builder_output)!r}); "
-            "text = doc.export_text(); "
+            "text = doc.text.plain(); "
             "metadata = doc.package.document_metadata(); "
             "checks = ["
             "('2026 AI 교육 운영계획' in text.splitlines(), 'body title missing'), "
@@ -227,10 +227,10 @@ def main(argv: list[str] | None = None) -> int:
             "from hwpx_automation.office.authoring.report_parser import parse_government_report_text; "
             "from hwpx.tools.package_validator import validate_editor_open_safety, validate_package; "
             "from hwpx.tools.validator import validate_document; "
-            "from hwpx.tools.report_utils import format_krw_hangul; "
+            "from hwpx_automation.office.utilities import format_krw_hangul; "
             f"path = {str(government_report_output)!r}; "
             "doc = HwpxDocument.open(path); "
-            "text = doc.export_text(); "
+            "text = doc.text.plain(); "
             "doc.close(); "
             "parsed = parse_government_report_text('Ⅰ. 추진 개요\\n□ 주요 성과', title='검증 보고'); "
             "report = inspect_document_authoring_quality(path, quality_profile='government_report'); "

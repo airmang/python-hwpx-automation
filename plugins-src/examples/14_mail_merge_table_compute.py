@@ -7,7 +7,8 @@ import csv
 from pathlib import Path
 from zipfile import ZipFile
 
-from hwpx import HwpxDocument, inspect_mail_merge_placeholders, validate_editor_open_safety
+from hwpx import HwpxDocument, validate_editor_open_safety
+from hwpx_automation.mail_merge import inspect_mail_merge_placeholders
 from hwpx_automation.office.authoring import create_document_from_plan, validate_document_plan
 from hwpx_automation.office.document_ops import build_mail_merge
 from hwpx_automation.office.utilities import table_compute
@@ -22,7 +23,7 @@ def _write_template(path: Path) -> None:
     doc.add_paragraph("학급: {{class_name}}")
     doc.add_paragraph("담당 교사: ${teacher}")
     doc.add_paragraph("안내: <<notice>>")
-    doc.save_to_path(path)
+    doc.save(path)
     doc.close()
 
 
@@ -120,7 +121,7 @@ def run_table_compute() -> Path:
     target = OUTPUT_DIR / "computed-budget.hwpx"
     document = create_document_from_plan(plan)
     try:
-        document.save_to_path(target)
+        document.save(target)
     finally:
         document.close()
     open_safety = validate_editor_open_safety(target)

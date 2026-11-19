@@ -32,7 +32,7 @@ def build_template(path: Path) -> None:
         doc.add_paragraph("Ⅶ 추진 일정")
         doc.add_paragraph("TODO")
         doc.add_paragraph("대상 공간 사진")
-        doc.save_to_path(path)
+        doc.save(path)
     finally:
         doc.close()
 
@@ -90,6 +90,8 @@ def main() -> None:
     }
 
     build_template(TEMPLATE)
+    # The form-fit handoff never overwrites an existing file; drop this example's own earlier output.
+    DESTINATION.unlink(missing_ok=True)
     analysis = analyze_template_formfit(
         TEMPLATE,
         baseline=baseline,

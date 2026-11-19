@@ -7,7 +7,7 @@ from pathlib import Path
 
 from hwpx import HwpxDocument
 from hwpx_automation.office.authoring import create_document_from_plan, inspect_document_authoring_quality, validate_document_plan
-from hwpx.tools.report_utils import (
+from hwpx_automation.office.utilities import (
     calculate_ratios,
     format_krw_hangul,
     format_number_commas,
@@ -118,7 +118,7 @@ def main() -> int:
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     document = create_document_from_plan(plan)
     try:
-        document.save_to_path(OUTPUT)
+        document.save(OUTPUT)
     finally:
         document.close()
 
@@ -129,7 +129,7 @@ def main() -> int:
     )
     reopened = HwpxDocument.open(OUTPUT)
     try:
-        text = reopened.export_text()
+        text = reopened.text.plain()
     finally:
         reopened.close()
 

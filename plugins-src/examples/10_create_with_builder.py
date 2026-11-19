@@ -28,7 +28,7 @@ from hwpx_automation.office.authoring.builder import (
 
 
 PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axwAqkAAAAASUVORK5CYII="
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNo+A8AAgIBgP3y/PQAAAAASUVORK5CYII="
 )
 OUTPUT = Path(__file__).resolve().parent / "out" / "10_builder_vertical_slice.hwpx"
 

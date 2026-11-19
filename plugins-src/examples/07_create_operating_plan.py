@@ -148,7 +148,7 @@ def main() -> int:
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     document = create_document_from_plan(plan)
     try:
-        document.save_to_path(OUTPUT)
+        document.save(OUTPUT)
     finally:
         document.close()
 
