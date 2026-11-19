@@ -26,12 +26,24 @@ from hwpx_automation.upstream import content_seed, request_seed, source_seed
 _STAMP = re.compile(rb"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?")
 
 
+#: A memo carries the time it was written twice: ``CreateDateTime`` and, as two numbers, in its command.
+_MEMO_TIME = re.compile(rb"(MEMO/\d+/\d+/)\d+/\d+/")
+_MEMO_STAMP = re.compile(rb'(name="CreateDateTime">)[^<]*')
+
+
+def _masked(name: str, part: bytes) -> bytes:
+    """*part* without the times that follow the clock: the save dates of ``content.hpf`` and a memo's
+    writing time. Two documents made a second apart differ in nothing else (the test compared them raw
+    and failed whenever the clock ticked between the two, as on CI)."""
+
+    if name.endswith("content.hpf"):
+        return _STAMP.sub(b"<time>", part)
+    return _MEMO_STAMP.sub(rb"\1<time>", _MEMO_TIME.sub(rb"\1<time>/", part))
+
+
 def _parts(data: bytes) -> dict[str, bytes]:
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        return {
-            name: _STAMP.sub(b"<time>", archive.read(name)) if name.endswith("content.hpf") else archive.read(name)
-            for name in archive.namelist()
-        }
+        return {name: _masked(name, archive.read(name)) for name in archive.namelist()}
 
 
 def _source(path: Path, text: str = "소풍 안내 {{이름}}") -> None:
@@ -97,3 +109,22 @@ def test_markdown_seed_is_the_request_seed_of_its_text() -> None:
 
     text = "# 제목\n\n본문"
     assert int(hashlib.sha256(text.encode("utf-8")).hexdigest()[:8], 16) == request_seed(text)
+
+
+def test_a_memo_written_a_second_later_differs_only_in_its_time(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """What the comparison above masks is the memo's time and nothing else of the memo."""
+
+    plan = {
+        "schemaVersion": "hwpx.document_plan.v1",
+        "title": "봄 소풍 안내",
+        "blocks": [{"type": "memo", "text": "모이는 곳", "memo": "정문 앞"}],
+    }
+    first = create_document_from_plan(plan).to_bytes()
+    raw = {name: zipfile.ZipFile(io.BytesIO(first)).read(name) for name in zipfile.ZipFile(io.BytesIO(first)).namelist()}
+    section = raw["Contents/section0.xml"]
+    assert _MEMO_TIME.search(section) and _MEMO_STAMP.search(section)
+    later = _MEMO_STAMP.sub(rb"\g<1>2099-01-01T00:00:00Z", _MEMO_TIME.sub(rb"\g<1>1/2/", section))
+    assert later != section
+    assert _masked("Contents/section0.xml", later) == _masked("Contents/section0.xml", section)
+    assert b"\xec\xa0\x95\xeb\xac\xb8 \xec\x95\x9e" in _masked("Contents/section0.xml", section)  # "정문 앞" stays
+
