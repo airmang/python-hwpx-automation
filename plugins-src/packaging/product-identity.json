@@ -67,7 +67,7 @@
       "hostConfigKeyKind": "local-alias",
       "launcherPath": "scripts/hwpx-automation-mcp",
       "currentVersion": "8.0.0",
-      "minimumCompatibleVersion": "8.0.0",
+      "minimumCompatibleVersion": "7.2.0",
       "maturity": "not-declared",
       "mcpExtra": "mcp",
       "pluginInstallExtras": [
@@ -81,7 +81,7 @@
       "installedPluginId": "hwpx-plugin",
       "installedSkillName": "hwpx",
       "currentVersion": "8.0.0",
-      "minimumCompatibleVersion": "8.0.0",
+      "minimumCompatibleVersion": "2.0.0",
       "maturity": "not-declared"
     }
   },

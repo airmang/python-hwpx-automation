@@ -61,6 +61,7 @@ def test_bundled_guide_is_the_template_rendered_with_identity(name: str) -> None
 def test_guide_follows_identity_when_the_train_moves(name: str) -> None:
     builder = _module("build_hwpx_plugins")
     identity = copy.deepcopy(_identity())
+    identity["releaseState"]["status"] = "released"
     identity["installConstraint"] = {
         "core": "python-hwpx[preview]>=9.1.0,<10",
         "automation": "python-hwpx-automation[mcp,oracle]>=8.2.0,<9",
@@ -135,9 +136,9 @@ def test_validator_rejects_hand_typed_or_stale_template_text(name: str, old: str
 
 def test_validator_rejects_a_released_guide_that_still_says_unpublished() -> None:
     validator = _module("validate_hwpx_plugin")
-    identity = _identity()
-    assert identity["releaseState"]["status"] == "released"
-    good = BUNDLED["openclaw.mcp-install.md"].read_text(encoding="utf-8")
+    identity = copy.deepcopy(_identity())
+    identity["releaseState"]["status"] = "released"
+    good = _module("build_hwpx_plugins").render_install_guide(_template("openclaw.mcp-install.md"), identity)
     validator.validate_install_guide_release_text(good, Path("INSTALL-mcp.md"), identity)
 
     with pytest.raises(SystemExit, match="retains stale release text"):
@@ -146,7 +147,7 @@ def test_validator_rejects_a_released_guide_that_still_says_unpublished() -> Non
         )
     with pytest.raises(SystemExit, match="does not name the public release"):
         validator.validate_install_guide_release_text(
-            good.replace("`hwpx-plugin 2.4.0`", "`hwpx-plugin`"), Path("INSTALL-mcp.md"), identity
+            good.replace(f"`hwpx-plugin {identity['currentPublicStack']['plugin']['version']}`", "`hwpx-plugin`"), Path("INSTALL-mcp.md"), identity
         )
 
 

@@ -66,11 +66,13 @@ jobs:
       - name: Skill tool contract matches this automation
         working-directory: python-hwpx-automation
         run: python scripts/render_tool_contract.py --check --skill-root plugins-src
-      - name: Vendor the Claude engine and build all host bundles
+      # Bundles are not committed, so the build comes first: it writes each
+      # bundle's plugin-sync.json, then the engine is vendored into the Claude bundle.
+      - name: Build all host bundles and vendor the Claude engine
         working-directory: python-hwpx-automation/plugins-src
         run: |
-          python scripts/vendor_claude_engine.py
           python scripts/build_hwpx_plugins.py
+          python scripts/vendor_claude_engine.py
           python scripts/validate_hwpx_plugin.py
           python scripts/check_bundle_limits.py
       - name: Skill tests

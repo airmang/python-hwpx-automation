@@ -613,6 +613,46 @@ def test_bundle_rebuild_preserves_untracked_runtime_outputs(
     assert runtime_output.read_bytes() == b"runtime-output"
 
 
+def test_first_build_accepts_a_bundle_that_holds_only_the_vendored_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bundles are not committed, so vendoring the engine can create the directory before the first build."""
+    builder = _builder_module()
+    monkeypatch.setattr(builder, "ROOT", tmp_path)
+    out = tmp_path / "plugins" / "claude" / "hwpx-plugin"
+    engine = out / "skills" / "hwpx" / "engine"
+    vendored = engine / "hwpx" / "__init__.py"
+    vendored.parent.mkdir(parents=True)
+    vendored.write_text("# vendored\n", encoding="utf-8")
+    (engine / "VENDOR.json").write_text("{}\n", encoding="utf-8")
+
+    builder.remove_previous_generated_files(out, keep=engine)
+
+    assert vendored.read_text(encoding="utf-8") == "# vendored\n"
+    assert (engine / "VENDOR.json").is_file()
+
+
+def test_first_build_still_refuses_unknown_content_beside_the_vendored_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    builder = _builder_module()
+    monkeypatch.setattr(builder, "ROOT", tmp_path)
+    out = tmp_path / "plugins" / "claude" / "hwpx-plugin"
+    engine = out / "skills" / "hwpx" / "engine"
+    engine.mkdir(parents=True)
+    (engine / "VENDOR.json").write_text("{}\n", encoding="utf-8")
+    unknown = out / "skills" / "hwpx" / "notes.md"
+    unknown.write_text("user notes\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="refusing to replace existing bundle without plugin-sync.json"):
+        builder.remove_previous_generated_files(out, keep=engine)
+    assert unknown.read_text(encoding="utf-8") == "user notes\n"
+
+    # Without a vendored engine for the host, an existing directory is always unknown.
+    with pytest.raises(SystemExit, match="refusing to replace existing bundle without plugin-sync.json"):
+        builder.remove_previous_generated_files(out)
+
+
 def test_legacy_release_stack_is_hard_disabled() -> None:
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "release_stack.py"), "--yes"],

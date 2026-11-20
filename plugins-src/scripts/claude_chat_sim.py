@@ -103,11 +103,13 @@ def main(argv: list[str] | None = None) -> int:
                 src = case_dir / Path(fixture).name
                 shutil.copyfile(args.fixtures / fixture, src)
                 params["src"] = str(src)
-            out_name = "output.hwp" if fixture and fixture.endswith(".hwp") else "output.hwpx"
-            params["out"] = str(case_dir / out_name)
+            # A .hwp input is read-only: asked for an .hwp result, the block still writes .hwpx.
+            asked = "output.hwp" if fixture and fixture.endswith(".hwp") else "output.hwpx"
+            params["out"] = str(case_dir / asked)
+            out_name = "output.hwpx"
             code = with_dir + "\n" + chatgpt.inject_overrides(workflows[block], params)
             proc = run([str(py), "-c", code], cwd=case_dir, env=env, timeout=300)
-            output_exists = (case_dir / out_name).exists()
+            output_exists = (case_dir / out_name).exists() and not (case_dir / "output.hwp").exists()
             leftovers = [p.name for p in case_dir.glob("*.checking.*")]
             writes = block != "W1"
             if expected == "ok":

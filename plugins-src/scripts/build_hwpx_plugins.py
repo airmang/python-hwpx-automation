@@ -216,7 +216,7 @@ def host_frontmatter(host: dict, identity: dict) -> str:
     return extra
 
 
-def remove_previous_generated_files(out: Path) -> None:
+def remove_previous_generated_files(out: Path, keep: Path | None = None) -> None:
     """Remove only files recorded by the previous build.
 
     Host skill directories are also legitimate runtime workspaces.  In
@@ -227,6 +227,16 @@ def remove_previous_generated_files(out: Path) -> None:
         return
     sync_path = out / "plugin-sync.json"
     if not sync_path.is_file():
+        # Generated bundles are not committed (plugins-src/.gitignore), so on a
+        # clean checkout scripts/vendor_claude_engine.py may have created the
+        # bundle directory before the first build. A directory holding nothing
+        # but that vendored engine is a fresh bundle, not an unknown one.
+        if keep is not None and all(
+            path.resolve().is_relative_to(keep.resolve())
+            for path in out.rglob("*")
+            if path.is_file() or path.is_symlink()
+        ):
+            return
         raise SystemExit(
             f"refusing to replace existing bundle without plugin-sync.json: {out}"
         )
@@ -269,8 +279,9 @@ def remove_previous_generated_files(out: Path) -> None:
 
 def build_host(host: dict, config: dict, identity: dict) -> None:
     out = ROOT / host["outputDir"]
-    remove_previous_generated_files(out)
     skill_dir = skill_dir_for(host)
+    engine = host.get("vendoredEngine")
+    remove_previous_generated_files(out, keep=skill_dir / engine if engine else None)
     skill_dir.mkdir(parents=True, exist_ok=True)
     records: list[dict] = []
 

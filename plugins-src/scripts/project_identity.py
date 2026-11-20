@@ -14,12 +14,18 @@ Derivation rules (each is a decision, see ``RULES`` below to change one):
 
 * plugin version            = ``candidate.plugin``
 * component currentVersion  = candidate coordinates
-* minimumCompatibleVersion  = ``<candidate major>.0.0`` of that component
+* minimumCompatibleVersion  = the floor the tool contract declares for that
+  component (``references/tool-contract.generated.json``: ``minPythonHwpx``,
+  ``minAutomationVersion``, ``minSkillVersion``). The validator compares the two,
+  and the server reports version skew against the contract floors, so the
+  identity repeats them instead of deriving its own.
 * installConstraint         = ``<name[extras]> >=<candidate>,<<major+1>``
 * verifiedStack             = candidate (``verifiedAt`` stays as recorded data)
 * currentPublicStack        = ``currentPublic``
 * Claude plugin version     = ``<plugin>+core.<locked core>.automation.<locked automation>``
-  where the locked pair is read from ``packaging/templates/claude-runtime/uv.lock``.
+  where the locked pair is read from ``packaging/templates/claude-runtime/uv.lock``,
+  or plain ``<plugin>`` when the lock is exactly the candidate pair (the same rule
+  as ``refresh_claude_runtime.claude_plugin_version``).
   The Claude runtime is pinned by that lock (``uv run --frozen``); its pins
   follow the lock, not the identity, so the daily runtime refresh still moves
   them and every refresh still changes the Claude plugin version.
@@ -51,10 +57,16 @@ IDENTITY = REPO_ROOT / "src" / "hwpx_automation" / "identity.json"
 PRODUCT_IDENTITY = PLUGIN_ROOT / "packaging" / "product-identity.json"
 TEMPLATES = PLUGIN_ROOT / "packaging" / "templates"
 CLAUDE_LOCK = TEMPLATES / "claude-runtime" / "uv.lock"
+TOOL_CONTRACT = PLUGIN_ROOT / "references" / "tool-contract.generated.json"
 
 
 def _major(version: str) -> int:
     return int(version.split(".", 1)[0])
+
+
+def _contract_floor(key: str) -> str:
+    """A version floor as the generated tool contract states it."""
+    return str(json.loads(TOOL_CONTRACT.read_text(encoding="utf-8"))[key])
 
 
 def _constraint(existing: str, version: str) -> str:
@@ -126,11 +138,11 @@ RULES: list[tuple[str, Rule]] = [
     ("/currentPublicStack/application/version", lambda c, d: c["currentPublic"]["primaryApplication"]),
     ("/currentPublicStack/plugin/version", lambda c, d: c["currentPublic"]["plugin"]),
     ("/components/core/currentVersion", lambda c, d: c["core"]),
-    ("/components/core/minimumCompatibleVersion", lambda c, d: f"{_major(c['core'])}.0.0"),
+    ("/components/core/minimumCompatibleVersion", lambda c, d: _contract_floor("minPythonHwpx")),
     ("/components/automation/currentVersion", lambda c, d: c["automation"]),
-    ("/components/automation/minimumCompatibleVersion", lambda c, d: f"{_major(c['automation'])}.0.0"),
+    ("/components/automation/minimumCompatibleVersion", lambda c, d: _contract_floor("minAutomationVersion")),
     ("/components/plugin/currentVersion", lambda c, d: c["plugin"]),
-    ("/components/plugin/minimumCompatibleVersion", lambda c, d: f"{_major(c['plugin'])}.0.0"),
+    ("/components/plugin/minimumCompatibleVersion", lambda c, d: _contract_floor("minSkillVersion")),
     ("/verifiedStack/pythonHwpx", lambda c, d: c["core"]),
     ("/verifiedStack/automation", lambda c, d: c["automation"]),
     ("/verifiedStack/plugin", lambda c, d: c["plugin"]),
@@ -150,9 +162,21 @@ def project_product_identity(text: str, c: dict[str, Any]) -> str:
 
 # --- templates --------------------------------------------------------------
 
+def _claude_version(c: dict[str, Any]) -> str:
+    """Plain train version on the candidate pair, otherwise a runtime-tagged one.
+
+    ``refresh_claude_runtime.claude_plugin_version`` writes the manifest by the
+    same rule and the validator checks it, so a refresh onto the candidate pair
+    must not read as drift here.
+    """
+    lock = c["lock"]
+    if (lock["core"], lock["automation"]) == (c["core"], c["automation"]):
+        return str(c["plugin"])
+    return f"{c['plugin']}+core.{lock['core']}.automation.{lock['automation']}"
+
+
 JSON_TEMPLATES: list[tuple[str, str, Callable[[dict[str, Any]], str]]] = [
-    ("claude.plugin.json", "/version",
-     lambda c: f"{c['plugin']}+core.{c['lock']['core']}.automation.{c['lock']['automation']}"),
+    ("claude.plugin.json", "/version", _claude_version),
     ("claude.mcp.json", "/mcpServers/hwpx/env/HWPX_SKILL_VERSION", lambda c: c["plugin"]),
     ("codex.mcp.json", "/mcpServers/hwpx/env/HWPX_SKILL_VERSION", lambda c: c["plugin"]),
     ("codex.plugin.json", "/version", lambda c: c["plugin"]),

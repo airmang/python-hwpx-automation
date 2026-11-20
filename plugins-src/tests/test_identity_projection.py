@@ -39,6 +39,7 @@ EXEMPT = (
     re.compile(r"^packaging/s\d{3}-[^/]+\.md$"),  # dated wording evidence records
     re.compile(r"^references/tool-contract\.generated\.(md|json)$"),  # render_tool_contract.py --check
     re.compile(r"^packaging/chatgpt/"),  # own chatgpt-plugin-v* line, hash-pinned wheels
+    re.compile(r"^packaging/templates/claude-runtime/"),  # exact pins follow uv.lock; validate_claude_locked_runtime gates them
 )
 
 # Hand-written train literals still to be turned into generated blocks.
@@ -122,6 +123,9 @@ def test_no_hand_written_release_coordinate_outside_the_projection() -> None:
         found = [
             f"{rel}:{number}: {match.group(1)}"
             for number, line in enumerate(text.splitlines(), start=1)
+            # Floors are projected from the tool contract, not from the identity,
+            # so the sentinel does not move them; a floor may equal a coordinate.
+            if not (path == project_identity.PRODUCT_IDENTITY and '"minimumCompatibleVersion"' in line)
             for match in pattern.finditer(line)
         ]
         if found:
@@ -141,3 +145,29 @@ def test_the_sentinel_really_replaces_every_projected_coordinate() -> None:
     identity = _identity()
     sentinel = _sentinel(identity)
     assert set(_coordinates(identity).values()).isdisjoint(_coordinates(sentinel).values())
+
+
+def test_minimum_versions_are_the_contract_floors() -> None:
+    contract = json.loads((ROOT / "references" / "tool-contract.generated.json").read_text(encoding="utf-8"))
+    projected = json.loads(project_identity.plan(_identity())[project_identity.PRODUCT_IDENTITY])
+    components = projected["components"]
+    assert components["core"]["minimumCompatibleVersion"] == contract["minPythonHwpx"]
+    assert components["automation"]["minimumCompatibleVersion"] == contract["minAutomationVersion"]
+    assert components["plugin"]["minimumCompatibleVersion"] == contract["minSkillVersion"]
+
+
+def test_claude_version_follows_the_runtime_refresh_rule() -> None:
+    """A refresh onto the candidate pair writes the plain version; the projection must agree."""
+    spec = importlib.util.spec_from_file_location("refresh_claude_runtime", ROOT / "scripts" / "refresh_claude_runtime.py")
+    assert spec and spec.loader
+    refresh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(refresh)
+    identity = _identity()
+    product = json.loads(project_identity.plan(identity)[project_identity.PRODUCT_IDENTITY])
+    cand = identity["releaseState"]["candidate"]
+    pair = {"core": cand["pythonHwpx"], "automation": cand["canonicalAutomation"]}
+    for lock in (pair, {"core": "0.0.1", "automation": "0.0.2"}):
+        coordinates = project_identity.coordinates(identity, lock)
+        expected = refresh.claude_plugin_version(cand["plugin"], lock["core"], lock["automation"], product)
+        assert project_identity._claude_version(coordinates) == expected
+    assert project_identity._claude_version(project_identity.coordinates(identity, pair)) == cand["plugin"]
