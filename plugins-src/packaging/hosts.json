@@ -66,6 +66,7 @@
     "references/release-2026-09-09-existing-edit-stack.md",
     "references/release-2026-09-22-trustworthy-edit-engine.md",
     "references/release-2026-09-28-render-pdf-hwp5-stack.md",
+    "references/release-2026-11-21-engine-7-automation-8.md",
     "references/workflows-existing-edit.md"
   ],
   "repoRootArtifacts": [
@@ -89,7 +90,8 @@
         "references/release-2026-09-07-managed-runtime.md",
         "references/release-2026-09-09-existing-edit-stack.md",
         "references/release-2026-09-22-trustworthy-edit-engine.md",
-        "references/release-2026-09-28-render-pdf-hwp5-stack.md"
+        "references/release-2026-09-28-render-pdf-hwp5-stack.md",
+        "references/release-2026-11-21-engine-7-automation-8.md"
       ],
       "generatedReferences": [
         {

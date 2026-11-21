@@ -1,8 +1,7 @@
-# Cross-repository README wording — 현재 공개 릴리스와 발행 승인 후보
+# Cross-repository README wording — 현재 공개 릴리스
 
-릴리스 상태: `release-approved`. 현재 공개 트레인은
-python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 / hwpx-plugin 2.4.0이고,
-발행 승인 후보는 python-hwpx 7.0.0 / python-hwpx-automation 8.0.0 / hwpx-plugin 8.0.0이다.
+릴리스 상태: `released` (2026-11-21). 현재 공개 트레인은
+python-hwpx 7.0.0 / python-hwpx-automation 8.0.0 / hwpx-plugin 8.0.0이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
 `python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의
@@ -30,7 +29,7 @@ python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 / hwpx-plugin 2.4.0이고,
 
 성숙도 문구:
 
-> 현재 패키지 분류는 `Development Status :: 3 - Alpha`입니다. 이 분류는 API와 제품의
+> 현재 패키지 분류는 `Development Status :: 5 - Production/Stable`입니다(이전 공개 트레인의 코어는 `Development Status :: 3 - Alpha`). 이 분류는 API와 제품의
 > 성숙도를 나타내며, 공개 버전이나 플러그인의 최소 호환 버전을 대신하지 않습니다.
 
 시각 검증 문구:
@@ -42,7 +41,7 @@ python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 / hwpx-plugin 2.4.0이고,
 
 버전 문구:
 
-> 현재 공개 릴리스는 `python-hwpx 6.6.0`입니다.
+> 현재 공개 릴리스는 `python-hwpx 7.0.0`입니다.
 
 ## `python-hwpx-automation` README 교체 문구
 
@@ -71,13 +70,13 @@ https://github.com/airmang/python-hwpx-automation/actions/workflows/tests.yml/ba
 
 버전 문구:
 
-> 현재 공개 릴리스는 python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 /
-> hwpx-plugin 2.4.0입니다. 공개 발행과 실제 Codex marketplace 설치를 관찰했습니다.
+> 현재 공개 릴리스는 python-hwpx 7.0.0 / python-hwpx-automation 8.0.0 /
+> hwpx-plugin 8.0.0입니다. 공개 발행과 실제 Claude Code·Codex marketplace 설치를 관찰했습니다.
 > 설치 제약은 검증된 플로어부터 같은 메이저 안의 버전을 허용하며,
 > `HWPX_STACK_CHANNEL=verified`는 검증 좌표를 고정합니다.
 
-현재 공개 트레인의 영수증: references/release-2026-09-28-render-pdf-hwp5-stack.md.
+현재 공개 트레인의 영수증: references/release-2026-11-21-engine-7-automation-8.md.
 
-현재 공개 릴리스: python-hwpx 6.6.0 · python-hwpx-automation 7.3.1 · hwpx-plugin 2.4.0 (2026-09-28 발행·설치 관찰). 이전 공개: 6.5.0 · 7.2.0 · 2.3.0.
+현재 공개 릴리스: python-hwpx 7.0.0 · python-hwpx-automation 8.0.0 · hwpx-plugin 8.0.0 (2026-11-21 발행·설치 관찰). 이전 공개: 6.6.0 · 7.3.1 · 2.4.0.
 
 렌더 성공은 시각 검토 완료를 뜻하지 않는다. 과거 셀 채움 글자 가림 두 건은 남아 있다.

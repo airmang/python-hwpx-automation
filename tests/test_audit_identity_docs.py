@@ -26,6 +26,7 @@ from hwpx_automation.tool_contract import (
 ROOT = Path(__file__).resolve().parents[1]
 IDENTITY = json.loads((ROOT / "src" / "hwpx_automation" / "identity.json").read_text(encoding="utf-8"))
 CANDIDATE = IDENTITY["releaseState"]["candidate"]
+STATUS = IDENTITY["releaseState"]["status"]
 
 
 def test_every_owner_ledger_records_the_current_tool_contract() -> None:
@@ -63,7 +64,11 @@ def test_readme_candidate_line_matches_identity() -> None:
         f"{CANDIDATE['canonicalAutomation']} → hwpx-plugin {CANDIDATE['plugin']}` "
         f"(`{CANDIDATE['contractHash']}`)"
     )
-    line = next(line for line in readme.splitlines() if "발행이 승인된" in line and "후보 (" in line)
+    if STATUS == "released":
+        # The promoted README names one train: verified and public at once.
+        line = next(line for line in readme.splitlines() if "검증·공개 트레인:" in line)
+    else:
+        line = next(line for line in readme.splitlines() if "발행이 승인된" in line and "후보 (" in line)
     assert train in line
 
 
@@ -79,4 +84,5 @@ def test_hardening_guide_states_the_current_contract() -> None:
     assert f"core `{MIN_PYTHON_HWPX}`" in flat
     assert f"automation `{MIN_AUTOMATION_VERSION}`" in flat
     assert f"skill `{MIN_SKILL_VERSION}`" in flat
-    assert f"{CANDIDATE['canonicalAutomation']} 후보" in flat
+    label = "공개 릴리스" if STATUS == "released" else "후보"
+    assert f"{CANDIDATE['canonicalAutomation']} {label}" in flat

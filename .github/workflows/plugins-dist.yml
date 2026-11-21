@@ -17,6 +17,12 @@ name: Plugins dist (draft)
 # repository already owns automation tags v2.3.0 and v2.4.0. The ChatGPT
 # package keeps its own `chatgpt-plugin-v<version>` line.
 #
+# Re-export: the same plugin version can be exported again (for example after
+# the follow-up commit that promotes the release state changes the bundled
+# README and product-identity.json). The new dist commit is added to
+# plugins-dist, and an existing `hwpx-plugin--v<version>` tag, local or remote,
+# is left where it is: it is neither moved nor pushed again.
+#
 # Wiring (owner decision, step 5): add to release.yml, after `release`:
 #   plugins-dist:
 #     needs: release
@@ -39,7 +45,7 @@ on:
         default: ""
         type: string
       publish:
-        description: Push plugins-dist and the hwpx-plugin--v tag (false = build and upload an artifact only)
+        description: Push plugins-dist and, when it is new, the hwpx-plugin--v tag (false = build and upload an artifact only)
         required: false
         default: false
         type: boolean
@@ -139,13 +145,15 @@ jobs:
           cp src-tree/plugins-src/packaging/product-identity.json "${DIST}/packaging/"
           printf '{"source": "%s", "tag": "%s"}\n' "${SOURCE_SHA}" "${TAG}" > "${DIST}/DIST-SOURCE.json"
 
-      - name: Commit to plugins-dist (orphan, one commit per release)
+      - name: Commit to plugins-dist (orphan, one commit per export)
         env:
           PLUGIN: ${{ steps.coords.outputs.plugin }}
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          PTAG="hwpx-plugin--v${PLUGIN}"
           git -C src-tree fetch origin plugins-dist:plugins-dist || true
+          git -C src-tree fetch -q --tags origin
           git -C src-tree worktree add --detach "${RUNNER_TEMP}/pd"
           cd "${RUNNER_TEMP}/pd"
           if git rev-parse --verify -q plugins-dist >/dev/null; then
@@ -158,11 +166,23 @@ jobs:
           git clean -fdxq
           cp -R "${RUNNER_TEMP}/dist/." .
           git add -A
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -q -m "dist: hwpx-plugin ${PLUGIN} from ${TAG}"
+          if git rev-parse --verify -q HEAD >/dev/null && git diff --cached --quiet; then
+            echo "::notice::dist tree is identical to plugins-dist; no new commit"
+          else
+            git -c user.name="github-actions[bot]" \
+                -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+                commit -q -m "dist: hwpx-plugin ${PLUGIN} from ${TAG}"
+          fi
           echo "DIST_SHA=$(git rev-parse HEAD)" >> "${GITHUB_ENV}"
-          git tag "hwpx-plugin--v${PLUGIN}"
+          # A re-export of a plugin version that is already tagged keeps the tag where it is.
+          REMOTE_TAG="$(git ls-remote --tags origin "refs/tags/${PTAG}")"
+          if git rev-parse --verify -q "refs/tags/${PTAG}" >/dev/null || [ -n "${REMOTE_TAG}" ]; then
+            echo "::notice::${PTAG} already exists; leaving it in place (re-export of the same plugin version)"
+            echo "PLUGIN_TAG_CREATED=false" >> "${GITHUB_ENV}"
+          else
+            git tag "${PTAG}"
+            echo "PLUGIN_TAG_CREATED=true" >> "${GITHUB_ENV}"
+          fi
 
       - name: Upload the dist tree for review
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -178,4 +198,8 @@ jobs:
         run: |
           set -euo pipefail
           git push origin plugins-dist
-          git push origin "refs/tags/hwpx-plugin--v${PLUGIN}"
+          if [ "${PLUGIN_TAG_CREATED}" = "true" ]; then
+            git push origin "refs/tags/hwpx-plugin--v${PLUGIN}"
+          else
+            echo "hwpx-plugin--v${PLUGIN} already exists; not pushed"
+          fi

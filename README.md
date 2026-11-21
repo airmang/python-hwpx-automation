@@ -12,14 +12,15 @@
   </p>
 </p>
 
-> Source update: this source requires `python-hwpx >= 7.0` (source contract `c895883d5f4350ae`, delta in `docs/tool-contract-delta-8.0.0.json`). This source change does not publish or promote a release. The publication status and last observed coherent stack below remain historical release context.
-
-<!-- release-state: release-approved -->
+<!-- release-state: released -->
 > [!NOTE]
-> 발행이 승인된 8.0.0 후보 (release-approved; 원격 발행 대기): `python-hwpx 7.0.0 → python-hwpx-automation 8.0.0 → hwpx-plugin 8.0.0` (`c895883d5f4350ae`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`와 같아야 합니다(`tests/test_audit_identity_docs.py`).
-> 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`.
+> 8.0.0 공개 발행과 전체 트레인의 실제 marketplace 설치를 관찰했습니다.
+> 검증·공개 트레인: `python-hwpx 7.0.0 → python-hwpx-automation 8.0.0 → hwpx-plugin 8.0.0` (`c895883d5f4350ae`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`·`currentPublic`과 같아야 합니다(`tests/test_audit_identity_docs.py`).
+> 이전 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`. 계약 변경은 `docs/tool-contract-delta-8.0.0.json`에 있습니다.
+> [발행·설치 영수증](docs/releases/2026-11-21-engine-7-automation-8.md)
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
+> [릴리스 runbook](docs/release-runbook.md)
 
 [python-hwpx](https://github.com/airmang/python-hwpx) 엔진 위에서 문서 저작·
 양식 채움·시험지 조판·안전한 에이전트 워크플로를 제공하는 응용 계층입니다.
@@ -93,7 +94,7 @@ Gemini CLI는 `~/.gemini/settings.json`, Cursor·Windsurf는 각 에디터의 MC
       "command": "uvx",
       "args": [
         "--from",
-        "python-hwpx-automation[mcp]==7.3.1",
+        "python-hwpx-automation[mcp]==8.0.0",
         "hwpx-automation-mcp"
       ],
       "env": {

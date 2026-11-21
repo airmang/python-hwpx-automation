@@ -48,7 +48,7 @@ EXEMPT = (
 # candidate train next to the public one (the validator requires both), so it
 # reads 15 until the promotion commit takes those lines out again.
 PENDING_PROSE = {
-    "README.md": 15,
+    "README.md": 12,
     "references/api.md": 16,
 }
 
@@ -67,11 +67,19 @@ def _identity() -> dict:
     return json.loads(IDENTITY.read_text(encoding="utf-8"))
 
 
+def _coordinate_blocks(identity: dict) -> tuple[str, ...]:
+    """releaseState blocks that carry coordinates; publicationEvidence is null until promotion."""
+    blocks = ("candidate", "currentPublic", "previousPublic")
+    if isinstance(identity["releaseState"].get("publicationEvidence"), dict):
+        blocks += ("publicationEvidence",)
+    return blocks
+
+
 def _coordinates(identity: dict) -> dict[str, str]:
     """Every version and hash value written in releaseState."""
     state = identity["releaseState"]
     values: dict[str, str] = {}
-    for block in ("candidate", "currentPublic", "previousPublic"):
+    for block in _coordinate_blocks(identity):
         for key, value in state[block].items():
             if isinstance(value, str) and re.fullmatch(r"\d+\.\d+\.\d+|[0-9a-f]{16}", value):
                 values[f"{block}.{key}"] = value
@@ -85,7 +93,7 @@ def _sentinel(identity: dict) -> dict:
         value: (f"{90 + index}.{index}.{index}" if "." in value else f"{index:016x}".replace("0", "f"))
         for index, value in enumerate(real, start=1)
     }
-    for block in ("candidate", "currentPublic", "previousPublic"):
+    for block in _coordinate_blocks(identity):
         for key, value in list(sentinel["releaseState"][block].items()):
             if value in mapping:
                 sentinel["releaseState"][block][key] = mapping[value]
