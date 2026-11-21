@@ -184,6 +184,12 @@ JSON_TEMPLATES: list[tuple[str, str, Callable[[dict[str, Any]], str]]] = [
     ("openclaw.plugin.json", "/version", lambda c: c["plugin"]),
 ]
 
+# Install catalogues at the repository root, so that the repository address alone
+# (`claude/codex plugin marketplace add airmang/python-hwpx-automation`) installs the plugin.
+REPO_ROOT_JSON: list[tuple[str, str, Callable[[dict[str, Any]], str]]] = [
+    (".agents/plugins/marketplace.json", "/plugins/0/version", lambda c: c["plugin"]),
+]
+
 LAUNCHER = "hwpx-automation-mcp"
 
 
@@ -242,6 +248,9 @@ def plan(identity: dict[str, Any], plugin_root: Path = PLUGIN_ROOT) -> dict[Path
     out[pi_path] = pi_text
     for name, pointer, value in JSON_TEMPLATES:
         path = templates / name
+        out[path] = project_json_template(path.read_text(encoding="utf-8"), pointer, value(c))
+    for name, pointer, value in REPO_ROOT_JSON:
+        path = plugin_root.parent / name
         out[path] = project_json_template(path.read_text(encoding="utf-8"), pointer, value(c))
     launcher = templates / LAUNCHER
     out[launcher] = project_launcher(launcher.read_text(encoding="utf-8"), c, json.loads(pi_text))

@@ -1,0 +1,23 @@
+{
+  "name": "hwpx",
+  "interface": {
+    "displayName": "HWPX"
+  },
+  "plugins": [
+    {
+      "name": "hwpx-plugin",
+      "version": "8.0.0",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/airmang/python-hwpx-automation.git",
+        "path": "./codex/hwpx-plugin",
+        "ref": "plugins-dist"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

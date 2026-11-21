@@ -30,9 +30,29 @@ ChatGPT 채팅 안에서도** 그대로 동작합니다.
 
 | | 저장소 | 역할 |
 |---|---|---|
-| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | HWPX 문서를 읽고·고치고·만드는 순수 파이썬 엔진 |
-| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 저작·양식 채움 워크플로, `hwpx` CLI, 선택형 MCP 서버 |
-| 🎯 | [`hwpx-plugins`](https://github.com/airmang/hwpx-plugins) | 에이전트가 알맞은 도구를 고르도록 돕는 플러그인/스킬 번들 |
+| 📦 | [`python-hwpx`](https://github.com/airmang/python-hwpx) | 한/글 문서를 읽고·고치고·만드는 엔진 |
+| 🔌 | [`python-hwpx-automation`](https://github.com/airmang/python-hwpx-automation) | 변환·양식 채움·메일 머지·미리보기·보고서 서식, `hwpx` CLI, MCP 서버, Claude Code·Codex 플러그인 (이 저장소) |
+| 🏫 | [`hwpx-school`](https://github.com/airmang/hwpx-school) | 학교 문서(지필평가 원안지·학습지·수행평가 문제지·보고서)를 학교 서식 그대로 만드는 도구 |
+
+## 에이전트에서 쓰기 (Claude Code·Codex)
+
+이 저장소 주소 하나로 플러그인을 설치합니다. 플러그인이 python-hwpx와 이 패키지를 검증한 판으로 설치하고,
+MCP 도구와 작업 안내(스킬)를 함께 붙입니다. 미리 [uv](https://docs.astral.sh/uv/getting-started/installation/)가
+설치되어 있어야 합니다.
+
+```bash
+# Claude Code
+claude plugin marketplace add airmang/python-hwpx-automation
+claude plugin install hwpx-plugin@hwpx
+
+# Codex
+codex plugin marketplace add airmang/python-hwpx-automation
+codex plugin add hwpx-plugin@hwpx
+```
+
+에이전트에게 "https://github.com/airmang/python-hwpx-automation 플러그인을 설치해 줘"라고 부탁해도 됩니다.
+플러그인은 새 세션부터 쓰입니다. 예전 주소 `airmang/hwpx-plugins`로 설치한 플러그인도 같은 번들을 받으므로
+그대로 업데이트됩니다.
 
 ## Python 자동화 시작하기
 
