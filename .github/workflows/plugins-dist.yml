@@ -153,7 +153,9 @@ jobs:
           else
             git checkout -q --orphan plugins-dist
           fi
-          git rm -rq --ignore-unmatch .
+          # An orphan checkout keeps the source tree staged: force the removal on the first run.
+          git rm -rqf --ignore-unmatch .
+          git clean -fdxq
           cp -R "${RUNNER_TEMP}/dist/." .
           git add -A
           git -c user.name="github-actions[bot]" \
