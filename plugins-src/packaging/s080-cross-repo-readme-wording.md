@@ -1,0 +1,83 @@
+# Cross-repository README wording — 현재 공개 릴리스와 발행 승인 후보
+
+릴리스 상태: `release-approved`. 현재 공개 트레인은
+python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 / hwpx-plugin 2.4.0이고,
+발행 승인 후보는 python-hwpx 7.0.0 / python-hwpx-automation 8.0.0 / hwpx-plugin 8.0.0이다.
+
+이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
+`python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의
+번들 자산은 아니며, 각 저장소 변경 시 해당 저장소의 테스트와 함께 검증한다.
+공개 스택은 실제 발행과 marketplace 설치를 관찰한 좌표로 표기한다.
+
+## 공통 first-party 범위
+
+> 이 구성요소는 python-hwpx 프로젝트가 직접 유지보수하는 first-party HWPX 스택의 일부입니다.
+> “first-party”는 프로젝트 유지보수 관계를 뜻하며, 한컴 또는 제3자의 공식 인증을 뜻하지 않습니다.
+
+공개 릴리스와 호환성 기준은 서로 다른 개념으로 표기한다.
+
+- 공개 릴리스: 승인·배포된 구성요소 버전.
+- 최소 호환 버전: 이 릴리스 조합이 지원하는 가장 낮은 버전.
+- 플러그인 설치 핀: 재현 가능한 설치를 위해 플러그인이 실제로 고정하는 정확한 버전.
+- 성숙도: 버전 숫자와 별개인 공개 분류. 선언하지 않은 구성요소는 `미선언`으로 적는다.
+
+## `python-hwpx` README 교체 문구
+
+제품 관계 문구:
+
+> `python-hwpx`는 HWPX 파싱·편집·생성을 제공하는 코어 라이브러리이며,
+> `python-hwpx-automation`과 `hwpx-plugin`은 같은 프로젝트가 직접 유지보수하는 first-party 연동 구성요소입니다.
+
+성숙도 문구:
+
+> 현재 패키지 분류는 `Development Status :: 3 - Alpha`입니다. 이 분류는 API와 제품의
+> 성숙도를 나타내며, 공개 버전이나 플러그인의 최소 호환 버전을 대신하지 않습니다.
+
+시각 검증 문구:
+
+> 문서 파싱·편집·생성은 순수 Python으로 수행할 수 있습니다. 다만 페이지 나눔, 표 넘침,
+> 글꼴 대체 등 최종 시각 품질을 확언하려면 필요에 따라 실제 한컴 렌더 오라클을 별도로 사용합니다.
+
+기존의 무범위 “공식 스킬” 표현은 위 first-party 문구로 교체한다.
+
+버전 문구:
+
+> 현재 공개 릴리스는 `python-hwpx 6.6.0`입니다.
+
+## `python-hwpx-automation` README 교체 문구
+
+제품 관계 문구:
+
+> `python-hwpx-automation`은 python-hwpx 프로젝트가 직접 유지보수하는
+> first-party 고수준 문서 자동화 계층입니다. MCP는 선택 가능한 `[mcp]` 어댑터이며,
+> 이는 한컴의 공식 제품 또는 인증 서버라는 뜻이 아닙니다.
+
+상태 모델 문구:
+
+> 파일 원시 도구는 명시적인 locator와 입력·출력 경로를 사용합니다. 반면 장기 workflow,
+> 렌더 큐, revision/idempotency 기록은 의도적으로 상태를 보유합니다. 따라서 서버 전체를
+> stateless라고 표현하지 않습니다.
+
+성숙도 문구:
+
+> MCP 서버는 현재 별도의 Development Status classifier를 선언하지 않습니다. 공개 버전과
+> 지원 버전은 문서화하되, classifier가 추가되기 전까지 성숙도를 임의로 승격하지 않습니다.
+
+배지 교정:
+
+```text
+https://github.com/airmang/python-hwpx-automation/actions/workflows/tests.yml/badge.svg
+```
+
+버전 문구:
+
+> 현재 공개 릴리스는 python-hwpx 6.6.0 / python-hwpx-automation 7.3.1 /
+> hwpx-plugin 2.4.0입니다. 공개 발행과 실제 Codex marketplace 설치를 관찰했습니다.
+> 설치 제약은 검증된 플로어부터 같은 메이저 안의 버전을 허용하며,
+> `HWPX_STACK_CHANNEL=verified`는 검증 좌표를 고정합니다.
+
+현재 공개 트레인의 영수증: references/release-2026-09-28-render-pdf-hwp5-stack.md.
+
+현재 공개 릴리스: python-hwpx 6.6.0 · python-hwpx-automation 7.3.1 · hwpx-plugin 2.4.0 (2026-09-28 발행·설치 관찰). 이전 공개: 6.5.0 · 7.2.0 · 2.3.0.
+
+렌더 성공은 시각 검토 완료를 뜻하지 않는다. 과거 셀 채움 글자 가림 두 건은 남아 있다.

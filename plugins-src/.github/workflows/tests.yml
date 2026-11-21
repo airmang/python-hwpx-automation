@@ -1,0 +1,171 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      core_ref:
+        description: Exact 40-hex python-hwpx candidate commit
+        required: true
+        type: string
+      automation_ref:
+        description: Exact 40-hex python-hwpx-automation candidate commit
+        required: true
+        type: string
+      automation_repository:
+        description: Source repository (pre-rename default is hwpx-mcp-server)
+        required: false
+        default: airmang/hwpx-mcp-server
+        type: string
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its running Tests run. Pushes to main and
+# dispatched runs (the Claude runtime refresh waits on one) each get their own
+# group, so they are never queued behind or cancelled by another run.
+concurrency:
+  group: tests-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plugin-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: hwpx-skill
+      - name: Require explicit candidate refs
+        id: refs
+        env:
+          CORE_CANDIDATE_REF: ${{ inputs.core_ref || vars.HWPX_CORE_CANDIDATE_REF }}
+          AUTOMATION_CANDIDATE_REF: ${{ inputs.automation_ref || vars.HWPX_AUTOMATION_CANDIDATE_REF }}
+          AUTOMATION_CANDIDATE_REPOSITORY: ${{ inputs.automation_repository || vars.HWPX_AUTOMATION_CANDIDATE_REPOSITORY }}
+          # Fork pull requests receive no `vars`; only they may fall back to
+          # the public release tags of the candidate declared in this tree.
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPOSITORY: ${{ github.repository }}
+        run: python3 hwpx-skill/scripts/resolve_ci_candidate_refs.py
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: airmang/python-hwpx
+          ref: ${{ steps.refs.outputs.core_ref }}
+          path: python-hwpx
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.refs.outputs.automation_repository }}
+          ref: ${{ steps.refs.outputs.automation_ref }}
+          path: python-hwpx-automation
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv pip install --system -e './python-hwpx[preview]' -e './python-hwpx-automation[mcp,oracle,test]' 'ruff>=0.12'
+      - name: Check public repository hygiene
+        working-directory: hwpx-skill
+        run: python scripts/check_public_hygiene.py
+      - name: Run first-stage Ruff gate
+        working-directory: hwpx-skill
+        run: ruff check --select E9,F .
+      - name: Parse shipped Python and Markdown code
+        working-directory: hwpx-skill
+        run: python scripts/validate_shipped_code.py
+      - name: ToolSpec generated files are current
+        run: python python-hwpx-automation/scripts/render_tool_contract.py --check
+      - name: Skill tests
+        working-directory: hwpx-skill
+        run: python -m pytest -q
+      - name: Build and validate all host bundles
+        working-directory: hwpx-skill
+        run: |
+          python scripts/build_hwpx_plugins.py
+          python scripts/validate_hwpx_plugin.py
+          git diff --exit-code
+      - name: Claude locked runtime smoke
+        working-directory: hwpx-skill
+        run: python scripts/claude_locked_runtime_smoke.py
+      - name: Claude chat path (vendored engine, no MCP) simulation
+        working-directory: hwpx-skill
+        run: python scripts/claude_chat_sim.py --python python --fixtures ../python-hwpx/tests/fixtures
+      - name: Derive candidate runtime versions from checked-out metadata
+        id: runtime_versions
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for key, directory in (("core", "python-hwpx"), ("automation", "python-hwpx-automation")):
+                  with (Path(directory) / "pyproject.toml").open("rb") as source:
+                      version = tomllib.load(source)["project"]["version"]
+                  print(f"{key}={version}", file=output)
+          PY
+      - name: Plugin launcher protocol E2E (editable stack)
+        working-directory: hwpx-skill
+        run: >-
+          python scripts/plugin_mcp_e2e.py
+          --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
+          --expected-core-version "${{ steps.runtime_versions.outputs.core }}"
+          --expected-server-version "${{ steps.runtime_versions.outputs.automation }}"
+      - name: Clean wheel 3-stack smoke
+        working-directory: hwpx-skill
+        run: >-
+          python scripts/clean_install_smoke.py
+          --automation-repo ../python-hwpx-automation --core-repo ../python-hwpx
+          --expected-core-version "${{ steps.runtime_versions.outputs.core }}"
+          --expected-server-version "${{ steps.runtime_versions.outputs.automation }}"
+      - name: Generate tested-runtime SBOM
+        run: |
+          uv venv .sbom-runtime
+          uv pip install --python .sbom-runtime/bin/python -e './python-hwpx[preview]' -e './python-hwpx-automation[mcp,oracle]'
+          mkdir -p hwpx-skill/artifacts
+          uvx --from "cyclonedx-bom==7.3.0" cyclonedx-py environment .sbom-runtime/bin/python \
+            --pyproject python-hwpx-automation/pyproject.toml \
+            --mc-type application \
+            --output-reproducible \
+            --output-format JSON \
+            --output-file hwpx-skill/artifacts/hwpx-plugin-tested-runtime.cdx.json
+      - name: Upload tested-runtime SBOM
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hwpx-plugin-tested-runtime-sbom
+          path: hwpx-skill/artifacts/hwpx-plugin-tested-runtime.cdx.json
+
+  claude-chat-path:
+    # The Claude bundle's no-MCP path (vendored engine) on every OS and the oldest
+    # supported Python; the plugin-contract job covers Linux on 3.12.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.12"]
+        exclude:
+          # plugin-contract already runs this simulation on Linux with 3.12.
+          - os: ubuntu-latest
+            python: "3.12"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: hwpx-skill
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - id: core
+        shell: bash
+        run: |
+          tag="v$(python -c "import json; print(next(w['version'] for w in json.load(open('hwpx-skill/plugins/claude/hwpx-plugin/skills/hwpx/engine/VENDOR.json'))['wheels'] if w['distribution'] == 'python-hwpx'))")"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: airmang/python-hwpx
+          ref: ${{ steps.core.outputs.tag }}
+          path: python-hwpx
+          sparse-checkout: tests/fixtures
+      - name: Claude chat path simulation
+        working-directory: hwpx-skill
+        run: python scripts/claude_chat_sim.py --python python --fixtures ../python-hwpx/tests/fixtures

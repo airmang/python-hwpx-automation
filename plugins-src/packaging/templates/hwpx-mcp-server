@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 6.x compatibility entry point. New host configurations call the canonical
+# sibling launcher directly.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "${SCRIPT_DIR}/hwpx-automation-mcp" "$@"

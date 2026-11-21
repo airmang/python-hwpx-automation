@@ -1,0 +1,179 @@
+name: Plugins dist (draft)
+
+# DRAFT — manual only. Not wired into release.yml yet.
+#
+# Builds the host bundles from plugins-src/ for an automation release tag that
+# PyPI already serves, and commits them to the orphan branch `plugins-dist`.
+# The hwpx-plugins catalogue lists each host bundle as a `git-subdir` source:
+#   {"source": "git-subdir",
+#    "url": "https://github.com/airmang/python-hwpx-automation.git",
+#    "ref": "plugins-dist", "path": "claude/hwpx-plugin"}
+# so installs keep the address `hwpx-plugin@hwpx` and no cross-repository
+# token is needed: this workflow only writes to this repository.
+#
+# Tags: the plugin release is tagged `hwpx-plugin--v<version>` on the dist
+# commit (Claude Code's `claude plugin tag` convention). It must never be
+# `v<version>`: release.yml publishes to PyPI on `v*` and `[0-9]*`, and this
+# repository already owns automation tags v2.3.0 and v2.4.0. The ChatGPT
+# package keeps its own `chatgpt-plugin-v<version>` line.
+#
+# Wiring (owner decision, step 5): add to release.yml, after `release`:
+#   plugins-dist:
+#     needs: release
+#     uses: ./.github/workflows/plugins-dist.yml
+#     with: { tag: "${{ github.ref_name }}", publish: true }
+# and add `workflow_call` with the same inputs below.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Automation release tag already published (e.g. v8.0.0)
+        required: true
+        type: string
+      source_ref:
+        description: >-
+          Ref to build plugins-src from (default: the tag). Use it when plugins-src landed on
+          main after the automation tag; the ref must contain the tag.
+        required: false
+        default: ""
+        type: string
+      publish:
+        description: Push plugins-dist and the hwpx-plugin--v tag (false = build and upload an artifact only)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugins-dist
+  cancel-in-progress: false
+
+jobs:
+  dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_ref || inputs.tag }}
+          path: src-tree
+          fetch-depth: 0
+      - name: The source contains the released tag
+        working-directory: src-tree
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          git fetch -q origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          git merge-base --is-ancestor "refs/tags/${TAG}" HEAD
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "${GITHUB_ENV}"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Coordinates come from identity.json and match the tag
+        id: coords
+        working-directory: src-tree
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          state = json.loads(Path("src/hwpx_automation/identity.json").read_text(encoding="utf-8"))["releaseState"]
+          cand = state["candidate"]
+          if os.environ["TAG"].removeprefix("v") != cand["canonicalAutomation"]:
+              raise SystemExit(f"tag {os.environ['TAG']} is not candidate automation {cand['canonicalAutomation']}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              print(f"core={cand['pythonHwpx']}", file=out)
+              print(f"automation={cand['canonicalAutomation']}", file=out)
+              print(f"plugin={cand['plugin']}", file=out)
+          PY
+
+      - name: Observe both engines on PyPI before building on them
+        env:
+          CORE: ${{ steps.coords.outputs.core }}
+          AUTOMATION: ${{ steps.coords.outputs.automation }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            if python -m pip download --no-deps --no-cache-dir -d "${RUNNER_TEMP}/observe" \
+                 "python-hwpx==${CORE}" "python-hwpx-automation==${AUTOMATION}"; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "engines not observable on PyPI" >&2
+          exit 1
+
+      - name: Project identity, lock the Claude runtime, vendor, build, validate
+        working-directory: src-tree/plugins-src
+        run: |
+          python scripts/project_identity.py
+          python scripts/refresh_claude_runtime.py
+          python scripts/project_identity.py --check
+          python scripts/vendor_claude_engine.py
+          python scripts/build_hwpx_plugins.py
+          python scripts/validate_hwpx_plugin.py
+          python scripts/check_bundle_limits.py
+          # The ChatGPT lock pins the published wheels: refresh it now that PyPI has them.
+          python scripts/build_chatgpt_skill.py --refresh-lock
+          python scripts/build_chatgpt_skill.py --check
+
+      - name: Assemble the dist tree
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          DIST="${RUNNER_TEMP}/dist"
+          mkdir -p "${DIST}/packaging"
+          cp -R src-tree/plugins-src/plugins/claude  "${DIST}/claude"
+          cp -R src-tree/plugins-src/plugins/codex   "${DIST}/codex"
+          cp -R src-tree/plugins-src/plugins/openclaw "${DIST}/openclaw"
+          cp -R src-tree/plugins-src/plugins/hermes  "${DIST}/hermes"
+          # The catalogue copies this file verbatim; Codex launchers fetch it from
+          # raw.githubusercontent.com/airmang/hwpx-plugins/main/packaging/.
+          cp src-tree/plugins-src/packaging/product-identity.json "${DIST}/packaging/"
+          printf '{"source": "%s", "tag": "%s"}\n' "${SOURCE_SHA}" "${TAG}" > "${DIST}/DIST-SOURCE.json"
+
+      - name: Commit to plugins-dist (orphan, one commit per release)
+        env:
+          PLUGIN: ${{ steps.coords.outputs.plugin }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          git -C src-tree fetch origin plugins-dist:plugins-dist || true
+          git -C src-tree worktree add --detach "${RUNNER_TEMP}/pd"
+          cd "${RUNNER_TEMP}/pd"
+          if git rev-parse --verify -q plugins-dist >/dev/null; then
+            git checkout -q plugins-dist
+          else
+            git checkout -q --orphan plugins-dist
+          fi
+          git rm -rq --ignore-unmatch .
+          cp -R "${RUNNER_TEMP}/dist/." .
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "dist: hwpx-plugin ${PLUGIN} from ${TAG}"
+          echo "DIST_SHA=$(git rev-parse HEAD)" >> "${GITHUB_ENV}"
+          git tag "hwpx-plugin--v${PLUGIN}"
+
+      - name: Upload the dist tree for review
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugins-dist-${{ inputs.tag }}
+          path: ${{ runner.temp }}/dist
+
+      - name: Push plugins-dist and the plugin tag
+        if: inputs.publish
+        working-directory: ${{ runner.temp }}/pd
+        env:
+          PLUGIN: ${{ steps.coords.outputs.plugin }}
+        run: |
+          set -euo pipefail
+          git push origin plugins-dist
+          git push origin "refs/tags/hwpx-plugin--v${PLUGIN}"

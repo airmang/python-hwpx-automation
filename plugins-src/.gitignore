@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+examples/out/
+.DS_Store
+**/examples/out/
+dist/
+.cache/
+# Generated host bundles. They are built from this source and published on the
+# plugins-dist branch; main keeps only the source.
+/plugins/

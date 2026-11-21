@@ -1,0 +1,968 @@
+# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _validator_module():
+    script = ROOT / "scripts" / "validate_hwpx_plugin.py"
+    spec = importlib.util.spec_from_file_location("validate_hwpx_plugin", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _builder_module():
+    script = ROOT / "scripts" / "build_hwpx_plugins.py"
+    spec = importlib.util.spec_from_file_location("build_hwpx_plugins", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _clean_smoke_module():
+    script = ROOT / "scripts" / "clean_install_smoke.py"
+    spec = importlib.util.spec_from_file_location("clean_install_smoke", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _plugin_e2e_module():
+    script = ROOT / "scripts" / "plugin_mcp_e2e.py"
+    spec = importlib.util.spec_from_file_location("plugin_mcp_e2e", script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _identity() -> dict:
+    return json.loads(
+        (ROOT / "packaging" / "product-identity.json").read_text(encoding="utf-8")
+    )
+
+
+def test_generated_plugin_bundles_validate() -> None:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "validate_hwpx_plugin.py")],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_markdown_link_validator_accepts_only_safe_existing_relative_targets(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "target.md").write_text("# target\n", encoding="utf-8")
+    markdown = docs / "index.md"
+    markdown.write_text(
+        "[local](target.md#section) [external](https://example.com/docs) [anchor](#here)\n",
+        encoding="utf-8",
+    )
+
+    validator.validate_markdown_links([markdown], tmp_path, "test")
+
+    unsafe_targets = (
+        "missing.md",
+        "../outside.md",
+        "/absolute.md",
+        "//example.com/path",
+        "file:///tmp/secret",
+        "javascript:alert(1)",
+        "%2e%2e/outside.md",
+    )
+    for target in unsafe_targets:
+        markdown.write_text(f"[unsafe]({target})\n", encoding="utf-8")
+        with pytest.raises(SystemExit):
+            validator.validate_markdown_links([markdown], tmp_path, "test")
+
+
+def test_packaging_carries_identity_changelog_and_toc_but_not_qa_fixture_routes() -> None:
+    config = json.loads((ROOT / "packaging" / "hosts.json").read_text(encoding="utf-8"))
+    assets = set(config["sharedAssets"])
+
+    assert "packaging/product-identity.json" in assets
+    assert "packaging/old-name-taxonomy.json" in assets
+    assert "CHANGELOG.md" in assets
+    assert "references/workflows-toc.md" in assets
+    assert "examples/10_create_government_report.py" in assets
+    assert "examples/10_mcp_government_report.md" in assets
+    assert "examples/11_computeruse_visual_review.md" in assets
+    assert "scripts/detect_hwpx_viewer.py" in assets
+    assert "scripts/visual_review_batch.py" in assets
+    user_examples = {
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "examples").iterdir()
+        if path.is_file() and path.suffix in {".py", ".md"}
+    }
+    # The task-eval replay walkthrough documents a maintainer tool that no bundle ships.
+    maintainer_only = {"examples/12_task_eval_replay.md"}
+    assert maintainer_only <= user_examples
+    assert user_examples - maintainer_only <= assets
+    assert not maintainer_only & assets
+    assert "scripts/task_eval_harness.py" not in assets
+    assert "references/tool-contract.generated.json" not in assets
+    assert "references/workflows-visual-fixture-qa.md" not in assets
+    assert "references/workflows-fixture-benchmark.md" not in assets
+    assert "scripts/plugin_fixture_qa_e2e.py" not in assets
+
+
+def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
+    assert os.access(
+        ROOT / "packaging" / "templates" / "hwpx-automation-mcp",
+        os.X_OK,
+    )
+    assert os.access(
+        ROOT / "packaging" / "templates" / "hwpx-mcp-server",
+        os.X_OK,
+    )
+    launchers = sorted((ROOT / "plugins").glob("*/hwpx*/scripts/hwpx-automation-mcp"))
+    assert launchers
+
+    for launcher in launchers:
+        text = launcher.read_text(encoding="utf-8")
+        assert "uv run --no-project" in text
+        assert "uv run --project" not in text
+        assert '--with-editable "${PYTHON_HWPX_REPO}[preview]"' in text
+        assert '--with-editable "${MCP_REPO}[mcp,oracle]"' in text
+        assert '--with-editable "${MCP_REPO}[mcp]"' not in text
+        assert "HWPX_AUTOMATION_RUNTIME_ROOT" in text
+        assert "find_stack_root" not in text
+        assert "Editable mode is deliberately opt-in" in text
+        assert '"runtimeLayout": "generations-v2"' in text
+        assert "uv venv --quiet --relocatable" in text
+        assert 'POINTER_FILE="${ENV_DIR}/current"' in text
+        assert 'name="gen-${core}-${automation}"' in text
+        assert "relocated console self-check failed" in text
+        assert "-m hwpx_automation.server" not in text
+        assert 'rm -rf "${VENV_DIR}"' not in text
+        compatibility = launcher.with_name("hwpx-mcp-server")
+        compatibility_text = compatibility.read_text(encoding="utf-8")
+        assert 'exec "${SCRIPT_DIR}/hwpx-automation-mcp" "$@"' in compatibility_text
+        assert "SERVER_PACKAGE=" not in compatibility_text
+        assert "uv pip install" not in compatibility_text
+
+
+def test_codex_mcp_command_is_workspace_preserving_and_root_independent() -> None:
+    # Probe result (Feature 066 Task 7, evidence/p2-receipt.md): Codex does not
+    # resolve a relative `command` against the plugin root (no implicit cwd —
+    # confirmed against the working wily-client plugin, which needs an
+    # explicit "cwd": "." to make its relative launcher resolve). The bundled
+    # command must therefore stay PATH-resolved (`bash`/`uvx`), never a
+    # relative launcher path, and must not carry a "cwd" override of its own
+    # (that would break the thread's workspace-relative file access).
+    config = json.loads(
+        (ROOT / "plugins/codex/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
+    )
+    assert set(config["mcpServers"]) == {"hwpx"}
+    config = config["mcpServers"]["hwpx"]
+    assert config["command"] == "bash"
+    assert "cwd" not in config
+    assert "HWPX_AUTOMATION_ADVANCED" not in config["env"]
+    assert "HWPX_AUTOMATION_ADVANCED" in config["env_vars"]
+
+
+def test_codex_bundle_embeds_the_common_managed_launcher() -> None:
+    config = json.loads((ROOT / "plugins" / "codex" / "hwpx-plugin" / ".mcp.json").read_text(encoding="utf-8"))
+    server = config["mcpServers"]["hwpx"]
+    identity = _identity()
+    script = server["args"][1]
+    assert server["command"] == "bash" and server["args"][0] == "-c"
+    assert identity["installConstraint"]["automation"] in script and identity["installConstraint"]["core"] in script
+    assert "_verify_generation" in script and "_run_refresh" in script
+    assert script.rstrip().endswith('exec bash "$runner" "$@"')
+    assert "HWPX_STACK_AUTO_UPDATE" in server["env_vars"]
+
+
+def test_claude_mcp_command_runs_the_locked_runtime() -> None:
+    config = json.loads(
+        (ROOT / "plugins/claude/hwpx-plugin/.mcp.json").read_text(encoding="utf-8")
+    )
+    assert set(config["mcpServers"]) == {"hwpx"}
+    config = config["mcpServers"]["hwpx"]
+    assert config["command"] == "uv"
+    assert config["args"] == ["run", "--frozen", "--project", "${CLAUDE_PLUGIN_ROOT}/server", "hwpx-automation-mcp"]
+    assert not [key for key in config["env"] if key.startswith(("UV_", "PIP_"))]  # directory lint: no index redirects
+    assert "cwd" not in config
+    assert not (ROOT / "plugins/claude/hwpx-plugin/scripts").exists()
+
+
+def test_claude_locked_runtime_pins_a_pair_inside_the_install_window() -> None:
+    import tomllib
+
+    identity = _identity()
+    components = identity["components"]
+    project = tomllib.loads((ROOT / "plugins/claude/hwpx-plugin/server/pyproject.toml").read_text(encoding="utf-8"))["project"]
+    pins = {spec.split("[")[0]: spec.split("==")[1] for spec in project["dependencies"]}
+    assert set(pins) == {"python-hwpx", "python-hwpx-automation"}
+    for dist, component in (("python-hwpx", components["core"]), ("python-hwpx-automation", components["automation"])):
+        pinned = tuple(int(part) for part in pins[dist].split("."))
+        floor = tuple(int(part) for part in component["currentVersion"].split("."))
+        assert pinned >= floor and pinned[0] == floor[0]
+    lock_path = ROOT / "plugins/claude/hwpx-plugin/server/uv.lock"
+    assert lock_path.stat().st_size <= 256 * 1024
+    lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    versions = {pkg["name"]: pkg.get("version") for pkg in lock["package"]}
+    assert versions["python-hwpx"] == pins["python-hwpx"]
+    assert versions["python-hwpx-automation"] == pins["python-hwpx-automation"]
+
+
+def test_quickcheck_verifies_editor_open_safety_for_generated_outputs() -> None:
+    quickchecks = [ROOT / "scripts" / "quickcheck.py"]
+    quickchecks.extend(sorted((ROOT / "plugins").glob("*/hwpx*/scripts/quickcheck.py")))
+    assert quickchecks
+
+    for quickcheck in quickchecks:
+        text = quickcheck.read_text(encoding="utf-8")
+        assert "validate_editor_open_safety" in text
+        assert "create-open-safety" in text
+        assert "proposal-open-safety" in text
+        assert "document-plan-open-safety" in text
+        assert "builder-open-safety" in text
+        assert "operating-plan-open-safety" in text
+        assert "template-formfit-open-safety" in text
+
+
+def test_namespace_helpers_require_editor_open_safety_validator() -> None:
+    helpers = [ROOT / "scripts" / "fix_namespaces.py"]
+    helpers.extend(sorted((ROOT / "plugins").glob("*/hwpx*/scripts/fix_namespaces.py")))
+    assert helpers
+
+    for helper in helpers:
+        text = helper.read_text(encoding="utf-8")
+        assert "validate_editor_open_safety" in text
+        assert "python-hwpx>=2.10.3 is required" in text
+        assert "validate_package(" not in text
+        assert "HwpxDocument.open" not in text
+        assert "verify_open_safety" not in text
+
+
+def test_zip_replace_helpers_do_not_expose_open_safety_bypass() -> None:
+    helpers = [ROOT / "scripts" / "zip_replace_all.py"]
+    helpers.extend(sorted((ROOT / "plugins").glob("*/hwpx*/scripts/zip_replace_all.py")))
+    assert helpers
+
+    for helper in helpers:
+        text = helper.read_text(encoding="utf-8")
+        assert "validate_open_safety" in text
+        assert "verify_open_safety" not in text
+
+
+def test_template_replace_examples_route_through_validated_helpers() -> None:
+    examples = [ROOT / "examples" / "03_template_replace.py"]
+    examples.extend(sorted((ROOT / "plugins").glob("*/hwpx*/**/examples/03_template_replace.py")))
+    assert examples
+
+    for example in examples:
+        text = example.read_text(encoding="utf-8")
+        assert "zip_replace_all(" in text
+        assert "fix_namespaces(" in text
+        assert "zipfile.ZipFile" not in text
+        assert "os.replace" not in text
+        assert "verify_open_safety" not in text
+
+
+def test_api_reference_requires_current_open_safety_stack() -> None:
+    references = [ROOT / "references" / "api.md"]
+    references.extend(sorted((ROOT / "plugins").glob("*/hwpx*/references/api.md")))
+    assert references
+
+    release = _identity()["releaseState"]
+    status = release["status"]
+    candidate = release["candidate"]
+    for reference in references:
+        text = reference.read_text(encoding="utf-8")
+        assert "`python-hwpx 4.2.0`" not in text
+        assert "`hwpx-mcp-server 5.1.0`" not in text
+        assert "`hwpx-plugin 0.8.0`" not in text
+        assert "`python-hwpx 5.0.1`" not in text
+        assert "`hwpx-plugin 1.0.0`" not in text
+        assert "`python-hwpx 6.0.2`" not in text
+        assert "`hwpx-plugin 2.0.2`" not in text
+        assert f"`python-hwpx {candidate['pythonHwpx']}`" in text
+        assert f"`python-hwpx-automation {candidate['canonicalAutomation']}`" in text
+        assert f"`hwpx-plugin {candidate['plugin']}`" in text
+        assert "공개 릴리스" in text
+        if status == "released":
+            assert "미발행 후보" not in text
+        else:
+            # candidate checkout: the doc must distinguish the unreleased
+            # candidate train from the public train, not hide it
+            assert (
+                "미발행 후보" if status == "unreleased-candidate"
+                else "발행 승인된 후보"
+            ) in text
+            public = release["currentPublic"]
+            assert f"`python-hwpx {public['pythonHwpx']}`" in text
+            assert f"`python-hwpx-automation {public['primaryApplication']}`" in text
+            assert f"`hwpx-plugin {public['plugin']}`" in text
+        assert "최소 호환 버전" in text
+        assert "플러그인 설치 제약" in text
+        assert "검증 좌표" in text
+        assert "플러그인 설치 핀" not in text
+        assert "validate_editor_open_safety(path).ok == True" in text
+        assert "2.11.1" not in text
+        assert "2.5.0" not in text
+
+
+def test_developer_replay_kit_stays_in_the_repository_not_in_bundles() -> None:
+    """No runtime or skill text reads these; they made up over half of three bundles (audit EFF-11)."""
+    bundles = sorted((ROOT / "plugins").glob("*/hwpx*"))
+    assert len(bundles) == 4
+
+    for bundle in bundles:
+        skill_root = bundle / "skills" / "hwpx"
+        if not skill_root.exists():
+            skill_root = bundle
+        assert not (skill_root / "scripts" / "task_eval_harness.py").exists(), bundle
+        assert not (skill_root / "examples" / "12_task_eval_replay.md").exists(), bundle
+        assert not (skill_root / "examples" / "eval_tasks").exists(), bundle
+        assert not (skill_root / "references" / "tool-contract.generated.json").exists(), bundle
+        assert (skill_root / "references" / "tool-contract.generated.md").is_file(), bundle
+        for doc in skill_root.rglob("*.md"):
+            if "engine" in doc.relative_to(skill_root).parts or doc.name == "CHANGELOG.md":
+                continue
+            text = doc.read_text(encoding="utf-8")
+            assert "tool-contract.generated.json" not in text, doc
+            assert "task_eval_harness" not in text, doc
+
+    # The kit itself is still in the repository for maintainers.
+    assert (ROOT / "scripts" / "task_eval_harness.py").is_file()
+    assert (ROOT / "examples" / "eval_tasks" / "tasks.json").is_file()
+    assert (ROOT / "references" / "tool-contract.generated.json").is_file()
+
+
+def test_claude_bundle_keeps_headroom_under_the_directory_file_limit() -> None:
+    bundle = ROOT / "plugins" / "claude" / "hwpx-plugin"
+    files = [path for path in bundle.rglob("*") if path.is_file() and "__pycache__" not in path.parts]
+    # The directory inspects at most 512 files. python-hwpx 6.12.0 and python-hwpx-automation 7.5.0 bring the
+    # bundle to 502 after dropping type-checker markers, so the warning line sits at 505: seven files of room.
+    assert len(files) <= 505, len(files)
+    assert not list((bundle / "skills" / "hwpx" / "references").glob("release-2026-*.md"))
+
+
+def test_generated_bundles_carry_toc_changelog_identity_and_exclude_internal_qa() -> None:
+    bundles = sorted((ROOT / "plugins").glob("*/hwpx*"))
+    assert len(bundles) == 4
+    for bundle in bundles:
+        skill_root = bundle / "skills" / "hwpx"
+        if not skill_root.exists():
+            skill_root = bundle
+        assert (skill_root / "references" / "workflows-toc.md").is_file()
+        assert (skill_root / "CHANGELOG.md").is_file()
+        assert (skill_root / "packaging" / "product-identity.json").is_file()
+        assert (skill_root / "packaging" / "old-name-taxonomy.json").is_file()
+        assert not (skill_root / "references" / "workflows-visual-fixture-qa.md").exists()
+        assert not (skill_root / "references" / "workflows-fixture-benchmark.md").exists()
+        assert not (skill_root / "scripts" / "plugin_fixture_qa_e2e.py").exists()
+
+
+def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
+    identity = _identity()
+    components = identity["components"]
+    hosts = json.loads((ROOT / "packaging" / "hosts.json").read_text(encoding="utf-8"))
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert identity["schemaVersion"] == "hwpx.product-identity.v3"
+    release = identity["releaseState"]
+    assert release["status"] in {"unreleased-candidate", "release-approved", "released"}
+    assert release["candidate"]["plugin"] == components["plugin"]["currentVersion"]
+    if release["status"] == "released":
+        assert release["currentPublic"]["plugin"] == release["candidate"]["plugin"]
+        assert release["publicationEvidence"]["installObserved"] is True
+    else:
+        assert release["currentPublic"] == release["previousPublic"]
+        assert release.get("publicationEvidence") is None
+    assert identity["currentPublicStack"]["plugin"]["version"] == release["currentPublic"]["plugin"]
+    assert components["core"]["currentVersion"] == release["candidate"]["pythonHwpx"]
+    assert components["core"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text(encoding="utf-8"))["minPythonHwpx"]
+    assert components["automation"]["currentVersion"] == identity["releaseState"]["candidate"]["canonicalAutomation"]
+    assert components["automation"]["minimumCompatibleVersion"] == json.loads((ROOT / "references/tool-contract.generated.json").read_text(encoding="utf-8"))["minAutomationVersion"]
+    assert components["automation"]["mcpConsole"] == "hwpx-automation-mcp"
+    assert components["automation"]["hostConfigKey"] == "hwpx"
+    assert components["automation"]["hostConfigKeyKind"] == "local-alias"
+    assert components["automation"]["launcherPath"] == "scripts/hwpx-automation-mcp"
+    assert identity["compatibility"]["hostConfigKey"] == "hwpx-mcp-server"
+    assert identity["compatibility"]["launcherPath"] == "scripts/hwpx-mcp-server"
+    assert components["plugin"]["currentVersion"] == release["candidate"]["plugin"]
+    assert components["plugin"]["minimumCompatibleVersion"] == "2.0.0"
+    assert identity["pluginPinPolicy"] == {"core": "verified-floor", "automation": "verified-floor"}
+    assert identity["verifiedStack"] == {
+        "pythonHwpx": components["core"]["currentVersion"],
+        "automation": components["automation"]["currentVersion"],
+        "plugin": components["plugin"]["currentVersion"],
+        "contractHash": identity["releaseState"]["candidate"]["contractHash"],
+        "verifiedAt": identity["verifiedStack"]["verifiedAt"],
+    }
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", identity["verifiedStack"]["verifiedAt"])
+    core_major = int(components["core"]["currentVersion"].split(".")[0])
+    automation_major = int(components["automation"]["currentVersion"].split(".")[0])
+    assert identity["installConstraint"] == {
+        "core": f"python-hwpx[preview]>={components['core']['currentVersion']},<{core_major + 1}",
+        "automation": f"python-hwpx-automation[mcp,oracle]>={components['automation']['currentVersion']},<{automation_major + 1}",
+    }
+    assert hosts["identityFile"] == "product-identity.json"
+    assert "pluginName" not in hosts and "skillName" not in hosts
+    assert identity["firstPartyLabelKo"] in readme
+    assert components["core"]["maturity"] == "alpha"
+    assert components["automation"]["maturity"] == "not-declared"
+    assert components["plugin"]["maturity"] == "not-declared"
+    for host in hosts["hosts"]:
+        assert "version:" not in host.get("frontmatterExtra", "")
+
+
+@pytest.mark.parametrize("status", ("release-approved", "released"))
+def test_product_identity_validator_supports_the_full_release_lifecycle(
+    tmp_path: Path,
+    status: str,
+) -> None:
+    checkout = tmp_path / "hwpx-plugins"
+    shutil.copytree(
+        ROOT,
+        checkout,
+        ignore=shutil.ignore_patterns(
+            ".git",
+            ".pytest_cache",
+            "__pycache__",
+            "examples/out",
+        ),
+    )
+    identity_path = checkout / "packaging" / "product-identity.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    previous_status = identity["releaseState"]["status"]
+    identity["releaseState"]["status"] = status
+    if status != "released":
+        identity["releaseState"]["currentPublic"] = identity["releaseState"]["previousPublic"].copy()
+        identity["releaseState"]["publicationEvidence"] = None
+        # Mirror the released branch below: a train that moves core must roll
+        # the public core version back too, or the validator reports a
+        # public core version mismatch (first hit on 6.3.0 -> 6.4.0).
+        identity["currentPublicStack"]["core"]["version"] = identity["releaseState"]["currentPublic"]["pythonHwpx"]
+        identity["currentPublicStack"]["plugin"]["version"] = identity["releaseState"]["currentPublic"]["plugin"]
+        identity["currentPublicStack"]["application"]["version"] = identity["releaseState"]["currentPublic"]["primaryApplication"]
+    readme_path = checkout / "README.md"
+    api_path = checkout / "references" / "api.md"
+    cross_readme_path = checkout / "packaging" / "s080-cross-repo-readme-wording.md"
+    readme = readme_path.read_text(encoding="utf-8").replace(previous_status, status)
+    api = api_path.read_text(encoding="utf-8").replace(previous_status, status)
+    cross_readme = cross_readme_path.read_text(encoding="utf-8").replace(previous_status, status)
+    if status != "released":
+        public = identity["releaseState"]["currentPublic"]
+        # A released source checkout no longer describes the previous train.
+        # Supply the observed-public coordinates of this synthetic pre-release
+        # fixture explicitly, independently of the checkout's current state.
+        public_notice = (
+            f"\nFixture public train: `python-hwpx {public['pythonHwpx']}` / "
+            f"`python-hwpx-automation {public['primaryApplication']}` / "
+            f"`hwpx-plugin {public['plugin']}`.\n"
+        )
+        readme += public_notice
+        api += public_notice
+        cross_readme += public_notice
+    if status == "released":
+        candidate = identity["releaseState"]["candidate"]
+        identity["releaseState"]["currentPublic"] = {
+            "pythonHwpx": candidate["pythonHwpx"],
+            "primaryDistribution": candidate["canonicalDistribution"],
+            "primaryApplication": candidate["canonicalAutomation"],
+            "plugin": candidate["plugin"],
+            "contractHash": candidate["contractHash"],
+        }
+        identity["currentPublicStack"]["core"]["version"] = candidate["pythonHwpx"]
+        identity["currentPublicStack"]["plugin"]["version"] = candidate["plugin"]
+        identity["currentPublicStack"]["application"]["version"] = candidate["canonicalAutomation"]
+        # A synthetic receipt tests schema/lifecycle only, never publication.
+        identity["releaseState"]["publicationEvidence"] = {
+            "pluginVersion": candidate["plugin"], "installObserved": True,
+            "observedAt": "2026-09-05T00:00:00Z",
+            "releaseUrl": f"https://github.com/airmang/hwpx-plugins/releases/tag/v{candidate['plugin']}",
+        }
+        readme = readme.replace("미발행 후보", "공개 릴리스")
+        api = api.replace("미발행 후보", "공개 릴리스")
+        cross_readme = cross_readme.replace("미발행 후보", "공개 릴리스")
+
+    identity_path.write_text(
+        json.dumps(identity, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    readme_path.write_text(readme, encoding="utf-8")
+    api_path.write_text(api, encoding="utf-8")
+    cross_readme_path.write_text(cross_readme, encoding="utf-8")
+
+    built = subprocess.run(
+        [sys.executable, "scripts/build_hwpx_plugins.py"],
+        cwd=checkout,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert built.returncode == 0, built.stdout + built.stderr
+    validated = subprocess.run(
+        [sys.executable, "scripts/validate_hwpx_plugin.py"],
+        cwd=checkout,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert validated.returncode == 0, validated.stdout + validated.stderr
+
+
+def _shipped_guidance() -> list[Path]:
+    """Every user-facing document that states a version the reader will act on."""
+    return [ROOT / "README.md", ROOT / "SKILL.md", *sorted((ROOT / "references").glob("*.md"))]
+
+
+def test_no_shipped_guidance_states_a_superseded_version_floor() -> None:
+    """The identity file must be the authority in fact, not only by declaration.
+
+    It already named 5.0.0/6.0.0/1.0.0 while README and ``references/api.md``
+    still told readers the contract supported core >=4.2.0 and MCP >=5.1.0, and
+    api.md's install-pin row named a package pair that cannot run this skill —
+    disagreeing with README's own pin row two files away. Nothing failed,
+    because the previous test only checked that the identity file said the right
+    thing.
+
+    So this compares what the documents state against what the identity file
+    declares. A floor below the declared minimum is the failure: a reader who
+    installs what the sentence says gets a stack this skill does not support.
+    """
+
+    identity = _identity()
+    components = identity["components"]
+    # 세 이름을 다 본다. 6.0.0에서 응용 배포가 python-hwpx-automation이 됐고,
+    # hwpx-mcp-server는 같은 버전을 끌어오는 호환 셸로 남았다. 새 이름을
+    # 목록에서 빠뜨리면 게이트가 정작 현재 배포명의 낡은 바닥을 못 잡는다.
+    minimums = {
+        "python-hwpx": components["core"]["minimumCompatibleVersion"],
+        "python-hwpx-automation": components["automation"]["minimumCompatibleVersion"],
+        "hwpx-mcp-server": components["automation"]["minimumCompatibleVersion"],
+    }
+
+    # 긴 이름을 먼저 — python-hwpx가 python-hwpx-automation의 접두사다.
+    names = "|".join(sorted(minimums, key=len, reverse=True))
+    pattern = re.compile(
+        rf"({names})(?:\[[^\]]*\])?\s*(>=|==)\s*(\d+)\.(\d+)\.(\d+)"
+    )
+    stale: list[str] = []
+    for document in _shipped_guidance():
+        for number, line in enumerate(document.read_text(encoding="utf-8").splitlines(), 1):
+            for package, operator, *parts in pattern.findall(line):
+                stated = tuple(int(part) for part in parts)
+                required = tuple(int(part) for part in minimums[package].split("."))
+                if stated < required:
+                    stale.append(
+                        f"{document.relative_to(ROOT)}:{number}: "
+                        f"{package}{operator}{'.'.join(parts)} "
+                        f"is below the declared minimum {minimums[package]}"
+                    )
+
+    assert not stale, "shipped guidance names superseded versions:\n" + "\n".join(stale)
+
+
+def test_bundle_rebuild_preserves_untracked_runtime_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    builder = _builder_module()
+    monkeypatch.setattr(builder, "ROOT", tmp_path)
+    out = tmp_path / "plugins" / "claude" / "hwpx-plugin"
+    generated = out / "skills" / "hwpx" / "README.md"
+    generated.parent.mkdir(parents=True)
+    generated.write_text("generated\n", encoding="utf-8")
+    runtime_output = out / "skills" / "hwpx" / "examples" / "out" / "result.hwpx"
+    runtime_output.parent.mkdir(parents=True)
+    runtime_output.write_bytes(b"runtime-output")
+    (out / "plugin-sync.json").write_text(
+        json.dumps(
+            {
+                "files": [
+                    {
+                        "dest": generated.relative_to(tmp_path).as_posix(),
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    builder.remove_previous_generated_files(out)
+
+    assert not generated.exists()
+    assert runtime_output.read_bytes() == b"runtime-output"
+
+
+def test_first_build_accepts_a_bundle_that_holds_only_the_vendored_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bundles are not committed, so vendoring the engine can create the directory before the first build."""
+    builder = _builder_module()
+    monkeypatch.setattr(builder, "ROOT", tmp_path)
+    out = tmp_path / "plugins" / "claude" / "hwpx-plugin"
+    engine = out / "skills" / "hwpx" / "engine"
+    vendored = engine / "hwpx" / "__init__.py"
+    vendored.parent.mkdir(parents=True)
+    vendored.write_text("# vendored\n", encoding="utf-8")
+    (engine / "VENDOR.json").write_text("{}\n", encoding="utf-8")
+
+    builder.remove_previous_generated_files(out, keep=engine)
+
+    assert vendored.read_text(encoding="utf-8") == "# vendored\n"
+    assert (engine / "VENDOR.json").is_file()
+
+
+def test_first_build_still_refuses_unknown_content_beside_the_vendored_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    builder = _builder_module()
+    monkeypatch.setattr(builder, "ROOT", tmp_path)
+    out = tmp_path / "plugins" / "claude" / "hwpx-plugin"
+    engine = out / "skills" / "hwpx" / "engine"
+    engine.mkdir(parents=True)
+    (engine / "VENDOR.json").write_text("{}\n", encoding="utf-8")
+    unknown = out / "skills" / "hwpx" / "notes.md"
+    unknown.write_text("user notes\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="refusing to replace existing bundle without plugin-sync.json"):
+        builder.remove_previous_generated_files(out, keep=engine)
+    assert unknown.read_text(encoding="utf-8") == "user notes\n"
+
+    # Without a vendored engine for the host, an existing directory is always unknown.
+    with pytest.raises(SystemExit, match="refusing to replace existing bundle without plugin-sync.json"):
+        builder.remove_previous_generated_files(out)
+
+
+def test_legacy_release_stack_is_hard_disabled() -> None:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "release_stack.py"), "--yes"],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 78
+    assert "no release action was performed" in result.stderr
+
+
+def test_clean_install_smoke_requires_explicit_candidate_checkouts() -> None:
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key
+        not in {
+            "PYTHON_HWPX_CANDIDATE_REPO",
+            "HWPX_AUTOMATION_CANDIDATE_REPO",
+        }
+    }
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "clean_install_smoke.py")],
+        cwd=ROOT,
+        env=env,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode != 0
+    assert "core candidate checkout is required" in result.stderr
+    assert "--core-repo" in result.stderr
+
+
+def test_clean_runtime_environment_strips_ambient_python_source_selectors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    smoke = _clean_smoke_module()
+    for name in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
+        monkeypatch.setenv(name, f"/poison/{name.lower()}")
+
+    sanitized = smoke._sanitized_environment()
+
+    assert all(name not in sanitized for name in smoke._SOURCE_AFFECTING_ENV)
+    assert "PATH" in sanitized
+
+
+def test_e2e_uses_canonical_host_key_and_legacy_requires_explicit_override(
+    tmp_path: Path,
+) -> None:
+    e2e = _plugin_e2e_module()
+    source = tmp_path / ".mcp.json"
+    canonical = {"command": "canonical"}
+    legacy = {"command": "compatibility"}
+    payload = {"mcpServers": {"hwpx": canonical, "hwpx-mcp-server": legacy}}
+
+    assert e2e.DEFAULT_MCP_CONFIG_KEY == "hwpx"
+    assert not (
+        {"PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
+        & e2e._sanitized_environment(
+            {
+                "PATH": os.environ.get("PATH", ""),
+                "PYTHONPATH": "/poison/pythonpath",
+                "PYTHONHOME": "/poison/pythonhome",
+                "VIRTUAL_ENV": "/poison/venv",
+            }
+        ).keys()
+    )
+    assert e2e._select_mcp_server(
+        payload,
+        e2e.DEFAULT_MCP_CONFIG_KEY,
+        source=source,
+    ) == canonical
+    assert e2e._select_mcp_server(
+        payload,
+        e2e.LEGACY_MCP_CONFIG_KEY,
+        source=source,
+    ) == legacy
+    with pytest.raises(RuntimeError, match="'hwpx'.*absent"):
+        e2e._select_mcp_server(
+            {"mcpServers": {"hwpx-mcp-server": legacy}},
+            e2e.DEFAULT_MCP_CONFIG_KEY,
+            source=source,
+        )
+
+
+def test_ci_requires_reviewed_candidate_refs_without_fake_commit_pins() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "tests.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "HWPX_CORE_CANDIDATE_REF" in workflow
+    assert "HWPX_AUTOMATION_CANDIDATE_REF" in workflow
+    assert "Require explicit candidate refs" in workflow
+    assert "path: python-hwpx-automation" in workflow
+    assert "--automation-repo ../python-hwpx-automation" in workflow
+    assert "--mcp-repo ../python-hwpx-automation" not in workflow
+    assert "f6b79f010d40a190fa6a8391eb212835022b3851" not in workflow
+    assert "c0cb5bb347fdb2e76333d7145845efd3d62d069a" not in workflow
+
+
+def test_old_name_taxonomy_is_explicit_and_has_no_unreviewed_class() -> None:
+    taxonomy = json.loads(
+        (ROOT / "packaging" / "old-name-taxonomy.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    classifications = {entry["classification"] for entry in taxonomy["entries"]}
+    assert {"canonical", "compatibility", "historical", "generated"} <= classifications
+    assert classifications <= set(taxonomy["allowedClassifications"])
+    assert all(entry["classification"] != "stale-defect" for entry in taxonomy["entries"])
+    surfaces = {
+        (entry["surface"], entry["value"], entry["classification"])
+        for entry in taxonomy["entries"]
+    }
+    assert ("host config key", "hwpx", "canonical") in surfaces
+    assert ("host config key", "hwpx-mcp-server", "compatibility") in surfaces
+    assert ("launcher filename", "scripts/hwpx-automation-mcp", "canonical") in surfaces
+    assert (
+        "launcher filename",
+        "scripts/hwpx-mcp-server",
+        "compatibility",
+    ) in surfaces
+
+
+def test_public_bundles_and_scripts_have_no_internal_stage_or_worktree_names() -> None:
+    codename = re.compile(r"(?<![A-Za-z0-9])(?:S-[0-9]{3}|STG-[A-Za-z0-9_-]+)")
+    worktree = re.compile(
+        r"(?:python-hwpx(?:-automation)?|hwpx-mcp-server|hwpx-skill)-s[0-9]{3}\b",
+        re.IGNORECASE,
+    )
+    paths = [
+        *sorted((ROOT / "plugins").rglob("*")),
+        *sorted((ROOT / "scripts").glob("*.py")),
+    ]
+    failures = []
+    for path in paths:
+        if not path.is_file() or "examples/out" in path.as_posix():
+            continue
+        data = path.read_bytes()
+        if b"\0" in data[:8192]:
+            continue
+        text = data.decode("utf-8", "replace")
+        if codename.search(text) or worktree.search(text):
+            failures.append(path.relative_to(ROOT).as_posix())
+    assert not failures
+
+
+def test_shipped_python_and_markdown_code_blocks_parse() -> None:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "validate_shipped_code.py")],
+        cwd=ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "JSON Markdown fences" in result.stdout
+
+
+def test_skill_start_check_routes_updates_per_host() -> None:
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    assert "claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx" in skill
+    assert "codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx" in skill
+    assert "stackUpdate" in skill and "한 번" in skill
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "HWPX_STACK_AUTO_UPDATE=0" in readme and "HWPX_STACK_CHANNEL=verified" in readme
+    bundles = sorted([*ROOT.glob("plugins/*/hwpx-plugin/skills/hwpx/SKILL.md"), *ROOT.glob("plugins/hermes/hwpx/SKILL.md")])
+    assert len(bundles) == 4
+    for bundle in bundles:
+        assert "stackUpdate" in bundle.read_text(encoding="utf-8"), bundle
+
+
+def test_released_state_requires_observed_publication_evidence():
+    validator = _validator_module()
+    identity = _identity()
+    identity["releaseState"]["status"] = "released"
+    identity["releaseState"]["publicationEvidence"] = None
+    config = json.loads((ROOT / "packaging/hosts.json").read_text(encoding="utf-8"))
+    with pytest.raises(SystemExit, match="publicationEvidence"):
+        validator.validate_product_identity(config, identity)
+
+
+def test_protocol_gate_rejects_recovered_sdk_parse_errors():
+    import logging
+    capture = _plugin_e2e_module().ProtocolErrorCapture()
+    capture.require_clean()
+    capture.emit(logging.LogRecord("mcp.client.stdio", logging.ERROR, __file__, 1, "Failed to parse JSONRPC message from server", (), None))
+    with pytest.raises(RuntimeError, match="MCP protocol errors"):
+        capture.require_clean()
+
+
+def _write_sync_fixture(
+    root: Path, *, template_text: str, bundle_text: str, transformed: object
+) -> tuple[dict, Path, Path]:
+    validator = _validator_module()
+    host = {
+        "id": "openclaw",
+        "mcp": {"template": "templates/openclaw.mcp-install.md"},
+    }
+    template = root / "packaging" / "templates" / "openclaw.mcp-install.md"
+    template.parent.mkdir(parents=True)
+    template.write_text(template_text, encoding="utf-8")
+    out = root / "plugins" / "openclaw" / "hwpx-plugin"
+    bundle = out / "INSTALL-mcp.md"
+    bundle.parent.mkdir(parents=True)
+    bundle.write_text(bundle_text, encoding="utf-8")
+    (out / "plugin-sync.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": "hwpx.plugin-sync.v2",
+                "plugin": _identity()["components"]["plugin"]["installedPluginId"],
+                "host": "openclaw",
+                "files": [
+                    {
+                        "source": "packaging/templates/openclaw.mcp-install.md",
+                        "sourceSha256": validator.sha256(template),
+                        "dest": bundle.relative_to(root).as_posix(),
+                        "destSha256": validator.sha256(bundle),
+                        "transformed": transformed,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return host, out, out / "skills" / "hwpx"
+
+
+@pytest.mark.parametrize(
+    ("bundle_text", "transformed", "message"),
+    [
+        # Bundle hand-edited and destSha256 refreshed, template forgotten.
+        ("hand edit\n", False, "untransformed source/destination mismatch"),
+        # The same edit hidden behind a self-declared transformation.
+        ("hand edit\n", True, "transformed flag disagrees with the build"),
+        ("template\n", "false", "transformed flag must be a boolean"),
+    ],
+)
+def test_sync_validator_enforces_template_bundle_byte_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bundle_text: str,
+    transformed: object,
+    message: str,
+) -> None:
+    validator = _validator_module()
+    monkeypatch.setattr(validator, "ROOT", tmp_path)
+    host, out, skill_dir = _write_sync_fixture(
+        tmp_path,
+        template_text="template\n",
+        bundle_text=bundle_text,
+        transformed=transformed,
+    )
+    config = {"canonicalSkill": "SKILL.md"}
+
+    with pytest.raises(SystemExit, match=message):
+        validator.validate_sync(host, out, skill_dir, _identity(), config)
+
+
+def test_sync_validator_accepts_exact_untransformed_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    validator = _validator_module()
+    monkeypatch.setattr(validator, "ROOT", tmp_path)
+    host, out, skill_dir = _write_sync_fixture(
+        tmp_path, template_text="template\n", bundle_text="template\n", transformed=False
+    )
+
+    validator.validate_sync(host, out, skill_dir, _identity(), {"canonicalSkill": "SKILL.md"})
+
+
+def test_codex_env_passthrough_guard_requires_chrome_path() -> None:
+    validator = _validator_module()
+    template = json.loads(
+        (ROOT / "packaging" / "templates" / "codex.mcp.json").read_text(encoding="utf-8")
+    )
+    server = template["mcpServers"]["hwpx"]
+    validator.validate_codex_env_passthrough(server)
+    assert "HWPX_AUTOMATION_CHROME_PATH" in validator.CODEX_REQUIRED_ENV_VARS
+
+    stale = dict(server)
+    stale["env_vars"] = [
+        name for name in server["env_vars"] if name != "HWPX_AUTOMATION_CHROME_PATH"
+    ]
+    with pytest.raises(SystemExit, match="missing env_vars: HWPX_AUTOMATION_CHROME_PATH"):
+        validator.validate_codex_env_passthrough(stale)
+
+    without = {key: value for key, value in server.items() if key != "env_vars"}
+    with pytest.raises(SystemExit, match="env_vars must be a list"):
+        validator.validate_codex_env_passthrough(without)
+
+
+@pytest.mark.parametrize("template", ("hermes.mcp-install.md", "openclaw.mcp-install.md"))
+def test_host_install_guides_register_the_current_skill_version(template: str) -> None:
+    validator = _validator_module()
+    version = _identity()["components"]["plugin"]["currentVersion"]
+    path = ROOT / "packaging" / "templates" / template
+    # The template takes its coordinates from product-identity.json at build time.
+    text = validator._bundle_builder().render_install_guide(path.read_text(encoding="utf-8"), _identity())
+    validator.validate_host_install_skill_version(text, path, version)
+
+    stale = re.sub(
+        r'("?HWPX_SKILL_VERSION"?\s*:\s*)"[^"]*"', r'\1"1.0.0"', text
+    )
+    assert stale != text and version in stale
+    with pytest.raises(SystemExit, match="HWPX_SKILL_VERSION 1.0.0 differs from plugin"):
+        validator.validate_host_install_skill_version(stale, path, version)
+
+    without = re.sub(r'.*HWPX_SKILL_VERSION.*\n', "", text)
+    with pytest.raises(SystemExit, match="HWPX_SKILL_VERSION missing"):
+        validator.validate_host_install_skill_version(without, path, version)
+

@@ -1,0 +1,27 @@
+# Locked runtime for the Claude Code plugin's MCP server.
+# Pins are exact versions inside the install window of packaging/product-identity.json
+# (>= currentVersion, < next major). scripts/refresh_claude_runtime.py moves them, so they
+# can be newer than the verified coordinates (currentVersion). Regenerate uv.lock with
+# `uv lock --project packaging/templates/claude-runtime` after a bump.
+[project]
+name = "hwpx-plugin-claude-runtime"
+version = "0"
+requires-python = "==3.12.*"
+dependencies = [
+    "python-hwpx-automation[mcp]==8.0.0",
+    "python-hwpx[preview]==7.0.0",
+]
+
+# Not installed into the MCP server's environment (uv syncs only the default groups):
+# locked here so scripts/vendor_claude_engine.py can vendor it, sha256-pinned, into
+# the skill's engine for Python 3.10 hosts, where python-hwpx-automation needs tomli.
+[dependency-groups]
+chat-engine = ["tomli==2.4.1"]
+# The imaging stack (pymupdf, pillow, numpy) that reads a PDF rendered by Hancom Office.
+# Only the real-Hancom render checks use it, so it is locked here but left out of the
+# default install: `uv sync --frozen --inexact --group render --project <plugin>/server`
+# adds it, sha256-pinned, to the environment the MCP server already runs in.
+render = ["python-hwpx-automation[oracle]==8.0.0"]
+
+[tool.uv]
+package = false

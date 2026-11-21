@@ -18,6 +18,7 @@ PINNED_ROOT = ROOT
 INTERNAL_STAGE_CODE = re.compile(
     rb"(?<![A-Za-z0-9])(?:S-[0-9]{3}(?![0-9])|STG-[A-Za-z0-9]+)"
 )
+PLUGIN_SOURCE_PREFIX = "plugins-src/"
 INTERNAL_STAGE_CODE_COUNT = 60
 INTERNAL_STAGE_CODE_SHA256 = (
     "5fa4756713848bf51587afa0b345afc19e4ab24b33e771ebce3d8025487d3d08"
@@ -389,6 +390,10 @@ def _internal_stage_inventory_failures(
             f"{rel}\0{match.decode('ascii')}"
             for blobs in snapshots
             for rel, raw_data in blobs.items()
+            # plugins-src/ is the moved hwpx-plugins source. It is never
+            # shipped in the wheel/sdist and carries its own frozen inventory
+            # in plugins-src/scripts/check_public_hygiene.py.
+            if not rel.startswith(PLUGIN_SOURCE_PREFIX)
             if (data := _text_blob(raw_data)) is not None
             for match in INTERNAL_STAGE_CODE.findall(data)
         }

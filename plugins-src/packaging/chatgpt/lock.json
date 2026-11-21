@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "hwpx.chatgpt-skill-lock.v1",
+  "skillName": "hwpx",
+  "versions": {
+    "core": "7.0.0",
+    "automation": "8.0.0",
+    "plugin": "8.0.0"
+  },
+  "wheels": [
+    {
+      "distribution": "python-hwpx",
+      "version": "7.0.0",
+      "filename": "python_hwpx-7.0.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/70/ca/11e559e568e645ef0e91c77ebc00b8655b047dee92738e5abe8b8499a6ce/python_hwpx-7.0.0-py3-none-any.whl",
+      "sha256": "9dcb2fe77298284fd6593e71a8092ee032d50801b31f9f30791ef0ceeefc968d"
+    },
+    {
+      "distribution": "python-hwpx-automation",
+      "version": "8.0.0",
+      "filename": "python_hwpx_automation-8.0.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/fe/bc/73c18a57db215f7baf4ee18519102930f26621f338734a1a416073649714/python_hwpx_automation-8.0.0-py3-none-any.whl",
+      "sha256": "216df98c6c1ad300f6813a04da241c32b9a1d3d5778cf9a2219b90c2ad767590"
+    },
+    {
+      "distribution": "anyio",
+      "version": "4.15.1",
+      "filename": "anyio-4.15.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
+      "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101"
+    },
+    {
+      "distribution": "idna",
+      "version": "3.20",
+      "filename": "idna-3.20-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
+      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c"
+    },
+    {
+      "distribution": "typing_extensions",
+      "version": "4.16.0",
+      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+    }
+  ],
+  "coreDocs": [
+    {
+      "path": "docs/_extra/llms.txt",
+      "dest": "references/core/llms.txt",
+      "tag": "v7.0.0",
+      "url": "https://raw.githubusercontent.com/airmang/python-hwpx/v7.0.0/docs/_extra/llms.txt",
+      "sha256": "384e52a59e5af22f72db719f71df41d2d3844381c77f65aa861464968c94f87e"
+    },
+    {
+      "path": "docs/quickstart.md",
+      "dest": "references/core/quickstart.md",
+      "tag": "v7.0.0",
+      "url": "https://raw.githubusercontent.com/airmang/python-hwpx/v7.0.0/docs/quickstart.md",
+      "sha256": "ac10c58577cf9e479237aa5d7e448ebdbe8ca70c3ae3c2be8f3acf5774a67af5"
+    },
+    {
+      "path": "docs/mutation-semantics.md",
+      "dest": "references/core/mutation-semantics.md",
+      "tag": "v7.0.0",
+      "url": "https://raw.githubusercontent.com/airmang/python-hwpx/v7.0.0/docs/mutation-semantics.md",
+      "sha256": "4479b938a51f7319bff3baa2c45c0b1f6d1e8f2098cbed9665ed5c29c79ef618"
+    },
+    {
+      "path": "docs/recipes-traversal.md",
+      "dest": "references/core/recipes-traversal.md",
+      "tag": "v7.0.0",
+      "url": "https://raw.githubusercontent.com/airmang/python-hwpx/v7.0.0/docs/recipes-traversal.md",
+      "sha256": "4f5c6483c73eda2a5949cc5a98779053ed75a1662fc12e17645eb5f72a5a2e30"
+    },
+    {
+      "path": "docs/safe-write-contract.md",
+      "dest": "references/core/safe-write-contract.md",
+      "tag": "v7.0.0",
+      "url": "https://raw.githubusercontent.com/airmang/python-hwpx/v7.0.0/docs/safe-write-contract.md",
+      "sha256": "e96c142df8a8870c7164e8aec51600ec326189e49a4344806cc8c20ef3af9c4f"
+    },
+    {
+      "path": "docs/stable-api.md",
+      "dest": "references/core/stable-api.md",
+      "tag": "v7.0.0",
+      "url": "https://raw.githubusercontent.com/airmang/python-hwpx/v7.0.0/docs/stable-api.md",
+      "sha256": "6a92532b3a4dcfbf7859b1b1b080de66e3a92e7e7c80456382e3aebbcdadf28f"
+    },
+    {
+      "path": "docs/support-matrix.md",
+      "dest": "references/core/support-matrix.md",
+      "tag": "v7.0.0",
+      "url": "https://raw.githubusercontent.com/airmang/python-hwpx/v7.0.0/docs/support-matrix.md",
+      "sha256": "42b04f0e533a99d2dd07bb9c543715f56c1bde85ba8faa57222f0b8bee36e6bc"
+    }
+  ]
+}

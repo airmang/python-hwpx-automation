@@ -1,0 +1,80 @@
+{
+  "acceptanceRule": "weighted_score>=3.6 and no critical override and manual_edit_necessity>=3",
+  "criticalOverrides": [
+    "document_corruption",
+    "unmasked_high_confidence_pii",
+    "critical_false_complete"
+  ],
+  "dimensions": [
+    {
+      "id": "semantic_correctness",
+      "scale": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "weight": 25
+    },
+    {
+      "id": "hwpx_fidelity",
+      "scale": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "weight": 20
+    },
+    {
+      "id": "visual_quality",
+      "scale": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "weight": 15
+    },
+    {
+      "id": "korean_office_compliance",
+      "scale": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "weight": 15
+    },
+    {
+      "id": "task_completeness",
+      "scale": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "weight": 15
+    },
+    {
+      "id": "manual_edit_necessity",
+      "scale": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "weight": 10
+    }
+  ],
+  "humanLabels": false,
+  "judgeType": "agent_judge",
+  "rubricVersion": "1.0.0",
+  "schemaVersion": "hwpx.fixture-rubric.v1"
+}

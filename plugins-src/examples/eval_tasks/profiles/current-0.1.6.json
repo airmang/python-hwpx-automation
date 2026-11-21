@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "hwpx.task-eval-profile.v1",
+  "id": "current-0.1.6",
+  "label": "Current HWPX plugin bundle",
+  "pluginVersion": "0.1.6",
+  "availableTools": ["*"],
+  "brokenTools": [],
+  "guidanceTags": [
+    "generation",
+    "editing",
+    "formatting",
+    "forms",
+    "render-preview-review",
+    "transaction-edits",
+    "task-replay"
+  ]
+}

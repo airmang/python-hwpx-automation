@@ -1,0 +1,1331 @@
+#!/usr/bin/env python3
+"""Validate every generated HWPX host bundle against packaging/hosts.json."""
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import json
+import os
+import re
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from urllib.parse import unquote, urlsplit
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PACKAGING = ROOT / "packaging"
+CONFIG = PACKAGING / "hosts.json"
+MARKDOWN_LINK_RE = re.compile(
+    r"!?\[[^\]]*\]\(\s*(?P<target><[^>]*>|[^\s)]+)",
+    re.MULTILINE,
+)
+EXTERNAL_LINK_SCHEMES = {"http", "https", "mailto"}
+SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+
+
+def next_major(version: str) -> str:
+    return str(int(version.split(".")[0]) + 1)
+
+
+def install_constraints(identity: dict) -> dict[str, str]:
+    """The plugin install window: >= the verified version, < the next major.
+
+    Derived here and nowhere else; every template and doc is checked against
+    this value so a hand-typed window cannot drift (Feature 066 D1/D5).
+    """
+    core = identity["components"]["core"]
+    automation = identity["components"]["automation"]
+    extras = ",".join(automation["pluginInstallExtras"])
+    return {
+        "core": f"{core['distribution']}[preview]>={core['currentVersion']},<{next_major(core['currentVersion'])}",
+        "automation": (
+            f"{automation['distribution']}[{extras}]>={automation['currentVersion']},"
+            f"<{next_major(automation['currentVersion'])}"
+        ),
+    }
+
+
+INTERNAL_CODENAME_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:S-[0-9]{3}|STG-[A-Za-z0-9_-]+)(?![A-Za-z0-9])"
+)
+INTERNAL_WORKTREE_RE = re.compile(
+    r"(?:python-hwpx(?:-automation)?|hwpx-mcp-server|hwpx-skill)-s[0-9]{3}\b",
+    re.IGNORECASE,
+)
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise SystemExit(message)
+
+
+def require_file(path: Path) -> None:
+    if not path.is_file():
+        raise SystemExit(f"missing file: {path}")
+
+
+def require_safe_relative(raw_path: str, label: str) -> Path:
+    posix_path = PurePosixPath(raw_path)
+    windows_path = PureWindowsPath(raw_path)
+    require(not posix_path.is_absolute(), f"{label} must be relative: {raw_path}")
+    require(not windows_path.is_absolute(), f"{label} must be relative: {raw_path}")
+    require(".." not in posix_path.parts, f"{label} must not traverse upward: {raw_path}")
+    require(".." not in windows_path.parts, f"{label} must not traverse upward: {raw_path}")
+    return ROOT / raw_path
+
+
+def _markdown_target_path(raw_target: str, label: str) -> str | None:
+    target = raw_target[1:-1] if raw_target.startswith("<") and raw_target.endswith(">") else raw_target
+    target = target.strip()
+    if not target or target.startswith("#"):
+        return None
+    require(not target.startswith("//"), f"{label}: network-relative link is not allowed: {target}")
+    parsed = urlsplit(target)
+    if parsed.scheme:
+        require(
+            parsed.scheme.lower() in EXTERNAL_LINK_SCHEMES,
+            f"{label}: unsupported or unsafe link scheme: {target}",
+        )
+        return None
+    require(not parsed.netloc, f"{label}: network-relative link is not allowed: {target}")
+    path = unquote(parsed.path)
+    if not path:
+        return None
+    require("\\" not in path, f"{label}: backslash path is not allowed: {target}")
+    posix_path = PurePosixPath(path)
+    windows_path = PureWindowsPath(path)
+    require(not posix_path.is_absolute(), f"{label}: absolute local link is not allowed: {target}")
+    require(not windows_path.is_absolute(), f"{label}: absolute local link is not allowed: {target}")
+    require(not windows_path.drive, f"{label}: drive-qualified local link is not allowed: {target}")
+    require(".." not in posix_path.parts, f"{label}: parent traversal is not allowed: {target}")
+    require(".." not in windows_path.parts, f"{label}: parent traversal is not allowed: {target}")
+    return path
+
+
+def validate_markdown_links(paths: list[Path], root: Path, label: str) -> None:
+    """Fail closed for missing local links or links escaping the supplied artifact root."""
+    resolved_root = root.resolve()
+    for markdown in sorted(set(paths)):
+        require_file(markdown)
+        text = markdown.read_text(encoding="utf-8")
+        for match in MARKDOWN_LINK_RE.finditer(text):
+            raw_target = match.group("target")
+            path = _markdown_target_path(raw_target, f"{label}: {markdown}")
+            if path is None:
+                continue
+            target = (markdown.parent / path).resolve()
+            try:
+                target.relative_to(resolved_root)
+            except ValueError:
+                raise SystemExit(
+                    f"{label}: Markdown link escapes artifact root: {markdown} -> {raw_target}"
+                ) from None
+            require(
+                target.exists(),
+                f"{label}: missing Markdown link target: {markdown} -> {raw_target}",
+            )
+
+
+def frontmatter_of(skill_md: Path) -> str:
+    text = skill_md.read_text(encoding="utf-8")
+    require(text.startswith("---\n"), f"SKILL.md missing frontmatter: {skill_md}")
+    return text.split("\n---\n", 1)[0]
+
+
+def _require_fragments(path: Path, fragments: list[str], label: str) -> None:
+    require_file(path)
+    text = path.read_text(encoding="utf-8")
+    missing = [fragment for fragment in fragments if fragment not in text]
+    require(not missing, f"{label} missing identity fragments: {missing}")
+
+
+def validate_no_internal_identifiers(paths: list[Path], label: str) -> None:
+    failures: list[str] = []
+    for path in sorted(set(paths)):
+        if not path.is_file() or "examples/out" in path.as_posix():
+            continue
+        data = path.read_bytes()
+        if b"\0" in data[:8192]:
+            continue
+        text = data.decode("utf-8", "replace")
+        matches = sorted(
+            set(INTERNAL_CODENAME_RE.findall(text))
+            | set(INTERNAL_WORKTREE_RE.findall(text))
+        )
+        if matches:
+            failures.append(f"{path}: {', '.join(matches)}")
+    require(
+        not failures,
+        f"{label} contains internal Stage/worktree identifiers:\n"
+        + "\n".join(failures),
+    )
+
+
+def validate_product_identity(config: dict, identity: dict) -> None:
+    require(
+        identity.get("schemaVersion") == "hwpx.product-identity.v3",
+        "product identity schemaVersion mismatch",
+    )
+    release_state = identity.get("releaseState")
+    require(
+        isinstance(release_state, dict),
+        "product identity releaseState must be a lifecycle object",
+    )
+    status = release_state.get("status")
+    require(
+        status in {"unreleased-candidate", "release-approved", "released"},
+        "product identity release status is outside the three-state lifecycle",
+    )
+    require(
+        release_state.get("promotionGate")
+        == (
+            "Three states are mandatory: unreleased-candidate while auditing; "
+            "release-approved only after separate owner approval and while "
+            "currentPublic still names the previously observed coherent stack; "
+            "released only in a follow-up commit after remote truth is observed "
+            "for core, canonical automation, the compatibility distribution, the "
+            "plugin GitHub release, the marketplace entry, and a real marketplace "
+            "install. The automation tag workflow publishes only release-approved, "
+            "leaves currentPublic unchanged, and hands an attached receipt to "
+            "plugin publication."
+        ),
+        "product identity promotion gate drifted",
+    )
+    components = identity.get("components")
+    require(isinstance(components, dict), "product identity components missing")
+    for component_name in ("core", "automation", "plugin"):
+        component = components.get(component_name)
+        require(isinstance(component, dict), f"product identity missing {component_name}")
+        for version_field in ("currentVersion", "minimumCompatibleVersion"):
+            version = component.get(version_field)
+            require(
+                isinstance(version, str) and SEMVER_RE.fullmatch(version) is not None,
+                f"product identity {component_name}.{version_field} is not semver",
+            )
+        require(
+            component.get("maturity") in {"alpha", "beta", "stable", "not-declared"},
+            f"product identity {component_name}.maturity invalid",
+        )
+
+    core = components["core"]
+    automation = components["automation"]
+    plugin = components["plugin"]
+    contract = load_json(ROOT / "references" / "tool-contract.generated.json")
+    require(
+        release_state.get("candidate")
+        == {
+            "pythonHwpx": core.get("currentVersion"),
+            "canonicalDistribution": automation.get("distribution"),
+            "canonicalAutomation": automation.get("currentVersion"),
+            "compatibilityDistribution": identity.get("compatibility", {}).get(
+                "distribution"
+            ),
+            "compatibility": automation.get("currentVersion"),
+            "plugin": plugin.get("currentVersion"),
+            "contractHash": contract.get("contractHash"),
+        },
+        "product identity release candidate does not match stack/config truth",
+    )
+    previous_public = release_state.get("previousPublic")
+    require(isinstance(previous_public, dict), "previousPublic observed baseline missing")
+    require(set(previous_public) == {"pythonHwpx", "primaryDistribution", "primaryApplication", "plugin", "contractHash"}, "previousPublic baseline fields invalid")
+    if status == "released":
+        evidence = release_state.get("publicationEvidence")
+        require(isinstance(evidence, dict), "released requires publicationEvidence from remote/install observation")
+        require(evidence.get("pluginVersion") == plugin["currentVersion"] and evidence.get("installObserved") is True, "publicationEvidence must bind this plugin and an observed installation")
+        require(evidence.get("releaseUrl") == f"https://github.com/airmang/hwpx-plugins/releases/tag/v{plugin['currentVersion']}", "publicationEvidence release URL mismatch")
+        require(bool(evidence.get("observedAt")), "publicationEvidence observation time missing")
+    else:
+        require(release_state.get("publicationEvidence") is None, "unpublished candidate cannot claim publication evidence")
+        require(previous_public["plugin"] != plugin["currentVersion"], "candidate cannot already be currentPublic")
+    promoted_public = {
+        "pythonHwpx": core.get("currentVersion"),
+        "primaryDistribution": automation.get("distribution"),
+        "primaryApplication": automation.get("currentVersion"),
+        "plugin": plugin.get("currentVersion"),
+        "contractHash": contract.get("contractHash"),
+    }
+    expected_public = (
+        promoted_public if status == "released" else previous_public
+    )
+    require(
+        release_state.get("currentPublic") == expected_public,
+        "product identity currentPublic does not match the release lifecycle",
+    )
+    require(
+        identity.get("pluginPinPolicy")
+        == {"core": "verified-floor", "automation": "verified-floor"},
+        "plugin pin policy must be explicit verified-floor (Feature 066)",
+    )
+    verified = identity.get("verifiedStack")
+    require(isinstance(verified, dict), "verifiedStack missing")
+    require(
+        re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(verified.get("verifiedAt"))) is not None,
+        "verifiedStack.verifiedAt must be an ISO date",
+    )
+    require(
+        {k: v for k, v in verified.items() if k != "verifiedAt"}
+        == {
+            "pythonHwpx": core.get("currentVersion"),
+            "automation": automation.get("currentVersion"),
+            "plugin": plugin.get("currentVersion"),
+            "contractHash": contract.get("contractHash"),
+        },
+        "verifiedStack must name the exact pair/plugin/contract this release was verified with",
+    )
+    require(
+        identity.get("installConstraint") == install_constraints(identity),
+        "installConstraint must be derived from the verified versions (>= verified, < next major)",
+    )
+    require(automation.get("taskConsole") == "hwpx", "canonical task console mismatch")
+    require(
+        automation.get("mcpConsole") == "hwpx-automation-mcp",
+        "canonical MCP console mismatch",
+    )
+    require(
+        automation.get("fastMcpName") == "python-hwpx-automation",
+        "FastMCP name mismatch",
+    )
+    require(
+        automation.get("hostConfigKeyKind") == "local-alias",
+        "host config key must be documented as a local alias",
+    )
+    require(
+        automation.get("hostConfigKey") == "hwpx",
+        "new host config key must be the canonical local alias hwpx",
+    )
+    require(
+        automation.get("launcherPath") == "scripts/hwpx-automation-mcp",
+        "canonical launcher path mismatch",
+    )
+    require(
+        automation.get("pluginInstallExtras") == ["mcp", "oracle"],
+        "plugin automation extras must cover MCP and oracle verification",
+    )
+    compatibility = identity.get("compatibility")
+    require(isinstance(compatibility, dict), "compatibility identity missing")
+    require(
+        compatibility.get("distribution") == "hwpx-mcp-server"
+        and compatibility.get("console") == "hwpx-mcp-server"
+        and compatibility.get("hostConfigKey") == "hwpx-mcp-server"
+        and compatibility.get("launcherPath") == "scripts/hwpx-mcp-server"
+        and compatibility.get("supportedSeries") == "7.x",
+        "7.x compatibility identity mismatch",
+    )
+
+    public = identity.get("currentPublicStack")
+    require(isinstance(public, dict), "current public stack missing")
+    public_specs = (
+        {
+            "core": ("distribution", "python-hwpx", core["currentVersion"]),
+            "application": (
+                "distribution",
+                automation["distribution"],
+                automation["currentVersion"],
+            ),
+            "plugin": (
+                "installedPluginId",
+                plugin["installedPluginId"],
+                plugin["currentVersion"],
+            ),
+        }
+        if status == "released"
+        else {
+            "core": ("distribution", "python-hwpx", previous_public["pythonHwpx"]),
+            "application": ("distribution", "python-hwpx-automation", previous_public["primaryApplication"]),
+            "plugin": ("installedPluginId", "hwpx-plugin", previous_public["plugin"]),
+        }
+    )
+    for key, (name_field, expected_name, expected_version) in public_specs.items():
+        entry = public.get(key)
+        require(isinstance(entry, dict), f"current public stack missing {key}")
+        require(entry.get(name_field) == expected_name, f"public {key} name mismatch")
+        require(entry.get("version") == expected_version, f"public {key} version mismatch")
+        require(
+            SEMVER_RE.fullmatch(str(entry.get("version", ""))) is not None,
+            f"public {key} version is not semver",
+        )
+
+    taxonomy_path = PACKAGING / identity.get("oldNameTaxonomyFile", "")
+    require_file(taxonomy_path)
+    taxonomy = load_json(taxonomy_path)
+    require(
+        taxonomy.get("schemaVersion") == "hwpx.old-name-taxonomy.v1",
+        "old-name taxonomy schema mismatch",
+    )
+    allowed = taxonomy.get("allowedClassifications")
+    require(
+        allowed
+        == ["canonical", "compatibility", "historical", "generated", "stale-defect"],
+        "old-name taxonomy classifications mismatch",
+    )
+    entries = taxonomy.get("entries")
+    require(isinstance(entries, list) and entries, "old-name taxonomy entries missing")
+    classifications = {
+        entry.get("classification") for entry in entries if isinstance(entry, dict)
+    }
+    require(
+        {"canonical", "compatibility", "historical", "generated"} <= classifications,
+        "old-name taxonomy lacks required classifications",
+    )
+    require(
+        all(
+            isinstance(entry, dict)
+            and entry.get("classification") in allowed
+            and all(entry.get(field) for field in ("surface", "value", "reason"))
+            for entry in entries
+        ),
+        "old-name taxonomy contains an invalid entry",
+    )
+    taxonomy_surfaces = {
+        (entry["surface"], entry["value"], entry["classification"])
+        for entry in entries
+        if isinstance(entry, dict)
+    }
+    require(
+        ("host config key", "hwpx", "canonical") in taxonomy_surfaces,
+        "taxonomy lacks the canonical host-local key",
+    )
+    require(
+        ("host config key", "hwpx-mcp-server", "compatibility")
+        in taxonomy_surfaces,
+        "taxonomy lacks the legacy host-key compatibility surface",
+    )
+    require(
+        ("launcher filename", "scripts/hwpx-automation-mcp", "canonical")
+        in taxonomy_surfaces,
+        "taxonomy lacks the canonical launcher surface",
+    )
+    require(
+        ("launcher filename", "scripts/hwpx-mcp-server", "compatibility")
+        in taxonomy_surfaces,
+        "taxonomy lacks the launcher compatibility wrapper",
+    )
+
+    require("pluginName" not in config and "skillName" not in config, "hosts.json duplicates product identity")
+    require(
+        config.get("launcherTemplate") == "templates/hwpx-automation-mcp"
+        and config.get("launcherName") == "hwpx-automation-mcp",
+        "hosts.json canonical launcher mapping mismatch",
+    )
+    require(
+        config.get("compatibilityLauncherTemplate") == "templates/hwpx-mcp-server"
+        and config.get("compatibilityLauncherName") == "hwpx-mcp-server",
+        "hosts.json compatibility launcher mapping mismatch",
+    )
+    for host in config["hosts"]:
+        require(
+            "version:" not in host.get("frontmatterExtra", ""),
+            f"{host['id']}: version must come from product identity",
+        )
+
+    contract = load_json(ROOT / "references" / "tool-contract.generated.json")
+    require(
+        contract.get("minPythonHwpx") == core["minimumCompatibleVersion"],
+        "contract/core minimum differs from product identity",
+    )
+    require(
+        contract.get("minMcpVersion") == automation["minimumCompatibleVersion"],
+        "contract/automation minimum differs from product identity",
+    )
+    require(
+        contract.get("minSkillVersion") == plugin["minimumCompatibleVersion"],
+        "contract/skill minimum differs from product identity",
+    )
+
+    skill_fm = frontmatter_of(ROOT / config["canonicalSkill"])
+    require(
+        f"name: {plugin['installedSkillName']}" in skill_fm,
+        "canonical skill name differs from product identity",
+    )
+
+    first_party = identity["firstPartyLabelKo"]
+    visual_note = identity["visualVerificationNoteKo"]
+    readme = ROOT / "README.md"
+    state_fragments = {
+        "unreleased-candidate": [
+            "<!-- release-state: unreleased-candidate -->",
+            "미발행 후보",
+        ],
+        "release-approved": [
+            "<!-- release-state: release-approved -->",
+            "release-approved",
+        ],
+        "released": ["<!-- release-state: released -->"],
+    }[status]
+    _require_fragments(
+        readme,
+        [
+            first_party,
+            visual_note,
+            "공개 릴리스",
+            "최소 호환 버전",
+            "검증 좌표",
+            "플러그인 설치 제약",
+            f"`{install_constraints(identity)['core']}`",
+            f"`{install_constraints(identity)['automation']}`",
+            "HWPX_STACK_CHANNEL=verified",
+            "Development Status :: 3 - Alpha",
+            "MCP 서버·플러그인 성숙도: 미선언",
+            f"`{public['core']['distribution']} {public['core']['version']}`",
+            f"`{public['application']['distribution']} {public['application']['version']}`",
+            f"`{public['plugin']['installedPluginId']} {public['plugin']['version']}`",
+            f"`{core['distribution']} {core['currentVersion']}`",
+            f"`{automation['distribution']} {automation['currentVersion']}`",
+            f"`{plugin['installedPluginId']} {plugin['currentVersion']}`",
+            *state_fragments,
+        ],
+        "README.md",
+    )
+    api = ROOT / "references" / "api.md"
+    _require_fragments(
+        api,
+        [
+            "공개 릴리스",
+            "최소 호환 버전",
+            "검증 좌표",
+            "플러그인 설치 제약",
+            f"`{install_constraints(identity)['core']}`",
+            f"`{install_constraints(identity)['automation']}`",
+            f"`{public['core']['distribution']} {public['core']['version']}`",
+            f"`{public['application']['distribution']} {public['application']['version']}`",
+            f"`{public['plugin']['installedPluginId']} {public['plugin']['version']}`",
+            f"`{core['distribution']} {core['currentVersion']}`",
+            f"`{automation['distribution']} {automation['currentVersion']}`",
+            f"`{plugin['installedPluginId']} {plugin['currentVersion']}`",
+            *(
+                ["미발행 후보"]
+                if status == "unreleased-candidate"
+                else [status]
+            ),
+        ],
+        "references/api.md",
+    )
+    if status == "released":
+        for current_path in (readme, api):
+            current_text = current_path.read_text(encoding="utf-8")
+            require(
+                "미발행 후보" not in current_text,
+                f"{current_path}: released current-facing text still says unpublished",
+            )
+            require(
+                all(
+                    stale not in current_text
+                    for stale in (
+                        "`python-hwpx 4.2.0`",
+                        "`hwpx-mcp-server 5.1.0`",
+                        "`hwpx-plugin 0.8.0`",
+                        "`python-hwpx 5.0.1`",
+                        "`hwpx-plugin 1.0.0`",
+                    )
+                ),
+                f"{current_path}: released current-facing text retains old public coordinates",
+            )
+
+    claim_targets = [readme]
+    template_manifests = [
+        PACKAGING / "templates" / "claude.plugin.json",
+        PACKAGING / "templates" / "codex.plugin.json",
+        PACKAGING / "templates" / "openclaw.plugin.json",
+    ]
+    for manifest_path in template_manifests:
+        manifest = load_json(manifest_path)
+        manifest_id = manifest.get("id", manifest.get("name"))
+        if manifest_path.name == "openclaw.plugin.json":
+            manifest_id = manifest.get("id")
+        require(manifest_id == plugin["installedPluginId"], f"{manifest_path}: plugin id mismatch")
+        if manifest_path.name != "claude.plugin.json":
+            require(manifest.get("version") == plugin["currentVersion"], f"{manifest_path}: version mismatch")
+        require("first-party" in manifest.get("description", ""), f"{manifest_path}: first-party scope missing")
+        claim_targets.append(manifest_path)
+
+    for path in claim_targets:
+        text = path.read_text(encoding="utf-8")
+        for forbidden in identity.get("forbiddenUnqualifiedClaimsKo", []):
+            require(forbidden not in text, f"{path}: unqualified product claim remains: {forbidden}")
+
+    extras = ",".join(automation["pluginInstallExtras"])
+    automation_pin = (
+        f"{automation['distribution']}[{extras}]=={automation['currentVersion']}"
+    )
+    core_pin = f"{core['distribution']}[preview]=={core['currentVersion']}"
+    constraints = install_constraints(identity)
+    skill_env = f'"HWPX_SKILL_VERSION": "{plugin["currentVersion"]}"'
+    for path in (
+        PACKAGING / "templates" / "claude.mcp.json",
+        PACKAGING / "templates" / "codex.mcp.json",
+        PACKAGING / "templates" / "openclaw.mcp-install.md",
+        PACKAGING / "templates" / "hermes.mcp-install.md",
+    ):
+        text = path.read_text(encoding="utf-8")
+        if path.name not in {"claude.mcp.json", "codex.mcp.json"}:
+            # Install guides are filled from product-identity.json at build time
+            # (audit ARC-11): check the template for hand-typed or stale text,
+            # then check everything else on the rendered guide.
+            validate_install_guide_template(text, path, identity)
+            text = _bundle_builder().render_install_guide(text, identity)
+        require(
+            plugin["currentVersion"] in text,
+            f"{path}: skill version differs from product identity",
+        )
+        if path.name not in {"claude.mcp.json", "codex.mcp.json"}:
+            validate_install_guide_release_text(text, path, identity)
+            require(
+                constraints["automation"] in text and constraints["core"] in text,
+                f"{path}: install constraints differ from product identity",
+            )
+            require(
+                automation_pin not in text and core_pin not in text,
+                f"{path}: exact pins belong to the launcher's verified channel only (Feature 066 D1)",
+            )
+            require(
+                automation["mcpConsole"] in text,
+                f"{path}: canonical MCP console missing",
+            )
+            validate_host_install_skill_version(text, path, plugin["currentVersion"])
+            # Ephemeral uvx environments leave one orphan venv in the uv cache per
+            # resolved version set; direct-host wiring uses one persistent
+            # `uv tool` environment instead (hwpx-plugins #29).
+            require(
+                "uv tool install" in text and "uv tool upgrade" in text,
+                f"{path}: direct-host wiring must install one persistent uv tool environment",
+            )
+            require(
+                re.search(r'(?m)^\s*"?command"?\s*:\s*"?uvx\b', text) is None,
+                f"{path}: direct-host wiring must not launch an ephemeral uvx environment",
+            )
+    require(skill_env in (PACKAGING / "templates" / "codex.mcp.json").read_text(encoding="utf-8"), "Codex MCP skill pin mismatch")
+
+    _require_fragments(
+        PACKAGING / "templates" / "hwpx-automation-mcp",
+        [
+            f'VERIFIED_SERVER_PACKAGE="{automation_pin}"',
+            f'VERIFIED_CORE_PACKAGE="{core_pin}"',
+            f'CONSTRAINT_SERVER_PACKAGE="{constraints["automation"]}"',
+            f'CONSTRAINT_CORE_PACKAGE="{constraints["core"]}"',
+            f'"${{MCP_REPO}}[{extras}]"',
+            automation["mcpConsole"],
+            f"HWPX_SKILL_VERSION:-{plugin['currentVersion']}",
+            "Editable mode is deliberately opt-in",
+            # Expected stack versions derive from the package requests (#26).
+            'EXPECTED_CORE_VERSION="${HWPX_PYTHON_HWPX_VERSION:-$(_pinned_version "${CORE_PACKAGE}")}"',
+            'EXPECTED_SERVER_VERSION="${HWPX_AUTOMATION_VERSION:-${HWPX_MCP_SERVER_VERSION:-$(_pinned_version "${SERVER_PACKAGE}")}}"',
+            # Feature 066 runtime contract.
+            '"runtimeLayout": "generations-v2"',
+            "HWPX_STACK_CHANNEL",
+            "HWPX_STACK_AUTO_UPDATE",
+            "HWPX_STACK_UPDATE_INTERVAL_HOURS",
+            "HWPX_STACK_REFRESH_JOB",
+            'export HWPX_STACK_UPDATE_STATE="${STATE_FILE}"',
+            "_verify_generation",
+        ],
+        "launcher template",
+    )
+    launcher_text = (PACKAGING / "templates" / "hwpx-automation-mcp").read_text(encoding="utf-8")
+    require(
+        re.search(r'EXPECTED_(CORE|SERVER)_VERSION="\$\{[A-Z_]+:-(\$\{[A-Z_]+:-)?[0-9]', launcher_text) is None,
+        "launcher template: expected stack version is a hand-advanced literal; derive it from the pin (hwpx-plugins #26)",
+    )
+    uvx_block = re.search(r'exec uvx \\\n(?:.*\n)*?\s+hwpx-automation-mcp "\$@"', launcher_text)
+    require(
+        uvx_block is not None and "--refresh-package" not in uvx_block.group(0),
+        "launcher template: per-start uvx path must not carry --refresh-package (hwpx-plugins #23)",
+    )
+    for path in (
+        PACKAGING / "templates" / "codex.mcp.json",
+        PACKAGING / "templates" / "openclaw.mcp-install.md",
+        PACKAGING / "templates" / "hermes.mcp-install.md",
+    ):
+        require(
+            "--refresh-package" not in path.read_text(encoding="utf-8"),
+            f"{path}: exact-pin uvx wiring must not carry --refresh-package (hwpx-plugins #23)",
+        )
+    _require_fragments(
+        PACKAGING / "templates" / "hwpx-mcp-server",
+        ['exec "${SCRIPT_DIR}/hwpx-automation-mcp" "$@"'],
+        "compatibility launcher template",
+    )
+    for launcher_template in (
+        PACKAGING / "templates" / "hwpx-automation-mcp",
+        PACKAGING / "templates" / "hwpx-mcp-server",
+    ):
+        require(
+            os.access(launcher_template, os.X_OK),
+            f"{launcher_template}: launcher template is not executable",
+        )
+    _require_fragments(
+        ROOT / "scripts" / "clean_install_smoke.py",
+        [
+            'SKILL_VERSION = _IDENTITY["components"]["plugin"]["currentVersion"]',
+            '"HWPX_SKILL_VERSION": SKILL_VERSION',
+            "python-hwpx-automation",
+            "site-packages",
+        ],
+        "clean-install smoke",
+    )
+    smoke_text = (ROOT / "scripts" / "clean_install_smoke.py").read_text(encoding="utf-8")
+    require(
+        "HWPX_PYTHON_HWPX_VERSION" not in smoke_text
+        and "HWPX_AUTOMATION_VERSION" not in smoke_text,
+        "clean-install smoke: must not override the launcher's derived version expectations (hwpx-plugins #26)",
+    )
+    profile = load_json(
+        ROOT
+        / "examples"
+        / "eval_tasks"
+        / "profiles"
+        / f"current-{plugin['currentVersion']}.json"
+    )
+    require(
+        profile.get("id") == f"current-{plugin['currentVersion']}",
+        "current replay profile id mismatch",
+    )
+    require(profile.get("pluginVersion") == plugin["currentVersion"], "current replay profile version mismatch")
+    require(
+        profile.get("availableTools") == {"source": "generated-contract", "profile": "default"},
+        "current replay profile must resolve tools from generated contract",
+    )
+    _require_fragments(
+        PACKAGING / "s080-cross-repo-readme-wording.md",
+        [
+            "first-party",
+            "Development Status :: 3 - Alpha",
+            "actions/workflows/tests.yml/badge.svg",
+            "서버 전체를\n> stateless라고 표현하지 않습니다.",
+            f"{public['application']['distribution']} {public['application']['version']}",
+            f"{public['core']['distribution']} {public['core']['version']}",
+            f"{public['plugin']['installedPluginId']} {public['plugin']['version']}",
+            f"python-hwpx-automation {automation['currentVersion']}",
+            (
+                "현재 공개 릴리스와 미발행 후보"
+                if status == "unreleased-candidate"
+                else status
+            ),
+        ],
+        "cross-repository README evidence",
+    )
+
+
+# Codex forwards only the environment variables its .mcp.json declares in
+# ``env_vars``. The codex template is re-pinned by hand on every release train, so
+# a rewrite from a stale buffer could silently drop an entry (hwpx-plugins #19:
+# the Chrome path went missing and preview rendering failed). Keep every
+# documented passthrough pinned here.
+CODEX_REQUIRED_ENV_VARS = frozenset(
+    {
+        "HWPX_STACK_CHANNEL",
+        "HWPX_STACK_AUTO_UPDATE",
+        "HWPX_STACK_UPDATE_INTERVAL_HOURS",
+        "HWPX_AUTOMATION_RUNTIME_ROOT",
+        "HWPX_AUTOMATION_ADVANCED",
+        "HWPX_AUTOMATION_WORKSPACE_ROOTS",
+        "HWPX_RENDER_QUEUE_ROOT",
+        "HWPX_RENDER_QUEUE_URL",
+        "HWPX_RENDER_QUEUE_SECRET",
+        "HWPX_RENDER_CA_FILE",
+        "HWPX_RENDER_CLIENT_CERT_FILE",
+        "HWPX_RENDER_CLIENT_KEY_FILE",
+        "HWPX_RENDER_TRANSPORT_AUTH",
+        "HWPX_AUTOMATION_CHROME_PATH",
+        "HWPX_MCP_CHROME_PATH",
+    }
+)
+
+
+def validate_codex_env_passthrough(server: dict) -> None:
+    env_vars = server.get("env_vars")
+    require(
+        isinstance(env_vars, list) and all(isinstance(name, str) for name in env_vars),
+        "codex: .mcp.json env_vars must be a list of variable names",
+    )
+    missing = sorted(CODEX_REQUIRED_ENV_VARS - set(env_vars))
+    require(
+        not missing,
+        "codex documented environment passthrough is incomplete; missing env_vars: "
+        + ", ".join(missing),
+    )
+
+
+# The direct-host install guides register the server by hand, so their
+# HWPX_SKILL_VERSION is a copied literal. A version merely appearing elsewhere in
+# the file is not enough: both guides kept "1.0.0" from the 1.0 train through
+# 2.4.0 while the candidate-coordinate sentence satisfied the looser check.
+HOST_SKILL_VERSION_RE = re.compile(r'"?HWPX_SKILL_VERSION"?\s*:\s*"([^"]*)"')
+
+
+def validate_host_install_skill_version(text: str, path: Path, plugin_version: str) -> None:
+    values = HOST_SKILL_VERSION_RE.findall(text)
+    require(values, f"{path}: HWPX_SKILL_VERSION missing from the server registration")
+    stale = sorted({value for value in values if value != plugin_version})
+    require(
+        not stale,
+        f"{path}: HWPX_SKILL_VERSION {', '.join(stale)} differs from plugin {plugin_version}",
+    )
+
+
+def _bundle_builder():
+    module_spec = importlib.util.spec_from_file_location("hwpx_bundle_builder", ROOT / "scripts/build_hwpx_plugins.py")
+    builder = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(builder)
+    return builder
+
+
+# Text that described an earlier release state or an earlier public train. A
+# released install guide must not carry any of it, in the template or rendered.
+STALE_RELEASE_TEXT = (
+    "미발행 후보",
+    "unpublished candidate",
+    "not the current public",
+    "`python-hwpx 4.2.0`",
+    "`hwpx-mcp-server 5.1.0`",
+    "`hwpx-plugin 0.8.0`",
+    "`python-hwpx 5.0.1`",
+    "`hwpx-plugin 1.0.0`",
+)
+INSTALL_GUIDE_REQUIRED_TOKENS = (
+    "{{HWPX_RELEASE_NOTE}}",
+    "{{HWPX_CORE_CONSTRAINT}}",
+    "{{HWPX_AUTOMATION_CONSTRAINT}}",
+    "{{HWPX_PLUGIN_VERSION}}",
+)
+HAND_TYPED_COORDINATE_RE = re.compile(r"(?<![\w.])\d+\.\d+\.\d+(?![\w.])")
+
+
+def validate_install_guide_template(text: str, path: Path, identity: dict) -> None:
+    """A direct-host install guide template takes its coordinates from product-identity.json."""
+    for token in INSTALL_GUIDE_REQUIRED_TOKENS:
+        require(token in text, f"{path}: install guide template must take {token} from product identity")
+    # "2.0.2 이하 템플릿" names a historical template generation, not a coordinate.
+    typed = sorted(set(HAND_TYPED_COORDINATE_RE.findall(text)) - {"2.0.2"})
+    require(
+        not typed,
+        f"{path}: install guide template carries hand-typed versions {', '.join(typed)}; use the product-identity tokens",
+    )
+    lowered = text.lower()
+    for stale in STALE_RELEASE_TEXT:
+        require(stale.lower() not in lowered, f"{path}: install guide template retains stale release text: {stale}")
+
+
+def validate_install_guide_release_text(text: str, path: Path, identity: dict) -> None:
+    """The rendered guide states the release coordinates that product-identity.json holds."""
+    public = identity["currentPublicStack"]
+    for fragment in (
+        f"`{public['core']['distribution']} {public['core']['version']}`",
+        f"`{public['application']['distribution']} {public['application']['version']}`",
+        f"`{public['plugin']['installedPluginId']} {public['plugin']['version']}`",
+    ):
+        require(fragment in text, f"{path}: rendered install guide does not name the public release {fragment}")
+    if identity["releaseState"]["status"] == "released":
+        lowered = text.lower()
+        for stale in STALE_RELEASE_TEXT:
+            require(
+                stale.lower() not in lowered,
+                f"{path}: released install guide retains stale release text: {stale}",
+            )
+
+
+def expected_transformed_sources(host: dict, config: dict) -> set[str]:
+    """Sources the builder rewrites instead of copying byte-for-byte.
+
+    Every other sync record must be an exact copy. Deriving this set from the
+    build configuration (rather than trusting each record's own ``transformed``
+    flag) stops a hand-edited bundle file from escaping the template/bundle
+    byte-identity invariant by flipping the flag (hwpx-plugins #21).
+    """
+    expected = {config["canonicalSkill"]}
+    if host.get("skillNotice"):
+        expected.add(f"packaging/{host['skillNotice']}")
+    for generated in host.get("generatedReferences", []):
+        expected.update(f"packaging/{generated[key]}" for key in ("template", "workflows", "automationApi"))
+    if host["id"] == "codex" or host["mcp"].get("strategy") == "config-doc":
+        expected.add(f"packaging/{host['mcp']['template']}")
+    return expected
+
+
+def validate_sync(
+    host: dict, out: Path, skill_dir: Path, identity: dict, config: dict
+) -> set[Path]:
+    sync_path = out / "plugin-sync.json"
+    require_file(sync_path)
+    sync = load_json(sync_path)
+    require(sync.get("schemaVersion") == "hwpx.plugin-sync.v2", f"{host['id']}: bad sync schemaVersion")
+    require(sync.get("host") == host["id"], f"{host['id']}: sync host mismatch")
+    plugin_id = identity["components"]["plugin"]["installedPluginId"]
+    require(sync.get("plugin") == plugin_id, f"{host['id']}: sync plugin identity mismatch")
+
+    files = sync.get("files")
+    require(isinstance(files, list) and files, f"{host['id']}: sync files must be a non-empty list")
+    skill_dests: set[Path] = set()
+    transformed_sources = expected_transformed_sources(host, config)
+    for index, rec in enumerate(files):
+        require(isinstance(rec, dict), f"{host['id']}: sync record {index} invalid")
+        source = rec.get("source")
+        dest = rec.get("dest")
+        source_sha = rec.get("sourceSha256")
+        dest_sha = rec.get("destSha256")
+        for value, name in ((source, "source"), (dest, "dest"), (source_sha, "sourceSha256"), (dest_sha, "destSha256")):
+            require(isinstance(value, str) and value, f"{host['id']}: sync record {index} {name} invalid")
+
+        source_path = require_safe_relative(source, f"{host['id']} record {index} source")
+        dest_path = require_safe_relative(dest, f"{host['id']} record {index} dest")
+        require_file(source_path)
+        require_file(dest_path)
+        require(sha256(source_path) == source_sha, f"{host['id']}: source drifted (rebuild needed): {source}")
+        transformed = rec.get("transformed")
+        require(
+            isinstance(transformed, bool),
+            f"{host['id']}: sync record {index} transformed flag must be a boolean",
+        )
+        require(
+            transformed == (source in transformed_sources),
+            f"{host['id']}: sync record {index} transformed flag disagrees with the build for {source}",
+        )
+        if not transformed:
+            require(
+                source_sha == dest_sha,
+                f"{host['id']}: untransformed source/destination mismatch (edit the template, then rebuild): {dest}",
+            )
+        require(sha256(dest_path) == dest_sha, f"{host['id']}: bundle file tampered: {dest}")
+        try:
+            dest_path.resolve().relative_to(skill_dir.resolve())
+            skill_dests.add(dest_path.resolve())
+        except ValueError:
+            pass
+    return skill_dests
+
+
+def vendored_engine_dir(host: dict, skill_dir: Path) -> Path | None:
+    """The engine unpacked by scripts/vendor_claude_engine.py; verified by its own manifest."""
+    rel = host.get("vendoredEngine")
+    return skill_dir / rel if rel else None
+
+
+def validate_skill_files_match(host: dict, skill_dir: Path, recorded: set[Path]) -> None:
+    # When skillSubdir == "." the bundle root is the skill dir, so the bundle's own
+    # plugin-sync.json and INSTALL-mcp.md live alongside skill files. plugin-sync.json
+    # is never self-recorded; exclude it. Everything else under skill_dir must be recorded.
+    engine = vendored_engine_dir(host, skill_dir)
+    actual = {
+        p.resolve()
+        for p in skill_dir.rglob("*")
+        if p.is_file()
+        and p.name != "plugin-sync.json"
+        and "examples/out" not in p.relative_to(skill_dir).as_posix()
+        and (engine is None or not p.is_relative_to(engine))
+    }
+    require(actual == recorded, f"{host['id']}: skill files do not match sync manifest")
+
+
+CLAUDE_LOCK_MAX_BYTES = 256 * 1024
+
+
+def validate_vendored_engine() -> None:
+    """Engine source = the uv.lock wheels, unchanged; bundle inside the directory's file limits."""
+    spec = importlib.util.spec_from_file_location("vendor_claude_engine", ROOT / "scripts" / "vendor_claude_engine.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    problems = module.check()
+    require(not problems, "claude: vendored engine: " + "; ".join(problems))
+
+
+def _load_refresh_module():
+    spec = importlib.util.spec_from_file_location("refresh_claude_runtime", ROOT / "scripts" / "refresh_claude_runtime.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
+    """The Claude bundle pins the exact public pair through server/pyproject.toml + uv.lock."""
+    import tomllib
+
+    components = identity["components"]
+    automation, core = components["automation"], components["core"]
+    pyproject_path = out / "server" / "pyproject.toml"
+    lock_path = out / "server" / "uv.lock"
+    icon_path = out / ".claude-plugin" / "icon.svg"
+    for path in (pyproject_path, lock_path, icon_path):
+        require_file(path)
+    refresh = _load_refresh_module()
+    project = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))["project"]
+    pins = {}
+    for spec in project.get("dependencies", []):
+        match = re.fullmatch(r"(?P<dist>[A-Za-z0-9_.-]+)\[(?P<extras>[^\]]*)\]==(?P<version>\d+\.\d+\.\d+)", spec)
+        require(match is not None, f"claude: server/pyproject.toml dependency is not an exact pin: {spec}")
+        pins[match["dist"]] = (match["extras"], match["version"])
+    require(
+        set(pins) == {automation["distribution"], core["distribution"]},
+        "claude: server/pyproject.toml must pin exactly python-hwpx and python-hwpx-automation",
+    )
+    # The imaging stack behind the ``oracle`` extra only reads PDFs rendered by Hancom Office,
+    # so the Claude runtime installs the other extras by default and locks ``oracle`` in the
+    # ``render`` dependency group, which a user adds on demand.
+    default_extras = [extra for extra in automation["pluginInstallExtras"] if extra != "oracle"]
+    require(
+        pins[automation["distribution"]][0] == ",".join(default_extras)
+        and pins[core["distribution"]][0] == "preview",
+        "claude: server/pyproject.toml extras differ from the plugin install extras without oracle",
+    )
+    groups = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get("dependency-groups", {})
+    require(
+        groups.get("render")
+        == [f"{automation['distribution']}[oracle]=={pins[automation['distribution']][1]}"],
+        "claude: server/pyproject.toml must lock the oracle extra in the render group at the pinned version",
+    )
+    for component in (core, automation):
+        pinned = refresh.parse(pins[component["distribution"]][1])
+        floor = refresh.parse(component["currentVersion"])
+        require(
+            pinned is not None and floor is not None and pinned >= floor and pinned[0] == floor[0],
+            f"claude: {component['distribution']} pin is outside the install window "
+            f">={component['currentVersion']},<{floor[0] + 1 if floor else '?'}; run scripts/refresh_claude_runtime.py",
+        )
+    core_version = pins[core["distribution"]][1]
+    automation_version = pins[automation["distribution"]][1]
+    require(
+        lock_path.stat().st_size <= CLAUDE_LOCK_MAX_BYTES,
+        f"claude: server/uv.lock exceeds {CLAUDE_LOCK_MAX_BYTES} bytes (directory size limit)",
+    )
+    lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    versions = {pkg["name"]: pkg.get("version") for pkg in lock.get("package", [])}
+    require(
+        versions.get(automation["distribution"]) == automation_version
+        and versions.get(core["distribution"]) == core_version,
+        "claude: server/uv.lock does not lock the pinned pair; run scripts/refresh_claude_runtime.py",
+    )
+    root = next((pkg for pkg in lock.get("package", []) if pkg.get("source", {}).get("virtual") == "."), None)
+    require(root is not None, "claude: server/uv.lock has no root project entry")
+    requested = {
+        (req["name"], req.get("specifier"))
+        for req in root.get("metadata", {}).get("requires-dist", [])
+    }
+    require(
+        (automation["distribution"], f"=={automation_version}") in requested
+        and (core["distribution"], f"=={core_version}") in requested,
+        "claude: server/uv.lock was locked from a different pyproject; run uv lock",
+    )
+    for pkg in lock.get("package", []):
+        for artifact in [pkg.get("sdist")] + list(pkg.get("wheels", [])):
+            if artifact:
+                require(
+                    str(artifact.get("hash", "")).startswith("sha256:"),
+                    f"claude: server/uv.lock artifact without sha256 hash in {pkg['name']}",
+                )
+    manifest_version = load_json(out / ".claude-plugin" / "plugin.json").get("version")
+    expected_version = refresh.claude_plugin_version(
+        components["plugin"]["currentVersion"], core_version, automation_version, identity
+    )
+    require(
+        manifest_version == expected_version,
+        f"claude: plugin.json version {manifest_version!r} must be {expected_version!r} for the locked runtime",
+    )
+    svg = icon_path.read_text(encoding="utf-8")
+    box = re.search(r'viewBox="\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*"', svg)
+    require(
+        box is not None and box.group(1) == box.group(2) and float(box.group(1)) >= 128,
+        "claude: .claude-plugin/icon.svg must be a square SVG of at least 128px",
+    )
+    require(
+        not (out / "scripts").exists(),
+        "claude: the locked runtime bundle must not ship the managed launcher scripts",
+    )
+
+
+def validate_no_placeholder(path: Path, host_id: str) -> None:
+    require("[PLACEHOLDER:" not in path.read_text(encoding="utf-8"), f"{host_id}: placeholder in {path}")
+
+
+def _canonical_server_package_line() -> str:
+    """The SERVER_PACKAGE pin read from the canonical launcher template — the single
+    source of truth. Deriving it here (instead of hardcoding a version) keeps this
+    check from drifting behind what the bundles actually ship on a version bump."""
+    template = PACKAGING / "templates" / "hwpx-automation-mcp"
+    for line in template.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("SERVER_PACKAGE="):
+            return stripped
+    raise SystemExit(f"canonical launcher template missing SERVER_PACKAGE=: {template}")
+
+
+def validate_launcher(out: Path, host_id: str, identity: dict) -> None:
+    launcher = out / "scripts" / "hwpx-automation-mcp"
+    require_file(launcher)
+    require(os.access(launcher, os.X_OK), f"{host_id}: launcher not executable")
+    text = launcher.read_text(encoding="utf-8")
+    components = identity["components"]
+    core_version = components["core"]["currentVersion"]
+    automation = components["automation"]
+    automation_version = automation["currentVersion"]
+    plugin_version = components["plugin"]["currentVersion"]
+    fragments = [
+        "Editable mode is deliberately opt-in",
+        "HWPX_AUTOMATION_REPO",
+        "HWPX_MCP_SERVER_REPO",
+        "PYTHON_HWPX_REPO",
+        "uv run --no-project",
+        _canonical_server_package_line(),
+        "HWPX_SKILL_VERSION",
+        "HWPX_PLUGIN_ROOT",
+        ".hwpx-mcp-runtime",
+        "HWPX_MCP_RUNTIME_ROOT",
+        "_verify_generation",
+        '"runtimeLayout": "generations-v2"',
+        'POINTER_FILE="${ENV_DIR}/current"',
+        'name="gen-${core}-${automation}"',
+        "install.lock",
+        "uv pip install",
+        "uv venv --quiet --relocatable",
+        "relocated console self-check failed",
+        "--refresh-package python-hwpx-automation",
+        "--refresh-package python-hwpx",
+        "--from \"${SERVER_PACKAGE}\"",
+        f"python-hwpx-automation[mcp,oracle]=={automation_version}",
+        f"python-hwpx[preview]=={core_version}",
+        '--with-editable "${MCP_REPO}[mcp,oracle]"',
+        "hwpx-automation-mcp",
+        f"HWPX_SKILL_VERSION:-{plugin_version}",
+    ]
+    missing = [fragment for fragment in fragments if fragment not in text]
+    require(not missing, f"{host_id}: launcher missing fragments: {missing}")
+    require(
+        "-m hwpx_automation.server" not in text,
+        f"{host_id}: launcher bypasses the canonical MCP console",
+    )
+    compatibility_launcher = out / "scripts" / "hwpx-mcp-server"
+    require_file(compatibility_launcher)
+    require(
+        os.access(compatibility_launcher, os.X_OK),
+        f"{host_id}: compatibility launcher not executable",
+    )
+    compatibility_text = compatibility_launcher.read_text(encoding="utf-8")
+    require(
+        'exec "${SCRIPT_DIR}/hwpx-automation-mcp" "$@"' in compatibility_text,
+        f"{host_id}: compatibility launcher does not delegate canonically",
+    )
+    require(
+        "SERVER_PACKAGE=" not in compatibility_text
+        and "uv pip install" not in compatibility_text,
+        f"{host_id}: compatibility launcher duplicates canonical runtime logic",
+    )
+
+
+def validate_host(host: dict, config: dict, identity: dict) -> None:
+    out = ROOT / host["outputDir"]
+    require(out.is_dir(), f"{host['id']}: missing output dir {host['outputDir']}")
+    skill_dir = out if host["skillSubdir"] == "." else out / host["skillSubdir"]
+
+    skill_md = skill_dir / "SKILL.md"
+    require_file(skill_md)
+    validate_no_placeholder(skill_md, host["id"])
+    fm = frontmatter_of(skill_md)
+    components = identity["components"]
+    plugin = components["plugin"]
+    skill_name = plugin["installedSkillName"]
+    plugin_id = plugin["installedPluginId"]
+    plugin_version = plugin["currentVersion"]
+    automation = components["automation"]
+    compatibility = identity["compatibility"]
+    require(f"name: {skill_name}" in fm, f"{host['id']}: SKILL.md missing name")
+    require("description:" in fm, f"{host['id']}: SKILL.md missing description")
+    if host.get("includeVersionFrontmatter"):
+        require(f"version: {plugin_version}" in fm, f"{host['id']}: SKILL.md version mismatch")
+        require("hermes:" in fm and "tags:" in fm, f"{host['id']}: SKILL.md missing metadata.hermes.tags")
+    else:
+        require("\nversion:" not in fm, f"{host['id']}: SKILL.md must not declare version")
+
+    excluded = set(host.get("excludeSharedAssets", []))
+    for rel in config["sharedAssets"]:
+        if rel in excluded:
+            require(not (skill_dir / rel).exists(), f"{host['id']}: excluded shared asset is bundled: {rel}")
+        else:
+            require_file(skill_dir / rel)
+    for generated in host.get("generatedReferences", []):
+        require_file(skill_dir / generated["dest"])
+
+    for manifest in host.get("manifests", []):
+        manifest_path = out / manifest["dest"]
+        require_file(manifest_path)
+        validate_no_placeholder(manifest_path, host["id"])
+        data = load_json(manifest_path)
+        if host["id"] != "claude":  # the Claude version follows the locked runtime (validate_claude_locked_runtime)
+            require(data.get("version") == plugin_version, f"{host['id']}: manifest version mismatch")
+        if host["id"] == "claude":
+            require(data.get("name") == plugin_id, "claude: manifest name invalid")
+            require(data.get("skills") == "./skills/", "claude: manifest skills invalid")
+            require(data.get("mcpServers") == "./.mcp.json", "claude: manifest mcpServers invalid")
+        elif host["id"] == "codex":
+            require(data.get("name") == plugin_id, "codex: manifest name invalid")
+            require(data.get("skills") == "./skills/", "codex: manifest skills invalid")
+            require(data.get("mcpServers") == "./.mcp.json", "codex: manifest mcpServers invalid")
+        elif host["id"] == "openclaw":
+            require(data.get("id") == plugin_id, "openclaw: manifest id invalid")
+            require(data.get("skills") == ["./skills"], "openclaw: manifest skills invalid")
+            schema = data.get("configSchema")
+            require(isinstance(schema, dict) and schema.get("type") == "object", "openclaw: configSchema invalid")
+            require(schema.get("additionalProperties") is False, "openclaw: configSchema must set additionalProperties false")
+
+    mcp_config = host["mcp"]
+    mcp_path = out / mcp_config["dest"]
+    require_file(mcp_path)
+    if mcp_config["strategy"] == "bundled":
+        mcp_data = load_json(mcp_path)
+        servers = mcp_data.get("mcpServers", {})
+        require(
+            isinstance(servers, dict)
+            and set(servers) == {automation["hostConfigKey"]},
+            f"{host['id']}: .mcp.json must expose only the canonical host key",
+        )
+        server = servers.get(automation["hostConfigKey"])
+        require(
+            isinstance(server, dict),
+            f"{host['id']}: .mcp.json missing {automation['hostConfigKey']}",
+        )
+        command = server.get("command", "")
+        if host["id"] == "claude":
+            # Claude plugin directory lints require every fetched package to be pinned
+            # in the command itself or through a committed uv.lock run with --frozen.
+            require(command == "uv", "claude: .mcp.json must start the locked runtime with uv")
+            require(
+                server.get("args") == ["run", "--frozen", "--project", "${CLAUDE_PLUGIN_ROOT}/server", automation["mcpConsole"]],
+                "claude: .mcp.json must run the canonical console from the locked server project",
+            )
+            redirects = [
+                key for key in server.get("env", {})
+                if key.startswith(("UV_", "PIP_", "NPM_", "PYPI_")) or "INDEX" in key or "REGISTRY" in key
+            ]
+            require(
+                not redirects,
+                f"claude: .mcp.json env must not redirect the package index or registry: {redirects}",
+            )
+            require("cwd" not in server, "claude: .mcp.json must preserve project cwd")
+            validate_claude_locked_runtime(out, identity)
+        if host["id"] == "codex":
+            args = server.get("args", [])
+            require(command == "bash" and args[:1] == ["-c"], "codex must execute the managed launcher bootstrap")
+            require("cwd" not in server, "codex must preserve the thread workspace cwd")
+            module_spec = importlib.util.spec_from_file_location("hwpx_bundle_builder", ROOT / "scripts/build_hwpx_plugins.py")
+            builder = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(builder)
+            expected = builder.render_mcp_config(
+                (PACKAGING / mcp_config["template"]).read_text(encoding="utf-8"),
+                (PACKAGING / config["launcherTemplate"]).read_text(encoding="utf-8"),
+            )
+            require(mcp_data == json.loads(expected), "codex managed launcher differs from canonical source; rebuild required")
+            validate_codex_env_passthrough(server)
+        require("HWPX_AUTOMATION_ADVANCED" not in server.get("env", {}), "bundled env must not override the user's advanced toggle")
+        require(
+            server.get("env", {}).get("HWPX_SKILL_VERSION") == plugin_version,
+            f"{host['id']}: MCP skill version mismatch",
+        )
+    else:
+        text = mcp_path.read_text(encoding="utf-8")
+        expected_guide = _bundle_builder().render_install_guide(
+            (PACKAGING / mcp_config["template"]).read_text(encoding="utf-8"), identity
+        )
+        require(
+            mcp_path.read_bytes() == expected_guide.encode("utf-8"),
+            f"{host['id']}: INSTALL-mcp.md differs from the template rendered with product identity; rebuild required",
+        )
+        validate_install_guide_release_text(text, mcp_path, identity)
+        require(
+            "mcp_servers" in text or automation["hostConfigKey"] in text,
+            f"{host['id']}: INSTALL-mcp.md missing MCP guidance",
+        )
+        require(
+            automation["mcpConsole"] in text,
+            f"{host['id']}: INSTALL-mcp.md missing canonical MCP console",
+        )
+        require(
+            f"  {compatibility['hostConfigKey']}:" not in text
+            and f'"{compatibility["hostConfigKey"]}": {{' not in text,
+            f"{host['id']}: new install example uses the compatibility host key",
+        )
+
+    if host.get("bundleLauncher"):
+        validate_launcher(out, host["id"], identity)
+
+    recorded = validate_sync(host, out, skill_dir, identity, config)
+    validate_skill_files_match(host, skill_dir, recorded)
+    validate_no_internal_identifiers(list(recorded), f"{host['id']} bundle")
+    engine = vendored_engine_dir(host, skill_dir)
+    validate_markdown_links(
+        [path for path in out.rglob("*.md") if engine is None or not path.is_relative_to(engine)],
+        out,
+        f"{host['id']} bundle",
+    )
+    if engine is not None:
+        validate_vendored_engine()
+
+
+def validate_marketplace(config: dict, identity: dict) -> None:
+    plugin = identity["components"]["plugin"]
+    for artifact in config.get("repoRootArtifacts", []):
+        path = ROOT / artifact["dest"]
+        require_file(path)
+        if path.name == "marketplace.json":
+            data = load_json(path)
+            require(isinstance(data.get("name"), str) and data["name"], "marketplace: name invalid")
+            plugins = data.get("plugins")
+            require(isinstance(plugins, list) and plugins, "marketplace: plugins invalid")
+            entry = plugins[0]
+            require(entry.get("name") == plugin["installedPluginId"], "marketplace: plugin name invalid")
+            if "version" in entry:
+                require(entry["version"] == plugin["currentVersion"], "marketplace: plugin version invalid")
+            if artifact["dest"].startswith(".claude-plugin/"):
+                require(isinstance(data.get("owner"), dict), "claude marketplace: owner invalid")
+                require(entry.get("source") == "./plugins/claude/hwpx-plugin", "claude marketplace: plugin source invalid")
+            elif artifact["dest"].startswith(".agents/plugins/"):
+                source = entry.get("source")
+                require(isinstance(source, dict), "codex marketplace: source invalid")
+                require(source.get("source") == "local", "codex marketplace: source type invalid")
+                require(source.get("path") == "./plugins/codex/hwpx-plugin", "codex marketplace: plugin path invalid")
+                policy = entry.get("policy")
+                require(isinstance(policy, dict), "codex marketplace: policy invalid")
+                require(policy.get("installation") == "AVAILABLE", "codex marketplace: installation policy invalid")
+                require(policy.get("authentication") == "ON_INSTALL", "codex marketplace: authentication policy invalid")
+                require(entry.get("category") == "Productivity", "codex marketplace: category invalid")
+
+
+def main() -> int:
+    config = load_json(CONFIG)
+    identity_path = PACKAGING / config["identityFile"]
+    require_file(identity_path)
+    identity = load_json(identity_path)
+    validate_product_identity(config, identity)
+    canonical_markdown = [ROOT / config["canonicalSkill"]]
+    canonical_markdown.extend(
+        ROOT / rel for rel in config["sharedAssets"] if Path(rel).suffix.lower() == ".md"
+    )
+    validate_markdown_links(canonical_markdown, ROOT, "canonical bundle source")
+    validate_no_internal_identifiers(
+        [
+            ROOT / "README.md",
+            ROOT / "SKILL.md",
+            ROOT / "CHANGELOG.md",
+            ROOT / "CONTRIBUTING.md",
+            *sorted((ROOT / "scripts").glob("*.py")),
+        ],
+        "public source",
+    )
+    for host in config["hosts"]:
+        validate_host(host, config, identity)
+    validate_marketplace(config, identity)
+    print(f"[OK] validated {len(config['hosts'])} host bundles")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
