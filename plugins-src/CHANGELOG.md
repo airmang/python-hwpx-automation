@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- ChatGPT 플러그인을 1.1.0으로 올립니다. 묶인 엔진이 python-hwpx 7.0.0·python-hwpx-automation 8.0.0이 됩니다
+  (1.0.2는 6.6.0·7.3.1). python-hwpx-automation 8.0은 `cryptography`·`anyio`가 없어도 설치되고 돌아가므로, 묶음에서
+  `anyio`·`idna`·`typing_extensions` wheel을 빼고 표 라벨 칸 채우기·새 문서 만들기의 전제를 `pydantic`(2.11 이상)
+  하나로 고칩니다(`SKILL.md`, 시작 스크립트, 목록 설명, README). 샌드박스 모의 실행도 `lxml`·`pydantic`만 깐 환경에서
+  돕니다.
+
 ## [8.0.0] - 2026-11-21
 
 - 플러그인 판이 2.4.0에서 8.0.0으로 뜁니다(소유자 결정). 플러그인은 같은 판의 python-hwpx-automation을 묶어 내고,

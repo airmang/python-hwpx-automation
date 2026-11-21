@@ -2,7 +2,7 @@
 """G2/G3 gate: run the built ChatGPT skill the way the ChatGPT sandbox does.
 
 The simulation reproduces what the owner observed in ChatGPT web Chat
-(2026-09-29): Python 3.12, lxml/pydantic/cryptography preinstalled, no
+(2026-09-29): Python 3.12, lxml and pydantic preinstalled, no
 python-hwpx, a read-only skill directory, and no reachable package index.
 It then executes every code block of ``references/web-workflows.md`` against
 Hancom-saved documents we did not author (python-hwpx ``tests/fixtures``:
@@ -10,7 +10,7 @@ the third-party hwpxlib corpus and public-sector samples).
 
 Usage::
 
-    python3 scripts/chatgpt_sandbox_sim.py --zip dist/python-hwpx-skill-1.0.2.zip \\
+    python3 scripts/chatgpt_sandbox_sim.py --zip dist/python-hwpx-skill-1.1.0.zip \\
         --fixtures ../python-hwpx/tests/fixtures --evidence out.json
 """
 
@@ -29,7 +29,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-PREINSTALLED = ["lxml", "pydantic", "cryptography"]
+# The minimum the skill claims (python-hwpx-automation 8.0 needs no cryptography or anyio).
+PREINSTALLED = ["lxml", "pydantic"]
 BLOCKED_INDEX = "http://127.0.0.1:9/simple"
 ALLOWED_IMPORTS = {"hwpx", "hwpx_automation", "importlib", "json", "os", "re", "site", "subprocess", "sys", "tempfile"}
 # Beside the ``api`` facade, the automation modules python-hwpx 7.0 moved document

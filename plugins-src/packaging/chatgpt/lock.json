@@ -20,27 +20,6 @@
       "filename": "python_hwpx_automation-8.0.0-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/fe/bc/73c18a57db215f7baf4ee18519102930f26621f338734a1a416073649714/python_hwpx_automation-8.0.0-py3-none-any.whl",
       "sha256": "216df98c6c1ad300f6813a04da241c32b9a1d3d5778cf9a2219b90c2ad767590"
-    },
-    {
-      "distribution": "anyio",
-      "version": "4.15.1",
-      "filename": "anyio-4.15.1-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
-      "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101"
-    },
-    {
-      "distribution": "idna",
-      "version": "3.20",
-      "filename": "idna-3.20-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
-      "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c"
-    },
-    {
-      "distribution": "typing_extensions",
-      "version": "4.16.0",
-      "filename": "typing_extensions-4.16.0-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
-      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
     }
   ],
   "coreDocs": [

@@ -56,7 +56,7 @@ codex plugin add hwpx-plugin@hwpx
 스킬만 올리려면 Skills → Create → Upload from your computer에서 스킬 zip(`python-hwpx-skill-<판>.zip`, 저장소의
 `scripts/build_chatgpt_skill.py`가 만듭니다)을 올립니다. Enterprise·Edu 워크스페이스는 관리자가 스킬과 스킬 올리기를
 켜 두어야 합니다. 엔진은 묶음 안에 있어 인터넷 없이 설치되지만, ChatGPT 코드 실행 환경에 `lxml`이 있어야 하고
-표 라벨 칸 채우기·새 문서 만들기에는 `pydantic`·`cryptography`도 있어야 합니다. ChatGPT에서는 결과를 늘 새
+표 라벨 칸 채우기·새 문서 만들기에는 `pydantic`(2.11 이상)도 있어야 합니다. ChatGPT에서는 결과를 늘 새
 `.hwpx` 파일로 돌려주고 `.hwp`는 읽기만 합니다.
 
 Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 잠긴 정확한 버전으로

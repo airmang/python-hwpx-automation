@@ -7,9 +7,9 @@ Run once per conversation from the Python tool, with the kernel's own interprete
 
 Only the wheels shipped in ``wheels/`` are installed and the package index is
 never contacted (``--no-index``).  python-hwpx needs only lxml; the automation
-layer also needs pydantic, cryptography and anyio.  If the sandbox cannot
-satisfy the automation layer offline, the core is still installed and the
-status says so.  The last line of output is always one JSON status record.
+layer also needs pydantic 2.11 or later.  Neither is bundled: both must already
+be in the sandbox.  If the sandbox cannot satisfy the automation layer offline,
+the core is still installed and the status says so.  The last line of output is always one JSON status record.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ PACKAGES = {
     "core": ("python-hwpx", "hwpx", MANIFEST["core"]),
     "automation": ("python-hwpx-automation", "hwpx_automation", MANIFEST["automation"]),
 }
-PREINSTALLED = ("lxml", "pydantic", "pydantic-core", "cryptography", "anyio", "typing_extensions")
+PREINSTALLED = ("lxml", "pydantic", "pydantic-core", "typing_extensions")
 PIP_TIMEOUT = 180
 
 
@@ -109,7 +109,7 @@ def main() -> int:
     if not automation["ok"]:
         status["note"] = (
             "python-hwpx-automation is unavailable offline in this sandbox "
-            "(pydantic>=2.11, cryptography or anyio missing); reading and editing work, "
+            "(pydantic>=2.11 missing); reading and editing work, "
             "creating a new document from a plan (W5) does not"
         )
     print(json.dumps(status, ensure_ascii=False))
