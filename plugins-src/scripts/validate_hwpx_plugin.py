@@ -476,7 +476,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
             f"`{install_constraints(identity)['core']}`",
             f"`{install_constraints(identity)['automation']}`",
             "HWPX_STACK_CHANNEL=verified",
-            "Development Status :: 3 - Alpha",
+            core["maturityEvidence"],
             "MCP 서버·플러그인 성숙도: 미선언",
             f"`{public['core']['distribution']} {public['core']['version']}`",
             f"`{public['application']['distribution']} {public['application']['version']}`",
@@ -700,7 +700,7 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         PACKAGING / "s080-cross-repo-readme-wording.md",
         [
             "first-party",
-            "Development Status :: 3 - Alpha",
+            core["maturityEvidence"],
             "actions/workflows/tests.yml/badge.svg",
             "서버 전체를\n> stateless라고 표현하지 않습니다.",
             f"{public['application']['distribution']} {public['application']['version']}",

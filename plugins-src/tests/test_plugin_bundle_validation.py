@@ -427,7 +427,8 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts
     assert identity["firstPartyLabelKo"] in readme
-    assert components["core"]["maturity"] == "alpha"
+    assert components["core"]["maturity"] == "stable"
+    assert components["core"]["maturityEvidence"] == "Development Status :: 5 - Production/Stable"
     assert components["automation"]["maturity"] == "not-declared"
     assert components["plugin"]["maturity"] == "not-declared"
     for host in hosts["hosts"]:

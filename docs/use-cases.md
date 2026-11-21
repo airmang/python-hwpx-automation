@@ -27,9 +27,8 @@
 `format_table`로), HWPX repair/recover까지 처리할 수 있습니다.
 
 document-plan, form-fill, visual-review handoff 워크플로의 문서화·테스트
-기준 upstream 버전 바닥은 `python-hwpx >= 6.4.0`입니다. 설치 계약은 기본
-128개/고급 136개/스킬 필수 29개이며, automation 바닥은 `7.1.0`, skill
-바닥은 `2.0.0`입니다.
+기준 upstream 버전 바닥은 `python-hwpx >= 7.0.0`입니다(8.0.0의 의존성은
+`python-hwpx>=7.0,<8`). 설치 계약은 기본 128개/고급 136개/스킬 필수 29개입니다.
 호환·deprecated 도구는
 2026-10-31까지 모두 유지하며, 신규 호출의 canonical 경로와 rollback은
 [compatibility observation](compatibility-observation.md)을 따릅니다.
@@ -246,7 +245,7 @@ hwpx-automation-mcp
 
 업스트림 버전 참고:
 - `Python >= 3.10`
-- `python-hwpx >= 5.1.0`
+- `python-hwpx >= 7.0.0`
 
 6.x 호환 기간에는 기존 `hwpx-mcp-server` distribution과 console도
 동작하지만, 새 설정과 문서는 canonical 이름을 사용합니다.
