@@ -1,0 +1,14 @@
+# Public stack release observation — 2026-11-21 KST
+
+Public train: `python-hwpx 7.0.0` → `python-hwpx-automation 8.0.0` (+ `hwpx-mcp-server 8.0.0` compatibility) → `hwpx-plugin 8.0.0`. Contract `c895883d5f4350ae`. Times are UTC.
+
+- [Core release](https://github.com/airmang/python-hwpx/releases/tag/v7.0.0): the `v7.0.0` release workflow succeeded; the GitHub Release was published 2026-11-20T17:31:47Z. PyPI SHA-256: wheel `9dcb2fe77298284fd6593e71a8092ee032d50801b31f9f30791ef0ceeefc968d`, sdist `48a05bbefcdb6fff73b9650c1e835b0b7fe5417f17190129978b748c754f0eee`.
+- [Automation release](https://github.com/airmang/python-hwpx-automation/releases/tag/v8.0.0): the `v8.0.0` release workflow succeeded; the GitHub Release was published 2026-11-21T00:17:31Z with the `release-approved` plugin handoff receipt `python-hwpx-automation-v8.0.0-plugin-handoff.json` attached. Canonical and compatibility wheels and sdists are on PyPI (SHA-256 values in the automation repository's `docs/releases/2026-11-21-engine-7-automation-8.md`).
+- [Plugin release](https://github.com/airmang/hwpx-plugins/releases/tag/v8.0.0): the bundles are built from the automation repository and exported to its `plugins-dist` branch (tag `hwpx-plugin--v8.0.0`). The published tree is byte-identical to a local build that was install-tested first. The marketplace repository now holds only the catalogue; both host entries are `git-subdir` sources pointing at that branch.
+- Real marketplace installs in isolated configuration directories on macOS: Claude Code 2.1.328 (`claude plugin marketplace add airmang/hwpx-plugins`, `claude plugin install hwpx-plugin@hwpx`) and codex-cli 0.167.0 (`codex plugin marketplace add airmang/hwpx-plugins`, `codex plugin add hwpx-plugin@hwpx`) both installed 8.0.0. The MCP server started from each install reported `python-hwpx-automation 8.0.0`, `python-hwpx 7.0.0`, skill bundle 8.0.0 and 128 tools; the contract hash read from the Claude install's locked runtime is `c895883d5f4350ae`.
+- Upgrading an existing 2.4.0 install to 8.0.0 was observed on both hosts (`claude plugin marketplace update hwpx && claude plugin update hwpx-plugin@hwpx`; `codex plugin marketplace upgrade && codex plugin add hwpx-plugin@hwpx`).
+- The plugin also installs from the automation repository's root catalogues: with isolated configurations, Claude Code 2.1.328 and codex-cli 0.167.0 each added `airmang/python-hwpx-automation` as a marketplace and installed `hwpx-plugin@hwpx` 8.0.0.
+
+The release tags and the installed marketplace snapshot retain `release-approved` as the publication-time record. The follow-up source commit promotes `currentPublic` only after the complete installation was observed.
+
+Not observed: Windows hosts, OpenClaw and Hermes installs, and Hancom rendering through the plugin. Saving or installing a file is not proof of visual correctness or submission readiness.

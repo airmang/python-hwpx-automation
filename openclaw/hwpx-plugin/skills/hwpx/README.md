@@ -14,11 +14,12 @@
   </p>
 </p>
 
-<!-- release-state: release-approved -->
+<!-- release-state: released -->
 
 > [!NOTE]
-> 발행 승인 후보 (release-approved; 원격 발행 대기): `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0`.
-> 현재 공개 트레인은 `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0`입니다.
+> 현재 공개 트레인은 `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0`입니다.
+> 2026-11-21에 공개 발행과 실제 Claude Code·Codex marketplace 설치(새 설치와 기존 설치의 갱신)를 관찰했습니다.
+> [설치 검증 영수증](https://github.com/airmang/python-hwpx-automation/blob/main/plugins-src/references/release-2026-11-21-engine-7-automation-8.md)
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
 에이전트에게 자연어로 말하는 것만으로 한글 문서를 다룰 수 있습니다. 에이전트는
@@ -158,13 +159,13 @@ codex plugin marketplace upgrade
 
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` |
-| 최소 호환 버전 | 이 후보의 지원 플로어 | `python-hwpx >= 7.0.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
-| 검증 좌표 | 이 플러그인 후보가 함께 검증할 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
+| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
+| 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 7.0.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
+| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
 | 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 이 창 안의 한 조합을 `uv.lock`으로 고정(검증 좌표와 다를 수 있음. 값은 번들 `server/pyproject.toml`) | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle]>=8.0.0,<9` |
 
-- 코어 성숙도: 후보의 패키지 분류는 `Development Status :: 5 - Production/Stable`, 현재 공개 트레인은
-  `Development Status :: 3 - Alpha`입니다. Python 기준은 3.10 이상입니다.
+- 코어 성숙도: 현재 공개 코어의 패키지 분류는 `Development Status :: 5 - Production/Stable`, 이전 공개 트레인의
+  코어는 `Development Status :: 3 - Alpha`였습니다. Python 기준은 3.10 이상입니다.
 - MCP 서버·플러그인 성숙도: 미선언. 버전 숫자를 성숙도 주장으로 해석하지 않습니다.
 
 산출물이 실제 한컴오피스에서 열리는지는 코어가 동결 코퍼스 전수로 측정해 그대로

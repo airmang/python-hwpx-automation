@@ -12,23 +12,23 @@
     },
     {
       "source": "README.md",
-      "sourceSha256": "4df107ea695776c7edf0fb663c41c0e72f84bc8303995c64a5722db2e6925ece",
+      "sourceSha256": "c131d0a292d80372435fe145ecd43031b9533f37eb73573f4c58ba5df070a76d",
       "dest": "plugins/codex/hwpx-plugin/skills/hwpx/README.md",
-      "destSha256": "4df107ea695776c7edf0fb663c41c0e72f84bc8303995c64a5722db2e6925ece",
+      "destSha256": "c131d0a292d80372435fe145ecd43031b9533f37eb73573f4c58ba5df070a76d",
       "transformed": false
     },
     {
       "source": "CHANGELOG.md",
-      "sourceSha256": "1269e7b0e41cf0d7876d2a6091d2d13f5cfa7f2a340d3070cb69ccd95f0db183",
+      "sourceSha256": "52d708e491f21c33f9f6c723809f00cd5b30dcb32ab9ae2da6191a8b52bf67e5",
       "dest": "plugins/codex/hwpx-plugin/skills/hwpx/CHANGELOG.md",
-      "destSha256": "1269e7b0e41cf0d7876d2a6091d2d13f5cfa7f2a340d3070cb69ccd95f0db183",
+      "destSha256": "52d708e491f21c33f9f6c723809f00cd5b30dcb32ab9ae2da6191a8b52bf67e5",
       "transformed": false
     },
     {
       "source": "packaging/product-identity.json",
-      "sourceSha256": "67db993ad318209a19c42d9ea500cd64421a69d6f34ce51d9cc0be7493f44324",
+      "sourceSha256": "da3fb54117ffe39902b346c73b9a861df72444835b7ec8dd151aa1b8e2b633f8",
       "dest": "plugins/codex/hwpx-plugin/skills/hwpx/packaging/product-identity.json",
-      "destSha256": "67db993ad318209a19c42d9ea500cd64421a69d6f34ce51d9cc0be7493f44324",
+      "destSha256": "da3fb54117ffe39902b346c73b9a861df72444835b7ec8dd151aa1b8e2b633f8",
       "transformed": false
     },
     {
@@ -40,9 +40,9 @@
     },
     {
       "source": "references/api.md",
-      "sourceSha256": "fd1c1aefa7250066c21c4d3c275b512be5ce1a6ff60713a1e43adf5b1e1591e4",
+      "sourceSha256": "c487ce6d805d6e73c3cdca034079911d9a6d51adcfc71ac3c1017f7a3ace6f30",
       "dest": "plugins/codex/hwpx-plugin/skills/hwpx/references/api.md",
-      "destSha256": "fd1c1aefa7250066c21c4d3c275b512be5ce1a6ff60713a1e43adf5b1e1591e4",
+      "destSha256": "c487ce6d805d6e73c3cdca034079911d9a6d51adcfc71ac3c1017f7a3ace6f30",
       "transformed": false
     },
     {
@@ -421,6 +421,13 @@
       "sourceSha256": "b9beb1cceea1a94540dde75ada37c536ce366fd8c807a3bb5f353eb1def8f52b",
       "dest": "plugins/codex/hwpx-plugin/skills/hwpx/references/release-2026-09-28-render-pdf-hwp5-stack.md",
       "destSha256": "b9beb1cceea1a94540dde75ada37c536ce366fd8c807a3bb5f353eb1def8f52b",
+      "transformed": false
+    },
+    {
+      "source": "references/release-2026-11-21-engine-7-automation-8.md",
+      "sourceSha256": "eafe26f7b14284bc87136f14121c4f19cbd2eef497a7cedad75196a936b99bb9",
+      "dest": "plugins/codex/hwpx-plugin/skills/hwpx/references/release-2026-11-21-engine-7-automation-8.md",
+      "destSha256": "eafe26f7b14284bc87136f14121c4f19cbd2eef497a7cedad75196a936b99bb9",
       "transformed": false
     },
     {

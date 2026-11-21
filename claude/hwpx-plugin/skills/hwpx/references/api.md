@@ -7,15 +7,15 @@
 
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
-| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` |
-| 검증 좌표 | 발행 승인된 후보의 로컬 검증 조합 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
-| 릴리스 상태 | 발행 승인된 후보 (`release-approved`) | `hwpx-plugin 8.0.0` |
-| 최소 호환 버전 | 이 후보의 지원 플로어 | core `>=7.0.0` · automation `>=7.2.0` · skill `>=2.0.0` |
-| 검증 좌표 | 이 플러그인 후보가 함께 검증할 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
+| 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
+| 검증 좌표 | 공개 발행·설치 관찰 완료 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
+| 릴리스 상태 | `released` — 2026-11-21 공개 발행·실제 marketplace 설치 관찰 | `hwpx-plugin 8.0.0` |
+| 최소 호환 버전 | 이 릴리스의 지원 플로어 | core `>=7.0.0` · automation `>=7.2.0` · skill `>=2.0.0` |
+| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
 | 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle]>=8.0.0,<9` |
 
 - import 이름은 `hwpx`다.
-- 코어의 공개 성숙도는 후보 기준 `Development Status :: 5 - Production/Stable`(현재 공개 트레인은 `3 - Alpha`)이고 MCP/플러그인의 성숙도는
+- 코어의 공개 성숙도는 현재 공개 코어 기준 `Development Status :: 5 - Production/Stable`(이전 공개 트레인의 코어는 `3 - Alpha`)이고 MCP/플러그인의 성숙도는
   아직 선언하지 않았다. 공개 릴리스나 호환성 숫자를 성숙도 주장으로 바꾸지 않는다.
 - 최종 산출물을 만들 때는 `validate_editor_open_safety(path).ok == True` 또는 MCP 응답의 `openSafety.ok == true` / `verification.openSafety.ok == true`를 handoff evidence로 남긴다.
 
@@ -943,4 +943,4 @@ Codex는 번들 `env_vars`에 선언된 환경변수만 전달합니다. `HWPX_S
 automation에서 `runtime.running`과 `runtime.restartRequired`로 실행 중인 버전과
 구분합니다. `stackUpdate` 필드는 automation 7.1.0부터 제공됩니다.
 
-현재 공개 릴리스: `python-hwpx 6.6.0` · `python-hwpx-automation 7.3.1` · `hwpx-plugin 2.4.0` (2026-09-28 발행·설치 관찰).
+현재 공개 릴리스: `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` (2026-11-21 발행·설치 관찰).

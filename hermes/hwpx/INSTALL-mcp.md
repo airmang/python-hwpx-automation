@@ -6,7 +6,7 @@ server there.
 
 ## Release coordinates
 
-Release state `release-approved`: the coordinates below (`python-hwpx 7.0.0` / `python-hwpx-automation 8.0.0` / `hwpx-plugin 8.0.0`) are carried for pre-release verification and are not yet the public release. The current public release is `python-hwpx 6.6.0` / `python-hwpx-automation 7.3.1` / `hwpx-plugin 2.4.0`.
+The coordinates below belong to the current public release: `python-hwpx 7.0.0` / `python-hwpx-automation 8.0.0` / `hwpx-plugin 8.0.0`. The install window follows newer engine releases inside the same major.
 
 ## Publishing command (maintainers only; never before release approval)
 
