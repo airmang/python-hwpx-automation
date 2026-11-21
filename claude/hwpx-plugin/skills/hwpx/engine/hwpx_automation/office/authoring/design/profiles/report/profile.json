@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "hwpx.design.profile.v2",
+  "id": "report",
+  "template": "template.hwpx",
+  "fragments_document": "fragments.hwpx",
+  "fragments": {
+    "title": {
+      "start": 1,
+      "count": 1
+    },
+    "heading": {
+      "start": 2,
+      "count": 1
+    },
+    "body": {
+      "start": 3,
+      "count": 1
+    },
+    "info_table": {
+      "start": 4,
+      "count": 1
+    }
+  },
+  "page": {
+    "width": 59528,
+    "height": 84186,
+    "orientation": "WIDELY",
+    "margins": {
+      "left": 5669,
+      "right": 5669,
+      "top": 4251,
+      "bottom": 4252
+    }
+  },
+  "char_pr_count": 123,
+  "style_coverage_threshold": 0.98,
+  "source_basename": "2026년 AI융합형 교육실 구축운영 계획서(양식2).hwpx"
+}

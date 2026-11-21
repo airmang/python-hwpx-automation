@@ -1,0 +1,1254 @@
+# SPDX-License-Identifier: Apache-2.0
+"""The canonical automation VisualComplete render gate.
+
+The oracle is the *renderer*, not the *transport*: any reachable Hancom (한글)
+is a faithful backend (implementation plan §0.0). This module ships two, behind
+one interface, plus a resolver that picks the best reachable one:
+
+* :class:`WindowsComOracle` — Hancom COM via a packaged PowerShell backend.
+  Canonical for CI/scale: fast, deterministic, batchable.
+* :class:`MacHancomOracle` — ``Hancom Office HWP.app`` driven through the GUI
+  (no AppleScript dictionary / headless CLI on that build), via a packaged
+  AppleScript that scripts the menus. Same render engine; ideal for
+  dev/spot-check, but slower and brittle (modal dialogs, single GUI session) —
+  renders are serialized.
+* :class:`NullOracle` — ``available() == False``; the degrade sentinel when no
+  Hancom is reachable.
+
+``resolve_oracle()`` returns the first reachable backend (Windows → Mac → Null).
+``RenderOracle`` is a backward-compatible alias of :class:`WindowsComOracle`.
+
+``visual_check`` renders a before/after ``.hwpx`` pair through whichever backend
+it is given, scores the result with :mod:`.diff`, and returns a
+:class:`hwpx.quality.rendering.VisualReport`. It only needs ``available()`` and
+``render_many()``, so it is backend-agnostic.
+
+Assurance is tiered and never blurred (implementation plan §0.0): off-oracle, or
+without the imaging stack, ``visual_check`` degrades to ``render_checked=False``
+with a warning — it never raises and never silently claims a visual pass.
+
+CLI::
+
+    python -m hwpx_automation.office.rendering.oracle \
+        --before a.hwpx --after b.hwpx --out report/
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import zipfile
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from importlib import resources
+from pathlib import Path
+
+import hwpx_automation.office.rendering.detectors as detectors
+import hwpx_automation.office.rendering.diff as diff
+from hwpx.quality.rendering import EditMask, VisualReport
+from hwpx_automation.configuration import windows_powershell
+from .block_splits import Block, BlockSplit, detect_block_splits
+
+_BACKEND_SCRIPT = "_render_hwpx.ps1"
+_OPEN_RATE_SCRIPT = "_hancom_open_rate.ps1"
+_MAC_BACKEND_SCRIPT = "_render_hwpx_mac.applescript"
+_MAC_REFRESH_SCRIPT = "_refresh_hwpx_mac.applescript"
+_MAC_ALERT_SCRIPT = "_hancom_alerts_mac.applescript"
+
+
+def _mac_script_source(name: str) -> str:
+    package = resources.files("hwpx_automation.office.rendering")
+    return package.joinpath(_MAC_ALERT_SCRIPT).read_text(encoding="utf-8") + "\n" + package.joinpath(name).read_text(encoding="utf-8")
+
+
+@contextmanager
+def _mac_script_file(name: str) -> Iterator[Path]:
+    with tempfile.TemporaryDirectory(prefix="hwpx-mac-script-") as folder:
+        script = Path(folder) / name
+        script.write_text(_mac_script_source(name), encoding="utf-8")
+        yield script
+
+
+_COM_REGISTRY_KEYS = (
+    r"HWPFrame.HwpObject\CLSID",
+    r"SOFTWARE\Classes\HWPFrame.HwpObject\CLSID",
+    r"SOFTWARE\Classes\Wow6432Node\HWPFrame.HwpObject\CLSID",
+)
+_MAC_BUNDLE_ID = "com.hancom.office.hwp12.mac.general"
+_MAC_APP_CANDIDATES = (
+    "/Applications/Hancom Office HWP.app",
+    "/Applications/Hancom Office HWP 2024.app",
+    "/Applications/Hancom Office HWP 2022.app",
+)
+_MAC_REFUSED_PREFIX = "ERR: HANCOM_REFUSED:"
+_STRUCTURAL_ONLY_ENV = "HWPX_ORACLE_STRUCTURAL_ONLY"
+_TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+# The reachability probe must answer well under the customer E2E budget; a
+# TCC-blocked osascript otherwise hangs until the full render timeout.
+_MAC_PROBE_TIMEOUT = 5.0
+_MAC_PROBE_SCRIPT = 'tell application "System Events" to count processes'
+# Process-lifetime probe verdict per osascript binary: the TCC grant cannot
+# change for an already-running process, so one probe per process is honest.
+_MAC_PROBE_CACHE: dict[str, bool] = {}
+
+
+_BUDGET_ENV = "HWPX_ORACLE_BUDGET_SECONDS"
+# How the Windows backend writes its Hancom's start time (UTC, round-trip "o").
+_ISO_INSTANT = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})?")
+# Upper bound for ending a timed-out render's own Hancom.
+_END_HANCOM_TIMEOUT = 30.0
+
+
+def structural_only() -> bool:
+    """True when ``HWPX_ORACLE_STRUCTURAL_ONLY`` requests no-oracle operation.
+
+    In this mode every verification degrades to the labelled structural path:
+    ``resolve_oracle`` returns :class:`NullOracle` and the Mac GUI backend
+    reports ``available() == False`` even when Hancom is installed.
+    """
+
+    return os.environ.get(_STRUCTURAL_ONLY_ENV, "").strip().lower() in _TRUTHY_ENV_VALUES
+
+
+def env_budget_seconds() -> float | None:
+    """The externally-declared oracle budget, or ``None`` when unset/invalid.
+
+    ``HWPX_ORACLE_BUDGET_SECONDS`` is the single deadline a hosting process
+    (customer E2E, installed verify) declares once; ``resolve_oracle`` threads
+    it into every backend subprocess timeout. Non-numeric values are ignored;
+    zero or negative means the budget is already exhausted.
+    """
+
+    raw = os.environ.get(_BUDGET_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    return max(0.0, value)
+
+
+def _deadline_from(budget_seconds: float | None) -> float | None:
+    """Turn an optional budget into an absolute monotonic deadline."""
+
+    if budget_seconds is None:
+        return None
+    return time.monotonic() + max(0.0, budget_seconds)
+
+
+def _clamped_timeout(base: float, deadline: float | None) -> float | None:
+    """Clamp ``base`` to the remaining deadline budget.
+
+    ``None`` means the budget is already exhausted: the caller must degrade
+    without spawning the subprocess at all.
+    """
+
+    if deadline is None:
+        return base
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return None
+    return min(base, remaining)
+
+
+def _complete_package(path: str) -> bool:
+    """True when ``path`` is a readable package whose first entry is ``mimetype``."""
+
+    try:
+        with zipfile.ZipFile(path) as package:
+            names = package.namelist()
+            return bool(names) and names[0] == "mimetype" and package.testzip() is None
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
+def _unchanged(path: str, before: os.stat_result) -> bool:
+    """True when ``path`` still has the size and modification time in ``before``."""
+
+    try:
+        now = os.stat(path)
+    except OSError:
+        return False
+    return (now.st_size, now.st_mtime_ns) == (before.st_size, before.st_mtime_ns)
+
+
+def _promote_file(staged: str, target: str) -> None:
+    """Move a finished file to ``target`` without leaving a partial ``target``.
+
+    ``os.replace`` is atomic on one volume, but a staging folder in the
+    temporary folder may sit on another volume than ``target``. Then the file
+    is copied beside ``target`` first and replaced from there.
+    """
+
+    try:
+        os.replace(staged, target)
+        return
+    except OSError:
+        pass
+    handle, partial = tempfile.mkstemp(
+        prefix=".hwpx-render-", suffix=".part", dir=os.path.dirname(target) or "."
+    )
+    os.close(handle)
+    try:
+        shutil.copyfile(staged, partial)
+        os.replace(partial, target)
+    except BaseException:
+        try:
+            os.unlink(partial)
+        except OSError:
+            pass
+        raise
+
+
+# A hung Hancom (main thread stuck inside the open-document Apple event: no
+# windows, one core at 100%) cannot be told apart from a slow one by the render
+# script, which only sees that no window or PDF came. Its CPU can: a Hancom
+# that stays this busy across every sample after a failed render is not
+# rendering anything, and every later render fails the same way until the user
+# restarts it. The process is only read with ps, never signalled.
+_MAC_HANCOM_PROCESS = "Hancom Office HWP.app/Contents/MacOS"
+_HUNG_CPU_PERCENT = 80.0
+_HUNG_SAMPLES = 4
+_HUNG_SAMPLE_INTERVAL = 1.0
+_PS_TIMEOUT = 2.0
+# Upper bound for closing the owned document after the render script was cut off.
+_CLOSE_OWNED_TIMEOUT = 3
+
+
+def _hang_probe_seconds() -> float:
+    """What the probe needs of a budget after a cut-off render script.
+
+    The owned-document cleanup comes first, then the pauses between samples,
+    plus slack for the ``ps`` calls themselves.
+    """
+
+    return _CLOSE_OWNED_TIMEOUT + (_HUNG_SAMPLES - 1) * _HUNG_SAMPLE_INTERVAL + 1.0
+
+
+def _leave_room_for_hang_probe(run_timeout: float, deadline: float | None) -> float:
+    """Shorten the render's wait so the hang probe still fits the budget.
+
+    Only when the budget, not the render's own timeout, bounds the wait; a
+    budget too small to share is left whole to the render.
+    """
+
+    if deadline is None:
+        return run_timeout
+    room = _hang_probe_seconds()
+    remaining = deadline - time.monotonic()
+    if remaining - run_timeout >= room or run_timeout <= 2 * room:
+        return run_timeout
+    return remaining - room
+
+
+def _probe(cmd: list[str]) -> str:
+    """Run a read-only process-table command; ``""`` when it cannot answer."""
+
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=_PS_TIMEOUT, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return proc.stdout or ""
+
+
+def _cpu_percent(pid: int) -> float | None:
+    try:
+        return float(_probe(["ps", "-o", "%cpu=", "-p", str(pid)]).strip())
+    except ValueError:
+        return None  # the process is gone, or ps said something else
+
+
+def _busy_mac_hancom(
+    sleep: Callable[[float], None] = time.sleep, deadline: float | None = None
+) -> str | None:
+    """Describe a Hancom process that stays busy across every sample, else ``None``.
+
+    Stops at the first idle sample, so a Hancom that is not stuck costs one
+    ``ps`` call, and gives up (``None``) rather than sample past ``deadline``.
+    Structural-only operation never looks for Hancom at all.
+    """
+
+    if structural_only():
+        return None
+    found = _probe(["pgrep", "-f", _MAC_HANCOM_PROCESS]).split()
+    pids = [int(word) for word in found if word.isdigit()]
+    readings: dict[int, list[float]] = {pid: [] for pid in pids}
+    for sample in range(_HUNG_SAMPLES):
+        if sample:
+            if deadline is not None and time.monotonic() + _HUNG_SAMPLE_INTERVAL > deadline:
+                return None
+            sleep(_HUNG_SAMPLE_INTERVAL)
+        for pid in list(readings):
+            cpu = _cpu_percent(pid)
+            if cpu is None or cpu < _HUNG_CPU_PERCENT:
+                del readings[pid]
+            else:
+                readings[pid].append(cpu)
+        if not readings:
+            return None
+    pid, values = next(iter(readings.items()))
+    return (
+        f"Hancom Office HWP (pid {pid}) stayed at {min(values):.0f}% CPU or more "
+        f"across {len(values)} samples"
+    )
+
+
+class RenderBackend:
+    """Common render-oracle interface.
+
+    ``visual_check`` only requires :meth:`available` and :meth:`render_many`.
+    The default :meth:`render_many` serializes :meth:`render_pdf` — correct for
+    the GUI backend (single session, one doc at a time); the COM backend
+    overrides it to reuse one Hancom session across the batch.
+    """
+
+    def available(self) -> bool:  # pragma: no cover - overridden
+        return False
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        raise NotImplementedError
+
+    def render_many(self, pairs: list[tuple[str, str]]) -> dict[str, str | None]:
+        result: dict[str, str | None] = {src: None for src, _ in pairs}
+        if not pairs or not self.available():
+            return result
+        for src, pdf in pairs:
+            try:
+                result[src] = self.render_pdf(src, pdf)
+            except Exception:
+                result[src] = None
+        return result
+
+    def check(
+        self,
+        before_hwpx: str | None,
+        after_hwpx: str,
+        *,
+        edit_mask: EditMask | None = None,
+        diff_eps: float = 0.005,
+        dpi: int = 150,
+        work_dir: str | None = None,
+        keep_artifacts: bool = False,
+    ) -> VisualReport:
+        """Adapt the legacy render transport to the neutral quality contract."""
+
+        return visual_check(
+            before_hwpx,
+            after_hwpx,
+            oracle=self,
+            edit_mask=edit_mask,
+            diff_eps=diff_eps,
+            dpi=dpi,
+            work_dir=work_dir,
+            keep_artifacts=keep_artifacts,
+        )
+
+
+class WindowsComOracle(RenderBackend):
+    """Adapter that renders ``.hwpx`` → PDF through Hancom (한글) COM.
+
+    Isolated and swappable: off-Windows (or where Hancom is not registered)
+    :meth:`available` returns ``False`` and the engine degrades to structural
+    checks instead of crashing. A fake oracle with ``available() -> False`` is
+    the supported way to exercise the degrade path in tests.
+    """
+
+    def __init__(
+        self,
+        *,
+        powershell: str | None = None,
+        timeout: float = 300.0,
+        dpi: int = 150,
+        budget_seconds: float | None = None,
+    ) -> None:
+        self._powershell = windows_powershell(powershell)
+        self.timeout = timeout
+        self.dpi = dpi
+        # Single externally-propagated deadline: every subprocess timeout in
+        # one public call is clamped so the whole call fits this budget.
+        self.budget_seconds = budget_seconds
+
+    def available(self) -> bool:
+        """True only on Windows with the ``HWPFrame.HwpObject`` COM class registered.
+
+        ``HWPX_ORACLE_STRUCTURAL_ONLY`` forces ``False`` (the same contract as the
+        Mac backend) so no caller can start Hancom through COM in structural-only
+        operation -- including a direct ``WindowsComOracle()`` that bypasses
+        :func:`resolve_oracle`.
+        """
+
+        if structural_only():
+            return False
+        if sys.platform != "win32":
+            return False
+        try:
+            import winreg
+        except Exception:
+            return False
+        roots = (winreg.HKEY_CLASSES_ROOT, winreg.HKEY_LOCAL_MACHINE)
+        for root in roots:
+            for sub in _COM_REGISTRY_KEYS:
+                try:
+                    with winreg.OpenKey(root, sub):
+                        return True
+                except OSError:
+                    continue
+        return False
+
+    def render_many(self, pairs: list[tuple[str, str]]) -> dict[str, str | None]:
+        """Render ``(src_hwpx, out_pdf)`` pairs in one Hancom session.
+
+        Returns ``{src: pdf_path or None}``. A single COM session is reused for
+        the whole batch (Hancom startup dominates), and dialogs are auto-dismissed.
+
+        Hancom asks the user to approve each automated open or save of a file
+        outside the user's temporary folder, and nobody answers that prompt
+        here. So every source is copied into a private temporary folder, its
+        PDF is written next to the copy, and only a finished PDF is moved to
+        ``out_pdf``. A failed render leaves an existing ``out_pdf`` as it was.
+        """
+
+        result: dict[str, str | None] = {src: None for src, _ in pairs}
+        if not pairs or not self.available():
+            return result
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0 * len(pairs), deadline)
+        if run_timeout is None:
+            return result
+
+        tmp = tempfile.mkdtemp(prefix="hwpx-render-")
+        try:
+            staged = self._stage_jobs(pairs, tmp)
+            if not staged:
+                return result
+            jobs = [{"src": job_src, "pdf": job_pdf} for _src, job_src, job_pdf, _out in staged]
+            entries = self._run_jobs(jobs, tmp, run_timeout)
+            if entries is None:
+                return result
+            for (src, _job_src, job_pdf, out_pdf), entry in zip(staged, entries):
+                if not (isinstance(entry, dict) and entry.get("saved") and os.path.exists(job_pdf)):
+                    continue
+                try:
+                    _promote_file(job_pdf, out_pdf)
+                except OSError:
+                    continue
+                result[src] = out_pdf
+            return result
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def _run_jobs(
+        self, jobs: list[dict[str, str]], tmp: str, run_timeout: float
+    ) -> list[object] | None:
+        """Run the COM backend over ``jobs`` in one Hancom session.
+
+        Returns the per-job result entries in job order, or ``None`` when the
+        backend timed out, could not start, or left no parseable result.
+        """
+
+        jobs_path = os.path.join(tmp, "jobs.json")
+        res_path = os.path.join(tmp, "result.json")
+        pid_path = os.path.join(tmp, "hancom.json")
+        with open(jobs_path, "w", encoding="utf-8") as handle:
+            json.dump(jobs, handle, ensure_ascii=False)
+
+        with resources.as_file(
+            resources.files("hwpx_automation.office.rendering").joinpath(
+                _BACKEND_SCRIPT
+            )
+        ) as ps1:
+            cmd = [
+                self._powershell, "-NoProfile", "-NonInteractive",
+                "-ExecutionPolicy", "Bypass", "-File", str(ps1),
+                "-Jobs", jobs_path, "-ResultPath", res_path, "-PidPath", pid_path,
+            ]
+            try:
+                subprocess.run(
+                    cmd, capture_output=True, timeout=run_timeout,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                # Hancom is a COM server, not a child of the script: ending
+                # the script leaves it running, often with a dialog open.
+                self._end_own_hancom(pid_path)
+                return None
+            except OSError:
+                return None
+
+        if not os.path.exists(res_path):
+            return None
+        try:
+            # PowerShell Set-Content -Encoding UTF8 prepends a BOM; utf-8-sig
+            # strips it (and reads BOM-less output fine too).
+            with open(res_path, encoding="utf-8-sig") as handle:
+                entries = json.load(handle)
+        except (json.JSONDecodeError, ValueError, OSError):
+            # PowerShell/COM failure left no parseable result -> all unrendered.
+            return None
+        if isinstance(entries, dict):  # single job -> ConvertTo-Json emits an object
+            return [entries]
+        if not isinstance(entries, list):
+            return None
+        return list(entries)
+
+    def _end_own_hancom(self, pid_path: str) -> None:
+        """End the Hancom a timed-out backend run started, if it still runs.
+
+        The backend records its own automation process (PID and UTC start
+        time) right after creating the COM object. The process is ended only
+        while both still match, so a reused PID or a Hancom the user opened is
+        never touched; without a record nothing is ended.
+        """
+
+        try:
+            with open(pid_path, encoding="utf-8-sig") as handle:
+                record = json.load(handle)
+            pid = int(record["pid"])
+            started = str(record["started"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return
+        if pid <= 0 or not _ISO_INSTANT.fullmatch(started):
+            return
+        script = (
+            f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; "
+            f"if ($p -and $p.ProcessName -eq 'Hwp' -and "
+            f"$p.StartTime.ToUniversalTime().ToString('o') -eq '{started}') "
+            f"{{ Stop-Process -Id {pid} -Force }}"
+        )
+        try:
+            subprocess.run(
+                [self._powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+                capture_output=True, timeout=_END_HANCOM_TIMEOUT, check=False,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+
+    @staticmethod
+    def _stage_jobs(
+        pairs: list[tuple[str, str]], tmp: str
+    ) -> list[tuple[str, str, str, str]]:
+        """Copy each source into its own folder under ``tmp``.
+
+        Returns ``(src, staged_src, staged_pdf, out_pdf)`` per readable source;
+        a source that cannot be copied is left unrendered. The copy keeps the
+        file name, so Hancom sees the document under its own name.
+        """
+
+        staged: list[tuple[str, str, str, str]] = []
+        for index, (src, out_pdf) in enumerate(pairs):
+            folder = os.path.join(tmp, str(index))
+            name = os.path.basename(src) or "document.hwpx"
+            job_src = os.path.join(folder, name)
+            try:
+                os.makedirs(folder)
+                shutil.copyfile(src, job_src)
+            except OSError:
+                continue
+            job_pdf = os.path.join(folder, os.path.splitext(name)[0] + ".pdf")
+            staged.append((src, job_src, job_pdf, os.path.abspath(out_pdf)))
+        return staged
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        """Render a single ``.hwpx`` to PDF; returns the PDF path or ``None``."""
+
+        if out_pdf is None:
+            handle, out_pdf = tempfile.mkstemp(suffix=".pdf")
+            os.close(handle)
+        return self.render_many([(hwpx_path, out_pdf)]).get(hwpx_path)
+
+    def refresh_document(self, hwpx_path: str) -> bool:
+        """Open ``hwpx_path`` in Hancom, lay it out, and save it in place as HWPX.
+
+        Hancom writes its line layout cache (``hp:linesegarray``) for the
+        paragraphs it lays out, so the saved file carries the line breaks
+        Hancom computed. As in :meth:`render_many`, Hancom opens and saves a
+        copy in a private temporary folder, and the original is replaced only
+        by a complete package: a failed refresh leaves it as it was. Returns
+        True when the file was re-saved. Only an ``.hwpx`` file is refreshed
+        (Hancom saves it as HWPX), and a link is followed to the file it names.
+        A document that changed while Hancom ran (size or modification time)
+        is not overwritten: the refresh returns False and the change stays.
+        """
+
+        src = os.path.realpath(hwpx_path)
+        if not src.lower().endswith(".hwpx") or not self.available():
+            return False
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
+        if run_timeout is None:
+            return False
+        tmp = tempfile.mkdtemp(prefix="hwpx-refresh-")
+        try:
+            name = os.path.basename(src) or "document.hwpx"
+            job_src = os.path.join(tmp, "open", name)
+            job_out = os.path.join(tmp, "saved", name)
+            try:
+                os.makedirs(os.path.dirname(job_src))
+                os.makedirs(os.path.dirname(job_out))
+                before = os.stat(src)
+                shutil.copyfile(src, job_src)
+            except OSError:
+                return False
+            job = {"src": job_src, "out": job_out, "format": "HWPX"}
+            entries = self._run_jobs([job], tmp, run_timeout)
+            entry = entries[0] if entries else None
+            if not (isinstance(entry, dict) and entry.get("saved") and _complete_package(job_out)):
+                return False
+            if not _unchanged(src, before):
+                return False
+            try:
+                _promote_file(job_out, src)
+            except OSError:
+                return False
+            return True
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def open_check_many(self, paths: list[str]) -> list[dict[str, object]]:
+        """OPEN-check ``paths`` through Hancom COM and return per-file verdicts.
+
+        This is the M9 open-rate primitive (specs/007-open-rate FR-001). It is
+        deliberately DISTINCT from :meth:`render_many`: it surfaces the real
+        Hancom ``opened`` boolean as its own signal — never conflated with the
+        ``saved``/render verdict that :meth:`render_many` (and ``visual_check``
+        at oracle.py:402) report. ``opened`` answers "did real Hancom load this
+        generated file without a corruption modal", which is the published
+        open-rate; ``saved`` answers a different question (did it render to PDF).
+
+        Each entry is::
+
+            {
+                "path": str,            # the input path as requested
+                "opened": bool | None,  # True/False from Hancom; None = unverified
+                "parsed": bool | None,  # opened and GetPageText(1..) textLength>0
+                "text_length": int | None,
+                "error": str | None,
+                "retried": bool,        # opened only on the single retry pass
+                "status": str,          # "ok" | "open_failed" | "unverified"
+            }
+
+        Honest degrade (constitution V/VI): off-Windows or where Hancom is not
+        reachable, EVERY entry is returned with ``opened=None`` and
+        ``status="unverified"`` — NEVER ``False`` (that would slander a file we
+        never tested) and NEVER a silent ``True``. The aggregator maps
+        ``unverified`` to the unverified bucket, not the numerator or denominator
+        success count.
+        """
+
+        if not paths:
+            return []
+        if not self.available():
+            return [self._unverified_entry(p) for p in paths]
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0 * len(paths), deadline)
+        if run_timeout is None:
+            return [self._unverified_entry(p) for p in paths]
+
+        abs_paths = [os.path.abspath(p) for p in paths]
+        # path -> requested (original) string, for surfacing the caller's path.
+        requested = {os.path.abspath(p): p for p in paths}
+
+        tmp = tempfile.mkdtemp(prefix="hwpx-open-rate-")
+        try:
+            jsonl_path = os.path.join(tmp, "checkpoint.jsonl")
+            res_path = os.path.join(tmp, "result.json")
+            with resources.as_file(
+                resources.files("hwpx_automation.office.rendering").joinpath(
+                    _OPEN_RATE_SCRIPT
+                )
+            ) as ps1:
+                cmd = [
+                    self._powershell, "-NoProfile", "-NonInteractive",
+                    "-ExecutionPolicy", "Bypass", "-File", str(ps1),
+                    "-OutJsonl", jsonl_path, "-OutJson", res_path,
+                    "-Path", *abs_paths,
+                ]
+                try:
+                    subprocess.run(
+                        cmd, capture_output=True,
+                        timeout=run_timeout, check=False,
+                    )
+                except (subprocess.TimeoutExpired, OSError):
+                    # Subprocess never finished: prefer the crash-safe checkpoint
+                    # (records written per-file) before degrading the rest.
+                    return self._merge_checkpoint(abs_paths, requested, jsonl_path)
+
+            entries = self._read_open_result(res_path)
+            if entries is None:
+                # No parseable consolidated result: fall back to the checkpoint.
+                return self._merge_checkpoint(abs_paths, requested, jsonl_path)
+            return self._entries_from_records(abs_paths, requested, entries)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    @staticmethod
+    def _unverified_entry(path: str) -> dict[str, object]:
+        return {
+            "path": path,
+            "opened": None,
+            "parsed": None,
+            "text_length": None,
+            "error": "OPEN_ORACLE_UNAVAILABLE: no Hancom reachable on this platform",
+            "retried": False,
+            "status": "unverified",
+        }
+
+    @staticmethod
+    def _normalise_record(record: dict[str, object]) -> dict[str, object]:
+        """Map one PS1 ``{sourcePath,opened,textLength,error,retried}`` record to
+        the ``open_check_many`` entry shape (open/render distinction preserved)."""
+
+        opened_raw = record.get("opened")
+        opened = bool(opened_raw) if opened_raw is not None else None
+        text_length: int | None = None
+        text_length_raw = record.get("textLength")
+        if isinstance(text_length_raw, (bool, int, float, str)):
+            try:
+                text_length = int(text_length_raw)
+            except (TypeError, ValueError):
+                text_length = None
+        error = record.get("error")
+        parsed: bool | None
+        if opened is None:
+            parsed = None
+        else:
+            parsed = bool(opened and (text_length or 0) > 0)
+        status = "ok" if opened else ("unverified" if opened is None else "open_failed")
+        return {
+            "path": record.get("sourcePath"),
+            "opened": opened,
+            "parsed": parsed,
+            "text_length": text_length,
+            "error": error,
+            "retried": bool(record.get("retried", False)),
+            "status": status,
+        }
+
+    @staticmethod
+    def _read_open_result(res_path: str) -> list[dict[str, object]] | None:
+        if not os.path.exists(res_path):
+            return None
+        try:
+            # PowerShell Set-Content -Encoding UTF8 prepends a BOM; utf-8-sig
+            # strips it (and reads BOM-less output fine too).
+            with open(res_path, encoding="utf-8-sig") as handle:
+                data = json.load(handle)
+        except (json.JSONDecodeError, ValueError, OSError):
+            return None
+        if isinstance(data, dict):  # single file -> ConvertTo-Json emits an object
+            data = [data]
+        if not isinstance(data, list):
+            return None
+        return data
+
+    def _entries_from_records(
+        self,
+        abs_paths: list[str],
+        requested: dict[str, str],
+        records: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        """Align PS1 records back to the requested order, degrading any missing
+        file to ``unverified`` (never silently dropped)."""
+
+        by_path: dict[str, dict[str, object]] = {}
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            if record.get("_meta"):  # repair-mode-probe meta line, not a verdict
+                continue
+            norm = self._normalise_record(record)
+            src = norm.get("path")
+            if isinstance(src, str):
+                by_path[os.path.abspath(src)] = norm
+        out: list[dict[str, object]] = []
+        for abs_path in abs_paths:
+            found = by_path.get(abs_path)
+            if found is None:
+                out.append(self._unverified_entry(requested.get(abs_path, abs_path)))
+            else:
+                # Surface the caller's original path string.
+                found["path"] = requested.get(abs_path, found.get("path"))
+                out.append(found)
+        return out
+
+    def _merge_checkpoint(
+        self,
+        abs_paths: list[str],
+        requested: dict[str, str],
+        jsonl_path: str,
+    ) -> list[dict[str, object]]:
+        """Recover verdicts from the per-file JSONL checkpoint after a crash or
+        timeout; files with no checkpoint record degrade to ``unverified``."""
+
+        records: list[dict[str, object]] = []
+        if os.path.exists(jsonl_path):
+            try:
+                with open(jsonl_path, encoding="utf-8-sig") as handle:
+                    for line in handle:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            records.append(json.loads(line))
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+            except OSError:
+                records = []
+        return self._entries_from_records(abs_paths, requested, records)
+
+
+class MacHancomOracle(RenderBackend):
+    """Adapter that renders ``.hwpx`` → PDF through ``Hancom Office HWP.app``.
+
+    *Dev / spot-check grade.* The render is as faithful as COM (same Hancom
+    engine), but the transport is GUI automation: this build ships no AppleScript
+    dictionary and no headless convert CLI, so a packaged AppleScript
+    (``_render_hwpx_mac.applescript``) drives the menus through System Events:
+
+        open <input> → 파일 (File) > "PDF로 저장하기..." → NSSavePanel (Return = 저장)
+        → 파일 > "문서 닫기"
+
+    The save panel is document-relative. Each render stages a uniquely named
+    copy in a private temporary directory, exports beside it, closes only that
+    owned document, then promotes a complete PDF to the caller's output path.
+    Existing caller files survive a failed render.
+
+    Operational notes: the GUI is a single shared session, so renders MUST be
+    serialized (the default serial :meth:`render_many` does this). Requires a
+    logged-in GUI session and Automation + Accessibility permission for the
+    process that runs ``osascript``. Windows COM stays canonical for CI/scale.
+    """
+
+    def __init__(
+        self,
+        *,
+        timeout: float = 300.0,
+        dpi: int = 150,
+        osascript: str = "osascript",
+        budget_seconds: float | None = None,
+    ) -> None:
+        self.timeout = timeout
+        self.dpi = dpi
+        self._osascript = osascript
+        # The alert text when the last render_pdf ended because Hancom refused
+        # the document (the script dismissed the alert it raised); else None.
+        self.last_refusal: str | None = None
+        # Why Hancom looks hung when the last render_pdf ended without a PDF and
+        # without a refusal while Hancom stayed busy (see _busy_mac_hancom);
+        # else None. The user must restart Hancom; nothing here kills it.
+        self.last_hang: str | None = None
+        # Single externally-propagated deadline: every subprocess timeout in
+        # one public call is clamped so the whole call fits this budget.
+        self.budget_seconds = budget_seconds
+
+    def _app_path(self) -> str | None:
+        for candidate in _MAC_APP_CANDIDATES:
+            if os.path.isdir(candidate):
+                return candidate
+        # Fall back to a Spotlight lookup by bundle id (handles non-default
+        # install locations / localized app names).
+        try:
+            proc = subprocess.run(
+                ["mdfind", f"kMDItemCFBundleIdentifier == '{_MAC_BUNDLE_ID}'"],
+                capture_output=True, text=True, timeout=10.0, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        for line in proc.stdout.splitlines():
+            line = line.strip()
+            if line.endswith(".app") and os.path.isdir(line):
+                return line
+        return None
+
+    def _automation_reachable(self) -> bool:
+        """Fast preflight for GUI automation (System Events + Automation TCC).
+
+        An installed Hancom does NOT imply the GUI transport works: without a
+        logged-in GUI session or with Automation/Apple Events denied, osascript
+        blocks until its own timeout — far beyond any caller budget. This probe
+        answers within :data:`_MAC_PROBE_TIMEOUT` seconds and is cached for the
+        process lifetime (TCC grants cannot change for a running process).
+        """
+
+        cached = _MAC_PROBE_CACHE.get(self._osascript)
+        if cached is not None:
+            return cached
+        reachable = False
+        try:
+            proc = subprocess.run(
+                [self._osascript, "-e", _MAC_PROBE_SCRIPT],
+                capture_output=True, text=True,
+                timeout=_MAC_PROBE_TIMEOUT, check=False,
+            )
+            reachable = proc.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            reachable = False
+        _MAC_PROBE_CACHE[self._osascript] = reachable
+        return reachable
+
+    def available(self) -> bool:
+        """True only on macOS with Hancom installed AND GUI automation reachable.
+
+        ``HWPX_ORACLE_STRUCTURAL_ONLY`` forces ``False`` so no caller can enter
+        GUI automation in structural-only operation.
+        """
+
+        if structural_only():
+            return False
+        if sys.platform != "darwin":
+            return False
+        if self._app_path() is None:
+            return False
+        return self._automation_reachable()
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        """Render a single ``.hwpx`` to PDF via the GUI; returns the path or ``None``.
+
+        When Hancom refuses the document, ``None`` comes back promptly and
+        :attr:`last_refusal` holds the text of the alert the script dismissed.
+        When the render ends without a PDF for any other reason while Hancom
+        stays busy, :attr:`last_hang` says so.
+        """
+
+        self.last_refusal = None
+        self.last_hang = None
+        if not self.available():
+            return None
+        if out_pdf is None:
+            handle, out_pdf = tempfile.mkstemp(suffix=".pdf")
+            os.close(handle)
+
+        src = os.path.abspath(hwpx_path)
+        out_pdf = os.path.abspath(out_pdf)
+        out_dir = os.path.dirname(out_pdf)
+        os.makedirs(out_dir, exist_ok=True)
+
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
+        if run_timeout is None:
+            return None
+        run_timeout = _leave_room_for_hang_probe(run_timeout, deadline)
+        script_timeout = max(1, int(min(self.timeout, run_timeout)))
+        # Unique owned document name: a prior render or user document can never
+        # be mistaken for this job. Never pre-delete or stage over caller files.
+        with tempfile.TemporaryDirectory(prefix="hwpx-render-", dir=out_dir) as folder:
+            name = Path(folder).name
+            staged = Path(folder) / (name + ".hwpx")
+            staged_pdf = staged.with_suffix(".pdf")
+            shutil.copyfile(src, staged)
+            with _mac_script_file(_MAC_BACKEND_SCRIPT) as script:
+                cmd = [self._osascript, str(script), str(staged), str(staged_pdf), str(script_timeout)]
+                try:
+                    proc = self._run_render_script(cmd, run_timeout)
+                except (subprocess.TimeoutExpired, OSError):
+                    # Best-effort cleanup is restricted to our uniquely named
+                    # document. The worker adapter also handles cancellation.
+                    self._close_owned_document(script, staged.name)
+                    self.last_hang = self._hancom_hung(deadline)
+                    return None
+                except BaseException:
+                    # Interrupted (a signal turned into an exception): run() has
+                    # killed osascript; close the document it may have opened.
+                    self._close_owned_document(script, staged.name)
+                    raise
+            answer = (proc.stdout or "").strip()
+            if answer.startswith(_MAC_REFUSED_PREFIX):
+                self.last_refusal = answer[len(_MAC_REFUSED_PREFIX):].strip()
+                return None
+            written = (
+                proc.returncode == 0
+                and answer == "OK"
+                and staged_pdf.is_file()
+                and staged_pdf.read_bytes().rstrip().endswith(b"%%EOF")
+            )
+            if written:
+                os.replace(staged_pdf, out_pdf)
+                return out_pdf
+            self.last_hang = self._hancom_hung(deadline)
+            return None
+
+    def _hancom_hung(self, deadline: float | None) -> str | None:
+        """Why Hancom looks hung after a render with no PDF, or ``None``."""
+
+        return _busy_mac_hancom(deadline=deadline)
+
+    def _run_render_script(self, cmd: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+
+    def _close_owned_document(self, script: Path, name: str) -> None:
+        try:
+            subprocess.run(
+                [self._osascript, str(script), "--close-owned", name],
+                capture_output=True, text=True, timeout=_CLOSE_OWNED_TIMEOUT, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    def refresh_document(self, hwpx_path: str) -> bool:
+        """Open ``hwpx_path``, let dirty fields regenerate, save in place, close.
+
+        The measured native-TOC re-number trigger (M7): a ``dirty="1"``
+        TABLEOFCONTENTS is rebuilt on open — Hancom itself computes entries and
+        page numbers — and CROSSREF caches recompute automatically. Exporting a
+        PDF from the same regenerating session crashes this Hancom build
+        (deterministic truncated PDFs, then the process dies), so refresh and
+        render are intentionally two separate sessions. Returns True when the
+        file was re-saved. A refusal returns False and records its wording in
+        ``last_refusal``. Only an unambiguous alert absent before this open
+        may be dismissed; an existing alert is never ours to acknowledge.
+        """
+        self.last_refusal = None
+        self.last_hang = None
+        if not self.available():
+            return False
+        deadline = _deadline_from(self.budget_seconds)
+        run_timeout = _clamped_timeout(self.timeout + 60.0, deadline)
+        if run_timeout is None:
+            return False
+        script_timeout = max(1, int(min(self.timeout, run_timeout)))
+        src = os.path.abspath(hwpx_path)
+        try:
+            before = os.stat(src).st_mtime_ns
+        except OSError:
+            return False
+        with _mac_script_file(_MAC_REFRESH_SCRIPT) as script:
+            cmd = [self._osascript, str(script), src, str(script_timeout)]
+            try:
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True,
+                    timeout=run_timeout, check=False,
+                )
+            except (subprocess.TimeoutExpired, OSError):
+                return False
+        answer = (proc.stdout or "").strip()
+        if answer.startswith(_MAC_REFUSED_PREFIX):
+            self.last_refusal = answer[len(_MAC_REFUSED_PREFIX):].strip()
+            return False
+        if proc.returncode != 0 or answer != "OK":
+            return False
+        try:
+            return os.stat(src).st_mtime_ns != before
+        except OSError:
+            return False
+
+
+class NullOracle(RenderBackend):
+    """Sentinel backend for environments with no reachable Hancom.
+
+    ``available()`` is always ``False`` so ``visual_check`` degrades to a
+    labelled structural pass rather than crashing.
+    """
+
+    def available(self) -> bool:
+        return False
+
+    def render_pdf(self, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        return None
+
+
+def resolve_oracle(
+    *,
+    powershell: str | None = None,
+    timeout: float = 300.0,
+    dpi: int = 150,
+    osascript: str = "osascript",
+    budget_seconds: float | None = None,
+) -> RenderBackend:
+    """Return the best reachable render backend (Windows COM → Mac GUI → Null).
+
+    Windows COM is canonical (CI/scale); Mac GUI is the dev/spot-check fallback;
+    :class:`NullOracle` is the degrade sentinel when no Hancom is reachable.
+    ``HWPX_ORACLE_STRUCTURAL_ONLY`` short-circuits to :class:`NullOracle`, and
+    ``budget_seconds`` propagates one external deadline into every backend
+    subprocess timeout.
+    """
+
+    if structural_only():
+        return NullOracle()
+    if budget_seconds is None:
+        budget_seconds = env_budget_seconds()
+    windows = WindowsComOracle(
+        powershell=powershell, timeout=timeout, dpi=dpi, budget_seconds=budget_seconds,
+    )
+    if windows.available():
+        return windows
+    mac = MacHancomOracle(
+        timeout=timeout, dpi=dpi, osascript=osascript, budget_seconds=budget_seconds,
+    )
+    if mac.available():
+        return mac
+    return NullOracle()
+
+
+# Backward-compatible alias: ``RenderOracle`` was the Windows COM oracle.
+RenderOracle = WindowsComOracle
+
+
+def _degraded(message: str) -> VisualReport:
+    return VisualReport(ok=True, render_checked=False, warnings=[message])
+
+
+def visual_check(
+    before_hwpx: str | None,
+    after_hwpx: str,
+    *,
+    oracle: RenderBackend,
+    edit_mask: EditMask | None = None,
+    diff_eps: float = 0.005,
+    dpi: int = 150,
+    work_dir: str | None = None,
+    keep_artifacts: bool = False,
+) -> VisualReport:
+    """Render ``before``/``after`` through ``oracle`` and judge the change.
+
+    ``before_hwpx=None`` requests a single new-doc structural-visual pass.
+    Off-oracle or without imaging deps the report degrades
+    (``render_checked=False``, ``ok=True``, warning) and never raises.
+    """
+
+    if oracle is None or not oracle.available():
+        return _degraded(
+            "RENDER_ORACLE_UNAVAILABLE: no Hancom reachable on this platform; "
+            "structural degrade -- visual_complete is unverified, not confirmed."
+        )
+    if not (detectors.imaging_available() and diff.pymupdf_available()):
+        return _degraded(
+            "visual scoring dependencies (pymupdf/Pillow/numpy) unavailable; "
+            "structural degrade -- visual_complete is unverified, not confirmed."
+        )
+
+    retain = keep_artifacts or work_dir is not None
+    created_tmp = work_dir is None
+    work = Path(work_dir) if work_dir else Path(tempfile.mkdtemp(prefix="hwpx-visual-"))
+    work.mkdir(parents=True, exist_ok=True)
+    warnings: list[str] = []
+    errors: list[str] = []
+
+    try:
+        after_abs = os.path.abspath(after_hwpx)
+        pairs: list[tuple[str, str]] = [(after_abs, str(work / "after.pdf"))]
+        before_abs: str | None = None
+        if before_hwpx is not None:
+            before_abs = os.path.abspath(before_hwpx)
+            pairs.append((before_abs, str(work / "before.pdf")))
+
+        rendered = oracle.render_many(pairs)
+        after_render = rendered.get(after_abs)
+        if after_render is None:
+            errors.append("RENDER_ORACLE_UNAVAILABLE: Hancom failed to render the output document.")
+            return VisualReport(ok=False, render_checked=False, warnings=warnings, errors=errors)
+
+        if before_abs is not None:
+            before_render = rendered.get(before_abs)
+            if before_render is None:
+                errors.append("RENDER_ORACLE_UNAVAILABLE: Hancom failed to render the original document.")
+                return VisualReport(
+                    ok=False, render_checked=False, output_render=after_render,
+                    warnings=warnings, errors=errors,
+                )
+            signals = diff.compare_renders(
+                before_render, after_render, edit_mask=edit_mask, diff_eps=diff_eps,
+                dpi=dpi, diff_image_path=str(work / "diff.png"),
+            )
+            original_render: str | None = before_render
+        else:
+            signals = diff.analyze_single(after_render, dpi=dpi)
+            original_render = None
+            warnings.append(
+                "no before document: single-render structural-visual only "
+                "(overlap baseline unavailable)."
+            )
+
+        problem = (
+            bool(signals.get("unexpected_diff_outside_mask"))
+            or bool(signals.get("overlap_detected"))
+            or bool(signals.get("overflow_detected"))
+            or bool(signals.get("page_count_changed"))
+        )
+        report = VisualReport(
+            ok=not problem,
+            render_checked=True,
+            original_render=original_render,
+            output_render=after_render,
+            diff_image=signals.get("diff_image"),
+            unexpected_diff_outside_mask=bool(signals.get("unexpected_diff_outside_mask")),
+            overlap_detected=bool(signals.get("overlap_detected")),
+            overflow_detected=bool(signals.get("overflow_detected")),
+            table_break_detected=False,
+            page_count_changed=signals.get("page_count_changed"),
+            warnings=warnings,
+            errors=errors,
+            max_diff_ratio=signals.get("max_diff_ratio"),
+            before_page_count=signals.get("before_page_count"),
+            after_page_count=signals.get("after_page_count"),
+        )
+        if not retain:
+            # Verdict-only: artifacts are not kept, so don't return dangling paths.
+            report.original_render = None
+            report.output_render = None
+            report.diff_image = None
+        return report
+    finally:
+        if created_tmp and not retain:
+            shutil.rmtree(work, ignore_errors=True)
+
+
+def _main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m hwpx_automation.office.rendering.oracle",
+        description="Render before/after .hwpx through Hancom and emit a VisualReport.",
+    )
+    parser.add_argument("--before", default=None, help="original .hwpx (omit for new-doc check)")
+    parser.add_argument("--after", required=True, help="output .hwpx to verify")
+    parser.add_argument("--out", default=None, help="dir for report.json + render artifacts")
+    parser.add_argument("--diff-eps", type=float, default=0.005)
+    parser.add_argument("--dpi", type=int, default=150)
+    args = parser.parse_args(argv)
+
+    try:  # keep Korean paths/warnings printable on cp949 Windows consoles
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    except Exception:
+        pass
+
+    oracle = resolve_oracle(dpi=args.dpi)
+    work = None
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        work = args.out
+    report = visual_check(
+        args.before, args.after, oracle=oracle, diff_eps=args.diff_eps,
+        dpi=args.dpi, work_dir=work, keep_artifacts=bool(args.out),
+    )
+    text = json.dumps(report.to_dict(), ensure_ascii=False, indent=2)
+    if args.out:
+        Path(args.out, "report.json").write_text(text, encoding="utf-8")
+    print(text)
+    return 0 if report.ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
+
+
+__all__ = [
+    "RenderBackend",
+    "WindowsComOracle",
+    "MacHancomOracle",
+    "NullOracle",
+    "RenderOracle",
+    "resolve_oracle",
+    "visual_check",
+    "Block",
+    "BlockSplit",
+    "detect_block_splits",
+]

@@ -1,0 +1,625 @@
+{
+  "schemaVersion": "hwpx.house-style-bank/v0",
+  "generated": "2026-07-21",
+  "status": "v0 — owner-decided 2026-07-21 (결정 6항목: 공문 본문 15pt / 보고서 제목 22·27 병행 / 기본 모드 hancom-native / 일반 본문 11pt / 개인용 3트랙 / 공개 위치는 후속 스테이지). 값 자체는 스테이지 실증 전 draft 정밀도",
+  "researchDoc": "docs/2026-07-21-house-style-research.md",
+  "_usage": "zero-base 저작 시 donor로 주입할 스타일 값. 뱅크=데이터(감각), 프로파일 선택·조합=스킬(두뇌). 값의 prov는 'layer:근거' — layer ∈ statute(법정)|form-rule(서식 설계기준)|practice(실무 관행 웹)|harvest(M3 실물 수확)|measured(기준본·분포 실측)|hwp-default|krds|personal-web",
+  "fontSafety": {
+    "grades": {
+      "S": [
+        "함초롬바탕",
+        "함초롬돋움"
+      ],
+      "A": [
+        "휴먼명조",
+        "휴먼고딕",
+        "HY헤드라인M",
+        "HY견고딕",
+        "HY견명조",
+        "한컴바탕",
+        "한컴돋움",
+        "한컴 고딕",
+        "한컴산뜻돋움",
+        "한컴 윤고딕 계열",
+        "문체부 계열",
+        "KBIZ한마음고딕",
+        "KBIZ한마음명조",
+        "맑은 고딕"
+      ],
+      "B": [
+        "Pretendard",
+        "나눔고딕",
+        "나눔명조",
+        "나눔스퀘어",
+        "KoPub돋움",
+        "KoPub바탕",
+        "Noto Sans KR",
+        "마루부리",
+        "리디바탕",
+        "Apple SD 산돌고딕 Neo",
+        "바탕",
+        "굴림"
+      ]
+    },
+    "_gradeMeaning": "S=무조건 안전(기본값·자유 라이선스·대체 수렴점) / A=한컴 설치 환경에서 안전(대부분 한컴오피스 전용 라이선스 — 임베드·재배포 금지, 문체부·KBIZ 제외) / B=번들 아님·대체 각오(자유 라이선스는 임베드 시에만)",
+    "fallbackChain": [
+      "함초롬바탕",
+      "함초롬돋움",
+      "한컴바탕",
+      "한컴돋움",
+      "새바탕",
+      "바탕",
+      "굴림"
+    ],
+    "modes": {
+      "hancom-native": "S+A 허용 — 수신자가 한글로 여는 통상 상황 (기본)",
+      "portable": "S만(+자유 라이선스 임베드) — 비한컴 뷰어·재배포·장기 보존"
+    },
+    "portableMap": {
+      "휴먼명조": "함초롬바탕",
+      "HY견명조": "함초롬바탕",
+      "한컴바탕": "함초롬바탕",
+      "마루부리(designIntent)": "함초롬바탕",
+      "HY헤드라인M": "함초롬돋움",
+      "휴먼고딕": "함초롬돋움",
+      "한컴돋움": "함초롬돋움",
+      "한컴 고딕": "함초롬돋움",
+      "한컴산뜻돋움": "함초롬돋움",
+      "맑은 고딕": "함초롬돋움",
+      "Pretendard(designIntent)": "함초롬돋움"
+    },
+    "warnings": [
+      "휴먼명조 HFT/TTF 이중형식(TH/TT) — 동명이라도 메트릭 차로 리플로우 가능. 휴먼명조 지정 문서는 실한컴 렌더 게이트 필수",
+      "맑은 고딕: 한컴 설치 환경이면 양 플랫폼 존재(Mac 앱 번들 malgun.ttf 실측 2026-07-21, 웹 '없다' 주장 교정), 비한컴 Mac 뷰어에선 부재",
+      "OS 시스템 폰트(맑은 고딕·Apple SD 산돌고딕 Neo) 단독 의존 금지 — 크로스플랫폼 편측 대체"
+    ]
+  },
+  "sharedRules": [
+    "자간은 좁히고 행간은 넓혀라 — 본문 160%(읽기 문서 180), 고딕 자간 -5~-8, 행간 150% 미만 금지",
+    "2서체 이내 — 본문 명조 + 제목 고딕, 무분별 혼용 금지",
+    "장평 100 고정 — 90~110 밖 임의 변형 금지",
+    "위계는 크기+굵기로 — 제목 >= 본문 x1.4 또는 굵기 대비, 색 남발 금지",
+    "정렬 통일(본문 양쪽정렬 일관)·문단 간격 일정·여백 확보",
+    "표 안은 본문보다 1~2pt 작고 줄간격 100~130으로 촘촘하게",
+    "기본값 그대로 두지 마라 — 크기·행간·위계를 결정해야 문서로 읽힌다"
+  ],
+  "profiles": {
+    "gongmun": {
+      "label": "공문 (기안문/시행문/통지/협조)",
+      "when": "기관 명의 발신 문서. 규정 게이트(inspect_official_document_style) 병행 필수",
+      "page": {
+        "paper": "A4",
+        "marginsMm": {
+          "top": 20,
+          "bottom": 15,
+          "left": 20,
+          "right": 20
+        },
+        "prov": [
+          "statute:A4 규정 제7조제6항",
+          "measured:기준본 20/15/20/20 — 일반 기안문 여백 법정 미지정(편람 p.53 자유조정)",
+          "form-rule:서식 준거는 20/10/20/20(편람 제3절)"
+        ]
+      },
+      "roles": {
+        "agency_head": {
+          "font": "HY헤드라인M",
+          "sizePt": 16,
+          "align": "center",
+          "letterSpacing": "확장(자간 벌림)",
+          "prov": [
+            "harvest:M3 official_notice title 16pt",
+            "statute:두문 가운데·자간 확장(편람 p.57)"
+          ]
+        },
+        "subject": {
+          "font": "휴먼명조",
+          "sizePt": 15,
+          "bold": true,
+          "prov": [
+            "practice:본문 크기+굵기 관행"
+          ]
+        },
+        "body": {
+          "font": "휴먼명조",
+          "sizePt": 15,
+          "lineSpacingPct": 160,
+          "altLineSpacingPct": 180,
+          "align": "justify",
+          "prov": [
+            "practice:휴먼명조 15pt(머니투데이·다수)",
+            "harvest:M3 body 휴먼명조 15pt",
+            "measured:공문 실측 180 우세 → alt",
+            "practice:K-에듀파인 도구 기본 123%는 도구값(비채택)"
+          ]
+        },
+        "sender_name": {
+          "font": "한컴돋움",
+          "sizePt": 15,
+          "bold": true,
+          "align": "center",
+          "prov": [
+            "form-rule:발신명의 돋움체 15P 진하게(편람 p.149)"
+          ]
+        },
+        "closing_meta": {
+          "font": "휴먼명조",
+          "sizePt": 13,
+          "prov": [
+            "harvest:M3 결문/info_table 12~14pt"
+          ]
+        },
+        "table_cell": {
+          "font": "휴먼명조",
+          "sizePt": 12,
+          "lineSpacingPct": 130,
+          "prov": [
+            "harvest:M3 info_table 12pt",
+            "measured:표 안 100~130 분포"
+          ]
+        }
+      },
+      "statutory": {
+        "itemNumbering": [
+          "1.",
+          "가.",
+          "1)",
+          "가)",
+          "(1)",
+          "(가)",
+          "①",
+          "㉮"
+        ],
+        "itemSymbolsAllowed": [
+          "□",
+          "○",
+          "-",
+          "ㆍ"
+        ],
+        "indentRule": "첫째 항목 왼쪽 기본선, 하위 항목 +2타, 기호-내용 1타 (2타=한글1자), 둘째 줄은 내용 첫 글자 정렬",
+        "dateFormat": "2026. 7. 21. (온점·0 미채움)",
+        "timeFormat": "24시각제 15:00",
+        "endMark": "본문 끝 2타 '끝.' (붙임 있으면 붙임 뒤)",
+        "attachment": "'붙임' 쌍점 없이 + 명칭 + '1부.' (2건 이상 번호, 1건은 숫자 생략)",
+        "pageNumber": "중앙 하단 (중요문서 4-1, 4-2…)",
+        "sealColor": "관인 빨간색(출력 시 검정 가능)",
+        "prov": [
+          "statute:규칙 제2조·제18조·규정 제7조, 2025 편람 원문"
+        ]
+      }
+    },
+    "report": {
+      "label": "보고서·계획서",
+      "when": "정책/업무 보고, 운영·사업 계획. 개조식(~함/~음), 항목 2줄 이내",
+      "page": {
+        "paper": "A4",
+        "marginsMm": {
+          "top": 20,
+          "bottom": 15,
+          "left": 20,
+          "right": 20
+        },
+        "prov": [
+          "practice:좌우 20 관행",
+          "measured:기준본 동일"
+        ]
+      },
+      "outlineSymbols": {
+        "order": [
+          "□",
+          "○",
+          "-",
+          "ㆍ"
+        ],
+        "prov": [
+          "practice:보고서 개요기호(공문 1.가.와 구분)"
+        ]
+      },
+      "roles": {
+        "cover_title": {
+          "font": "HY헤드라인M",
+          "sizePt": 27,
+          "bold": true,
+          "align": "center",
+          "prov": [
+            "harvest:M3 report title 27pt bold(표지형)"
+          ]
+        },
+        "title": {
+          "font": "HY헤드라인M",
+          "sizePt": 22,
+          "bold": true,
+          "prov": [
+            "practice:20~22pt(본문형 제목)"
+          ]
+        },
+        "heading1": {
+          "font": "HY헤드라인M",
+          "sizePt": 16,
+          "spaceAfterPt": 8,
+          "prov": [
+            "practice:대분류 16pt·뒤 8pt"
+          ]
+        },
+        "heading2": {
+          "font": "휴먼명조",
+          "sizePt": 15,
+          "bold": true,
+          "prov": [
+            "harvest:M3 heading 휴먼명조 15pt"
+          ]
+        },
+        "body": {
+          "font": "휴먼명조",
+          "sizePt": 15,
+          "lineSpacingPct": 160,
+          "prov": [
+            "practice:14~15pt·160%",
+            "harvest:M3 body 15pt"
+          ]
+        },
+        "paren_note": {
+          "font": "휴먼명조",
+          "sizePt": 12,
+          "prov": [
+            "practice:괄호 부연 12pt"
+          ]
+        },
+        "reference": {
+          "font": "한컴돋움",
+          "sizePt": 10,
+          "lineSpacingPct": 130,
+          "prov": [
+            "practice:참조/주석 10~13pt·130%",
+            "measured:주석 10pt"
+          ]
+        },
+        "table_header": {
+          "font": "한컴돋움",
+          "sizePt": 11,
+          "bold": true,
+          "prov": [
+            "practice:표 안 고딕 10~13pt"
+          ]
+        },
+        "table_cell": {
+          "font": "한컴돋움",
+          "sizePt": 10.5,
+          "lineSpacingPct": 130,
+          "prov": [
+            "practice",
+            "measured:표 안 100~130·셀 10~11.5pt"
+          ]
+        }
+      }
+    },
+    "home_notice": {
+      "label": "가정통신문·안내문",
+      "when": "학교→학부모/대상자 공지. 가독 우선(수신자 일반인)",
+      "page": {
+        "paper": "A4",
+        "marginsMm": {
+          "top": 15,
+          "bottom": 15,
+          "left": 15,
+          "right": 15
+        },
+        "prov": [
+          "harvest:M3 home_notice 15mm 계열(실물 편차 큼 — 20mm 계열도 무방)"
+        ]
+      },
+      "roles": {
+        "title": {
+          "font": "맑은 고딕",
+          "sizePt": 20,
+          "bold": true,
+          "align": "center",
+          "altFont": "HY헤드라인M",
+          "prov": [
+            "harvest:M3 title 맑은 고딕 20pt bold",
+            "practice:16~20pt"
+          ]
+        },
+        "heading": {
+          "font": "함초롬바탕",
+          "sizePt": 14,
+          "bold": true,
+          "prov": [
+            "harvest:M3 heading 14pt bold"
+          ]
+        },
+        "body": {
+          "font": "함초롬바탕",
+          "sizePt": 12,
+          "lineSpacingPct": 160,
+          "altLineSpacingPct": 180,
+          "prov": [
+            "harvest:M3 body 12pt",
+            "practice:11~12pt·160~180%(저학년·학부모 가독 시 180)"
+          ]
+        },
+        "table_cell": {
+          "font": "함초롬돋움",
+          "sizePt": 10.5,
+          "lineSpacingPct": 130,
+          "prov": [
+            "practice:표 안 10~10.5pt",
+            "measured"
+          ]
+        }
+      }
+    },
+    "default_document": {
+      "label": "일반 문서 기본값",
+      "when": "유형 특정 불가 시 안전 기본. HWP 기본값을 실측·관행으로 보정",
+      "page": {
+        "paper": "A4",
+        "marginsMm": {
+          "top": 20,
+          "bottom": 15,
+          "left": 20,
+          "right": 20
+        },
+        "prov": [
+          "measured:기준본 실측"
+        ]
+      },
+      "roles": {
+        "title": {
+          "font": "함초롬돋움",
+          "sizePt": 16,
+          "bold": true,
+          "prov": [
+            "practice:본문 x1.4~1.6 대비"
+          ]
+        },
+        "heading": {
+          "font": "함초롬돋움",
+          "sizePt": 13,
+          "bold": true,
+          "prov": [
+            "measured:소제목 12pt bold",
+            "practice:위계 대비 보정 +1"
+          ]
+        },
+        "body": {
+          "font": "함초롬바탕",
+          "sizePt": 11,
+          "lineSpacingPct": 160,
+          "altLineSpacingPct": 180,
+          "align": "justify",
+          "firstLineIndentPt": 10,
+          "letterSpacingPct": 0,
+          "prov": [
+            "hwp-default:함초롬바탕 10pt·160%(한컴 공식)",
+            "measured:사람 최종본 11pt",
+            "practice:첫줄 들여쓰기 10pt(1글자)"
+          ]
+        },
+        "emphasis": {
+          "letterSpacingPct": -5,
+          "bold": true,
+          "prov": [
+            "measured:강조부 자간 -5~-10",
+            "practice:고딕 -5~-8"
+          ]
+        },
+        "meta": {
+          "font": "함초롬돋움",
+          "sizePt": 10,
+          "prov": [
+            "measured:주석 10pt"
+          ]
+        },
+        "table_header": {
+          "font": "함초롬돋움",
+          "sizePt": 10.5,
+          "bold": true,
+          "prov": [
+            "practice:표 안 본문-1~2pt"
+          ]
+        },
+        "table_cell": {
+          "font": "함초롬돋움",
+          "sizePt": 10,
+          "lineSpacingPct": 130,
+          "prov": [
+            "practice",
+            "measured:표 안 100~130"
+          ]
+        }
+      },
+      "ratioPct": {
+        "value": 100,
+        "range": [
+          90,
+          110
+        ],
+        "prov": [
+          "practice:장평 임의 변형 금지",
+          "measured:100 기본·90~98 혼용"
+        ]
+      }
+    },
+    "personal_modern": {
+      "label": "개인용 모던 (예쁘게 저장하고 싶은 개인 문서)",
+      "when": "이력서/자소서·대학 리포트·계획표/다이어리·노션형 정리 문서 — '예쁘게' 요청 시",
+      "colorRule": "60-30-10 — 무채색 본문 + 악센트 1색, 색은 강조·포인트에만. 본문은 순검정 대신 차콜",
+      "variants": {
+        "modern_blue": {
+          "label": "기본형 — 모던 블루",
+          "font": {
+            "designIntent": "Pretendard",
+            "hancomNative": "한컴 고딕",
+            "portable": "함초롬돋움",
+            "prov": [
+              "personal-web:국민 모던 기본체 Pretendard(B등급→매핑)",
+              "measured:한컴 고딕 Mac Install 번들 실측"
+            ]
+          },
+          "palette": {
+            "text": "#1E2124",
+            "meta": "#6D7882",
+            "border": "#B1B8BE",
+            "tableHeaderBg": "#F4F5F6",
+            "accent": "#256EF4",
+            "prov": [
+              "krds:그레이 램프·primary 블루(KRDS 공식)"
+            ]
+          },
+          "page": {
+            "paper": "A4",
+            "marginsMm": {
+              "top": 25,
+              "bottom": 20,
+              "left": 28,
+              "right": 28
+            },
+            "prov": [
+              "personal-web:넉넉한 여백 상하 20~25·좌우 25~30"
+            ]
+          },
+          "roles": {
+            "cover_title": {
+              "sizePt": 27,
+              "bold": true,
+              "align": "center",
+              "lineSpacingPct": 130,
+              "prov": [
+                "personal-web:표지 제목 26~28pt bold 중앙"
+              ]
+            },
+            "cover_meta": {
+              "sizePt": 11,
+              "lineSpacingPct": 160,
+              "color": "#6D7882",
+              "align": "center",
+              "position": "하단 정돈(과목/교수/학과/학번/이름/제출일)",
+              "prov": [
+                "personal-web:리포트 표지 관행(다수 대학)"
+              ]
+            },
+            "h1": {
+              "sizePt": 17,
+              "bold": true,
+              "lineSpacingPct": 150,
+              "prov": [
+                "krds:위계 스케일·150%·700 weight"
+              ]
+            },
+            "h2": {
+              "sizePt": 13.5,
+              "bold": true,
+              "lineSpacingPct": 150,
+              "prov": [
+                "krds",
+                "personal-web:13~14pt"
+              ]
+            },
+            "body": {
+              "sizePt": 11,
+              "lineSpacingPct": 170,
+              "color": "#1E2124",
+              "prov": [
+                "personal-web:10.5~11pt·행간 170%",
+                "measured:사람 본문 11pt"
+              ]
+            },
+            "caption": {
+              "sizePt": 9,
+              "lineSpacingPct": 150,
+              "color": "#6D7882",
+              "prov": [
+                "personal-web"
+              ]
+            },
+            "table_header": {
+              "sizePt": 10,
+              "bold": true,
+              "bgColor": "#F4F5F6",
+              "lineSpacingPct": 140,
+              "prov": [
+                "personal-web",
+                "krds:은은한 면 F4F5F6"
+              ]
+            },
+            "table_cell": {
+              "sizePt": 10,
+              "lineSpacingPct": 140,
+              "borderColor": "#B1B8BE",
+              "prov": [
+                "personal-web",
+                "krds:연회색 테두리"
+              ]
+            }
+          },
+          "notes": [
+            "쪽번호 2쪽부터 하단 중앙",
+            "이력서 힌트: 본문 10pt·행간 130~140·2쪽 이내"
+          ]
+        },
+        "emotive_calm": {
+          "label": "감성형 — 톤다운",
+          "inherits": "modern_blue",
+          "font": {
+            "designIntent": "마루부리 (대체: 리디바탕·나눔명조)",
+            "hancomNative": "함초롬바탕",
+            "portable": "함초롬바탕",
+            "prov": [
+              "personal-web:감성 본문 폰트 다수 일치(B등급→매핑)"
+            ]
+          },
+          "overrides": {
+            "body": {
+              "lineSpacingPct": 180,
+              "prov": [
+                "personal-web:감성 트랙 행간 180%"
+              ]
+            },
+            "accentOptions": [
+              "세이지 그린 계열(예시 #7C9070 — 합성값, 확정 전 오너 확인)",
+              "네이비 #1F3864(기존 코드 프리셋 계승)"
+            ]
+          },
+          "notes": [
+            "제목 대비가 필요하면 고딕(hancomNative: 한컴 고딕) bold 혼용 허용 — 2서체 이내 규칙 내"
+          ]
+        },
+        "minimal_mono": {
+          "label": "미니멀 — 무채색",
+          "inherits": "modern_blue",
+          "font": {
+            "designIntent": "Pretendard",
+            "hancomNative": "한컴 고딕",
+            "portable": "함초롬돋움",
+            "prov": [
+              "personal-web:국민 모던 기본체 Pretendard(B등급→매핑)",
+              "measured:한컴 고딕 Mac Install 번들 실측"
+            ]
+          },
+          "overrides": {
+            "palette": {
+              "accent": null,
+              "_note": "악센트 없음 — 60-30-10의 강조 10%를 색 대신 굵기·크기 대비로 대체"
+            },
+            "table_header": {
+              "bgColor": null,
+              "rule": "배경 면 없이 상하 괘선(#B1B8BE)만으로 구분"
+            },
+            "body": {
+              "lineSpacingPct": 170
+            }
+          },
+          "notes": [
+            "미니멀의 미감은 여백과 위계 대비에서 옴 — modern_blue의 넉넉한 여백 유지·확대",
+            "오너 결정(2026-07-21)으로 추가된 3번째 트랙 — 세부값은 후속 스테이지 실증에서 정밀화"
+          ],
+          "prov": [
+            "personal-web:무채색+굵기 위계 다수 일치",
+            "owner:3트랙 결정 2026-07-21"
+          ]
+        }
+      }
+    }
+  }
+}

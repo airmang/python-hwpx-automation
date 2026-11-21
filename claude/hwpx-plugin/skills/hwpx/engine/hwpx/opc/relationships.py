@@ -1,0 +1,318 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Helpers for resolving HWPX container and manifest relationships.
+
+This includes the binary item rules -- which manifest items hold binary data,
+and how content refers to them -- that ``doc.media``, ``doc.validate()``,
+``hwpx.tools.id_integrity`` and ``hwpx.tools.package_validator`` share, so they
+cannot disagree about whether an item is a binary item, whether it links a
+file outside the package or whether the document still uses it.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import Any, Collection, Iterable
+
+CONTAINER_NAMESPACES = (
+    "urn:oasis:names:tc:opendocument:xmlns:container",
+)
+MAIN_ROOTFILE_MEDIA_TYPE = "application/hwpml-package+xml"
+OPF_NS = {"opf": "http://www.idpf.org/2007/opf/"}
+
+#: Attributes that name a binary item. Pictures, image fills and bullets, OLE
+#: objects and embedded fonts use ``binaryItemIDRef``; a video names its file
+#: and poster image with ``fileIDRef``/``imageIDRef``; a slide show sound
+#: uses ``soundIDRef``.
+BINARY_ITEM_REF_ATTRS = ("binaryItemIDRef", "imageIDRef", "fileIDRef", "soundIDRef")
+
+__all__ = [
+    "BINARY_ITEM_REF_ATTRS",
+    "CONTAINER_NAMESPACES",
+    "MAIN_ROOTFILE_MEDIA_TYPE",
+    "OPF_NS",
+    "ManifestItemRef",
+    "ManifestRelationships",
+    "RootFileRef",
+    "bin_ref_aliases",
+    "is_binary_manifest_item",
+    "is_header_part_name",
+    "is_linked_file",
+    "is_section_part_name",
+    "normalize_part_name",
+    "parse_container_rootfiles",
+    "parse_manifest_relationships",
+    "resolve_part_name",
+    "select_main_rootfile",
+]
+
+
+@dataclass(frozen=True)
+class RootFileRef:
+    full_path: str
+    media_type: str | None = None
+
+
+@dataclass(frozen=True)
+class ManifestItemRef:
+    item_id: str | None
+    href: str
+    resolved_path: str
+    media_type: str | None = None
+    properties: str | None = None
+    is_embeded: str | None = None
+
+
+@dataclass(frozen=True)
+class ManifestRelationships:
+    manifest_path: str
+    items: tuple[ManifestItemRef, ...]
+    spine_paths: tuple[str, ...]
+    dangling_idrefs: tuple[str, ...]
+    header_paths: tuple[str, ...]
+    master_page_paths: tuple[str, ...]
+    history_paths: tuple[str, ...]
+    version_path: str | None
+    settings_path: str | None
+    #: The idref of each entry of ``spine_paths``, in the same order.
+    spine_ids: tuple[str, ...] = ()
+
+
+def normalize_part_name(path: str) -> str:
+    raw = path.replace("\\", "/").strip()
+    parts: list[str] = []
+    for part in PurePosixPath(raw).parts:
+        if part in {"", ".", "/"}:
+            continue
+        if part == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(part)
+    return "/".join(parts)
+
+
+def resolve_part_name(
+    base_part: str,
+    href: str,
+    *,
+    known_parts: Collection[str] | None = None,
+) -> str:
+    return _resolve_part_name(base_part, href, _normalized_parts(known_parts))
+
+
+def _normalized_parts(known_parts: Collection[str] | None) -> frozenset[str] | None:
+    if known_parts is None:
+        return None
+    return frozenset(normalize_part_name(part) for part in known_parts)
+
+
+def _resolve_part_name(base_part: str, href: str, normalized_parts: frozenset[str] | None) -> str:
+    """:func:`resolve_part_name` against part names normalized once by the caller."""
+    raw_href = href.replace("\\", "/").strip()
+    if not raw_href:
+        return ""
+    if raw_href.startswith("/"):
+        return normalize_part_name(raw_href)
+    base_dir = PurePosixPath(normalize_part_name(base_part)).parent
+    normalized_href = normalize_part_name(raw_href)
+    if normalized_parts is not None:
+        if normalized_href in normalized_parts:
+            return normalized_href
+        relative_candidate = normalize_part_name(str(base_dir / raw_href))
+        if relative_candidate in normalized_parts:
+            return relative_candidate
+    base_dir_name = normalize_part_name(str(base_dir))
+    if base_dir_name and normalized_href.startswith(f"{base_dir_name}/"):
+        return normalized_href
+    return normalize_part_name(str(base_dir / raw_href))
+
+
+def parse_container_rootfiles(container_root: Any) -> tuple[RootFileRef, ...]:
+    rootfiles: list[RootFileRef] = []
+    seen: set[tuple[str, str | None]] = set()
+    candidates = list(container_root.findall(".//rootfile"))
+    for namespace in CONTAINER_NAMESPACES:
+        candidates.extend(container_root.findall(f".//{{{namespace}}}rootfile"))
+
+    for elem in candidates:
+            full_path = (
+                elem.get("full-path")
+                or elem.get("fullPath")
+                or elem.get("full_path")
+            )
+            if not full_path:
+                continue
+            media_type = (
+                elem.get("media-type")
+                or elem.get("mediaType")
+                or elem.get("media_type")
+            )
+            root = RootFileRef(
+                full_path=normalize_part_name(full_path),
+                media_type=media_type,
+            )
+            key = (root.full_path, root.media_type)
+            if key in seen:
+                continue
+            seen.add(key)
+            rootfiles.append(root)
+    return tuple(rootfiles)
+
+
+def select_main_rootfile(rootfiles: Iterable[RootFileRef]) -> tuple[RootFileRef | None, bool]:
+    ordered = list(rootfiles)
+    if not ordered:
+        return None, False
+    for rootfile in ordered:
+        if rootfile.media_type == MAIN_ROOTFILE_MEDIA_TYPE:
+            return rootfile, False
+    return ordered[0], True
+
+
+def is_section_part_name(path: str) -> bool:
+    name = PurePosixPath(path).name.lower()
+    return name.startswith("section") and name.endswith(".xml")
+
+
+def is_header_part_name(path: str) -> bool:
+    name = PurePosixPath(path).name.lower()
+    return name.startswith("header") and name.endswith(".xml")
+
+
+def is_binary_manifest_item(href: str, media_type: str) -> bool:
+    """Whether a manifest item holds binary data.
+
+    Its href is under ``BinData/``, or its media type is ``image/*``.
+    """
+
+    href_path = PurePosixPath(href.strip())
+    return media_type.strip().lower().startswith("image/") or (
+        len(href_path.parts) >= 2 and href_path.parts[0] == "BinData"
+    )
+
+
+def is_linked_file(href: str, is_embeded: str | None) -> bool:
+    """Whether a manifest item links a file outside the package.
+
+    That is an item marked ``isEmbeded="0"`` (OWPML's single-d spelling) whose
+    href lies outside ``BinData/`` -- a linked video, say. Hancom also marks
+    OLE objects ``isEmbeded="0"``, but keeps their file in ``BinData/``, so
+    those are parts of the package.
+    """
+
+    return is_embeded == "0" and not href.startswith("BinData/")
+
+
+def bin_ref_aliases(value: Any) -> set[str]:
+    """The names a binary item reference or identifier *value* stands for.
+
+    The value itself, its file name, its stem and, when it is a number, its
+    integer form: ``"image1"`` matches ``"BinData/image1.png"`` and a header
+    ``binItem`` whose ``BinData`` is ``"image1.png"``.
+    """
+
+    if value is None:
+        return set()
+    raw = str(value).strip()
+    if not raw:
+        return set()
+    path = PurePosixPath(raw)
+    aliases = {raw, path.name, path.stem}
+    try:
+        aliases.add(str(int(raw)))
+    except ValueError:
+        pass
+    aliases.discard("")
+    return aliases
+
+
+def _manifest_matches(item: ManifestItemRef, *candidates: str) -> bool:
+    haystack = " ".join(
+        part.lower()
+        for part in (
+            item.item_id or "",
+            item.href,
+            item.media_type or "",
+            item.properties or "",
+        )
+        if part
+    )
+    return any(candidate in haystack for candidate in candidates if candidate)
+
+
+def parse_manifest_relationships(
+    manifest_root: Any,
+    manifest_path: str,
+    *,
+    known_parts: Collection[str] | None = None,
+) -> ManifestRelationships:
+    items: list[ManifestItemRef] = []
+    id_to_path: dict[str, str] = {}
+    # once per manifest, not once per item: a package with many binary parts
+    # (images) has as many manifest items, which made opening quadratic
+    normalized_parts = _normalized_parts(known_parts)
+
+    for item in manifest_root.findall(".//opf:item", OPF_NS):
+        href = (item.get("href") or "").strip()
+        if not href:
+            continue
+        resolved_path = _resolve_part_name(manifest_path, href, normalized_parts)
+        item_ref = ManifestItemRef(
+            item_id=item.get("id"),
+            href=href,
+            resolved_path=resolved_path,
+            media_type=item.get("media-type"),
+            properties=item.get("properties"),
+            is_embeded=item.get("isEmbeded"),
+        )
+        items.append(item_ref)
+        if item_ref.item_id:
+            id_to_path[item_ref.item_id] = resolved_path
+
+    spine_paths: list[str] = []
+    spine_ids: list[str] = []
+    dangling_idrefs: list[str] = []
+    for itemref in manifest_root.findall(".//opf:itemref", OPF_NS):
+        idref = (itemref.get("idref") or "").strip()
+        if not idref:
+            continue
+        spine_path = id_to_path.get(idref)
+        if spine_path:
+            spine_paths.append(spine_path)
+            spine_ids.append(idref)
+        else:
+            dangling_idrefs.append(idref)
+
+    header_paths = tuple(path for path in spine_paths if is_header_part_name(path))
+    master_page_paths = tuple(
+        item.resolved_path
+        for item in items
+        if _manifest_matches(item, "masterpage", "master-page")
+    )
+    history_paths = tuple(
+        item.resolved_path
+        for item in items
+        if _manifest_matches(item, "history")
+    )
+    version_path = next(
+        (item.resolved_path for item in items if _manifest_matches(item, "version")),
+        None,
+    )
+    settings_path = next(
+        (item.resolved_path for item in items if _manifest_matches(item, "settings")),
+        None,
+    )
+
+    return ManifestRelationships(
+        manifest_path=normalize_part_name(manifest_path),
+        items=tuple(items),
+        spine_paths=tuple(spine_paths),
+        spine_ids=tuple(spine_ids),
+        dangling_idrefs=tuple(dangling_idrefs),
+        header_paths=header_paths,
+        master_page_paths=master_page_paths,
+        history_paths=history_paths,
+        version_path=version_path,
+        settings_path=settings_path,
+    )

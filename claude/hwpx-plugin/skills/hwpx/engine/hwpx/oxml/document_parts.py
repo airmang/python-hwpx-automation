@@ -1,0 +1,1666 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Top-level HWPX OXML part composition and dirty serialization service."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from dataclasses import dataclass, replace
+import logging
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence, TypeVar, cast
+import xml.etree.ElementTree as ET
+
+from hwpx.opc.relationships import resolve_part_name
+
+from ._document_primitives import (
+    paragraph_attributes,
+    _FONT_REF_ATTRIBUTES,
+    _HH,
+    _HP,
+    _HS,
+    IdSource,
+    _append_child,
+    _char_height_from_points,
+    _element_local_name,
+    _is_integer_literal,
+    _lookup_keys,
+    _normalize_color,
+    _paragraph_id,
+    _serialize_xml,
+)
+from ..errors import rejects_removed_arguments
+from .common import GenericElement, parse_generic_element
+from .header import (
+    Bullet,
+    MemoShape,
+    ParagraphProperty,
+    Style,
+    TabDefinition,
+    TrackChange,
+    TrackChangeAuthor,
+    parse_bullet,
+    parse_style,
+    parse_tab_definition,
+    parse_track_change,
+    parse_track_change_author,
+)
+from .header_part import HwpxOxmlHeader
+from .namespaces import tag_local_name
+from .paragraph import HwpxOxmlParagraph
+from .run import CharPropertyCache, RunStyle
+from .section import HwpxOxmlSection
+from .section_story import sync_story_mirrors
+from . import section_layout as _section_layout
+from .simple_parts import (
+    HwpxOxmlHistory,
+    HwpxOxmlMasterPage,
+    HwpxOxmlSettings,
+    HwpxOxmlVersion,
+    _HwpxOxmlSimplePart,
+)
+
+if TYPE_CHECKING:
+    from hwpx.opc.package import HwpxPackage
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _RunStyleSpec:
+    """Resolved run-style target shared by the ensure_run_style predicate/modifier."""
+
+    flags: tuple[bool, bool, bool]
+    color: str | None
+    highlight: str | None
+    height: str | None
+    strike: bool | None
+    font_ref: dict[str, str] | None
+    underline_shape: str | None = None
+    underline_color: str | None = None
+    strike_shape: str | None = None
+    ratio: int | None = None
+    letter_spacing: int | None = None
+    letter_spacing_by_lang: dict[str, int] | None = None
+    shadow_color: str | None = None
+    script: str | None = None
+    outline: str | None = None
+    emboss: bool | None = None
+    engrave: bool | None = None
+
+
+def _run_style_element_flags(element: ET.Element) -> tuple[bool, bool, bool]:
+    bold_present = element.find(f"{_HH}bold") is not None
+    italic_present = element.find(f"{_HH}italic") is not None
+    underline_element = element.find(f"{_HH}underline")
+    underline_present = False
+    if underline_element is not None:
+        underline_present = underline_element.get("type", "").upper() != "NONE"
+    return bold_present, italic_present, underline_present
+
+
+def _validated_line_shape(
+    value: str | None, vocabulary: frozenset[str], label: str
+) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).upper()
+    if normalized not in vocabulary:
+        raise ValueError(f"unsupported {label} {value!r}")
+    return normalized
+
+
+def _run_style_lang_value_matches(
+    element: ET.Element, tag: str, value: int | None
+) -> bool:
+    if value is None:
+        return True
+    node = element.find(f"{_HH}{tag}")
+    return node is not None and node.get("hangul") == str(value)
+
+
+def _run_style_is_legacy_script_approximation(element: ET.Element) -> bool:
+    """relSz 67 + offset -30/+30: what python-hwpx wrote next to the script
+    element in earlier versions. Hancom shrinks and shifts a script by the element
+    alone, so these values made it shrink twice."""
+
+    off_el = element.find(f"{_HH}offset")
+    return _run_style_lang_value_matches(element, "relSz", 67) and (
+        off_el is not None and off_el.get("hangul") in ("-30", "30")
+    )
+
+
+def _run_style_base(header: HwpxOxmlHeader, base_char_pr_id: str | int | None) -> ET.Element | None:
+    """The ``hh:charPr`` a requested style is built on: *base_char_pr_id*, else the first one."""
+
+    ref_list = header.element.find(f"{_HH}refList")
+    container = None if ref_list is None else ref_list.find(f"{_HH}charProperties")
+    if container is None:
+        return None
+    named = None if base_char_pr_id is None else container.find(f"{_HH}charPr[@id='{base_char_pr_id}']")
+    return named if named is not None else container.find(f"{_HH}charPr")
+
+
+def _run_style_flags(
+    requested: tuple[bool | None, bool | None, bool | None], base: ET.Element | None, keep_base: bool
+) -> tuple[bool, bool, bool]:
+    """Bold, italic and underline; one left out (``None``) keeps the named base's, else is off."""
+
+    inherited = _run_style_element_flags(base) if base is not None and keep_base else (False, False, False)
+    bold, italic, underline = (have if want is None else bool(want) for want, have in zip(requested, inherited))
+    return bold, italic, underline
+
+
+def _char_pr_children(element: ET.Element) -> tuple[Any, ...]:
+    """The children of a ``hh:charPr`` with their attributes and text, in any order."""
+
+    def node(child: ET.Element) -> tuple[Any, ...]:
+        return str(child.tag), tuple(sorted(child.attrib.items())), (child.text or "").strip(), _char_pr_children(child)
+
+    return tuple(sorted(map(node, element)))
+
+
+def _run_style_wanted(base: ET.Element | None, spec: _RunStyleSpec) -> Callable[[ET.Element], bool]:
+    """Whether a ``hh:charPr`` is the one *spec* asks for: *base* with the requested changes.
+
+    Its attributes (other than the id) and its children must match; the height is compared
+    first, the children only when the attributes agree.
+    """
+
+    wanted = deepcopy(base) if base is not None else ET.Element(f"{_HH}charPr")
+    _run_style_modifier(wanted, spec)
+    height = wanted.get("height")
+    attributes = {key: value for key, value in wanted.attrib.items() if key != "id"}
+    children = _char_pr_children(wanted)
+
+    def same(element: ET.Element) -> bool:
+        if element.get("height") != height:
+            return False
+        if {key: value for key, value in element.attrib.items() if key != "id"} != attributes:
+            return False
+        return _char_pr_children(element) == children
+
+    return same
+
+
+def _run_style_apply_font_and_colors(element: ET.Element, spec: _RunStyleSpec) -> None:
+    if spec.color is not None:
+        element.set("textColor", spec.color)
+    if spec.highlight is not None:
+        element.set("shadeColor", spec.highlight)
+    if spec.height is not None:
+        element.set("height", spec.height)
+    if spec.font_ref is not None:
+        font_ref = element.find(f"{_HH}fontRef")
+        if font_ref is None:
+            font_ref = element.makeelement(f"{_HH}fontRef", {name: "0" for name in _FONT_REF_ATTRIBUTES})
+            element.insert(0, font_ref)
+        for attr_name in list(font_ref.attrib.keys()):
+            if attr_name not in _FONT_REF_ATTRIBUTES:
+                del font_ref.attrib[attr_name]
+        for attr_name, attr_value in spec.font_ref.items():
+            font_ref.set(attr_name, attr_value)
+
+
+def _run_style_apply_underline(
+    element: ET.Element, base_underline_attrs: dict[str, str], want_underline: bool
+) -> None:
+    underline_attrs = dict(base_underline_attrs)
+    if want_underline:
+        # 실한컴 gold 관례: hh:underline type은 위치 어휘(BOTTOM/CENTER/TOP).
+        underline_attrs.setdefault("type", "BOTTOM")
+        if underline_attrs.get("type", "").upper() in ("NONE", "SOLID"):
+            underline_attrs["type"] = "BOTTOM"
+        underline_attrs.setdefault(
+            "shape", base_underline_attrs.get("shape", "SOLID")
+        )
+        if "color" not in underline_attrs and "color" in base_underline_attrs:
+            underline_attrs["color"] = base_underline_attrs["color"]
+        if "color" not in underline_attrs:
+            underline_attrs["color"] = "#000000"
+        _append_child(element, f"{_HH}underline", underline_attrs)
+    else:
+        attrs = dict(base_underline_attrs)
+        attrs["type"] = "NONE"
+        attrs.setdefault("shape", base_underline_attrs.get("shape", "SOLID"))
+        if "color" in base_underline_attrs:
+            attrs["color"] = base_underline_attrs["color"]
+        _append_child(element, f"{_HH}underline", attrs)
+
+
+def _run_style_apply_strikeout(
+    element: ET.Element, base_strike_attrs: dict[str, str], strike: bool | None
+) -> None:
+    if strike is None and base_strike_attrs:
+        _append_child(element, f"{_HH}strikeout", dict(base_strike_attrs))
+    if strike is not None:
+        strike_attrs = dict(base_strike_attrs)
+        strike_attrs["shape"] = "SOLID" if strike else "NONE"
+        strike_attrs.setdefault(
+            "color", base_strike_attrs.get("color", "#000000")
+        )
+        _append_child(element, f"{_HH}strikeout", strike_attrs)
+
+
+def _run_style_set_lang_values(element: ET.Element, tag: str, value: int) -> None:
+    node = element.find(f"{_HH}{tag}")
+    if node is None:
+        node = _append_child(element, f"{_HH}{tag}")
+    for lang in ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user"):
+        node.set(lang, str(value))
+
+
+def _run_style_apply_underline_extension(
+    element: ET.Element, spec: _RunStyleSpec
+) -> None:
+    if spec.underline_shape is None and spec.underline_color is None:
+        return
+    underline = element.find(f"{_HH}underline")
+    if underline is None:
+        return
+    if underline.get("type", "").upper() == "NONE":
+        underline.set("type", "BOTTOM")
+    if spec.underline_shape is not None:
+        underline.set("shape", spec.underline_shape)
+    if spec.underline_color is not None:
+        underline.set("color", spec.underline_color)
+
+
+def _run_style_apply_extensions(element: ET.Element, spec: _RunStyleSpec) -> None:
+    _run_style_apply_underline_extension(element, spec)
+    if spec.strike_shape is not None:
+        strike_el = element.find(f"{_HH}strikeout")
+        if strike_el is None:
+            strike_el = _append_child(element, f"{_HH}strikeout")
+        strike_el.set("shape", spec.strike_shape)
+        if not strike_el.get("color"):
+            strike_el.set("color", "#000000")
+    if spec.ratio is not None:
+        _run_style_set_lang_values(element, "ratio", spec.ratio)
+    from .header_fonts import set_letter_spacing
+
+    set_letter_spacing(element, spec.letter_spacing, spec.letter_spacing_by_lang)
+    if spec.shadow_color is not None:
+        shadow_el = element.find(f"{_HH}shadow")
+        if shadow_el is None:
+            shadow_el = _append_child(element, f"{_HH}shadow")
+        shadow_el.set("type", "DROP")
+        shadow_el.set("color", spec.shadow_color)
+        shadow_el.set("offsetX", "12")
+        shadow_el.set("offsetY", "12")
+    _run_style_apply_script_extension(element, spec.script)
+    _run_style_apply_outline(element, spec.outline)
+    _run_style_apply_emboss(element, spec.emboss)
+    _run_style_apply_engrave(element, spec.engrave)
+
+
+def _run_style_apply_script_extension(element: ET.Element, script: str | None) -> None:
+    """`script` kwarg 적용 — ``hh:supscript``/``hh:subscript`` 요소만 쓴다.
+
+    한컴은 이 요소만으로 글자를 줄이고 올리거나 내린다(한컴 자신의 첨자는
+    relSz 100·offset 0). 예전처럼 relSz/offset도 줄이면 두 번 줄어든다. 기준
+    글자 모양이 예전 근사값(relSz 67·offset -30/+30)을 가졌으면 기본값으로
+    되돌린다. ``_run_style_apply_extensions``에서 분리한 이유는 C901(10) 초과 방지."""
+
+    if script is None:
+        return
+    if _run_style_is_legacy_script_approximation(element):
+        _run_style_set_lang_values(element, "relSz", 100)
+        _run_style_set_lang_values(element, "offset", 0)
+    if script == "sup":
+        stale = element.find(f"{_HH}subscript")
+        if stale is not None:
+            element.remove(stale)
+        if element.find(f"{_HH}supscript") is None:
+            _append_child(element, f"{_HH}supscript")
+    else:
+        stale = element.find(f"{_HH}supscript")
+        if stale is not None:
+            element.remove(stale)
+        if element.find(f"{_HH}subscript") is None:
+            _append_child(element, f"{_HH}subscript")
+
+
+def _run_style_apply_outline(element: ET.Element, outline: str | None) -> None:
+    """cycle-6.3 문자 서식 잔여 — 분리 이유는 위 함수와 같다(C901 한도)."""
+
+    if outline is None:
+        return
+    outline_el = element.find(f"{_HH}outline")
+    if outline_el is None:
+        outline_el = _append_child(element, f"{_HH}outline")
+    outline_el.set("type", outline)
+
+
+def _run_style_apply_emboss(element: ET.Element, emboss: bool | None) -> None:
+    if emboss is None:
+        return
+    existing = element.find(f"{_HH}emboss")
+    if emboss:
+        if existing is None:
+            _append_child(element, f"{_HH}emboss")
+    elif existing is not None:
+        element.remove(existing)
+
+
+def _run_style_apply_engrave(element: ET.Element, engrave: bool | None) -> None:
+    if engrave is None:
+        return
+    existing = element.find(f"{_HH}engrave")
+    if engrave:
+        if existing is None:
+            _append_child(element, f"{_HH}engrave")
+    elif existing is not None:
+        element.remove(existing)
+
+
+#: Child order of ``hh:charPr`` in the OWPML schema (``CharShapeType``), which is
+#: also the order Hancom writes. The style helpers above append what they add.
+_CHAR_PR_CHILD_ORDER = {
+    name: index
+    for index, name in enumerate((
+        "fontRef", "ratio", "spacing", "relSz", "offset", "italic", "bold", "underline",
+        "strikeout", "outline", "shadow", "emboss", "engrave", "supscript", "subscript",
+    ))
+}
+
+
+def _order_char_pr_children(element: ET.Element) -> None:
+    """Put the children of a ``hh:charPr`` back in schema order (unknown ones last)."""
+
+    children = list(element)
+    last = len(_CHAR_PR_CHILD_ORDER)
+    ordered = sorted(children, key=lambda child: _CHAR_PR_CHILD_ORDER.get(_element_local_name(child), last))
+    if ordered != children:
+        for child in children:
+            element.remove(child)
+        element.extend(ordered)
+
+
+def _run_style_modifier(element: ET.Element, spec: _RunStyleSpec) -> None:
+    underline_nodes = list(element.findall(f"{_HH}underline"))
+    base_underline_attrs = (
+        dict(underline_nodes[0].attrib) if underline_nodes else {}
+    )
+    strike_nodes = list(element.findall(f"{_HH}strikeout"))
+    base_strike_attrs = dict(strike_nodes[0].attrib) if strike_nodes else {}
+
+    for child in list(element.findall(f"{_HH}bold")):
+        element.remove(child)
+    for child in list(element.findall(f"{_HH}italic")):
+        element.remove(child)
+    for child in underline_nodes:
+        element.remove(child)
+    for child in strike_nodes:
+        element.remove(child)
+
+    _run_style_apply_font_and_colors(element, spec)
+
+    if spec.flags[0]:
+        _append_child(element, f"{_HH}bold")
+    if spec.flags[1]:
+        _append_child(element, f"{_HH}italic")
+
+    _run_style_apply_underline(element, base_underline_attrs, spec.flags[2])
+    _run_style_apply_strikeout(element, base_strike_attrs, spec.strike)
+
+    _run_style_apply_extensions(element, spec)
+    _order_char_pr_children(element)
+
+
+_SimplePartT = TypeVar("_SimplePartT", bound=_HwpxOxmlSimplePart)
+_T = TypeVar("_T")
+
+
+class HwpxOxmlDocument:
+    """Aggregates the XML parts that make up an HWPX document."""
+
+    # Where this document's new ids and dates come from (HwpxDocument.new/open(seed=, now=)). Every
+    # place that makes an id or a date for this document is handed it; no other document uses it.
+    _id_source: "IdSource | None" = None
+
+    def __init__(
+        self,
+        manifest: ET.Element,
+        sections: Sequence[HwpxOxmlSection],
+        headers: Sequence[HwpxOxmlHeader],
+        *,
+        master_pages: Sequence[HwpxOxmlMasterPage] | None = None,
+        histories: Sequence[HwpxOxmlHistory] | None = None,
+        version: HwpxOxmlVersion | None = None,
+        settings: HwpxOxmlSettings | None = None,
+        manifest_path: str = "Contents/content.hpf",
+    ):
+        self._manifest_path = manifest_path
+        self._manifest_element = manifest
+        # Set by from_package: the package's manifest_tree. The package drops
+        # its cached tree whenever content.hpf is written (add_image persists an
+        # item), so a tree kept here would fall behind and overwrite those items
+        # on save.
+        self._manifest_source: Callable[[], ET.Element] | None = None
+        self._sections = list(sections)
+        self._headers = list(headers)
+        self._master_pages = list(master_pages or [])
+        self._histories = list(histories or [])
+        self._version = version
+        self._settings = settings
+        self._char_property_cache = CharPropertyCache()
+        self._manifest_dirty = False
+
+        for section in self._sections:
+            section.attach_document(self)
+        for header in self._headers:
+            header.attach_document(self)
+        for master_page in self._master_pages:
+            master_page.attach_document(self)
+        for history in self._histories:
+            history.attach_document(self)
+        if self._version is not None:
+            self._version.attach_document(self)
+        if self._settings is not None:
+            self._settings.attach_document(self)
+
+    @staticmethod
+    def _load_optional_simple_part(
+        package: "HwpxPackage",
+        path: str | None,
+        part_cls: type[_SimplePartT],
+        *,
+        label: str,
+    ) -> _SimplePartT | None:
+        """Load a singular, optional part (``version.xml``/``settings.xml``
+        — at most one per package, absence is normal)."""
+
+        if not path:
+            return None
+        if not package.has_part(path):
+            logger.warning(
+                "manifest가 가리키는 %s 파트가 누락되었습니다: part_path=%s", label, path
+            )
+            return None
+        try:
+            part = part_cls(path, package.get_xml(path))
+            part._source = package.get_part(path)  # the bytes read, for a change written in place
+            return part
+        except Exception:
+            logger.debug("%s 파싱 실패: part_path=%s", label, path, exc_info=True)
+            raise
+
+    @classmethod
+    def from_package(cls, package: "HwpxPackage") -> "HwpxOxmlDocument":
+        from hwpx.opc.package import (
+            HwpxPackage,
+        )  # Local import to avoid cycle during typing
+
+        if not isinstance(package, HwpxPackage):
+            raise TypeError("package must be an instance of HwpxPackage")
+
+        manifest = package.manifest_tree()
+        section_paths = package.section_paths()
+        header_paths = package.header_paths()
+        master_page_paths = package.master_page_paths()
+        history_paths = package.history_paths()
+        version_path = package.version_path()
+        settings_path = package.settings_path()
+
+        sections: list[HwpxOxmlSection] = []
+        for section_index, path in enumerate(section_paths):
+            try:
+                section = HwpxOxmlSection(path, package.get_xml(path))
+                section._remember_source(package.read(path))
+                sections.append(section)
+            except Exception:
+                logger.debug(
+                    "section 파싱 실패: section_index=%d, part_path=%s",
+                    section_index,
+                    path,
+                    exc_info=True,
+                )
+                raise
+
+        headers: list[HwpxOxmlHeader] = []
+        for path in header_paths:
+            try:
+                headers.append(HwpxOxmlHeader(path, package.get_xml(path)))
+            except Exception:
+                logger.debug("header 파싱 실패: part_path=%s", path, exc_info=True)
+                raise
+
+        master_pages: list[HwpxOxmlMasterPage] = []
+        for path in master_page_paths:
+            if not package.has_part(path):
+                logger.warning("masterPage 파트 누락: part_path=%s", path)
+                continue
+            try:
+                master_pages.append(HwpxOxmlMasterPage(path, package.get_xml(path)))
+            except Exception:
+                logger.debug("masterPage 파싱 실패: part_path=%s", path, exc_info=True)
+                raise
+
+        histories: list[HwpxOxmlHistory] = []
+        for path in history_paths:
+            if not package.has_part(path):
+                logger.warning("history 파트 누락: part_path=%s", path)
+                continue
+            try:
+                histories.append(HwpxOxmlHistory(path, package.get_xml(path)))
+            except Exception:
+                logger.debug("history 파싱 실패: part_path=%s", path, exc_info=True)
+                raise
+
+        version = cls._load_optional_simple_part(
+            package, version_path, HwpxOxmlVersion, label="version"
+        )
+        settings = cls._load_optional_simple_part(
+            package, settings_path, HwpxOxmlSettings, label="settings"
+        )
+        document = cls(
+            manifest,
+            sections,
+            headers,
+            master_pages=master_pages,
+            histories=histories,
+            version=version,
+            settings=settings,
+            manifest_path=package.main_content.full_path,
+        )
+        document._manifest_source = package.manifest_tree
+        return document
+
+    @property
+    def _manifest(self) -> ET.Element:
+        if self._manifest_source is not None:
+            return self._manifest_source()
+        return self._manifest_element
+
+    @property
+    def manifest(self) -> ET.Element:
+        return self._manifest
+
+    @property
+    def sections(self) -> tuple[HwpxOxmlSection, ...]:
+        """The document's sections (``Contents/sectionN.xml``), in order."""
+        return tuple(self._sections)
+
+    @property
+    def headers(self) -> tuple[HwpxOxmlHeader, ...]:
+        """The document's header parts (``Contents/header.xml``)."""
+        return tuple(self._headers)
+
+    @property
+    def master_pages(self) -> tuple[HwpxOxmlMasterPage, ...]:
+        """The document's master page parts, in manifest order."""
+        return tuple(self._master_pages)
+
+    def clear_layout_cache(self, *, stale_only: bool = False) -> int:
+        """Remove the line layout caches of every section and master page; return how many.
+
+        See :meth:`HwpxOxmlSection.clear_layout_cache`; ``stale_only`` leaves master pages alone.
+        """
+        from .master_page_authoring import clear_master_page_layout_cache
+
+        removed = sum(section.clear_layout_cache(stale_only=stale_only) for section in self._sections)
+        return removed + (0 if stale_only else sum(map(clear_master_page_layout_cache, self._master_pages)))
+
+    def add_master_page(
+        self,
+        *,
+        text: str | None = None,
+        paragraphs: "Sequence[str] | None" = None,
+        page_type: str = "OPTIONAL_PAGE",
+        page_number: int | None = None,
+        page_duplicate: bool = False,
+        page_front: bool = False,
+        section: HwpxOxmlSection | None = None,
+    ) -> str:
+        """새 바탕쪽 파트를 만들어 매니페스트에 등록하고, 그 id를 돌려준다.
+
+        구현 본체는 `master_page_authoring.py`에 산다(6.13 트레인㊻ --
+        신규 모듈, born in the gate). *section*을 주지 않으면 파트만 만든다.
+        절에서 참조하려면 ``section.properties.add_master_page_reference(id)``를
+        따로 호출한다. *section*을 주면 그 절에 바로 연결하고, 연결이
+        거부되면 파트도 만들지 않는다.
+        """
+        from .master_page_authoring import add_master_page as _add_master_page
+
+        return _add_master_page(
+            self,
+            text=text,
+            paragraphs=paragraphs,
+            page_type=page_type,
+            page_number=page_number,
+            page_duplicate=page_duplicate,
+            page_front=page_front,
+            section=section,
+        )
+
+    @property
+    def histories(self) -> tuple[HwpxOxmlHistory, ...]:
+        """The document's history parts."""
+        return tuple(self._histories)
+
+    @property
+    def version(self) -> HwpxOxmlVersion | None:
+        return self._version
+
+    @property
+    def settings(self) -> HwpxOxmlSettings | None:
+        return self._settings
+
+    def _header_definition(
+        self,
+        identifier: int | str | None,
+        container: Callable[[HwpxOxmlHeader], ET.Element | None],
+        kind: str,
+        parse: Callable[[Any], _T],
+    ) -> _T | None:
+        """``_lookup_by_id`` over the headers' merged definition dicts (a later header's wins under a
+        key), reading only the definition asked for (``HwpxOxmlHeader._definition_value``): one
+        lookup costs the same however many definitions the headers have."""
+
+        for key in _lookup_keys(identifier):
+            for header in reversed(self._headers):
+                found = header._definition_value(container(header), kind, key, parse)
+                if found is not None:
+                    return found
+        return None
+
+    def invalidate_char_property_cache(self) -> None:
+        """Forget the parsed character shapes. Not needed after an XML edit any more: every read
+        checks the header first (:class:`~hwpx.oxml.run.CharPropertyCache`)."""
+        self._char_property_cache.clear()
+
+    @property
+    def char_properties(self) -> Mapping[str, RunStyle]:
+        """Every character shape of the headers by id, as a read-only view that reads them as they
+        are at each access (:class:`~hwpx.oxml.run.CharPropertyView`): one id costs one shape's
+        check, however many the header has. ``dict(...)`` for a copy that stays as it was."""
+        return self._char_property_cache.styles(self._headers)
+
+    def char_property(self, char_pr_id_ref: int | str | None) -> RunStyle | None:
+        """The character shape *char_pr_id_ref* names, read from the headers as they are now (one
+        added or changed through ``.element`` included); ``None`` when there is none."""
+        key = "" if char_pr_id_ref is None else str(char_pr_id_ref).strip()
+        return self._char_property_cache.get(self._headers, key) if key else None
+
+    _UNDERLINE_SHAPES = frozenset({
+        "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
+        "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM",
+        "SLIM_THICK_SLIM", "WAVE", "DOUBLEWAVE",
+    })
+
+    #: OWPML ``hc:LineType1`` — ``hh:outline`` 의 ``type`` 어휘(Header XML
+    #: schema.xml:906). underline/strikeout 의 ``LineType2`` 보다 좁다.
+    _OUTLINE_TYPES = frozenset({
+        "NONE", "SOLID", "DOT", "THICK", "DASH", "DASH_DOT", "DASH_DOT_DOT",
+    })
+
+    def ensure_run_style(
+        self,
+        *,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        underline: bool | None = None,
+        color: str | None = None,
+        font: str | None = None,
+        size: int | float | None = None,
+        highlight: str | None = None,
+        strike: bool | None = None,
+        underline_shape: str | None = None,
+        underline_color: str | None = None,
+        strike_shape: str | None = None,
+        ratio: int | None = None,
+        letter_spacing: int | None = None,
+        shadow: str | None = None,
+        script: str | None = None,
+        outline: str | None = None,
+        emboss: bool | None = None,
+        engrave: bool | None = None,
+        base_char_pr_id: str | int | None = None,
+        font_by_lang: Mapping[str, str] | None = None,
+        letter_spacing_by_lang: Mapping[str, int] | None = None,
+    ) -> str:
+        """Return the id of a ``hh:charPr`` that is the base with the requested changes.
+
+        The base is *base_char_pr_id*, or the first ``hh:charPr``. An existing entry
+        with the same content is reused; otherwise the base is copied and changed.
+        *bold*, *italic* and *underline* left out keep the base's when
+        *base_char_pr_id* is given and are off otherwise.
+
+        The 5.4.0 additions mirror what the fidelity audit render-verified on
+        real Hancom: ``underline_shape``/``underline_color`` (implies an
+        underline), ``strike_shape`` (implies a strikeout), ``ratio`` (장평 %),
+        ``letter_spacing`` (자간 %), ``shadow`` (drop-shadow colour), and
+        ``script`` (``"sup"``/``"sub"``). Values outside the OWPML vocabulary
+        are rejected — no silent approximation.
+
+        6.3 additions: ``outline`` (외곽선, ``hc:LineType1`` 어휘),
+        ``emboss``/``engrave`` (양각/음각), and ``script`` writes the real
+        ``hh:supscript``/``hh:subscript`` element alone, as Hancom does -- the
+        element already shrinks and shifts the glyphs (see
+        ``_run_style_apply_script_extension``).
+
+        *font_by_lang* maps a language (``HANGUL``/``LATIN``/``HANJA``/
+        ``JAPANESE``/``OTHER``/``SYMBOL``/``USER``) to the face its glyphs use;
+        it wins over *font* for the languages it names (see
+        :func:`~.header_fonts.run_style_font_ref`); *letter_spacing_by_lang*
+        likewise maps a language to its 자간 % and wins over *letter_spacing*.
+        """
+
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+
+        normalized_underline_shape = _validated_line_shape(
+            underline_shape, self._UNDERLINE_SHAPES, "underline_shape"
+        )
+        if normalized_underline_shape is not None or underline_color is not None:
+            underline = True
+        normalized_strike_shape = _validated_line_shape(
+            strike_shape, self._UNDERLINE_SHAPES, "strike_shape"
+        )
+        if normalized_strike_shape is not None:
+            strike = True
+        from .header_fonts import check_run_size
+
+        check_run_size(size)
+        # Hancom keeps a width ratio in one byte: 256 and up come out as ratio - 256.
+        if ratio is not None and not 10 <= int(ratio) <= 255:
+            raise ValueError("ratio must be a percentage between 10 and 255")
+        if letter_spacing is not None and not -50 <= int(letter_spacing) <= 100:
+            raise ValueError("letter_spacing must be between -50 and 100")
+        if script is not None and script not in ("sup", "sub"):
+            raise ValueError('script must be "sup" or "sub"')
+        normalized_outline: str | None = None
+        if outline is not None:
+            candidate = str(outline).upper()
+            if candidate not in self._OUTLINE_TYPES:
+                from ..errors import HwpxValueError
+                suggestion = "outline must be one of " + ", ".join(sorted(self._OUTLINE_TYPES))
+                raise HwpxValueError(
+                    f"unsupported outline {outline!r}",
+                    code="style-run-outline-type-invalid",
+                    suggestion=suggestion,
+                )
+            normalized_outline = candidate
+
+        from .header_fonts import _letter_spacing_by_lang, check_run_fonts, run_style_font_ref  # off `import hwpx`
+
+        # Every argument is checked before a font is declared: a refused call leaves the header as it was.
+        spacing_by_lang = _letter_spacing_by_lang(letter_spacing_by_lang)
+        check_run_fonts(font, font_by_lang)
+        header = self._headers[0]
+        base = _run_style_base(header, base_char_pr_id)
+        spec = _RunStyleSpec(
+            flags=_run_style_flags((bold, italic, underline), base, base_char_pr_id is not None),
+            color=_normalize_color(color),
+            highlight=_normalize_color(highlight),
+            height=_char_height_from_points(size),
+            strike=strike,
+            font_ref=None,
+            underline_shape=normalized_underline_shape,
+            underline_color=_normalize_color(underline_color),
+            strike_shape=normalized_strike_shape,
+            ratio=int(ratio) if ratio is not None else None,
+            letter_spacing=int(letter_spacing) if letter_spacing is not None else None,
+            letter_spacing_by_lang=spacing_by_lang,
+            shadow_color=_normalize_color(shadow),
+            script=script,
+            outline=normalized_outline,
+            emboss=None if emboss is None else bool(emboss),
+            engrave=None if engrave is None else bool(engrave),
+        )
+        spec = replace(spec, font_ref=run_style_font_ref(header, font, font_by_lang))  # declares fonts: last
+        element = header.ensure_char_property(
+            predicate=_run_style_wanted(base, spec),
+            modifier=lambda el: _run_style_modifier(el, spec),
+            base_char_pr_id=None if base is None else base.get("id"),
+        )
+
+        char_id = element.get("id")
+        if char_id is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("charPr element is missing an id")
+        return char_id
+
+    @property
+    def border_fills(self) -> dict[str, GenericElement]:
+        mapping: dict[str, GenericElement] = {}
+        for header in self._headers:
+            mapping.update(header._border_fill_elements())  # the XML; header.border_fills reads values (7.0)
+        return mapping
+
+    def border_fill(
+        self, border_fill_id_ref: int | str | None
+    ) -> GenericElement | None:
+        return self._header_definition(
+            border_fill_id_ref, lambda header: header._border_fills_element(), "borderFill", parse_generic_element
+        )
+
+    def ensure_basic_border_fill(self) -> str:
+        if not self._headers:
+            return "0"
+
+        for header in self._headers:
+            existing = header.find_basic_border_fill_id()
+            if existing is not None:
+                return existing
+
+        return self._headers[0].ensure_basic_border_fill()
+
+    def ensure_border_fill(
+        self,
+        *,
+        border_color: str = "#BFBFBF",
+        border_width: str = "0.12 mm",
+        fill_color: str | None = None,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
+        active_borders: Iterable[str] | None = None,
+        border_type: str = "SOLID",
+        sides: "Mapping[str, Mapping[str, str] | None] | None" = None,
+    ) -> str:
+        if not self._headers:
+            return "0"
+        return self._headers[0].ensure_border_fill(
+            border_color=border_color,
+            border_width=border_width,
+            fill_color=fill_color,
+            fill_image=fill_image,
+            fill_gradient=fill_gradient,
+            active_borders=active_borders,
+            border_type=border_type,
+            sides=sides,
+        )
+
+    def ensure_font(
+        self,
+        face: str,
+        *,
+        lang: Iterable[str] | str | None = None,
+        font_type: str = "TTF",
+        is_embedded: bool = False,
+        binary_item_id_ref: str | None = None,
+        subst_face: str | None = None,
+        subst_type: str | None = None,
+        subst_is_embedded: bool = False,
+        subst_binary_item_id_ref: str | None = None,
+    ) -> str:
+        if not self._headers:
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "document does not contain any headers",
+                code="document-header-missing",
+            )
+        return self._headers[0].ensure_font(
+            face,
+            lang=lang,
+            font_type=font_type,
+            is_embedded=is_embedded,
+            binary_item_id_ref=binary_item_id_ref,
+            subst_face=subst_face,
+            subst_type=subst_type,
+            subst_is_embedded=subst_is_embedded,
+            subst_binary_item_id_ref=subst_binary_item_id_ref,
+        )
+
+    def ensure_shading_border_fill(
+        self,
+        color: str | None = None,
+        *,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
+        base_border_fill_id: str | int | None = None,
+    ) -> str:
+        if not self._headers:
+            return "0"
+        return self._headers[0].ensure_shading_border_fill(
+            color,
+            fill_image=fill_image,
+            fill_gradient=fill_gradient,
+            base_border_fill_id=base_border_fill_id,
+        )
+
+    @property
+    def memo_shapes(self) -> dict[str, MemoShape]:
+        shapes: dict[str, MemoShape] = {}
+        for header in self._headers:
+            shapes.update(header.memo_shapes)
+        return shapes
+
+    def memo_shape(self, memo_shape_id_ref: int | str | None) -> MemoShape | None:
+        if memo_shape_id_ref is None:
+            return None
+        key = str(memo_shape_id_ref).strip()
+        if not key:
+            return None
+        shapes = self.memo_shapes
+        shape = shapes.get(key)
+        if shape is not None:
+            return shape
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return shapes.get(normalized)
+
+    def ensure_memo_shape(
+        self,
+        *,
+        width: int = 15591,
+        line_width_mm: float = 0.12,
+        line_type: str = "SOLID",
+        line_color: str = "#000000",
+        fill_color: str = "#CCFF99",
+        active_color: str = "#FFFF99",
+        memo_type: str = "NOMAL",
+    ) -> str:
+        if not self._headers:
+            return "0"
+        return self._headers[0].ensure_memo_shape(
+            width=width,
+            line_width_mm=line_width_mm,
+            line_type=line_type,
+            line_color=line_color,
+            fill_color=fill_color,
+            active_color=active_color,
+            memo_type=memo_type,
+        )
+
+    @property
+    def bullets(self) -> dict[str, Bullet]:
+        mapping: dict[str, Bullet] = {}
+        for header in self._headers:
+            mapping.update(header.bullets)
+        return mapping
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
+        return self._header_definition(bullet_id_ref, lambda header: header._bullets_element(), "bullet", parse_bullet)
+
+    @property
+    def paragraph_properties(self) -> dict[str, ParagraphProperty]:
+        mapping: dict[str, ParagraphProperty] = {}
+        for header in self._headers:
+            mapping.update(header.paragraph_properties)
+        return mapping
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> ParagraphProperty | None:
+        # Each header parses only the shape asked for, and a later header's shape wins, as in
+        # paragraph_properties; merging every header's whole list cost seconds a lookup.
+        for header in reversed(self._headers):
+            found = header.paragraph_property(para_pr_id_ref)
+            if found is not None:
+                return found
+        return None
+
+    @property
+    def tab_properties(self) -> dict[str, TabDefinition]:
+        mapping: dict[str, TabDefinition] = {}
+        for header in self._headers:
+            mapping.update(header.tab_properties)
+        return mapping
+
+    def tab_property(self, tab_pr_id_ref: int | str | None) -> TabDefinition | None:
+        return self._header_definition(
+            tab_pr_id_ref, lambda header: header._tab_properties_element(), "tabPr", parse_tab_definition
+        )
+
+    def ensure_tab_definition(
+        self,
+        *,
+        tab_stops: Iterable[Mapping[str, object]] | None = None,
+        auto_tab_left: bool = False,
+        auto_tab_right: bool = False,
+    ) -> str:
+        if not self._headers:
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "document does not contain any headers",
+                code="document-header-missing",
+            )
+        return self._headers[0].ensure_tab_definition(
+            tab_stops=tab_stops,
+            auto_tab_left=auto_tab_left,
+            auto_tab_right=auto_tab_right,
+        )
+
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+        return self._headers[0].ensure_numbering(kind=kind, levels=levels)
+
+    @property
+    def styles(self) -> dict[str, Style]:
+        mapping: dict[str, Style] = {}
+        for header in self._headers:
+            mapping.update(header.styles)
+        return mapping
+
+    def style(self, style_id_ref: int | str | None) -> Style | None:
+        return self._header_definition(style_id_ref, lambda header: header._styles_element(), "style", parse_style)
+
+    def style_name_aliases(self) -> dict[str, tuple[str, ...]]:
+        """Map every style ``name``/``engName`` to the numeric ids that carry it.
+
+        Ambiguity is **kept**, not dropped: a name shared by two styles maps to
+        both ids. Call-time resolution (``doc.styles.resolve``) needs to say
+        "this name is ambiguous, here are the candidates" rather than silently
+        pick one or silently give up, which is what the serialize-time
+        normaliser below does with :meth:`_style_name_id_map`.
+        """
+
+        aliases: dict[str, list[str]] = {}
+        for header in self._headers:
+            for style in header.element.iter():
+                if _element_local_name(style) != "style":
+                    continue
+                style_id = style.get("id")
+                if style_id is None or not _is_integer_literal(style_id):
+                    continue
+                resolved_id = style_id.strip()
+                for attr_name in ("name", "engName"):
+                    alias = (style.get(attr_name) or "").strip()
+                    if not alias:
+                        continue
+                    bucket = aliases.setdefault(alias, [])
+                    if resolved_id not in bucket:
+                        bucket.append(resolved_id)
+        return {alias: tuple(ids) for alias, ids in aliases.items()}
+
+    def _style_name_id_map(self) -> dict[str, str]:
+        """Return unique style name/engName aliases that resolve to numeric ids.
+
+        Serialize-time backstop: an alias claimed by two styles is dropped, so
+        a document written through ``doc.oxml`` never silently gets the wrong
+        one. Resolution at call time is the first line of defence and reports
+        the ambiguity instead — see :meth:`style_name_aliases`.
+        """
+
+        return {
+            alias: ids[0]
+            for alias, ids in self.style_name_aliases().items()
+            if len(ids) == 1
+        }
+
+    def _normalize_named_style_references(self) -> int:
+        """Convert paragraph ``styleIDRef`` names to ids when headers define them."""
+
+        style_ids_by_name = self._style_name_id_map()
+        if not style_ids_by_name:
+            return 0
+
+        replacements = 0
+        for section in self._sections:
+            section_replacements = 0
+            for paragraph in section.element.iter():
+                if _element_local_name(paragraph) != "p":
+                    continue
+                style_id_ref = paragraph.get("styleIDRef")
+                if style_id_ref is None or _is_integer_literal(style_id_ref):
+                    continue
+                replacement = style_ids_by_name.get(style_id_ref.strip())
+                if replacement is None:
+                    continue
+                if style_id_ref != replacement:
+                    paragraph.set("styleIDRef", replacement)
+                    section_replacements += 1
+            if section_replacements:
+                section.mark_dirty()
+                replacements += section_replacements
+        return replacements
+
+    @property
+    def track_changes(self) -> dict[str, TrackChange]:
+        mapping: dict[str, TrackChange] = {}
+        for header in self._headers:
+            mapping.update(header.track_changes)
+        return mapping
+
+    def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
+        return self._header_definition(
+            change_id_ref, lambda header: header._track_changes_element(), "trackChange", parse_track_change
+        )
+
+    @property
+    def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
+        mapping: dict[str, TrackChangeAuthor] = {}
+        for header in self._headers:
+            mapping.update(header.track_change_authors)
+        return mapping
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> TrackChangeAuthor | None:
+        return self._header_definition(
+            author_id_ref, lambda header: header._track_change_authors_element(), "trackChangeAuthor",
+            parse_track_change_author,
+        )
+
+    def add_track_change(
+        self,
+        change_type: str,
+        *,
+        author_name: str = "AI Agent",
+        date: str | None = None,
+        show: bool = True,
+    ) -> int:
+        if not self._headers:
+            raise ValueError("document does not contain any headers")
+        # A change's id is not given again while the document is open (_document/tracked.py says why).
+        floor = getattr(self, "_track_change_id_floor", 0)
+        change_id = self._headers[0].add_track_change(
+            change_type, author_name=author_name, date=date, minimum_id=floor + 1, show=show)
+        self._track_change_id_floor = max(floor, change_id)
+        return change_id
+
+    def next_track_change_mark_id(self) -> int:
+        max_id = 0
+        for section in self._sections:
+            for element in section.element.iter():
+                if tag_local_name(element.tag) not in {
+                    "insertBegin",
+                    "insertEnd",
+                    "deleteBegin",
+                    "deleteEnd",
+                }:
+                    continue
+                raw_id = element.get("Id")
+                if raw_id is None:
+                    continue
+                try:
+                    max_id = max(max_id, int(raw_id))
+                except ValueError:
+                    continue
+        return max_id + 1
+
+    @property
+    def paragraphs(self) -> tuple[HwpxOxmlParagraph, ...]:
+        """The body paragraphs of every section, in document order."""
+        paragraphs: list[HwpxOxmlParagraph] = []
+        for section in self._sections:
+            paragraphs.extend(section.paragraphs)
+        return tuple(paragraphs)
+
+    def _target_section(self, section: "int | HwpxOxmlSection | None") -> HwpxOxmlSection:
+        """*section* as a section: an index into :attr:`sections`, a section, or ``None``
+        for the last one."""
+
+        if section is None:
+            if not self._sections:
+                raise ValueError("document does not contain any sections")
+            return self._sections[-1]
+        if isinstance(section, HwpxOxmlSection):
+            if not any(section is own for own in self._sections):
+                from ..errors import HwpxValueError
+
+                raise HwpxValueError(
+                    "해당 섹션이 이 문서에 속하지 않습니다.",
+                    code="section-not-found",
+                    suggestion="이 문서의 doc.sections[i] 나 정수 인덱스를 넘기세요.",
+                )
+            return section
+        return self._sections[section]
+
+    @rejects_removed_arguments
+    def add_paragraph(
+        self,
+        text: str = "",
+        *,
+        section: int | HwpxOxmlSection | None = None,
+        para_pr_id_ref: str | int | None = None,
+        style: "int | str | Style | None" = None,
+        char_pr_id_ref: str | int | None = None,
+        include_run: bool = True,
+        inherit_style: bool = True,
+    ) -> HwpxOxmlParagraph:
+        """Append a new paragraph to the requested section (an index or a section;
+        ``None``: the last) and return it, as :meth:`HwpxOxmlSection.add_paragraph`
+        makes it (``style`` is a name, a numeric id or a ``Style``)."""
+        return self._add_paragraph(
+            text,
+            section=section,
+            para_pr_id_ref=para_pr_id_ref,
+            style=style,
+            char_pr_id_ref=char_pr_id_ref,
+            include_run=include_run,
+            inherit_style=inherit_style,
+        )
+
+    def _add_paragraph(
+        self,
+        text: str = "",
+        *,
+        section: int | HwpxOxmlSection | None = None,
+        inherit_outline: bool = True,
+        xml_attributes: Mapping[str, str] | None = None,
+        **options: Any,
+    ) -> HwpxOxmlParagraph:
+        """:meth:`add_paragraph` with the document layer's own options
+        (:meth:`HwpxOxmlSection._add_paragraph`: *inherit_outline*, raw *xml_attributes*)."""
+        return self._target_section(section)._add_paragraph(
+            text, inherit_outline=inherit_outline, xml_attributes=xml_attributes, **options
+        )
+
+    @rejects_removed_arguments
+    def remove_paragraph(
+        self,
+        paragraph: HwpxOxmlParagraph | int,
+        *,
+        section: "int | HwpxOxmlSection | None" = None,
+    ) -> None:
+        """Remove *paragraph* from the document.
+
+        When *paragraph* is an integer it is treated as an index into the
+        paragraphs of the specified (or last) section.
+        """
+        if isinstance(paragraph, int):
+            self._target_section(section).remove_paragraph(paragraph)
+        else:
+            paragraph.remove()
+
+    @rejects_removed_arguments
+    def copy_paragraph_range(
+        self,
+        start: int,
+        end: int,
+        *,
+        section: int | HwpxOxmlSection | None = None,
+    ) -> tuple[ET.Element, ...]:
+        """Deep copies of the paragraph elements *start* to *end* (both included) of a section."""
+
+        return self._target_section(section).copy_paragraph_range(start, end)
+
+    @rejects_removed_arguments
+    def insert_paragraphs(
+        self,
+        index: int,
+        paragraphs: Sequence[HwpxOxmlParagraph | ET.Element],
+        *,
+        section: int | HwpxOxmlSection | None = None,
+    ) -> tuple[HwpxOxmlParagraph, ...]:
+        """Insert copies of *paragraphs* into the requested section; return the inserted paragraphs."""
+
+        return self._target_section(section).insert_paragraphs(index, paragraphs)
+
+    # ------------------------------------------------------------------
+    # Section management
+    # ------------------------------------------------------------------
+
+    def _section_layout_for_insertion(
+        self,
+        *,
+        after: int | None,
+    ) -> tuple[ET.Element, ET.Element]:
+        """Select the nearest renderable layout for a newly inserted section.
+
+        The actual carrier lookup lives in ``section_layout.py`` (overflow
+        module, cycle 6.11 train 44 -- see that module's own docstring).
+        """
+        if not self._sections:
+            raise ValueError(
+                "cannot add a renderable section: the document has no source section"
+            )
+
+        anchor = len(self._sections) - 1 if after is None else after
+        candidate_indices = sorted(
+            range(len(self._sections)),
+            key=lambda index: (abs(index - anchor), index),
+        )
+        for index in candidate_indices:
+            layout = _section_layout.copy_renderable_section_layout(self._sections[index], ids=self._id_source)
+            if layout is not None:
+                return layout
+
+        raise ValueError(
+            "cannot add a renderable section: no existing section has positive "
+            "page geometry, margins, and a column definition"
+        )
+
+    def _normalize_section_anchor(self, after: int | None) -> int | None:
+        """Resolve a Python-style section index without mutating the document."""
+        if after is None:
+            return None
+        if isinstance(after, bool) or not isinstance(after, int):
+            from ..errors import argument_type_error
+
+            raise argument_type_error("after", after, "an int section index or None")
+        section_count = len(self._sections)
+        normalized = after if after >= 0 else section_count + after
+        if normalized < 0 or normalized >= section_count:
+            from ..errors import HwpxIndexError
+
+            raise HwpxIndexError(
+                f"section index {after} is out of range ({section_count} sections)",
+                code="section-not-found",
+                context={"requested": after, "count": section_count},
+                suggestion=f"이 문서의 섹션 인덱스는 0..{section_count - 1} 입니다.",
+            )
+        return normalized
+
+    def _sync_header_section_count(self) -> None:
+        """Keep ``hh:head/@secCnt`` aligned with the section spine."""
+        document_headers = [
+            header
+            for header in self._headers
+            if _element_local_name(header.element) == "head"
+        ]
+        if not document_headers:
+            raise ValueError("cannot update sections: the document has no hh:head part")
+        section_count = str(len(self._sections))
+        for header in document_headers:
+            if header.element.get("secCnt") != section_count:
+                header.element.set("secCnt", section_count)
+                header.mark_dirty()
+
+    def add_section(self, *, after: int | None = None) -> HwpxOxmlSection:
+        """Append a new empty section to the document.
+
+        If *after* is given, the section is inserted after the section at
+        that index. Otherwise it is appended at the end.
+
+        Returns the newly created :class:`HwpxOxmlSection`.
+        """
+        normalized_after = self._normalize_section_anchor(after)
+        section_properties, column_control = self._section_layout_for_insertion(
+            after=normalized_after
+        )
+        if not any(
+            _element_local_name(header.element) == "head" for header in self._headers
+        ):
+            raise ValueError(
+                "cannot add a renderable section: the document has no hh:head part"
+            )
+        # a name no section part or manifest item uses yet
+        section_id, part_name = _section_layout.new_section_names(self)
+
+        # Build a renderable empty section.  ``secPr`` and ``colPr`` must
+        # precede body text in the first paragraph's first run.
+        # with the namespace prefixes Hancom writes (hs, hp, hc, ...): structure edits read the hp prefix
+        from .namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+
+        section_element = cast(Any, section_properties).makeelement(
+            f"{_HS}sec", {}, nsmap=HWPML_COMPAT_ROOT_NAMESPACES)
+        para_attrs = paragraph_attributes(_paragraph_id(self._id_source))
+        para = _append_child(section_element, f"{_HP}p", para_attrs)
+        run = _append_child(para, f"{_HP}run", {"charPrIDRef": "0"})
+        run.append(section_properties)
+        run.append(column_control)
+        _append_child(run, f"{_HP}t", {})
+
+        new_section = HwpxOxmlSection(part_name, section_element, self)
+
+        if normalized_after is not None:
+            insert_pos = normalized_after + 1
+            self._sections.insert(insert_pos, new_section)
+        else:
+            self._sections.append(new_section)
+        spine_index = self._sections.index(new_section)
+
+        # Update manifest: add <opf:item> and <opf:itemref>
+        self._add_section_to_manifest(
+            section_id,
+            part_name,
+            spine_index=spine_index,
+        )
+        _section_layout.number_section_ids(self)
+        self._sync_header_section_count()
+
+        new_section.mark_dirty()
+        return new_section
+
+    def remove_section(
+        self,
+        section: "HwpxOxmlSection | int",
+    ) -> None:
+        """Remove a section from the document.
+
+        Accepts either a :class:`HwpxOxmlSection` or an integer index.
+        Raises ``ValueError`` if the document would be left with no sections.
+        """
+        from ..errors import HwpxValueError
+        from .utils import HwpxIndexError
+
+        count = len(self._sections)
+        if isinstance(section, int) and not isinstance(section, bool) and not 0 <= section < count:
+            raise HwpxIndexError(
+                f"섹션 인덱스 {section}이(가) 범위를 벗어났습니다 (총 {count}개)",
+                code="section-not-found",
+                context={"requested": section, "count": count},
+                suggestion=f"이 문서의 섹션 인덱스는 0..{count - 1} 입니다.",
+            )
+        if not isinstance(section, int) and not any(existing is section for existing in self._sections):
+            raise HwpxValueError(
+                "해당 섹션이 이 문서에 속하지 않습니다.",
+                code="section-not-found",
+                suggestion="이 문서의 doc.sections[i] 나 정수 인덱스를 넘기세요.",
+            )
+        if count <= 1:
+            raise HwpxValueError(
+                "문서에는 최소 하나의 섹션이 필요합니다. 마지막 섹션은 삭제할 수 없습니다.",
+                code="section-remove-last",
+                suggestion="마지막 섹션은 지우지 말고 section.clear_body() 로 본문을 비우세요.",
+            )
+        if not any(
+            _element_local_name(header.element) == "head" for header in self._headers
+        ):
+            raise ValueError(
+                "cannot remove a section: the document has no hh:head part"
+            )
+        if isinstance(section, int):
+            if section < 0 or section >= len(self._sections):
+                raise IndexError(
+                    f"섹션 인덱스 {section}이(가) 범위를 벗어났습니다 (총 {len(self._sections)}개)"
+                )
+            removed = self._sections[section]
+        else:
+            if section not in self._sections:
+                raise ValueError("해당 섹션이 이 문서에 속하지 않습니다.") from None
+            removed = section
+
+        self._section_manifest_references(removed.part_name)
+        self._sections.remove(removed)
+
+        # Update manifest: remove <opf:item> and <opf:itemref>
+        self._remove_section_from_manifest(removed.part_name)
+        _section_layout.number_section_ids(self)
+        self._sync_header_section_count()
+        # The notes of the sections left count on without the ones that went (and without a restart
+        # that went with them): they kept the numbers they had, so the file said 3 for the second note.
+        from .note_authoring import renumber_note_kinds
+
+        # both kinds, whatever the section held: one without a note may have started the count again
+        renumber_note_kinds(self._sections[0], {"footNote", "endNote"})
+
+    # ------------------------------------------------------------------
+    # Manifest helpers (private)
+    # ------------------------------------------------------------------
+
+    _OPF_NS = "http://www.idpf.org/2007/opf/"
+
+    def _manifest_section_containers(self) -> tuple[ET.Element, ET.Element]:
+        """Return manifest/spine containers or fail before section mutation."""
+        ns = {"opf": self._OPF_NS}
+        manifest_el = self._manifest.find("opf:manifest", ns)
+        spine_el = self._manifest.find("opf:spine", ns)
+        missing: list[str] = []
+        if manifest_el is None:
+            missing.append("opf:manifest")
+        if spine_el is None:
+            missing.append("opf:spine")
+        if missing:
+            raise ValueError(
+                "cannot update sections: content manifest is missing "
+                + " and ".join(missing)
+            )
+        assert manifest_el is not None
+        assert spine_el is not None
+        return manifest_el, spine_el
+
+    def _section_manifest_references(
+        self,
+        part_name: str,
+    ) -> tuple[ET.Element, ET.Element, ET.Element, ET.Element]:
+        """Resolve a section's item and itemref across full/relative href forms."""
+        manifest_el, spine_el = self._manifest_section_containers()
+        known_parts = {part_name, *(section.part_name for section in self._sections)}
+        target_item: ET.Element | None = None
+        for item in manifest_el.findall(f"{{{self._OPF_NS}}}item"):
+            href = item.get("href")
+            if (
+                href
+                and resolve_part_name(
+                    self._manifest_path,
+                    href,
+                    known_parts=known_parts,
+                )
+                == part_name
+            ):
+                target_item = item
+                break
+        if target_item is None or not target_item.get("id"):
+            raise ValueError(
+                f"cannot update sections: manifest item for {part_name!r} is missing"
+            )
+        target_id = target_item.get("id")
+        target_ref = next(
+            (
+                itemref
+                for itemref in spine_el.findall(f"{{{self._OPF_NS}}}itemref")
+                if itemref.get("idref") == target_id
+            ),
+            None,
+        )
+        if target_ref is None:
+            raise ValueError(
+                f"cannot update sections: spine itemref for {part_name!r} is missing"
+            )
+        return manifest_el, spine_el, target_item, target_ref
+
+    def _add_section_to_manifest(
+        self,
+        section_id: str,
+        href: str,
+        *,
+        spine_index: int,
+    ) -> None:
+        """Add an ``<opf:item>`` + ``<opf:itemref>`` for a new section."""
+        manifest_el, spine_el = self._manifest_section_containers()
+        item = manifest_el.makeelement(
+            f"{{{self._OPF_NS}}}item",
+            {"id": section_id, "href": href, "media-type": "application/xml"},
+        )
+        manifest_el.append(item)
+        itemref = spine_el.makeelement(
+            f"{{{self._OPF_NS}}}itemref",
+            {"idref": section_id, "linear": "yes"},
+        )
+        section_hrefs = {section.part_name for section in self._sections}
+        section_ids = {
+            candidate.get("id")
+            for candidate in manifest_el.findall(f"{{{self._OPF_NS}}}item")
+            if candidate.get("href")
+            and resolve_part_name(
+                self._manifest_path,
+                candidate.get("href", ""),
+                known_parts=section_hrefs,
+            )
+            in section_hrefs
+        }
+        section_positions = [
+            index
+            for index, candidate in enumerate(spine_el)
+            if candidate.get("idref") in section_ids
+        ]
+        if spine_index < len(section_positions):
+            insert_at = section_positions[spine_index]
+        elif section_positions:
+            insert_at = section_positions[-1] + 1
+        else:
+            insert_at = len(spine_el)
+        spine_el.insert(insert_at, itemref)
+        self._manifest_dirty = True
+
+    def _remove_section_from_manifest(self, part_name: str) -> None:
+        """Remove the ``<opf:item>`` + ``<opf:itemref>`` for a deleted section."""
+        manifest_el, spine_el, target_item, target_ref = (
+            self._section_manifest_references(part_name)
+        )
+        manifest_el.remove(target_item)
+        spine_el.remove(target_ref)
+        self._manifest_dirty = True
+
+    def serialize(self) -> dict[str, bytes]:
+        """Return a mapping of part names to updated XML payloads."""
+        updates: dict[str, bytes] = {}
+        self._normalize_named_style_references()
+        _section_layout.number_section_ids(self)  # files saved with ids out of order are put right
+        if self._manifest_dirty:
+            updates[self._manifest_path] = _serialize_xml(self._manifest)
+        header_shapes: tuple[frozenset[str], dict[str, float]] | None = None
+        for section in self._sections:
+            # Edit-scoped invalidation: the mutating APIs (cell/paragraph/run
+            # text and style setters) clear the caches of exactly the
+            # paragraphs they touch, so even a dirty section only needs the
+            # stale sweep as a safety net. Nuking every cache here forced
+            # Hancom to re-lay-out untouched pages of multi-page forms, which
+            # is what stacked glyphs and shifted page counts in the wild
+            # form-fill differential (specs/031 P0 receipt).
+            if header_shapes is None:
+                header_shapes = section._header_shapes()
+            section.remove_stale_layout_caches(_header_shapes=header_shapes)
+        for section in self._sections:
+            if section.dirty:
+                # Header/footer edits land on the secPr story; Hancom reads the control copy.
+                sync_story_mirrors(section)
+                updates[section.part_name] = section.to_bytes()
+        headers_dirty = False
+        for header in self._headers:
+            if header.dirty:
+                updates[header.part_name] = header.to_bytes()
+                headers_dirty = True
+        if headers_dirty:
+            self.invalidate_char_property_cache()
+        for master_page in self._master_pages:
+            if master_page.dirty:
+                updates[master_page.part_name] = master_page.to_bytes()
+        for history in self._histories:
+            if history.dirty:
+                updates[history.part_name] = history.to_bytes()
+        self._serialize_simple_parts(updates)
+        return updates
+
+    def _serialize_simple_parts(self, updates: dict[str, bytes]) -> None:
+        """``version.xml`` and ``settings.xml`` when changed; a caret pointing at a body paragraph that is
+        gone first goes to the body's start, as Hangul opens it (:mod:`hwpx.oxml.caret`)."""
+
+        if self._settings is not None:
+            from .caret import fix_caret_before_saving
+
+            fix_caret_before_saving(self)
+        for part in (self._version, self._settings):
+            if part is not None and part.dirty:
+                updates[part.part_name] = part.to_bytes()
+
+    def reset_dirty(self) -> None:
+        """Mark all parts as clean after a successful save."""
+        self._manifest_dirty = False
+        for section in self._sections:
+            section.reset_dirty()
+        for header in self._headers:
+            header.reset_dirty()
+        for master_page in self._master_pages:
+            master_page.reset_dirty()
+        for history in self._histories:
+            history.reset_dirty()
+        for part in (self._version, self._settings):
+            if part is not None:
+                part.reset_dirty()
+
+
+__all__ = ["HwpxOxmlDocument"]

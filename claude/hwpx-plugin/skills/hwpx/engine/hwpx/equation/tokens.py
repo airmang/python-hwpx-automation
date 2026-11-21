@@ -1,0 +1,376 @@
+# SPDX-License-Identifier: Apache-2.0
+"""EqEdit → LaTeX token maps (reader direction).
+
+Clean-room re-derivation of the HULK-style EqEdit script vocabulary used by
+Hancom's equation editor.  The mapping behaviour is independently reconstructed
+from the public EqEdit grammar; no third-party source was copied, translated, or
+vendored.  See NOTICE for the referenced projects (hml-equation-parser,
+Apache-2.0).
+
+The maps are deliberately plain dictionaries so coverage can grow without
+touching the recursive-descent converter in :mod:`hwpx.equation.eqedit`.
+"""
+
+from __future__ import annotations
+
+# --- Greek letters ---------------------------------------------------------
+# EqEdit spells lowercase Greek in lowercase and uppercase Greek in ALLCAPS.
+GREEK: dict[str, str] = {
+    "alpha": r"\alpha",
+    "beta": r"\beta",
+    "gamma": r"\gamma",
+    "delta": r"\delta",
+    "epsilon": r"\epsilon",
+    "varepsilon": r"\varepsilon",
+    "zeta": r"\zeta",
+    "eta": r"\eta",
+    "theta": r"\theta",
+    "vartheta": r"\vartheta",
+    "iota": r"\iota",
+    "kappa": r"\kappa",
+    "lambda": r"\lambda",
+    "mu": r"\mu",
+    "nu": r"\nu",
+    "xi": r"\xi",
+    "omicron": r"o",
+    "pi": r"\pi",
+    "varpi": r"\varpi",
+    "rho": r"\rho",
+    "varrho": r"\varrho",
+    "sigma": r"\sigma",
+    "varsigma": r"\varsigma",
+    "tau": r"\tau",
+    "upsilon": r"\upsilon",
+    "phi": r"\phi",
+    "varphi": r"\varphi",
+    "chi": r"\chi",
+    "psi": r"\psi",
+    "omega": r"\omega",
+    # Uppercase (EqEdit uses ALLCAPS names).
+    "GAMMA": r"\Gamma",
+    "DELTA": r"\Delta",
+    "THETA": r"\Theta",
+    "LAMBDA": r"\Lambda",
+    "XI": r"\Xi",
+    "PI": r"\Pi",
+    "SIGMA": r"\Sigma",
+    "UPSILON": r"\Upsilon",
+    "PHI": r"\Phi",
+    "PSI": r"\Psi",
+    "OMEGA": r"\Omega",
+}
+
+# --- Binary/relational operators (word tokens) -----------------------------
+OPERATORS: dict[str, str] = {
+    # ± / ∓ also arrive as the symbolic "+-"/"-+" tokens (see SYMBOL_OPERATORS).
+    "pm": r"\pm",
+    "mp": r"\mp",
+    "times": r"\times",
+    "TIMES": r"\times",
+    "cdot": r"\cdot",
+    "div": r"\div",
+    "ast": r"\ast",
+    "star": r"\star",
+    "circ": r"\circ",
+    "bullet": r"\bullet",
+    "oplus": r"\oplus",
+    "otimes": r"\otimes",
+    # Relations.
+    "leq": r"\leq",
+    "LEQ": r"\leq",
+    "geq": r"\geq",
+    "GEQ": r"\geq",
+    "neq": r"\neq",
+    "NEQ": r"\neq",
+    "equiv": r"\equiv",
+    "approx": r"\approx",
+    "sim": r"\sim",
+    "simeq": r"\simeq",
+    "cong": r"\cong",
+    "propto": r"\propto",
+    "prop": r"\propto",
+    "ll": r"\ll",
+    "gg": r"\gg",
+    # Set / logic.
+    "in": r"\in",
+    "notin": r"\notin",
+    "subset": r"\subset",
+    "subseteq": r"\subseteq",
+    "supset": r"\supset",
+    "supseteq": r"\supseteq",
+    "cup": r"\cup",
+    "cap": r"\cap",
+    "emptyset": r"\emptyset",
+    "forall": r"\forall",
+    # Real-Hancom EqEdit spells ∀ in ALLCAPS; lowercase renders as literal text
+    # (render-verified 2026-07-31, specs/054 P2 token battery R05).
+    "FORALL": r"\forall",
+    "exists": r"\exists",
+    "neg": r"\neg",
+    "land": r"\land",
+    "lor": r"\lor",
+    # Misc symbols.
+    "infty": r"\infty",
+    "inf": r"\infty",
+    "infinity": r"\infty",
+    "partial": r"\partial",
+    "nabla": r"\nabla",
+    "angle": r"\angle",
+    # Hancom's symbol guide spells this token in uppercase, while legacy
+    # documents also contain the exact lowercase form. Mixed-case variants are
+    # intentionally not accepted because the reader uses exact token lookup.
+    "triangle": r"\triangle",
+    "TRIANGLE": r"\triangle",
+    # The conclusion signs: ∴ (lowercase or ALLCAPS) and ∵.
+    "therefore": r"\therefore",
+    "THEREFORE": r"\therefore",
+    "because": r"\because",
+    "cdots": r"\cdots",
+    "ldots": r"\ldots",
+    "vdots": r"\vdots",
+    "ddots": r"\ddots",
+    "dots": r"\cdots",
+    "prime": r"\prime",
+    # Arrows (word tokens).
+    "rightarrow": r"\rightarrow",
+    "leftarrow": r"\leftarrow",
+    "leftrightarrow": r"\leftrightarrow",
+    "Rightarrow": r"\Rightarrow",
+    "Leftarrow": r"\Leftarrow",
+    "to": r"\to",
+    "mapsto": r"\mapsto",
+    # Render-verified on desktop Hangul 2024 (2026-11-13). The first spelling of each is the one
+    # written when authoring.
+    "LRARROW": r"\Leftrightarrow",
+    "uparrow": r"\uparrow",
+    "downarrow": r"\downarrow",
+    "UPARROW": r"\Uparrow",
+    # The pair of opposite arrows of a reversible reaction.
+    "EXARROW": r"\rightleftharpoons",
+    # Geometry: ``perp`` is not a symbol name (it comes out as letters); ``BOT``/``bot`` is.
+    "BOT": r"\perp",
+    "bot": r"\perp",
+    "parallel": r"\parallel",
+    "PARALLEL": r"\parallel",
+    # Spacing: a back quote is a quarter of the ``~`` space.
+    "`": r"\,",
+}
+
+# --- Multi-character symbolic operators ------------------------------------
+# Longest-match wins during tokenisation (see eqedit._tokenize).
+SYMBOL_OPERATORS: dict[str, str] = {
+    "+-": r"\pm",
+    "-+": r"\mp",
+    "<=": r"\leq",
+    ">=": r"\geq",
+    "!=": r"\neq",
+    "==": r"=",
+    "->": r"\rightarrow",
+    "<-": r"\leftarrow",
+    "<->": r"\leftrightarrow",
+    "=>": r"\Rightarrow",
+    "~=": r"\approx",
+    # A bar with a normal space on each side: the spacing of the set-builder \mid.
+    "~|~": r"\mid",
+}
+
+# --- Named upright functions (no structural argument) ----------------------
+FUNCTIONS: dict[str, str] = {
+    "sin": r"\sin",
+    "cos": r"\cos",
+    "tan": r"\tan",
+    "cot": r"\cot",
+    "sec": r"\sec",
+    "csc": r"\csc",
+    "sinh": r"\sinh",
+    "cosh": r"\cosh",
+    "tanh": r"\tanh",
+    "arcsin": r"\arcsin",
+    "arccos": r"\arccos",
+    "arctan": r"\arctan",
+    "log": r"\log",
+    "ln": r"\ln",
+    "lg": r"\lg",
+    "exp": r"\exp",
+    "det": r"\det",
+    "dim": r"\dim",
+    "gcd": r"\gcd",
+    "max": r"\max",
+    "min": r"\min",
+    "mod": r"\bmod",
+}
+
+# --- Large operators that take _/^ bounds ----------------------------------
+BIG_OPERATORS: dict[str, str] = {
+    "int": r"\int",
+    "iint": r"\iint",
+    "iiint": r"\iiint",
+    # Real-Hancom EqEdit spellings for ∬/∭ (render-verified 2026-07-31,
+    # specs/054 P2 token battery R06/R07; ``iint``/``iiint`` render as
+    # literal text on the real build).
+    "dint": r"\iint",
+    "tint": r"\iiint",
+    "oint": r"\oint",
+    "sum": r"\sum",
+    "prod": r"\prod",
+    "coprod": r"\coprod",
+    "lim": r"\lim",
+    "limsup": r"\limsup",
+    "liminf": r"\liminf",
+    "bigcup": r"\bigcup",
+    "bigcap": r"\bigcap",
+}
+
+# --- Accents (prefix, consume one atom) ------------------------------------
+ACCENTS: dict[str, str] = {
+    "bar": r"\bar",
+    "vec": r"\vec",
+    # A two-headed arrow stretched over its argument.
+    "dyad": r"\overleftrightarrow",
+    "hat": r"\hat",
+    "tilde": r"\tilde",
+    "dot": r"\dot",
+    "ddot": r"\ddot",
+    "acute": r"\acute",
+    "grave": r"\grave",
+    "check": r"\check",
+    "breve": r"\breve",
+    "widehat": r"\widehat",
+    "widetilde": r"\widetilde",
+    "overline": r"\overline",
+    "underline": r"\underline",
+    # An arc over its argument, and a frame around it (render-verified on desktop Hangul 2024).
+    "arch": r"\wideparen",
+    "box": r"\boxed",
+}
+
+# --- Matrix / environment builders (consume one following group) -----------
+MATRIX_ENVIRONMENTS: dict[str, str] = {
+    "matrix": "matrix",
+    "pmatrix": "pmatrix",
+    "bmatrix": "bmatrix",
+    "Bmatrix": "Bmatrix",
+    "vmatrix": "vmatrix",
+    "Vmatrix": "Vmatrix",
+    # Real-Hancom EqEdit determinant matrix |...| (render-verified 2026-07-31,
+    # specs/054 P2 token battery R12; ``vmatrix``/``Vmatrix`` render as
+    # literal text on the real build).
+    "dmatrix": "vmatrix",
+    "cases": "cases",
+    # Lines aligned at ``&``.
+    "eqalign": "aligned",
+}
+
+# --- Delimiters usable after LEFT / RIGHT ----------------------------------
+DELIMITERS: dict[str, str] = {
+    "(": "(",
+    ")": ")",
+    "[": "[",
+    "]": "]",
+    "|": "|",
+    "/": "/",
+    ".": ".",
+    "<": r"\langle",
+    ">": r"\rangle",
+    "{": r"\{",
+    "}": r"\}",
+    "LBRACE": r"\{",
+    "RBRACE": r"\}",
+    "LANGLE": r"\langle",
+    "RANGLE": r"\rangle",
+    "lfloor": r"\lfloor",
+    "rfloor": r"\rfloor",
+    "lceil": r"\lceil",
+    "rceil": r"\rceil",
+}
+
+# Structural keywords handled directly by the parser (not simple substitution).
+# ``{n} choose {r}`` and ``binom {n} {r}`` both draw the binomial coefficient.
+STRUCTURAL = frozenset(
+    {"over", "atop", "choose", "binom", "sqrt", "root", "of", "LEFT", "RIGHT", "left", "right"}
+)
+
+# --- Symbol names read from real documents (reader direction only) -----------
+# Hancom symbol names found in public documents that the writer does not emit (it writes the spellings
+# above). The arrows keep their case: lower case is the single arrow, upper case the double one (as
+# ``LRARROW`` is). Desktop Hangul 2024 drew ``rarrow`` as →, ``ANGLE`` as ∠, ``CDOT``/``CDOTS`` as · and ⋯.
+READ_SYMBOLS: dict[str, str] = {
+    "rarrow": r"\rightarrow",
+    "larrow": r"\leftarrow",
+    "lrarrow": r"\leftrightarrow",
+    "RARROW": r"\Rightarrow",
+    "LARROW": r"\Leftarrow",
+    "DOWNARROW": r"\Downarrow",
+    "udarrow": r"\updownarrow",
+    "UDARROW": r"\Updownarrow",
+    "nearrow": r"\nearrow",
+    "NEARROW": r"\nearrow",
+    "searrow": r"\searrow",
+    "SEARROW": r"\searrow",
+    "nwarrow": r"\nwarrow",
+    "NWARROW": r"\nwarrow",
+    "swarrow": r"\swarrow",
+    "SWARROW": r"\swarrow",
+    "VERT": r"\|",
+    "vert": "|",
+    "le": r"\leq",
+    "ge": r"\geq",
+    "ne": r"\neq",
+    "smallinter": r"\cap",
+    "smallunion": r"\cup",
+    "smallprod": r"\prod",
+    "smallsum": r"\sum",
+    "smallcoprod": r"\coprod",
+    "not": r"\not",
+    "ni": r"\ni",
+    "hbar": r"\hbar",
+    "ell": r"\ell",
+    "aleph": r"\aleph",
+    "dagger": r"\dagger",
+    "vee": r"\vee",
+    "wedge": r"\wedge",
+}
+# Names that stand for a mark written as a superscript: the degree sign and degrees Celsius.
+READ_MARKS: dict[str, str] = {
+    "deg": r"^{\circ}",
+    "centigrade": r"^{\circ}\mathrm{C}",
+}
+# ``pile`` stacks its rows like a matrix without delimiters; ``lpile``/``rpile`` align them left or right.
+PILES = frozenset({"pile", "lpile", "rpile"})
+# ``X LSUB {a}`` / ``X LSUP {a}`` set *a* before *X*, low or high (``C LSUB {3} _{1}`` is ₃C₁).
+LEFT_SCRIPTS: dict[str, str] = {"lsub": "_", "lsup": "^"}
+
+# Names whose case Hancom ignores (``ANGLE`` is ``angle``, ``In`` is ``in``; desktop Hangul 2024 drew
+# ``{rm In _{2} O _{3} it}`` as ∈₂O₃). Greek letters, arrows and a few others keep their case:
+# ``PI`` is Π, ``RARROW`` ⇒, ``VERT`` the double bar, and lower-case ``forall``/``iint`` draw as letters.
+CASE_SENSITIVE = (
+    frozenset(GREEK)
+    | frozenset(name.lower() for name in GREEK)
+    | frozenset(name for name in (*OPERATORS, *READ_SYMBOLS) if "arrow" in name.lower())
+    | frozenset({"forall", "iint", "iiint", "vert", "line", "lbrace", "rbrace", "langle", "rangle"})
+    | frozenset({"left", "right", "to", "mapsto", "bmatrix", "vmatrix"})
+)
+
+# LaTeX commands emitted from EqEdit operator tokens that latex2mathml otherwise
+# classifies as identifiers. The render boundary uses this metadata only while
+# producing MathML; the public LaTeX remains the canonical command above.
+EQEDIT_MATHML_OPERATOR_COMMANDS = frozenset({OPERATORS["triangle"]})
+
+
+__all__ = [
+    "ACCENTS",
+    "BIG_OPERATORS",
+    "CASE_SENSITIVE",
+    "DELIMITERS",
+    "EQEDIT_MATHML_OPERATOR_COMMANDS",
+    "FUNCTIONS",
+    "GREEK",
+    "LEFT_SCRIPTS",
+    "MATRIX_ENVIRONMENTS",
+    "OPERATORS",
+    "PILES",
+    "READ_MARKS",
+    "READ_SYMBOLS",
+    "STRUCTURAL",
+    "SYMBOL_OPERATORS",
+]

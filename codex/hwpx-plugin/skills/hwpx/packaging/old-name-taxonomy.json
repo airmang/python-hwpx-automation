@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "hwpx.old-name-taxonomy.v1",
+  "canonicalApplicationName": "python-hwpx-automation",
+  "allowedClassifications": [
+    "canonical",
+    "compatibility",
+    "historical",
+    "generated",
+    "stale-defect"
+  ],
+  "entries": [
+    {
+      "surface": "application distribution",
+      "value": "python-hwpx-automation",
+      "classification": "canonical",
+      "reason": "고수준 Python 응용 계층의 정식 배포명"
+    },
+    {
+      "surface": "application import namespace",
+      "value": "hwpx_automation",
+      "classification": "canonical",
+      "reason": "고수준 Python 응용 계층의 정식 import namespace"
+    },
+    {
+      "surface": "application MCP console",
+      "value": "hwpx-automation-mcp",
+      "classification": "canonical",
+      "reason": "새로 생성하는 MCP 설정과 런처가 호출하는 정식 console"
+    },
+    {
+      "surface": "host config key",
+      "value": "hwpx",
+      "classification": "canonical",
+      "reason": "새로 생성하는 4-host 설정의 host-local alias; MCP 프로토콜 식별자는 아님"
+    },
+    {
+      "surface": "launcher filename",
+      "value": "scripts/hwpx-automation-mcp",
+      "classification": "canonical",
+      "reason": "새로 생성하는 bundle 설정이 직접 호출하는 정식 launcher 경로"
+    },
+    {
+      "surface": "legacy distribution",
+      "value": "hwpx-mcp-server",
+      "classification": "compatibility",
+      "reason": "6.x에서 canonical [mcp] 설치를 끌어오는 호환 셸"
+    },
+    {
+      "surface": "legacy import namespace",
+      "value": "hwpx_mcp_server",
+      "classification": "compatibility",
+      "reason": "6.x deep-import 호환 shim"
+    },
+    {
+      "surface": "legacy MCP console",
+      "value": "hwpx-mcp-server",
+      "classification": "compatibility",
+      "reason": "기존 MCP client 설정을 위한 6.x console alias"
+    },
+    {
+      "surface": "host config key",
+      "value": "hwpx-mcp-server",
+      "classification": "compatibility",
+      "reason": "기존 6.x 사용자 설정과 명시적 E2E override fixture에서만 유지하는 host-local alias"
+    },
+    {
+      "surface": "launcher filename",
+      "value": "scripts/hwpx-mcp-server",
+      "classification": "compatibility",
+      "reason": "기설치 6.x plugin manifest와 launcher 경로를 위한 canonical launcher 위임 wrapper"
+    },
+    {
+      "surface": "environment variables",
+      "value": "HWPX_MCP_*",
+      "classification": "compatibility",
+      "reason": "기존 배포의 workspace, runtime, version, state 설정 보존"
+    },
+    {
+      "surface": "workflow state directory",
+      "value": "hwpx-mcp-server",
+      "classification": "compatibility",
+      "reason": "기존 workflow database의 무손실 연속성 보존"
+    },
+    {
+      "surface": "source repository before GitHub rename",
+      "value": "airmang/hwpx-mcp-server",
+      "classification": "compatibility",
+      "reason": "repository rename 전 실제 source 위치; rename 뒤에는 GitHub redirect로만 유지"
+    },
+    {
+      "surface": "pre-6.0 changelog and frozen replay evidence",
+      "value": "hwpx-mcp-server",
+      "classification": "historical",
+      "reason": "당시 실제 공개 distribution/import/console을 기록하므로 치환하지 않음"
+    },
+    {
+      "surface": "four-host bundle copies",
+      "value": "packaging/old-name-taxonomy.json",
+      "classification": "generated",
+      "reason": "canonical taxonomy를 각 host bundle에 byte-identical하게 동기화"
+    }
+  ]
+}

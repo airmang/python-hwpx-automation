@@ -1,0 +1,484 @@
+{
+  "schemaVersion": "hwpx.house-style-genres/v0",
+  "generated": "2026-07-23",
+  "_usage": "장르 구조 문법(감각 데이터). 스킬(두뇌)이 per-doc 인스턴스화하고, 게이트는 이 데이터에 대해 검사한다. 판단 하드코딩 금지 — 값의 prov는 'layer:근거', layer ∈ harvest(실물 수확 N=3)|template(도교육청 서식 inline)|owner",
+  "genres": {
+    "operating_plan": {
+      "label": "운영계획서 (기관·사업·정책 운영 계획)",
+      "when": "기관/사업/정책 운영 계획. 개조식. 정부·공공 장르",
+      "typography": {
+        "inherits": "report",
+        "prov": [
+          "template:도교육청 서식 inline(헤더 HY헤드라인M 14/본문 휴먼명조 13/160%)와 뱅크 report 교차일치"
+        ],
+        "roles": {
+          "section_chip_number": {
+            "font": "HY헤드라인M",
+            "sizePt": 14,
+            "bold": true,
+            "align": "center",
+            "onAccent": true,
+            "prov": [
+              "harvest:섹션칩 번호칸 accent 배경"
+            ]
+          },
+          "section_chip_title": {
+            "font": "HY헤드라인M",
+            "sizePt": 14,
+            "bold": true,
+            "prov": [
+              "harvest:섹션칩 제목"
+            ]
+          },
+          "org_box_label": {
+            "font": "휴먼명조",
+            "sizePt": 11,
+            "align": "center",
+            "prov": [
+              "harvest:조직도 박스 라벨"
+            ]
+          }
+        }
+      },
+      "grammar": {
+        "sequence": [
+          "title_band",
+          "issuer",
+          "slogan?",
+          "section+"
+        ],
+        "section": {
+          "divider": "section_chip",
+          "body": "prose_body",
+          "embeds": "embedded_block*"
+        },
+        "blockTypes": {
+          "title_band": {
+            "desc": "1x1 boxed title 「…」 운영 계획, 가운데·큰 글자",
+            "required": true
+          },
+          "issuer": {
+            "desc": "발신 기관명",
+            "required": true
+          },
+          "slogan": {
+            "desc": "인용 슬로건/태그라인",
+            "required": false
+          },
+          "section_chip": {
+            "desc": "섹션 구분자 1x3 [번호box][gap][제목] 또는 inline",
+            "required": true
+          },
+          "prose_body": {
+            "desc": "개조식 계층 ○/-/□/①/➡/※",
+            "required": true
+          },
+          "org_chart": {
+            "desc": "표-기반 박스 조직도(병합 박스+셀 테두리 커넥터). 드로잉 아님(2026-07-23 실측)",
+            "required": false
+          },
+          "comparison": {
+            "desc": "AS-IS➡TO-BE 표",
+            "required": false
+          },
+          "data_table": {
+            "desc": "현황/예산/spec 표",
+            "required": false
+          },
+          "faq": {
+            "desc": "순/질의/응답 3열 표",
+            "required": false
+          }
+        },
+        "variableSlots": {
+          "numbering": {
+            "options": [
+              "roman",
+              "arabic"
+            ],
+            "default": "roman",
+            "desc": "섹션 번호 체계 Ⅰ~ vs 1.~"
+          },
+          "chipStyle": {
+            "options": [
+              "box",
+              "inline"
+            ],
+            "default": "box",
+            "desc": "섹션칩 렌더 색박스 vs inline"
+          },
+          "bulletGlyph": {
+            "options": [
+              "○",
+              "ㅇ"
+            ],
+            "default": "○"
+          },
+          "accentColor": {
+            "desc": "섹션칩·강조 accent 1색(문서마다 변주)",
+            "example": "#3366CC"
+          },
+          "headerImage": {
+            "desc": "타이틀 밴드/첫 단 로고·엠블럼(변주, 입력 파라미터)"
+          }
+        },
+        "prov": [
+          "harvest:N=3 실물(앵커+형제2) 공유 문법",
+          "owner:형 공유·표면 변주 확증 2026-07-22"
+        ]
+      }
+    },
+    "official_draft": {
+      "label": "일반기안문 (별지 제1호서식 — 대내외 공문/시행문 공용)",
+      "when": "행정기관이 기안·시행하는 공문서. 두문/본문/결문 3부. 관인 날인 시 시행문이 된다",
+      "typography": {
+        "inherits": "report",
+        "prov": [
+          "regulation:행정업무의 운영 및 혁신에 관한 규정 시행규칙(행정안전부령 제408호, 2023-06-28) 제3·4·6·7·9조",
+          "regulation:같은 규칙 별지 제1호서식(일반기안문)·제2호서식(간이기안문) <개정 2016-07-11>",
+          "regulation:같은 규칙 별표 4 제2호(여백 상·좌·우 20mm 하 10mm)·제10호([ ]+√ 관례)",
+          "measure:specs/060 P0 조사 원장 evidence/p0/gianmun-forms.md",
+          "honest:본문 글꼴·글자 크기는 법령 미규정(별표 4/5 값은 민원 서식 설계 기준) — 관례 기본값이며 규정 근거로 주장하지 않는다"
+        ],
+        "roles": {
+          "agency_name": {
+            "sizePt": 16,
+            "bold": true,
+            "align": "center",
+            "prov": [
+              "regulation:두문 행정기관명(로고는 왼쪽 끝 2x2cm)"
+            ]
+          },
+          "head_label": {
+            "sizePt": 13,
+            "prov": [
+              "regulation:수신/(경유)/제목 라벨"
+            ]
+          },
+          "body": {
+            "sizePt": 13,
+            "prov": [
+              "convention:본문 개조식"
+            ]
+          },
+          "sender_name": {
+            "sizePt": 15,
+            "bold": true,
+            "align": "center",
+            "prov": [
+              "regulation:발신명의(관인은 마지막 글자가 인영 가운데)"
+            ]
+          },
+          "footer": {
+            "sizePt": 10,
+            "prov": [
+              "regulation:결문 시행/접수·주소·연락처"
+            ]
+          }
+        }
+      },
+      "grammar": {
+        "sequence": [
+          "agency_name",
+          "recipient",
+          "via",
+          "subject",
+          "body",
+          "attachments?",
+          "sender_name",
+          "recipient_list?",
+          "approval_table",
+          "footer_table"
+        ],
+        "section": {
+          "divider": "none",
+          "body": "outline_body",
+          "embeds": "embedded_block*"
+        },
+        "blockTypes": {
+          "agency_name": {
+            "desc": "행정기관명 가운데 문단(동명 기관 있으면 상급기관명 병기)",
+            "required": true
+          },
+          "recipient": {
+            "desc": "수신 — 내부결재/기관장(보조기관)/합의제/민원인/수신자 참조",
+            "required": true
+          },
+          "via": {
+            "desc": "(경유) — 경유기관 없으면 빈칸",
+            "required": true
+          },
+          "subject": {
+            "desc": "제목",
+            "required": true
+          },
+          "body": {
+            "desc": "본문 개조식 1.→가.→1)→가)→(1)→(가)→①→㉮, 2타씩 우측 이동",
+            "required": true
+          },
+          "attachments": {
+            "desc": "붙임 목록 + '끝.' 4규칙",
+            "required": false
+          },
+          "sender_name": {
+            "desc": "발신명의(+관인/관인생략). 내부결재문서는 미표시",
+            "required": false
+          },
+          "recipient_list": {
+            "desc": "수신자 다수일 때 발신명의 다음 줄 '수신자'란",
+            "required": false
+          },
+          "approval_table": {
+            "desc": "결재란 1행 x 2N열 — N=실제 서명자 수(가변)",
+            "required": true
+          },
+          "footer_table": {
+            "desc": "협조자/시행·접수/주소/연락처·공개구분 표(좌우 세로 테두리 없음)",
+            "required": true
+          }
+        },
+        "variableSlots": {
+          "approvers": {
+            "desc": "결재자 목록(직위+성명+전결/대결). 규칙 제7조제4항: 서명·전결 표시를 하지 않는 사람의 서명란은 만들지 않는다 — 칸 수는 고정이 아니라 목록 길이",
+            "example": [
+              "행정사무관 김○○",
+              "○○과장 (전결) 이○○"
+            ]
+          },
+          "internalOnly": {
+            "options": [
+              true,
+              false
+            ],
+            "default": false,
+            "desc": "내부결재문서면 발신명의를 표시하지 않는다"
+          },
+          "seal": {
+            "options": [
+              "직인",
+              "관인생략",
+              "서명생략",
+              "none"
+            ],
+            "default": "none",
+            "desc": "발신명의 오른쪽 표시(별표 1)"
+          },
+          "disclosure": {
+            "options": [
+              "공개",
+              "부분공개",
+              "비공개"
+            ],
+            "default": "공개",
+            "desc": "부분공개·비공개는 괄호에 정보공개법 제9조제1항 호 번호"
+          }
+        },
+        "labelPolicy": {
+          "hidden": [
+            "행정기관명",
+            "발신명",
+            "기안자",
+            "검토자",
+            "결재권자",
+            "직위(직급) 서명",
+            "처리과명-연도별 일련번호(시행일)",
+            "도로명주소",
+            "홈페이지 주소",
+            "공무원의 전자우편주소",
+            "공개 구분"
+          ],
+          "shown": [
+            "수신",
+            "(경유)",
+            "제목",
+            "붙임",
+            "시행",
+            "접수",
+            "우",
+            "협조자",
+            "전화번호",
+            "팩스번호"
+          ],
+          "prov": [
+            "regulation:별지 제1호서식 비고 — 해당 용어는 표시하지 아니하고 그 내용을 적는다"
+          ]
+        },
+        "checkboxPolicy": {
+          "useFormObject": false,
+          "convention": "[ ] + √",
+          "prov": [
+            "regulation:별표 4 제10호 — √ 표시를 하도록 하는 란은 '□'을 사용하지 않고 '[  ]'을 사용한다"
+          ]
+        },
+        "page": {
+          "paper": "A4 210x297mm",
+          "marginsMm": {
+            "top": 20,
+            "left": 20,
+            "right": 20,
+            "bottom": 10
+          },
+          "prov": [
+            "regulation:영 제7조제6항·별표 4 제2호"
+          ]
+        },
+        "prov": [
+          "regulation:행정업무의 운영 및 혁신에 관한 규정 시행규칙(행정안전부령 제408호, 2023-06-28) 제3·4·6·7·9조",
+          "regulation:같은 규칙 별지 제1호서식(일반기안문)·제2호서식(간이기안문) <개정 2016-07-11>",
+          "regulation:같은 규칙 별표 4 제2호(여백 상·좌·우 20mm 하 10mm)·제10호([ ]+√ 관례)",
+          "measure:specs/060 P0 조사 원장 evidence/p0/gianmun-forms.md"
+        ]
+      }
+    },
+    "simple_draft": {
+      "label": "간이기안문 (별지 제2호서식 — 내부결재 전용)",
+      "when": "보고서·계획서·검토서 등 발신할 필요가 없는 내부결재문서(규칙 제3조제3항). 시행문 변환 불가",
+      "typography": {
+        "inherits": "report",
+        "prov": [
+          "regulation:행정업무의 운영 및 혁신에 관한 규정 시행규칙(행정안전부령 제408호, 2023-06-28) 제3·4·6·7·9조",
+          "regulation:같은 규칙 별지 제1호서식(일반기안문)·제2호서식(간이기안문) <개정 2016-07-11>",
+          "regulation:같은 규칙 별표 4 제2호(여백 상·좌·우 20mm 하 10mm)·제10호([ ]+√ 관례)",
+          "measure:specs/060 P0 조사 원장 evidence/p0/gianmun-forms.md",
+          "honest:본문 글꼴·크기 법령 미규정 — 관례 기본값"
+        ],
+        "roles": {
+          "title": {
+            "sizePt": 16,
+            "bold": true,
+            "align": "center",
+            "prov": [
+              "regulation:하단 중앙 제목"
+            ]
+          },
+          "summary": {
+            "sizePt": 12,
+            "align": "center",
+            "prov": [
+              "regulation:요약설명문(선택)"
+            ]
+          },
+          "issuer": {
+            "sizePt": 14,
+            "align": "center",
+            "prov": [
+              "regulation:작성기관"
+            ]
+          },
+          "footer": {
+            "sizePt": 10,
+            "prov": [
+              "regulation:문서등록 블록"
+            ]
+          }
+        }
+      },
+      "grammar": {
+        "sequence": [
+          "header_row",
+          "title",
+          "summary?",
+          "written_date",
+          "issuer"
+        ],
+        "section": {
+          "divider": "none",
+          "body": "outline_body",
+          "embeds": "embedded_block*"
+        },
+        "blockTypes": {
+          "header_row": {
+            "desc": "1행 2열 컨테이너 — 좌: 문서등록 블록(생산등록번호/등록일/결재일/공개구분 4행 2열), 우: 결재란(가변 N)+협조자",
+            "required": true
+          },
+          "title": {
+            "desc": "제목(가운데)",
+            "required": true
+          },
+          "summary": {
+            "desc": "요약설명문 — 제목과 작성일 사이",
+            "required": false
+          },
+          "written_date": {
+            "desc": "작성일(가운데)",
+            "required": true
+          },
+          "issuer": {
+            "desc": "작성기관(상위·하위 2줄, 가운데)",
+            "required": true
+          }
+        },
+        "variableSlots": {
+          "approvers": {
+            "desc": "결재자 목록 — 칸 수는 목록 길이(규칙 제7조제4항)",
+            "example": [
+              "행정사무관 김○○",
+              "○○과장 이○○"
+            ]
+          },
+          "disclosure": {
+            "options": [
+              "공개",
+              "부분공개",
+              "비공개"
+            ],
+            "default": "공개"
+          }
+        },
+        "labelPolicy": {
+          "hidden": [
+            "기안자",
+            "검토자",
+            "결재권자",
+            "직위(직급) 서명",
+            "공개 구분"
+          ],
+          "shown": [
+            "생산등록번호",
+            "등록일",
+            "결재일",
+            "협조자"
+          ],
+          "prov": [
+            "regulation:별지 제2호서식 비고"
+          ]
+        },
+        "checkboxPolicy": {
+          "useFormObject": false,
+          "convention": "[ ] + √",
+          "prov": [
+            "regulation:별표 4 제10호"
+          ]
+        },
+        "absent": {
+          "desc": "일반기안문 대비 없는 것",
+          "items": [
+            "두문(행정기관명/수신/경유)",
+            "발신명의",
+            "시행·접수",
+            "주소·연락처",
+            "보존기간란"
+          ],
+          "prov": [
+            "regulation:별지 제2호서식 구조"
+          ]
+        },
+        "page": {
+          "paper": "A4 210x297mm",
+          "marginsMm": {
+            "top": 20,
+            "left": 20,
+            "right": 20,
+            "bottom": 10
+          }
+        },
+        "prov": [
+          "regulation:행정업무의 운영 및 혁신에 관한 규정 시행규칙(행정안전부령 제408호, 2023-06-28) 제3·4·6·7·9조",
+          "regulation:같은 규칙 별지 제1호서식(일반기안문)·제2호서식(간이기안문) <개정 2016-07-11>",
+          "regulation:같은 규칙 별표 4 제2호(여백 상·좌·우 20mm 하 10mm)·제10호([ ]+√ 관례)",
+          "measure:specs/060 P0 조사 원장 evidence/p0/gianmun-forms.md"
+        ]
+      }
+    }
+  }
+}

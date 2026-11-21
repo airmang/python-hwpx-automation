@@ -1,0 +1,604 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Font table and border-fill reads over ``Contents/header.xml``, plus the
+one font-table rewrite they make safe: replacing a font face everywhere.
+
+``doc.styles`` could declare fonts (``ensure_font``) and border fills
+(``ensure_border_fill``) but not read them back as values: ``border_fill()``
+returns a ``GenericElement`` and there was no font-table read at all. A
+caller converting HWPX to another format (a typesetting engine's DOCX
+export, for one) had to walk the raw XML to learn which face a
+``hh:charPr`` uses or what a cell border looks like. This module answers
+those questions from the live in-memory header, so the answers follow
+``ensure_font``/``ensure_border_fill`` edits without a save.
+
+Font ids are per language: every ``hh:fontface`` block numbers its own
+``hh:font`` list, and ``hh:fontRef/@hangul`` indexes the HANGUL block,
+``@latin`` the LATIN block, and so on. ``replace_font`` therefore works
+block by block and renumbers each block it touches, remapping every
+``hh:fontRef`` so that no other reference changes the face it names.
+
+Why this lives outside ``header_part.py``: ``HwpxOxmlHeader``'s owner file
+sits at 1598/1600 lines. Same free-function pattern as ``header_compat.py``:
+the functions take the header object and use its public surface
+(``.element``, ``.mark_dirty()``, ``.document``).
+"""
+
+from __future__ import annotations
+
+import copy
+import xml.etree.ElementTree as ET
+from typing import TYPE_CHECKING, Any, Iterable, Mapping
+
+from ..errors import HwpxValueError
+from ..objects.results import BorderFillInfo, BorderLine, FontReplaceReport
+from ._document_primitives import (
+    _FONT_FACE_LANG_TO_REF,
+    _HC,
+    _HH,
+    _HP,
+    _allocate_font_id,
+    _clear_paragraph_layout_cache,
+    _element_local_name,
+    _find_font_id,
+    _normalize_font_langs,
+    _validate_font_type,
+)
+from .header import Font, parse_font
+
+if TYPE_CHECKING:
+    from .document_parts import HwpxOxmlDocument
+    from .header_part import HwpxOxmlHeader
+
+__all__ = [
+    "border_fill_info", "check_run_fonts", "clear_line_caches", "declare_face", "font_face", "fonts", "replace_font",
+    "run_style_font_ref", "set_letter_spacing",
+]
+
+#: ``hh:borderFill`` side children, in ``BorderFillInfo`` field order.
+_BORDER_SIDES = ("leftBorder", "rightBorder", "topBorder", "bottomBorder", "diagonal")
+
+
+def _single_lang(lang: str) -> str:
+    """Validate one ``hh:fontface/@lang`` value (``style-font-lang-invalid``)."""
+
+    return _normalize_font_langs(lang)[0]
+
+
+def _listed(header: "HwpxOxmlHeader", container: ET.Element | None, tag: str) -> list[ET.Element]:
+    """The *tag* entries of a ``hh:refList`` list: the children of *container* when the header has
+    it, so a lookup does not walk every paragraph shape and style of a large header, else every
+    *tag* element of the header."""
+
+    if container is not None:
+        return container.findall(f"{_HH}{tag}")
+    return list(header.element.iter(f"{_HH}{tag}"))
+
+
+def _listed_by_id(
+    header: "HwpxOxmlHeader", container: ET.Element | None, tag: str, id_ref: int | str | None
+) -> ET.Element | None:
+    """``_find_by_id(_listed(...))``: the *tag* entry whose id is *id_ref*. An id found as written
+    comes from the header's checked index (``HwpxOxmlHeader._definition_element``), so a lookup
+    does not walk the whole list; any other answer is looked for as before."""
+
+    key = None if id_ref is None else str(id_ref).strip()
+    if container is not None and key:
+        found = header._definition_element(container, tag, key, exact=True)
+        if found is not None and found.tag == f"{_HH}{tag}":
+            return found
+    return _find_by_id(_listed(header, container, tag), id_ref)
+
+
+def _fontfaces(header: "HwpxOxmlHeader | None") -> list[ET.Element]:
+    if header is None:
+        return []
+    return _listed(header, header._fontfaces_element(), "fontface")
+
+
+def _fontface_block(header: "HwpxOxmlHeader | None", lang: str) -> ET.Element | None:
+    for fontface in _fontfaces(header):
+        if fontface.get("lang") == lang:
+            return fontface
+    return None
+
+
+def _find_by_id(elements: Iterable[ET.Element], id_ref: int | str | None) -> ET.Element | None:
+    """The element whose ``id`` is *id_ref*: exact text first, then the same
+    integer (``"01"`` finds ``id="1"``) — ``char_property()``'s lookup rule."""
+
+    if id_ref is None:
+        return None
+    key = str(id_ref).strip()
+    if not key:
+        return None
+    candidates = list(elements)
+    for element in candidates:
+        if element.get("id") == key:
+            return element
+    try:
+        wanted = int(key)
+    except ValueError:
+        return None
+    for element in candidates:
+        try:
+            if int(element.get("id") or "") == wanted:
+                return element
+        except ValueError:
+            continue
+    return None
+
+
+def fonts(header: "HwpxOxmlHeader | None", lang: str = "HANGUL") -> dict[str, Font]:
+    """The ``hh:font`` entries of the *lang* block, keyed by raw ``id``."""
+
+    from .header_part import HwpxOxmlHeader
+
+    fontface = _fontface_block(header, _single_lang(lang))
+    if fontface is None:
+        return {}
+    result: dict[str, Font] = {}
+    for font in fontface.findall(f"{_HH}font"):
+        font_id = font.get("id")
+        if font_id is not None and font_id not in result:
+            result[font_id] = parse_font(HwpxOxmlHeader._convert_to_lxml(font))
+    return result
+
+
+def font_face(
+    header: "HwpxOxmlHeader | None",
+    char_pr_id_ref: int | str | None,
+    lang: str = "HANGUL",
+) -> str | None:
+    """The face a ``hh:charPr``'s ``hh:fontRef`` names in the *lang* block."""
+
+    normalized = _single_lang(lang)
+    if header is None:
+        return None
+    char_pr = _listed_by_id(header, header._char_properties_element(), "charPr", char_pr_id_ref)
+    if char_pr is None:
+        return None
+    font_ref = char_pr.find(f"{_HH}fontRef")
+    if font_ref is None:
+        return None
+    font_id = font_ref.get(_FONT_FACE_LANG_TO_REF[normalized])
+    fontface = _fontface_block(header, normalized)
+    if font_id is None or fontface is None:
+        return None
+    for font in fontface.findall(f"{_HH}font"):
+        if font.get("id") == font_id:
+            return font.get("face")
+    return None
+
+
+def _border_line(border_fill: ET.Element, side: str, fill_id: str) -> BorderLine:
+    element = None
+    for child in border_fill:
+        if _element_local_name(child) == side:
+            element = child
+            break
+    if element is None:
+        return BorderLine("NONE", 0.0, "#000000")
+    width = element.get("width", "0 mm")
+    try:
+        width_mm = float(width.split()[0])
+    except (IndexError, ValueError):
+        raise HwpxValueError(
+            f"borderFill {fill_id} {side} width {width!r} is not '<number> mm'",
+            code="style-border-fill-width-invalid",
+            context={"id": fill_id, "side": side, "width": width},
+            suggestion="Border widths are stored as '<number> mm', e.g. '0.12 mm'.",
+        ) from None
+    return BorderLine(element.get("type", "NONE"), width_mm, element.get("color", "#000000"))
+
+
+def border_fill_info(
+    header: "HwpxOxmlHeader | None", border_fill_id_ref: int | str | None
+) -> BorderFillInfo | None:
+    """A typed read of one ``hh:borderFill``; ``None`` for an unknown id."""
+
+    if header is None:
+        return None
+    border_fill = _listed_by_id(header, header._border_fills_element(), "borderFill", border_fill_id_ref)
+    if border_fill is None:
+        return None
+    fill_id = border_fill.get("id", "")
+    left, right, top, bottom, diagonal = (
+        _border_line(border_fill, side, fill_id) for side in _BORDER_SIDES
+    )
+    fill: str | None = None
+    brush = next(border_fill.iter(f"{_HC}winBrush"), None)
+    if brush is not None:
+        face_color = brush.get("faceColor")
+        if face_color is not None and face_color.lower() != "none":
+            fill = face_color
+    kinds: list[str] = []
+    for brush_box in border_fill:
+        if _local_name(brush_box) == "fillBrush":
+            kinds.extend(_FILL_KINDS.get(_local_name(child), "unknown") for child in brush_box if _local_name(child))
+    return BorderFillInfo(
+        id=fill_id, left=left, right=right, top=top, bottom=bottom, diagonal=diagonal, fill=fill,
+        fill_kinds=tuple(kinds),
+    )
+
+
+#: ``BorderFillInfo.fill_kinds`` by the local name of a ``hc:fillBrush`` child.
+_FILL_KINDS = {"winBrush": "color", "gradation": "gradation", "imgBrush": "image"}
+
+
+def _local_name(node: Any) -> str:
+    tag = getattr(node, "tag", None)
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def replace_font(
+    header: "HwpxOxmlHeader | None",
+    src_face: str,
+    dst_face: str,
+    *,
+    langs: Iterable[str] | str | None = None,
+    font_type: str | None = None,
+) -> FontReplaceReport:
+    """Replace *src_face* with *dst_face* in every selected fontface block.
+
+    Per block, in document order: skip it when no ``hh:font`` has
+    *src_face*; take the id of the ``hh:font`` with *dst_face*, or append
+    a new *dst_face* font with id ``len(fonts)``; point every ``hh:fontRef`` that named *src_face* at *dst_face*; remove
+    the *src_face* font, renumber the rest 0..N-1 by position, set
+    ``fontCnt`` to N and remap every ``hh:fontRef`` through the old → new
+    ids (values that name no font are left as they are).
+
+    On a well-formed block (ids 0..N-1, every reference naming a font) the
+    result is byte-identical to doing those steps literally. Two malformed
+    inputs are handled deliberately: the appended font's placeholder id is
+    kept out of the old -> new map, so in a block whose ids are not 0..N-1 a
+    placeholder equal to an existing id cannot pull that font's references
+    onto *dst_face*; and a reference that named no font (for example one
+    equal to the placeholder) stays dangling instead of starting to name
+    *dst_face*.
+
+    The appended font is a copy of the first ``hh:font`` that already
+    declares *dst_face* in any fontface block (document order, looked up
+    before anything changes), so its ``type``, ``isEmbedded`` and child
+    elements match the face's existing declaration. When no block declares
+    *dst_face* it is ``<hh:font id=… face=dst type="TTF" isEmbedded="0"/>``.
+    *font_type* (``REP``/``TTF``/``HFT``), when given, sets the ``type`` of
+    every font this call appends; fonts that already exist are not changed.
+
+    Every paragraph with a run whose ``hh:charPr`` now names another face
+    loses its line layout cache (``hp:linesegarray``): the cached line
+    starts and widths belong to the old face, and Hancom keeps a cache's
+    line breaks, so the new face would be drawn squeezed into the old lines.
+    """
+
+    src = (src_face or "").strip()
+    dst = (dst_face or "").strip()
+    if not src or not dst:
+        raise HwpxValueError(
+            "src_face and dst_face must not be empty",
+            code="style-font-face-empty",
+            context={"src_face": src_face, "dst_face": dst_face},
+        )
+    if src == dst:
+        raise HwpxValueError(
+            f"src_face and dst_face are the same face {src!r}",
+            code="style-font-replace-same-face",
+            context={"face": src},
+            suggestion="Pass two different faces; replacing a face with itself changes nothing.",
+        )
+    wanted = set(_normalize_font_langs(langs))
+    normalized_type = (
+        _validate_font_type(font_type, param_name="font_type") if font_type is not None else None
+    )
+    # An existing declaration of dst in any block is the template for the fonts
+    # this call appends, so one face is not declared as two font types.
+    template = next(
+        (
+            font
+            for fontface in _fontfaces(header)
+            for font in fontface.findall(f"{_HH}font")
+            if font.get("face") == dst
+        ),
+        None,
+    )
+
+    faces_before = _char_faces(header)
+    changed: list[str] = []
+    declared: list[str] = []
+    repointed = 0
+    font_refs = (
+        [ref for ref in (c.find(f"{_HH}fontRef") for c in header.element.iter(f"{_HH}charPr"))
+         if ref is not None]
+        if header is not None
+        else []
+    )
+    for fontface in _fontfaces(header):
+        lang = fontface.get("lang", "")
+        attr = _FONT_FACE_LANG_TO_REF.get(lang)
+        if attr is None or lang not in wanted:
+            continue
+        fonts_in_block = fontface.findall(f"{_HH}font")
+        # Hancom-saved blocks often list one face more than once; every copy goes.
+        src_fonts = [f for f in fonts_in_block if f.get("face") == src]
+        if not src_fonts:
+            continue
+        src_ids = {f.get("id") for f in src_fonts}
+        remaining = [f for f in fonts_in_block if all(f is not s for s in src_fonts)]
+        # old id -> new id of the fonts that were already declared. The new
+        # dst font stays out of it: its id is only a placeholder, and in a
+        # block whose ids are not 0..N-1 it can equal an existing id.
+        new_ids = {f.get("id"): str(index) for index, f in enumerate(remaining)}
+        dst_font = next((f for f in fonts_in_block if f.get("face") == dst), None)
+        if dst_font is None:
+            if template is not None:
+                dst_font = copy.deepcopy(template)
+                dst_font.tail = None
+                dst_font.set("id", str(len(fonts_in_block)))
+            else:
+                dst_font = fontface.makeelement(
+                    f"{_HH}font",
+                    {"id": str(len(fonts_in_block)), "face": dst, "type": "TTF", "isEmbedded": "0"},
+                )
+            if normalized_type is not None:
+                dst_font.set("type", normalized_type)
+            fontface.append(dst_font)
+            remaining.append(dst_font)
+            declared.append(lang)
+        # A reference to src moves straight to dst's final position.
+        dst_new_id = str(remaining.index(dst_font))
+        for font_ref in font_refs:
+            value = font_ref.get(attr)
+            if value is None:
+                continue
+            if value in src_ids:
+                font_ref.set(attr, dst_new_id)
+                repointed += 1
+            elif value in new_ids:
+                font_ref.set(attr, new_ids[value])
+        for src_font in src_fonts:
+            fontface.remove(src_font)
+        for index, font in enumerate(remaining):
+            font.set("id", str(index))
+        fontface.set("fontCnt", str(len(remaining)))
+        changed.append(lang)
+
+    if changed and header is not None:
+        header.mark_dirty()
+        document = header.document
+        if document is not None:
+            document.invalidate_char_property_cache()
+            faces_after = _char_faces(header)
+            clear_line_caches(
+                document,
+                char_pr_ids={char_id for char_id, faces in faces_after.items() if faces_before.get(char_id) != faces},
+            )
+    return FontReplaceReport(
+        src_face=src,
+        dst_face=dst,
+        langs=tuple(changed),
+        repointed=repointed,
+        declared=tuple(declared),
+    )
+
+
+def _char_faces(header: "HwpxOxmlHeader | None") -> dict[str | None, tuple[str | None, ...]]:
+    """The faces every ``hh:charPr`` names, one per ``hh:fontRef`` language, by charPr id."""
+
+    if header is None:
+        return {}
+    faces: dict[str | None, tuple[str | None, ...]] = {}
+    blocks = {lang: _fontface_block(header, lang) for lang in _FONT_FACE_LANG_TO_REF}
+    by_id = {
+        lang: {font.get("id"): font.get("face") for font in block.findall(f"{_HH}font")}
+        for lang, block in blocks.items()
+        if block is not None
+    }
+    for char_pr in header.element.iter(f"{_HH}charPr"):
+        font_ref = char_pr.find(f"{_HH}fontRef")
+        faces[char_pr.get("id")] = tuple(
+            None if font_ref is None else by_id.get(lang, {}).get(font_ref.get(attr))
+            for lang, attr in _FONT_FACE_LANG_TO_REF.items()
+        )
+    return faces
+
+
+def clear_line_caches(
+    document: "HwpxOxmlDocument",
+    *,
+    char_pr_ids: Iterable[str | None] = (),
+    para_pr_ids: Iterable[str | None] = (),
+) -> None:
+    """Drop the line caches (``hp:linesegarray``) of every section paragraph whose
+    ``paraPrIDRef`` is in *para_pr_ids* or that has a run whose ``charPrIDRef`` is
+    in *char_pr_ids*: an edit changed that shape in place, so the cached line
+    breaks no longer fit, and Hancom keeps a cache's line breaks.
+    """
+
+    char_ids, para_ids = set(char_pr_ids), set(para_pr_ids)
+    if not char_ids and not para_ids:
+        return
+    for section in document.sections:
+        removed = 0
+        for paragraph in section.element.iter(f"{_HP}p"):
+            if paragraph.get("paraPrIDRef") in para_ids or any(
+                run.get("charPrIDRef") in char_ids for run in paragraph.findall(f"{_HP}run")
+            ):
+                removed += _clear_paragraph_layout_cache(paragraph)
+        if removed:
+            section.mark_dirty()
+
+
+def _lang_mapping(
+    mapping: "Mapping[str, Any] | None", *, name: str, code: str, example: str
+) -> list[tuple[str, Any]]:
+    """*mapping* (``font_by_lang``, ``letter_spacing_by_lang``) checked as a lang -> value mapping:
+    lang (``HANGUL``.. ``USER``, any case, ``style-font-lang-invalid`` otherwise) named once each, as
+    ``(LANG, value)`` pairs. A mapping that is not one, a key that is not a string or a lang named
+    twice is *code*."""
+
+    if mapping is None:
+        return []
+    if not isinstance(mapping, Mapping):
+        raise HwpxValueError(
+            f"{name} must map a lang to a {name.split('_by_lang')[0].replace('font', 'face')}; got {mapping!r}",
+            code=code,
+            suggestion=f"예: {name}={example}",
+        )
+    pairs: list[tuple[str, Any]] = []
+    for key, value in mapping.items():
+        if not isinstance(key, str):
+            raise HwpxValueError(
+                f"{name} key must be one lang name; got {key!r}",
+                code=code,
+                context={"requested": repr(key)},
+            )
+        lang = _single_lang(key)
+        if any(lang == seen for seen, _ in pairs):
+            raise HwpxValueError(f"{name} names {lang} twice", code=code, context={"lang": lang})
+        pairs.append((lang, value))
+    return pairs
+
+
+def _font_by_lang(font_by_lang: "Mapping[str, str] | None") -> dict[str, str]:
+    """*font_by_lang* checked before anything is declared: lang (``HANGUL``.. ``USER``, any case) -> face."""
+
+    resolved: dict[str, str] = {}
+    for lang, face in _lang_mapping(
+        font_by_lang, name="font_by_lang", code="style-run-font-by-lang-invalid",
+        example='{"HANGUL": "함초롬바탕", "LATIN": "Arial"}',
+    ):
+        if not isinstance(face, str):
+            raise HwpxValueError(
+                f"font_by_lang face for {lang} must be a font name; got {face!r}",
+                code="style-run-font-by-lang-invalid",
+                context={"lang": lang},
+            )
+        if not face.strip():
+            raise HwpxValueError(f"font_by_lang face for {lang} must not be empty", code="style-font-face-empty")
+        resolved[lang] = face.strip()
+    return resolved
+
+
+def check_run_size(size: object) -> None:
+    """A run's character size checked before anything is declared: points from 0, below 21474836.48
+    (``style-run-size-value`` otherwise). ``ensure_run_style`` and a header's or footer's content
+    (checked whole before its first run is written) share it."""
+
+    if size is not None and (isinstance(size, bool) or not isinstance(size, (int, float))
+                             or not 0 <= round(float(size) * 100) < 2**31):
+        raise HwpxValueError(  # it was written as 0 when negative
+            f"size must be a number of points from 0, below 21474836.48; got {size!r}",
+            code="style-run-size-value",
+            context={"requested": repr(size)},
+            suggestion="Pass the character size in points, e.g. 10.",
+        )
+
+
+def check_run_fonts(font: object, font_by_lang: "Mapping[str, str] | None") -> None:
+    """``ensure_run``'s *font* and *font_by_lang* checked before anything is declared: *font* a font
+    name (``style-font-face-empty`` otherwise), *font_by_lang* as :func:`_font_by_lang` checks it."""
+
+    _font_by_lang(font_by_lang)
+    if font is not None and not isinstance(font, str):
+        raise HwpxValueError(f"font must be a font name; got {font!r}", code="style-font-face-empty",
+                             suggestion='Pass a face such as "맑은 고딕".')
+
+
+def _letter_spacing_by_lang(letter_spacing_by_lang: "Mapping[str, int] | None") -> dict[str, int]:
+    """*letter_spacing_by_lang* checked: lang (``HANGUL``.. ``USER``, any case) -> 자간 % (an ``int``
+    from -50 to 100, as ``ensure_run(letter_spacing=)`` takes: Hancom 2024 keeps 51..100 when it saves
+    the file again), keyed by the ``hh:spacing`` attribute (``hangul``..). Anything else is
+    ``style-run-letter-spacing-by-lang-invalid``."""
+
+    code = "style-run-letter-spacing-by-lang-invalid"
+    resolved: dict[str, int] = {}
+    for lang, value in _lang_mapping(
+        letter_spacing_by_lang, name="letter_spacing_by_lang", code=code, example='{"HANGUL": -5, "LATIN": 0}',
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or not -50 <= value <= 100:
+            raise HwpxValueError(
+                f"letter_spacing_by_lang value for {lang} must be an int from -50 to 100; got {value!r}",
+                code=code,
+                context={"lang": lang, "requested": repr(value)},
+                suggestion="자간은 -50 ~ 100 (%) 입니다.",
+            )
+        resolved[_FONT_FACE_LANG_TO_REF[lang]] = value
+    return resolved
+
+
+def set_letter_spacing(element: ET.Element, every: int | None, by_lang: "Mapping[str, int] | None") -> None:
+    """Write 자간 into ``hh:charPr`` *element*: *every* to all seven languages, then *by_lang*
+    (``hangul``.. -> %, from :func:`_letter_spacing_by_lang`) to the languages it names, so it wins.
+    A language neither names keeps its value; a new ``hh:spacing`` writes all seven, as Hancom does,
+    the ones not named at the schema default 0 (``ensure_run_style``)."""
+
+    values: dict[str, int] = {} if every is None else dict.fromkeys(_FONT_FACE_LANG_TO_REF.values(), every)
+    values.update(by_lang or {})
+    if not values:
+        return
+    node = element.find(f"{_HH}spacing")
+    if node is None:
+        node = element.makeelement(f"{_HH}spacing", dict.fromkeys(_FONT_FACE_LANG_TO_REF.values(), "0"))
+        element.append(node)
+    for lang, value in values.items():
+        node.set(lang, str(value))
+
+
+def declare_face(header: "HwpxOxmlHeader", face: str, langs: Iterable[str]) -> dict[str, str]:
+    """Declare *face* in the ``hh:fontface`` block of each of *langs* (``HANGUL``.. ``USER``) that lacks
+    it and return its id there, by ``hh:fontRef`` attribute (``hangul``..). A face some block already
+    declares is copied with the block's next id (``replace_font``'s rule: its ``type``, embedding and
+    substitute font kept), also into a block the header does not have yet, made where Hancom puts it;
+    a face no block declares gets ``ensure_font``'s plain declaration."""
+
+    template = next((font for block in _fontfaces(header) for font in block.findall(f"{_HH}font")
+                     if font.get("face") == face), None)
+    ids: dict[str, str] = {}
+    for lang in langs:
+        if template is None:
+            ids[_FONT_FACE_LANG_TO_REF[lang]] = header.ensure_font(face, lang=lang)
+            continue
+        block = _fontface_block(header, lang)
+        if block is None:
+            fontfaces = header._fontfaces_element(create=True)
+            assert fontfaces is not None  # template was found under it
+            block = header._fontface_element(fontfaces, lang, create=True)
+            assert block is not None
+        font_id = _find_font_id(block, face)
+        if font_id is None:
+            font = copy.deepcopy(template)
+            font.tail = None
+            font_id = _allocate_font_id(block)
+            font.set("id", font_id)
+            block.append(font)
+            block.set("fontCnt", str(len(block.findall(f"{_HH}font"))))
+            header.mark_dirty()
+        ids[_FONT_FACE_LANG_TO_REF[lang]] = font_id
+    return ids
+
+
+def run_style_font_ref(
+    header: "HwpxOxmlHeader", font: str | None, font_by_lang: "Mapping[str, str] | None"
+) -> dict[str, str] | None:
+    """The ``hh:fontRef`` attributes a requested run style sets (``ensure_run_style``).
+
+    *font* goes to all seven languages, as Hancom's own run shapes do (12,187 of the 12,188
+    ``hh:fontRef`` in the Hancom-saved fixtures name one face in all seven). A language whose block
+    lacks the face -- or that has no block -- gets it declared first (:func:`declare_face`): a copy of
+    the face's first declaration (another id), as ``replace_font`` declares a face, or a plain
+    declaration when no block has it, as Hancom declares a font it is asked to apply. Then each
+    *font_by_lang* face goes to its own language, declared the same way if missing, referenced by
+    that block's id (each language numbers its fonts on its own). So *font_by_lang* wins over *font*
+    for the languages it names, and a language neither names keeps the base style's reference.
+    *font_by_lang* is checked before any font is declared.
+    """
+
+    by_lang = _font_by_lang(font_by_lang)
+    refs = header.font_ref_for_face(font) if font is not None else None
+    if font is not None and font.strip() and len(refs or {}) < len(_FONT_FACE_LANG_TO_REF):
+        refs = declare_face(header, font.strip(), _FONT_FACE_LANG_TO_REF)
+    if not by_lang:
+        return refs
+    merged = dict(refs or {})
+    for lang, face in by_lang.items():
+        merged.update(declare_face(header, face, [lang]))
+    return merged

@@ -1,0 +1,903 @@
+# SPDX-License-Identifier: Apache-2.0
+"""High-level routines for traversing text inside HWPX documents."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Dict, Iterator, Mapping, Optional, Sequence, Tuple, Union, Literal
+from xml.etree import ElementTree as ET
+from zipfile import ZipFile
+
+from ..opc.relationships import (
+    is_section_part_name,
+    parse_container_rootfiles,
+    parse_manifest_relationships,
+    select_main_rootfile,
+)
+from ..opc.security import MAX_ZIP_SMALL_PART_BYTES, guard_zip_file, parse_xml_stdlib, read_member
+from ..oxml.hyperlink_form import hyperlink_target
+from ..oxml.namespaces import DEFAULT_NAMESPACES as OWPML_DEFAULT_NAMESPACES
+
+__all__ = [
+    "DEFAULT_NAMESPACES",
+    "AnnotationOptions",
+    "ParagraphInfo",
+    "SectionInfo",
+    "TextExtractor",
+    "build_parent_map",
+    "describe_element_path",
+    "strip_namespace",
+]
+
+DEFAULT_NAMESPACES: Dict[str, str] = dict(OWPML_DEFAULT_NAMESPACES)
+
+_SECTION_PATTERN = re.compile(r"^section(\d+)\.xml$", re.IGNORECASE)
+
+_OBJECT_CONTAINERS = {
+    "tbl",
+    "container",
+    "line",
+    "rect",
+    "ellipse",
+    "arc",
+    "polygon",
+    "curve",
+    "connectLine",
+    "textart",
+    "pic",
+    "compose",
+    "switch",
+    "equation",
+    "ole",
+    "edit",
+    "btn",
+    "checkBtn",
+    "radioBtn",
+}
+
+_ObjectBehavior = Union[str, None]
+
+HighlightBehavior = Literal["ignore", "markers"]
+NoteBehavior = Literal["ignore", "placeholder", "inline"]
+HyperlinkBehavior = Literal["ignore", "placeholder", "target"]
+ControlBehavior = Literal["ignore", "placeholder", "nested"]
+
+
+@dataclass(frozen=True)
+class AnnotationOptions:
+    """Configuration describing how inline annotations should be rendered."""
+
+    highlight: HighlightBehavior = "ignore"
+    highlight_start: str = "[HIGHLIGHT color={color}]"
+    highlight_end: str = "[/HIGHLIGHT]"
+    highlight_summary: str = "color={color}"
+
+    footnote: NoteBehavior = "ignore"
+    endnote: NoteBehavior = "ignore"
+    note_inline_format: str = "[{kind}:{text}]"
+    note_placeholder: str = "[{kind}:{inst_id}]"
+    note_summary: str = "{kind}:{inst_id}"
+    note_joiner: str = " "
+
+    hyperlink: HyperlinkBehavior = "ignore"
+    hyperlink_target_format: str = "<{target}>"
+    hyperlink_placeholder: str = "[LINK:{target}]"
+    hyperlink_summary: str = "{target}"
+
+    control: ControlBehavior = "ignore"
+    control_placeholder: str = "[CTRL:{name}]"
+    control_summary: str = "{name}"
+    control_joiner: str = "\n"
+
+
+@dataclass(frozen=True)
+class SectionInfo:
+    """Metadata for a section XML file bundled within an HWPX document."""
+
+    index: int
+    """Zero-based index of the section as it appears in ``content.hpf``."""
+
+    name: str
+    """Path of the section XML entry within the archive."""
+
+    element: ET.Element
+    """Parsed XML element representing the ``hs:sec`` root node."""
+
+
+@dataclass(frozen=True)
+class ParagraphInfo:
+    """Container describing a paragraph extracted from a section."""
+
+    section: SectionInfo
+    index: int
+    element: ET.Element
+    path: str
+    hierarchy: Tuple[str, ...]
+    _extractor: "TextExtractor"
+
+    @property
+    def tag(self) -> str:
+        """Return the local tag name (normally ``p``)."""
+
+        return strip_namespace(self.element.tag)
+
+    @property
+    def ancestors(self) -> Tuple[str, ...]:
+        """Return the hierarchy leading to the paragraph (excluding itself)."""
+
+        return self.hierarchy[:-1]
+
+    @property
+    def is_nested(self) -> bool:
+        """Whether the paragraph resides inside an object such as a table."""
+
+        return len(self.ancestors) > 1
+
+    def text(
+        self,
+        *,
+        object_behavior: _ObjectBehavior = "skip",
+        object_placeholder: Optional[str] = None,
+        preserve_breaks: bool = True,
+        annotations: Optional[AnnotationOptions] = None,
+    ) -> str:
+        """Return the paragraph text using the parent extractor's settings."""
+
+        return self._extractor.paragraph_text(
+            self.element,
+            object_behavior=object_behavior,
+            object_placeholder=object_placeholder,
+            preserve_breaks=preserve_breaks,
+            annotations=annotations,
+        )
+
+    def __str__(self) -> str:  # pragma: no cover - convenience only
+        return self.text()
+
+
+class TextExtractor:
+    """High level helper that walks through sections and paragraphs."""
+
+    def __init__(
+        self,
+        source: Union[str, Path, ZipFile],
+        *,
+        namespaces: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        self._source = source
+        self._zip: Optional[ZipFile] = None
+        self._owns_zip = False
+        merged_namespaces = dict(DEFAULT_NAMESPACES)
+        if namespaces:
+            merged_namespaces.update(namespaces)
+        self.namespaces: Dict[str, str] = merged_namespaces
+        # While extract_text runs: every paragraph written so far, including the
+        # ones written inside another paragraph's text (notes, controls, objects).
+        self._written: Optional[set[ET.Element]] = None
+
+    # ------------------------------------------------------------------
+    # Context manager helpers
+    # ------------------------------------------------------------------
+    def open(self) -> ZipFile:
+        """Open the underlying archive if necessary and return it."""
+
+        if self._zip is None:
+            if isinstance(self._source, ZipFile):
+                self._zip = self._source
+                self._owns_zip = False
+            else:
+                self._zip = ZipFile(self._source)  # type: ignore[arg-type]
+                self._owns_zip = True
+            guard_zip_file(self._zip)
+        return self._zip
+
+    def close(self) -> None:
+        """Close the archive when owned by the extractor."""
+
+        if self._zip is not None and self._owns_zip:
+            self._zip.close()
+        self._zip = None
+        self._owns_zip = False
+
+    def __enter__(self) -> "TextExtractor":  # pragma: no cover - trivial
+        self.open()
+        return self
+
+    def __exit__(self, *_exc: object) -> None:  # pragma: no cover - trivial
+        self.close()
+
+    # ------------------------------------------------------------------
+    # Iteration helpers
+    # ------------------------------------------------------------------
+    def iter_sections(self) -> Iterator[SectionInfo]:
+        """Yield :class:`SectionInfo` objects for each section XML entry."""
+
+        archive = self.open()
+        section_files = list(self._iter_section_files(archive))
+        for index, name in enumerate(section_files):
+            data = read_member(archive, name)
+            element = parse_xml_stdlib(data, part_name=name)
+            yield SectionInfo(index=index, name=name, element=element)
+
+    def iter_paragraphs(
+        self,
+        section: SectionInfo,
+        *,
+        include_nested: bool = True,
+    ) -> Iterator[ParagraphInfo]:
+        """Yield paragraphs contained inside *section* in document order."""
+
+        root = section.element
+        parent_map = build_parent_map(root)
+        if include_nested:
+            paragraph_elements = _descendants_by_local(root, "p")
+        else:
+            paragraph_elements = [
+                child
+                for child in root
+                if strip_namespace(child.tag) == "p"
+            ]
+
+        paths = _ElementPaths(parent_map)
+        for index, element in enumerate(paragraph_elements):
+            path = paths.describe(element)
+            hierarchy = tuple(path.split("/"))
+            yield ParagraphInfo(
+                section=section,
+                index=index,
+                element=element,
+                path=path,
+                hierarchy=hierarchy,
+                _extractor=self,
+            )
+
+    def iter_document_paragraphs(
+        self,
+        *,
+        include_nested: bool = True,
+    ) -> Iterator[ParagraphInfo]:
+        """Yield every paragraph across all sections."""
+
+        for section in self.iter_sections():
+            yield from self.iter_paragraphs(section, include_nested=include_nested)
+
+    # ------------------------------------------------------------------
+    # Text helpers
+    # ------------------------------------------------------------------
+    def _is_tab_control(self, element: ET.Element) -> bool:
+        return strip_namespace(element.tag) == "ctrl" and (element.get("id") or "").lower() == "tab"
+
+    def paragraph_text(
+        self,
+        paragraph: ET.Element,
+        *,
+        object_behavior: _ObjectBehavior = "skip",
+        object_placeholder: Optional[str] = None,
+        preserve_breaks: bool = True,
+        annotations: Optional[AnnotationOptions] = None,
+    ) -> str:
+        """Return a string representation of a paragraph element."""
+
+        if self._written is not None:
+            self._written.add(paragraph)
+        fragments: list[str] = []
+        # A highlight opens in one hp:t and may close in a later run's hp:t, so the open ones are the
+        # paragraph's, not the text element's.
+        open_highlights: list[Optional[str]] = []
+        for run in _children_by_local(paragraph, "run"):
+            for child in run:
+                tag = strip_namespace(child.tag)
+                if tag == "t":
+                    self._render_text_element(
+                        child, fragments, annotations, preserve_breaks=preserve_breaks,
+                        highlight_stack=open_highlights,
+                    )
+                elif tag == "lineBreak":
+                    if preserve_breaks:
+                        fragments.append("\n")
+                elif tag == "tab" or self._is_tab_control(child):
+                    fragments.append("\t" if preserve_breaks else " ")
+                elif tag in {"footNote", "endNote"}:
+                    self._handle_note(
+                        child,
+                        fragments,
+                        tag,
+                        annotations=annotations,
+                        preserve_breaks=preserve_breaks,
+                    )
+                elif tag == "ctrl":
+                    self._handle_control(
+                        child,
+                        fragments,
+                        annotations=annotations,
+                        preserve_breaks=preserve_breaks,
+                    )
+                elif tag in _OBJECT_CONTAINERS:
+                    self._handle_object(
+                        child,
+                        fragments,
+                        behavior=object_behavior,
+                        placeholder=object_placeholder,
+                        preserve_breaks=preserve_breaks,
+                        annotations=annotations,
+                    )
+                else:
+                    self._handle_unexpected(
+                        child,
+                        fragments,
+                        behavior=object_behavior,
+                        placeholder=object_placeholder,
+                        preserve_breaks=preserve_breaks,
+                        annotations=annotations,
+                    )
+        self._close_highlights(open_highlights, fragments, annotations)
+        return "".join(fragments)
+
+    def _handle_object(
+        self,
+        element: ET.Element,
+        fragments: list[str],
+        *,
+        behavior: _ObjectBehavior,
+        placeholder: Optional[str],
+        preserve_breaks: bool,
+        annotations: Optional[AnnotationOptions],
+    ) -> None:
+        tag = strip_namespace(element.tag)
+        if behavior == "skip" or behavior is None:
+            return
+        if behavior == "placeholder":
+            placeholder = placeholder or "[{type}]"
+            fragments.append(placeholder.format(type=tag))
+            return
+        if behavior == "nested":
+            for inner_paragraph in _own_paragraphs(element):
+                text = self.paragraph_text(
+                    inner_paragraph,
+                    object_behavior=behavior,
+                    object_placeholder=placeholder,
+                    preserve_breaks=preserve_breaks,
+                    annotations=annotations,
+                )
+                if text:
+                    fragments.append(text)
+                    if preserve_breaks:
+                        fragments.append("\n")
+            if fragments and fragments[-1] == "\n":
+                fragments.pop()
+            return
+        raise ValueError(f"Unsupported object behavior: {behavior!r}")
+
+    def _handle_unexpected(
+        self,
+        element: ET.Element,
+        fragments: list[str],
+        *,
+        behavior: _ObjectBehavior,
+        placeholder: Optional[str],
+        preserve_breaks: bool,
+        annotations: Optional[AnnotationOptions],
+    ) -> None:
+        tag = strip_namespace(element.tag)
+        if tag == "ctrl":
+            self._handle_control(
+                element,
+                fragments,
+                annotations=annotations,
+                preserve_breaks=preserve_breaks,
+            )
+            return
+        if behavior == "placeholder":
+            placeholder = placeholder or "[{type}]"
+            fragments.append(placeholder.format(type=tag))
+        elif behavior == "nested":
+            # Attempt to gather nested paragraph text for unknown containers.
+            for inner_paragraph in _own_paragraphs(element):
+                text = self.paragraph_text(
+                    inner_paragraph,
+                    object_behavior=behavior,
+                    object_placeholder=placeholder,
+                    preserve_breaks=preserve_breaks,
+                    annotations=annotations,
+                )
+                if text:
+                    fragments.append(text)
+                    if preserve_breaks:
+                        fragments.append("\n")
+            if fragments and fragments[-1] == "\n":
+                fragments.pop()
+        else:
+            # Default: ignore the element silently.
+            return
+
+    def _render_text_element(
+        self,
+        element: ET.Element,
+        fragments: list[str],
+        annotations: Optional[AnnotationOptions],
+        *,
+        preserve_breaks: bool = True,
+        highlight_stack: Optional[list[Optional[str]]] = None,
+    ) -> None:
+        lone = highlight_stack is None  # called on a text element by itself: its highlights end with it
+        if highlight_stack is None:
+            highlight_stack = []
+        if element.text:
+            fragments.append(element.text)
+
+        highlight_mode = annotations.highlight if annotations else "ignore"
+
+        for child in element:
+            tag = strip_namespace(child.tag)
+            if tag == "markpenBegin":
+                color = child.get("color") or ""
+                highlight_stack.append(color)
+                if annotations and highlight_mode == "markers":
+                    fragments.append(
+                        annotations.highlight_start.format(color=color or "")
+                    )
+            elif tag == "markpenEnd":
+                if not highlight_stack:  # an end with no begin in this paragraph marks nothing
+                    if child.tail:
+                        fragments.append(child.tail)
+                    continue
+                end_color: str | None = highlight_stack.pop()
+                if annotations and highlight_mode == "markers":
+                    fragments.append(
+                        annotations.highlight_end.format(color=end_color or "")
+                    )
+            elif tag == "lineBreak":
+                # Schema-correct position (ParaList XML schema.xml's TextType
+                # choice — real corpus confirms hp:t nests these, not hp:run
+                # directly): without this branch the marker silently vanished
+                # with no substitute, splicing the text on either side
+                # together with no separator at all.
+                if preserve_breaks:
+                    fragments.append("\n")
+            elif tag == "nbSpace":
+                # U+00A0 NO-BREAK SPACE -- flattens to a plain space when the
+                # caller wants formatting-free text (preserve_breaks=False),
+                # the same rule "tab" follows below.
+                fragments.append(" " if preserve_breaks else " ")
+            elif tag == "fwSpace":
+                # U+3000 IDEOGRAPHIC SPACE (CJK full-width space).
+                fragments.append("　" if preserve_breaks else " ")
+            elif tag == "tab":
+                # A tab Hancom nests inside hp:t (a TOC entry's leader tab
+                # before its page number): the same rule as a run-level tab.
+                fragments.append("\t" if preserve_breaks else " ")
+            elif tag == "hyphen":
+                # U+00AD SOFT HYPHEN -- an optional word-break point,
+                # invisible except where a line actually breaks there;
+                # dropped entirely (not flattened to "-") when formatting is
+                # not wanted.
+                if preserve_breaks:
+                    fragments.append("­")
+            else:
+                self._render_text_element(
+                    child, fragments, annotations, preserve_breaks=preserve_breaks,
+                    highlight_stack=highlight_stack,
+                )
+
+            if child.tail:
+                fragments.append(child.tail)
+
+        if lone:
+            self._close_highlights(highlight_stack, fragments, annotations)
+
+    @staticmethod
+    def _close_highlights(
+        highlight_stack: list[Optional[str]], fragments: list[str], annotations: Optional[AnnotationOptions]
+    ) -> None:
+        """End the highlights still open where their paragraph (or lone text element) ends."""
+
+        while highlight_stack:
+            remaining_color = highlight_stack.pop()
+            if annotations and annotations.highlight == "markers":
+                fragments.append(annotations.highlight_end.format(color=remaining_color or ""))
+
+    def _handle_note(
+        self,
+        element: ET.Element,
+        fragments: list[str],
+        kind: str,
+        *,
+        annotations: Optional[AnnotationOptions],
+        preserve_breaks: bool,
+    ) -> None:
+        if annotations is None:
+            return
+        option = annotations.footnote if kind == "footNote" else annotations.endnote
+        if option == "ignore":
+            return
+
+        kind_name = "footnote" if kind == "footNote" else "endnote"
+        inst_id = element.get("instid") or element.get("instId") or ""
+
+        if option == "placeholder":
+            fragments.append(
+                annotations.note_placeholder.format(kind=kind_name, inst_id=inst_id)
+            )
+            return
+
+        if option == "inline":
+            note_text = _resolve_note_text(
+                self,
+                element,
+                annotations,
+                preserve_breaks=preserve_breaks,
+            )
+            fragments.append(
+                annotations.note_inline_format.format(
+                    kind=kind_name, inst_id=inst_id, text=note_text
+                )
+            )
+
+    def _handle_control(
+        self,
+        element: ET.Element,
+        fragments: list[str],
+        *,
+        annotations: Optional[AnnotationOptions],
+        preserve_breaks: bool,
+    ) -> None:
+        # 실한컴 계약: 각주/미주는 <hp:ctrl> 래핑으로 나타난다 — annotations
+        # 유무와 무관하게 노트 분기로 위임한다(구식 run 직속도 별도 분기 유지).
+        for note_tag in ("footNote", "endNote"):
+            note = _first_child_by_local(element, note_tag)
+            if note is not None:
+                self._handle_note(
+                    note,
+                    fragments,
+                    note_tag,
+                    annotations=annotations,
+                    preserve_breaks=preserve_breaks,
+                )
+                return
+
+        if annotations is None:
+            return
+
+        field_begin = _first_child_by_local(element, "fieldBegin")
+        if field_begin is not None:
+            field_type = field_begin.get("type") or ""
+            if field_type == "HYPERLINK":
+                self._handle_hyperlink(field_begin, fragments, annotations)
+                return
+
+        if _first_child_by_local(element, "fieldEnd") is not None:
+            return
+
+        behavior = annotations.control
+        if behavior == "ignore":
+            return
+        if behavior == "nested":
+            text = _resolve_control_nested_text(
+                self,
+                element,
+                annotations,
+                preserve_breaks=preserve_breaks,
+            )
+            if text:
+                fragments.append(text)
+            return
+        if behavior == "placeholder":
+            first_child = next(iter(element), None)
+            name = strip_namespace(first_child.tag) if first_child is not None else "ctrl"
+            ctrl_type = (
+                first_child.get("type") if first_child is not None else element.get("type")
+            )
+            fragments.append(
+                annotations.control_placeholder.format(name=name, type=ctrl_type or "")
+            )
+
+    def _handle_hyperlink(
+        self,
+        field_begin: ET.Element,
+        fragments: list[str],
+        annotations: AnnotationOptions,
+    ) -> None:
+        behavior = annotations.hyperlink
+        target = _resolve_hyperlink_target(field_begin, self.namespaces)
+        if behavior == "placeholder":
+            fragments.append(
+                annotations.hyperlink_placeholder.format(target=target or "")
+            )
+        elif behavior == "target":
+            if target:
+                fragments.append(
+                    annotations.hyperlink_target_format.format(target=target)
+                )
+
+    def extract_text(
+        self,
+        *,
+        paragraph_separator: str = "\n",
+        skip_empty: bool = True,
+        include_nested: bool = True,
+        object_behavior: _ObjectBehavior = "skip",
+        object_placeholder: Optional[str] = None,
+        preserve_breaks: bool = True,
+        annotations: Optional[AnnotationOptions] = None,
+    ) -> str:
+        """Return the plain text for all paragraphs in the document.
+
+        With ``include_nested`` a paragraph inside a note, control or object is
+        listed on its own only when the text of the paragraph that holds it did
+        not already include it (``footnote="inline"``, ``control="nested"``,
+        ``object_behavior="nested"``), so no text is written twice.
+        """
+
+        texts: list[str] = []
+        written: set[ET.Element] = set()
+        previous, self._written = self._written, written
+        try:
+            for paragraph in self.iter_document_paragraphs(include_nested=include_nested):
+                if paragraph.element in written:
+                    continue
+                text = paragraph.text(
+                    object_behavior=object_behavior,
+                    object_placeholder=object_placeholder,
+                    preserve_breaks=preserve_breaks,
+                    annotations=annotations,
+                )
+                if skip_empty and not text.strip():
+                    continue
+                texts.append(text)
+        finally:
+            self._written = previous
+        return paragraph_separator.join(texts)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _iter_section_files(self, archive: ZipFile) -> Iterator[str]:
+        manifest_path: str | None = None
+        try:
+            container_root = parse_xml_stdlib(
+                read_member(
+                    archive,
+                    "META-INF/container.xml",
+                    limit=MAX_ZIP_SMALL_PART_BYTES,
+                ),
+                part_name="META-INF/container.xml",
+            )
+        except (ValueError, KeyError):
+            container_root = None
+
+        if container_root is not None:
+            rootfiles = parse_container_rootfiles(container_root)
+            main_rootfile, _ = select_main_rootfile(rootfiles)
+            if main_rootfile is not None and main_rootfile.full_path in archive.namelist():
+                manifest_path = main_rootfile.full_path
+
+        if manifest_path is not None:
+            try:
+                manifest_root = parse_xml_stdlib(
+                    read_member(archive, manifest_path, limit=MAX_ZIP_SMALL_PART_BYTES),
+                    part_name=manifest_path,
+                )
+            except (ValueError, KeyError):
+                manifest_root = None
+            if manifest_root is not None:
+                relationships = parse_manifest_relationships(
+                    manifest_root,
+                    manifest_path,
+                    known_parts=archive.namelist(),
+                )
+                items = [path for path in relationships.spine_paths if is_section_part_name(path)]
+                if items:
+                    return iter(items)
+
+        section_files = [name for name in archive.namelist() if is_section_part_name(name)]
+        section_files.sort(key=_section_sort_key)
+        return iter(section_files)
+
+
+# ----------------------------------------------------------------------
+# General XML helpers shared with the object finder
+# ----------------------------------------------------------------------
+
+
+def _resolve_note_text(
+    extractor: "TextExtractor",
+    element: ET.Element,
+    annotations: Optional[AnnotationOptions],
+    *,
+    preserve_breaks: bool,
+) -> str:
+    sub_list = _first_child_by_local(element, "subList")
+    if sub_list is None:
+        return ""
+
+    texts: list[str] = []
+    for inner_paragraph in _descendants_by_local(sub_list, "p"):
+        text = extractor.paragraph_text(
+            inner_paragraph,
+            object_behavior="skip",
+            object_placeholder=None,
+            preserve_breaks=preserve_breaks,
+            annotations=annotations,
+        )
+        if text:
+            texts.append(text)
+
+    joiner = annotations.note_joiner if annotations else " "
+    return joiner.join(texts)
+
+
+def _resolve_control_nested_text(
+    extractor: "TextExtractor",
+    element: ET.Element,
+    annotations: Optional[AnnotationOptions],
+    *,
+    preserve_breaks: bool,
+) -> str:
+    texts: list[str] = []
+    for inner_paragraph in _descendants_by_local(element, "p"):
+        text = extractor.paragraph_text(
+            inner_paragraph,
+            object_behavior="skip",
+            object_placeholder=None,
+            preserve_breaks=preserve_breaks,
+            annotations=annotations,
+        )
+        if text:
+            texts.append(text)
+
+    if not texts:
+        return ""
+    joiner = annotations.control_joiner if annotations else "\n"
+    return joiner.join(texts)
+
+
+def _resolve_hyperlink_target(
+    field_begin: ET.Element,
+    namespaces: Dict[str, str],
+) -> Optional[str]:
+    # Path, else the unescaped Command without its ";1;0;0;" kind tail, else
+    # @name -- one reading for every consumer (hwpx.oxml.hyperlink_form).
+    return hyperlink_target(field_begin) or None
+
+
+def strip_namespace(tag: str) -> str:
+    """Return the local component of an XML tag."""
+
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    return tag
+
+
+def _children_by_local(element: ET.Element, local_name: str) -> list[ET.Element]:
+    return [child for child in list(element) if strip_namespace(child.tag) == local_name]
+
+
+def _descendants_by_local(element: ET.Element, local_name: str) -> list[ET.Element]:
+    return [
+        child
+        for child in element.iter()
+        if child is not element and strip_namespace(child.tag) == local_name
+    ]
+
+
+def _own_paragraphs(element: ET.Element) -> list[ET.Element]:
+    """Paragraphs of *element*'s own sub-lists, in document order.
+
+    Paragraphs inside another paragraph below *element* (a table in a cell, a
+    text box in a text box) are left out: that paragraph writes them itself.
+    """
+    found: list[ET.Element] = []
+    for child in element:
+        if strip_namespace(child.tag) == "p":
+            found.append(child)
+        else:
+            found.extend(_own_paragraphs(child))
+    return found
+
+
+def _first_child_by_local(element: ET.Element, local_name: str) -> ET.Element | None:
+    for child in element:
+        if strip_namespace(child.tag) == local_name:
+            return child
+    return None
+
+
+def tag_matches(candidate: str, query: Union[str, Sequence[str]], namespaces: Mapping[str, str]) -> bool:
+    """Return ``True`` when *candidate* matches *query* according to namespaces."""
+
+    if isinstance(query, Sequence) and not isinstance(query, str):
+        return any(tag_matches(candidate, item, namespaces) for item in query)
+
+    if isinstance(query, str):
+        if query.startswith("{"):
+            return candidate == query
+        if ":" in query:
+            prefix, local = query.split(":", 1)
+            namespace = namespaces.get(prefix)
+            if namespace is None:
+                return False
+            return candidate == f"{{{namespace}}}{local}"
+        return strip_namespace(candidate) == query
+
+    raise TypeError("query must be a string or sequence of strings")
+
+
+def build_parent_map(root: ET.Element) -> Dict[ET.Element, ET.Element]:
+    """Construct a mapping that describes the parent of every node in *root*."""
+
+    return {child: parent for parent in root.iter() for child in parent}
+
+
+def describe_element_path(
+    element: ET.Element,
+    parent_map: Mapping[ET.Element, ET.Element],
+) -> str:
+    """Return an XPath-like representation for *element*."""
+
+    parts: list[str] = []
+    current: Optional[ET.Element] = element
+    while current is not None:
+        parent = parent_map.get(current)
+        local = strip_namespace(current.tag)
+        if parent is None:
+            parts.append(local)
+            break
+        siblings = [child for child in parent if strip_namespace(child.tag) == local]
+        if len(siblings) > 1:
+            index = siblings.index(current)
+            parts.append(f"{local}[{index}]")
+        else:
+            parts.append(local)
+        current = parent
+    return "/".join(reversed(parts))
+
+
+class _ElementPaths:
+    """:func:`describe_element_path` for many elements of one tree.
+
+    Gives the same strings. The position of every child among its same-named siblings is worked
+    out once per parent and the path of a parent is kept, so describing each paragraph of a section
+    no longer lists the section's paragraphs again (which made it quadratic).
+    """
+
+    def __init__(self, parent_map: Mapping[ET.Element, ET.Element]) -> None:
+        self._parent_map = parent_map
+        self._steps: Dict[ET.Element, Dict[ET.Element, str]] = {}
+        self._paths: Dict[ET.Element, str] = {}
+
+    def _step(self, parent: ET.Element, element: ET.Element) -> str:
+        steps = self._steps.get(parent)
+        if steps is None:
+            by_name: Dict[str, list[ET.Element]] = {}
+            for child in parent:
+                by_name.setdefault(strip_namespace(child.tag), []).append(child)
+            steps = {}
+            for local, siblings in by_name.items():
+                if len(siblings) > 1:
+                    for index, child in enumerate(siblings):
+                        steps[child] = f"{local}[{index}]"
+                else:
+                    steps[siblings[0]] = local
+            self._steps[parent] = steps
+        return steps[element]
+
+    def describe(self, element: ET.Element) -> str:
+        known = self._paths.get(element)
+        if known is not None:
+            return known
+        parent = self._parent_map.get(element)
+        if parent is None:
+            path = strip_namespace(element.tag)
+        else:
+            path = f"{self.describe(parent)}/{self._step(parent, element)}"
+        self._paths[element] = path
+        return path
+
+
+def _section_sort_key(name: str) -> Tuple[int, str]:
+    match = _SECTION_PATTERN.match(PurePosixPath(name).name)
+    if match:
+        return (int(match.group(1)), name)
+    return (0, name)

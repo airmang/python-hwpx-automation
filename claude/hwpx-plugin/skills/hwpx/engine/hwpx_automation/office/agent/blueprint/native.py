@@ -1,0 +1,611 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Narrow typed native bridge used only by blueprint replay.
+
+This module accepts validated blueprint records.  It deliberately exposes no
+XML, namespace, package-part, or arbitrary-attribute input.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import Any, cast
+
+from hwpx.document import HwpxDocument
+from hwpx.oxml import HwpxOxmlTableCell
+from hwpx.oxml.namespaces import HH
+from hwpx.oxml.shape_position import line_width_mm_for_units
+
+from ..commands import (
+    _TABLE_ALIGNMENTS,
+    _VERTICAL_ALIGNMENTS,
+    _add,
+    _move_paragraph_into_place,
+    _offset_in,
+    _place_object,
+    _table_caption,
+)
+from ..document import HwpxAgentDocument, NodeRecord
+from ..model import AgentContractError
+
+_HWP_UNITS_PER_MM = 7200 / 25.4
+
+
+def _replay_choice(value: object, choices: frozenset[str], node_id: str, name: str) -> str:
+    """A node property that must be one of *choices* (as ``apply_document_commands`` takes it), or a
+    contract error naming the node and the values it takes."""
+
+    text = str(value).upper()
+    if text not in choices:
+        raise AgentContractError(
+            "invalid_syntax",
+            f"{name} must be one of {sorted(choices)}; got {value!r}",
+            target=node_id,
+        )
+    return text
+_INLINE_KINDS = frozenset({"table", "picture", "shape", "footnote", "endnote"})
+#: Names a blueprint may give a click-here field. Hancom opens the field only
+#: under its own type name, CLICK_HERE.
+_CLICK_HERE_NAMES = frozenset({"FORM", "CLICKHERE", "NURUMTUL", "누름틀"})
+#: What a click-here field's 안내문 cannot hold (python-hwpx ``check_click_here_text``).
+_PROMPT_CONTROLS = re.compile(r"[\t\n\r]")
+
+
+def hancom_field_type(field_type: object) -> str | None:
+    """CLICK_HERE for any name of a click-here field, None for another field type."""
+    normalized = str(field_type or "ClickHere").replace("_", "").replace("-", "").upper()
+    return "CLICK_HERE" if normalized in _CLICK_HERE_NAMES else None
+
+
+@dataclass(frozen=True, slots=True)
+class CreatedBinding:
+    kind: str
+    native: Any
+    native_id: str | None = None
+
+
+def _local_name(element: Any) -> str:
+    return str(getattr(element, "tag", "")).rsplit("}", 1)[-1]
+
+
+def _direct_child(element: Any, kind: str) -> Any | None:
+    return next((child for child in element if _local_name(child) == kind), None)
+
+
+def _mm_units(value: object, default: int) -> int:
+    if value is None:
+        return default
+    return max(1, round(float(cast(Any, value)) * _HWP_UNITS_PER_MM))
+
+
+def _line_width_mm(value: object) -> float:
+    """The blueprint's ``lineWidth`` (HWPUNIT, as ``hp:lineShape/@width`` holds it) as the
+    millimetres ``add_rectangle``/``add_ellipse`` take, so the same HWPUNIT is written back."""
+
+    return line_width_mm_for_units(int(str(value).strip()))
+
+
+def _bool(value: object, default: bool = False) -> bool:
+    return value if isinstance(value, bool) else default
+
+
+def _collision_free_style_name(document: HwpxDocument, base_name: str, source_key: str) -> str:
+    """The blueprint's name, or a suffixed one no style of the target uses yet.
+
+    Core's ``ensure_style`` treats an existing name as the same style and
+    updates it, so the name must be free before the style is created.
+    """
+
+    existing_names = {str(style.name) for style in document.styles.values() if style.name}
+    if base_name not in existing_names:
+        return base_name
+    candidate = f"{base_name}__bp_{source_key.rsplit(':', 1)[-1][:8]}"
+    counter = 2
+    while candidate in existing_names:
+        candidate = f"{base_name}__bp_{source_key.rsplit(':', 1)[-1][:8]}_{counter}"
+        counter += 1
+    return candidate
+
+
+def create_paragraph_style(
+    document: HwpxDocument, properties: dict[str, Any], *, source_key: str
+) -> dict[str, str]:
+    """Create one allow-listed paragraph style with a collision-free name.
+
+    The name policy is this module's; the style record, its id, ``itemCnt`` and
+    the paragraph format it points to are minted by core's ``doc.styles``.
+    """
+
+    if not document.parts.headers:
+        raise AgentContractError("unsupported_content", "target has no style header", target=source_key)
+    if document.oxml.headers[0].element.find(f"{HH}refList/{HH}styles") is None:
+        raise AgentContractError("unsupported_content", "target has no style registry", target=source_key)
+    base_name = str(properties.get("name") or "Blueprint Style")[:200]
+    target_name = _collision_free_style_name(document, base_name, source_key)
+    para_pr_id = document.styles.ensure_paragraph_format(
+        base_para_pr_id_ref="0",
+        alignment=properties.get("alignment"),
+        line_spacing=properties.get("lineSpacingPercent"),
+        break_setting={
+            key: value
+            for key, value in {
+                "keep_with_next": properties.get("keepWithNext"),
+                "page_break_before": properties.get("breakBefore"),
+            }.items()
+            if isinstance(value, bool)
+        }
+        or None,
+    )
+    style_id = document.styles.ensure_style(
+        target_name,
+        style_type=str(properties.get("type") or "PARA"),
+        eng_name=str(properties.get("englishName") or target_name)[:200],
+        para_pr_id_ref=para_pr_id,
+        char_pr_id_ref="0",
+        lang_id=0,
+        lock_form=bool(properties.get("lockForm")),
+    )
+    document.styles.ensure_style(target_name, next_style_id_ref=style_id)
+    return {"styleIDRef": style_id, "paraPrIDRef": para_pr_id, "name": target_name}
+
+
+def create_character_format(document: HwpxDocument, properties: dict[str, Any]) -> str:
+    return document.styles.ensure_run(
+        bold=_bool(properties.get("bold")),
+        italic=_bool(properties.get("italic")),
+        underline=_bool(properties.get("underline")),
+        color=properties.get("color"),
+        size=properties.get("fontSizePt"),
+    )
+
+
+def create_numbering(document: HwpxDocument, properties: dict[str, Any]) -> str:
+    raw_type = str(properties.get("type") or "NUMBER").upper()
+    kind = "bullet" if raw_type == "BULLET" else "number"
+    level = max(0, int(properties.get("level") or 0))
+    refs = document.styles.ensure_numbering(kind=kind, levels=[{} for _ in range(level + 1)])
+    return refs[level]
+
+
+class TypedNativeBridge:
+    """Construct validated blueprint nodes through existing typed primitives."""
+
+    def __init__(
+        self,
+        document: HwpxDocument,
+        manifest: dict[str, Any],
+        dependency_targets: dict[str, dict[str, Any]],
+    ) -> None:
+        self.document = document
+        self.manifest = manifest
+        self.nodes = {str(node["blueprintId"]): node for node in manifest["nodes"]}
+        self.dependency_targets = dependency_targets
+        self.created: dict[str, CreatedBinding] = {}
+        self.references = {
+            (str(item["from"]), str(item["field"])): str(item["to"])
+            for item in manifest["references"]
+        }
+
+    def _dependency(self, node: dict[str, Any], field: str) -> dict[str, Any] | None:
+        refs = list(node[field])
+        if not refs:
+            return None
+        if len(refs) != 1:
+            raise AgentContractError(
+                "invariant_violation", f"{node['kind']} requires at most one {field}", target=node["blueprintId"]
+            )
+        return self.dependency_targets[str(refs[0])]
+
+    def _apply_paragraph_dependencies(self, paragraph: Any, node: dict[str, Any]) -> None:
+        style = self._dependency(node, "styleRefs")
+        if style is not None:
+            paragraph.style_id_ref = style["identity"]["styleIDRef"]
+            paragraph.para_pr_id_ref = style["identity"]["paraPrIDRef"]
+        numbering = self._dependency(node, "numberingRefs")
+        if numbering is not None:
+            definition = self.document.styles.paragraph_property(numbering["identity"]["paraPrIDRef"])
+            heading = definition.heading if definition is not None else None
+            if heading is None or not self.document.parts.headers:
+                raise AgentContractError("invariant_violation", "mapped numbering has no heading")
+            paragraph.para_pr_id_ref = self.document.styles.ensure_paragraph_format(
+                base_para_pr_id_ref=paragraph.para_pr_id_ref,
+                heading={"type": heading.type or "NONE", "idRef": heading.id_ref or 0, "level": heading.level or 0},
+            )
+
+    def _populate_run(self, run: Any, node: dict[str, Any]) -> None:
+        character = self._dependency(node, "styleRefs")
+        if character is not None:
+            run.char_pr_id_ref = character["identity"]["charPrIDRef"]
+        run.text = str(node["properties"].get("text") or "")
+        self.created[str(node["blueprintId"])] = CreatedBinding("run", run)
+
+    def _create_runs(self, paragraph: Any, child_ids: list[str], *, reuse_existing: bool) -> None:
+        run_ids = [child_id for child_id in child_ids if self.nodes[child_id]["kind"] == "run"]
+        existing = list(paragraph.runs) if reuse_existing else []
+        for index, run_id in enumerate(run_ids):
+            node = self.nodes[run_id]
+            if index < len(existing):
+                run = existing[index]
+            else:
+                character = self._dependency(node, "styleRefs")
+                char_ref = character["identity"]["charPrIDRef"] if character is not None else None
+                run = paragraph.add_run("", char_pr_id_ref=char_ref)
+            self._populate_run(run, node)
+        for run in existing[len(run_ids) :]:
+            # Newly created section/cell paragraphs may carry one structural
+            # control run.  Preserve it only when it has non-text children.
+            if all(_local_name(child) in {"t", "tab"} for child in run.element):
+                run.remove()  # python-hwpx (N13)
+
+    def _create_paragraph(
+        self,
+        node_id: str,
+        parent: Any,
+        *,
+        existing: Any | None = None,
+        root_view: HwpxAgentDocument | None = None,
+        root_parent: NodeRecord | None = None,
+        position: dict[str, Any] | None = None,
+    ) -> Any:
+        node = self.nodes[node_id]
+        if existing is not None:
+            paragraph = existing
+            paragraph.clear_text()
+            reuse_existing = True
+        elif isinstance(parent, HwpxOxmlTableCell):
+            paragraph = parent.add_paragraph("")
+            paragraph.clear_text()
+            reuse_existing = True
+        else:
+            paragraph = parent.add_paragraph("", include_run=False, inherit_style=False)
+            reuse_existing = False
+        self._apply_paragraph_dependencies(paragraph, node)
+        if root_view is not None and root_parent is not None and position and position["mode"] != "append":
+            _move_paragraph_into_place(root_view, root_parent, paragraph, position)
+        self.created[node_id] = CreatedBinding("paragraph", paragraph)
+        child_ids = list(node["children"])
+        self._create_runs(paragraph, child_ids, reuse_existing=reuse_existing)
+        non_runs = [child_id for child_id in child_ids if self.nodes[child_id]["kind"] != "run"]
+        if not child_ids:
+            paragraph.text = str(node["properties"].get("text") or "")
+        for child_id in non_runs:
+            self._create_inline_or_table(child_id, paragraph)
+        return paragraph
+
+    def _place(self, node_id: str, paragraph: Any, native: Any) -> None:
+        """Put a made object or note at its character offset (blueprint v2 ``properties.offset``) with
+        python-hwpx's ``move_to``; made in the graph's order, objects at one offset keep that order."""
+
+        offset = self.nodes[node_id]["properties"].get("offset")
+        if offset is None:
+            return  # made at the paragraph's end, where it stays
+        try:
+            try:
+                native.move_to(paragraph, offset=int(offset), keep_order=True)
+            except TypeError:  # a table or a note keeps its order and takes no keep_order
+                native.move_to(paragraph, offset=int(offset))
+        except ValueError as exc:
+            raise AgentContractError(
+                "invariant_violation", f"object offset cannot be placed: {exc}", target=node_id
+            ) from exc
+
+    def _create_table(self, node_id: str, paragraph: Any) -> Any:
+        node = self.nodes[node_id]
+        properties = node["properties"]
+        table = paragraph.add_table(
+            int(properties["rowCount"]),
+            int(properties["columnCount"]),
+            width=_mm_units(properties.get("widthMm"), 7200 * int(properties["columnCount"])),
+        )
+        self._place(node_id, paragraph, table)
+        if properties.get("caption") is not None:
+            _table_caption(table, str(properties["caption"] or ""))
+        if properties.get("alignment"):  # a table paragraph.add_table makes always carries hp:pos
+            alignment = _replay_choice(properties["alignment"], _TABLE_ALIGNMENTS, node_id, "table.alignment")
+            table.set_position(horizontal_alignment=alignment)
+        self.created[node_id] = CreatedBinding("table", table)
+        row_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "row"]
+        if len(row_ids) != len(table.rows):
+            raise AgentContractError("invariant_violation", "table row count does not match graph", target=node_id)
+        cell_layout = self._table_cell_layout(row_ids, int(properties["columnCount"]))
+        for cell_id, row_index, column_index, row_span, column_span in cell_layout:
+            if row_span > 1 or column_span > 1:
+                table.merge_cells(
+                    row_index,
+                    column_index,
+                    row_index + row_span - 1,
+                    column_index + column_span - 1,
+                )
+        for row_id, row in zip(row_ids, table.rows, strict=True):
+            self._bind_row(row_id, row)
+        for cell_id, row_index, column_index, _row_span, _column_span in cell_layout:
+            self._populate_cell(cell_id, table.cell(row_index, column_index))
+        return table
+
+    def _table_cell_layout(
+        self,
+        row_ids: list[str],
+        column_count: int,
+    ) -> list[tuple[str, int, int, int, int]]:
+        occupancy = [[False for _ in range(column_count)] for _ in row_ids]
+        layout: list[tuple[str, int, int, int, int]] = []
+        for row_index, row_id in enumerate(row_ids):
+            column_index = 0
+            cell_ids = [
+                child
+                for child in self.nodes[row_id]["children"]
+                if self.nodes[child]["kind"] == "cell"
+            ]
+            for cell_id in cell_ids:
+                while column_index < column_count and occupancy[row_index][column_index]:
+                    column_index += 1
+                properties = self.nodes[cell_id]["properties"]
+                row_span = int(properties.get("rowSpan") or 1)
+                column_span = int(properties.get("columnSpan") or 1)
+                if (
+                    column_index >= column_count
+                    or row_index + row_span > len(row_ids)
+                    or column_index + column_span > column_count
+                ):
+                    raise AgentContractError(
+                        "invariant_violation",
+                        "table cell spans exceed the declared grid",
+                        target=cell_id,
+                    )
+                for occupied_row in range(row_index, row_index + row_span):
+                    for occupied_column in range(column_index, column_index + column_span):
+                        if occupancy[occupied_row][occupied_column]:
+                            raise AgentContractError(
+                                "invariant_violation",
+                                "table cell spans overlap",
+                                target=cell_id,
+                            )
+                        occupancy[occupied_row][occupied_column] = True
+                layout.append((cell_id, row_index, column_index, row_span, column_span))
+                column_index += column_span
+        if any(not occupied for row in occupancy for occupied in row):
+            raise AgentContractError(
+                "invariant_violation",
+                "table graph does not cover the declared grid",
+            )
+        return layout
+
+    def _bind_row(self, node_id: str, row: Any) -> None:
+        node = self.nodes[node_id]
+        self.created[node_id] = CreatedBinding("row", row)
+        height = node["properties"].get("heightMm")
+        if height is not None:
+            for cell in row.cells:
+                cell.set_size(height=_mm_units(height, cell.height))
+
+    def _populate_row(self, node_id: str, row: Any) -> None:
+        node = self.nodes[node_id]
+        self._bind_row(node_id, row)
+        cell_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "cell"]
+        if len(cell_ids) != len(row.cells):
+            raise AgentContractError("invariant_violation", "table cell count does not match graph", target=node_id)
+        for cell_id, cell in zip(cell_ids, row.cells, strict=True):
+            self._populate_cell(cell_id, cell)
+
+    def _populate_cell(self, node_id: str, cell: Any) -> None:
+        node = self.nodes[node_id]
+        properties = node["properties"]
+        cell.set_span(int(properties.get("rowSpan") or 1), int(properties.get("columnSpan") or 1))
+        sublist = _direct_child(cell.element, "subList")
+        if sublist is not None and properties.get("verticalAlignment"):
+            cell.vertical_alignment = _replay_choice(
+                properties["verticalAlignment"], _VERTICAL_ALIGNMENTS, node_id, "cell.verticalAlignment"
+            )
+        self.created[node_id] = CreatedBinding("cell", cell)
+        paragraph_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "paragraph"]
+        existing = list(cell.paragraphs)
+        for index, paragraph_id in enumerate(paragraph_ids):
+            paragraph = existing[index] if index < len(existing) else None
+            self._create_paragraph(paragraph_id, cell, existing=paragraph)
+        # The cell's paragraphs the graph does not hold go through python-hwpx (N13); a cell keeps one,
+        # which takes the cell's text when the graph has no paragraph for it.
+        for paragraph in existing[max(len(paragraph_ids), 1) :]:
+            paragraph.remove()
+        if not paragraph_ids:
+            cell.text = str(properties.get("text") or "")
+
+    def _create_picture(self, node_id: str, paragraph: Any) -> Any:
+        node = self.nodes[node_id]
+        resource = self._dependency(node, "resourceRefs")
+        if resource is None:
+            raise AgentContractError("invariant_violation", "picture has no mapped resource", target=node_id)
+        properties = node["properties"]
+        picture = paragraph.add_picture(
+            resource["identity"]["binaryItemIDRef"],
+            width=_mm_units(properties.get("widthMm"), 14400),
+            height=_mm_units(properties.get("heightMm"), 14400),
+            alignment=properties.get("alignment"),
+            treat_as_char=_bool(properties.get("treatAsChar"), True),
+        )
+        self._place(node_id, paragraph, picture)
+        if properties.get("altText"):
+            picture.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
+        if properties.get("name"):
+            picture.set_attribute("name", str(properties["name"]))
+        self.created[node_id] = CreatedBinding("picture", picture)
+        return picture
+
+    def _create_shape(self, node_id: str, paragraph: Any) -> Any:
+        node = self.nodes[node_id]
+        properties = node["properties"]
+        shape_type = str(properties.get("shapeType") or "")
+        kwargs = {
+            "width": _mm_units(properties.get("widthMm"), 14400),
+            "height": _mm_units(properties.get("heightMm"), 7200),
+            "line_color": str(properties.get("lineColor") or "#000000"),
+            "line_width_mm": _line_width_mm(properties.get("lineWidth") or "283"),
+            "fill_color": properties.get("fillColor"),
+            "treat_as_char": True,
+        }
+        if shape_type == "rect":
+            shape = paragraph.add_rectangle(ratio=int(properties.get("ratio") or 0), **kwargs)
+        elif shape_type == "ellipse":
+            shape = paragraph.add_ellipse(**kwargs)
+        else:
+            raise AgentContractError("unsupported_content", "shape type is not replayable", target=node_id)
+        self._place(node_id, paragraph, shape)
+        if properties.get("altText"):
+            shape.description = str(properties["altText"])  # hp:shapeComment, as agent set writes it
+        if properties.get("name"):
+            shape.set_attribute("name", str(properties["name"]))
+        self.created[node_id] = CreatedBinding("shape", shape)
+        return shape
+
+    def _create_note(self, node_id: str, paragraph: Any) -> Any:
+        node = self.nodes[node_id]
+        text = str(node["properties"].get("text") or "")
+        note = paragraph.add_footnote(text) if node["kind"] == "footnote" else paragraph.add_endnote(text)
+        self._place(node_id, paragraph, note)
+        self.created[node_id] = CreatedBinding(str(node["kind"]), note)
+        return note
+
+    def _create_form_field(self, node_id: str, paragraph: Any) -> None:
+        """A click-here field over the characters ``[start, end)`` of its paragraph (blueprint v2), made by
+        python-hwpx's ``add_form_field(start=, end=)`` (asks10c, N7): those characters are its value, the
+        ``value`` property its 안내문 as the v1 replay wrote it, ``readOnly`` its editable flag.
+
+        The value may hold a tab or a line break (the field wraps the characters as they are); an 안내문
+        cannot -- python-hwpx refuses one (``field-text-control-unsupported``, no Hancom-saved field has
+        one) and says to pass a space instead. So the 안내문 is the value with each of them as a space."""
+
+        node = self.nodes[node_id]
+        properties = node["properties"]
+        if hancom_field_type(properties.get("fieldType")) is None:
+            raise AgentContractError("unsupported_content", "only FORM fields are replayable", target=node_id)
+        start, end = properties.get("start"), properties.get("end")
+        if not isinstance(start, int) or not isinstance(end, int):
+            raise AgentContractError("invariant_violation", "form field range is incomplete", target=node_id)
+        try:
+            field = paragraph.add_form_field(
+                str(properties.get("name") or "")[:512],
+                prompt=_PROMPT_CONTROLS.sub(" ", str(properties.get("value") or ""))[:4096],
+                editable=not properties.get("readOnly"),
+                start=start,
+                end=end,
+            )
+        except ValueError as exc:
+            raise AgentContractError("invariant_violation", f"form field range cannot be wrapped: {exc}", target=node_id) from exc
+        self.created[node_id] = CreatedBinding("form-field", None, str(field.element.get("id") or ""))
+
+    def _create_inline_or_table(self, node_id: str, paragraph: Any) -> Any:
+        node = self.nodes[node_id]
+        kind = str(node["kind"])
+        if kind == "form-field":
+            self._create_form_field(node_id, paragraph)
+            return None
+        if kind == "table":
+            return self._create_table(node_id, paragraph)
+        if kind == "picture":
+            return self._create_picture(node_id, paragraph)
+        if kind == "shape":
+            return self._create_shape(node_id, paragraph)
+        if kind in {"footnote", "endnote"}:
+            return self._create_note(node_id, paragraph)
+        raise AgentContractError("unsupported_content", f"unsupported paragraph child: {kind}", target=node_id)
+
+    def _create_memo(self, node_id: str, section: Any) -> Any:
+        node = self.nodes[node_id]
+        properties = node["properties"]
+        attrs = {"author": str(properties["author"])} if properties.get("author") else None
+        memo = section.add_memo(str(properties.get("text") or ""), attributes=attrs)
+        self.created[node_id] = CreatedBinding("memo", memo)
+        return memo
+
+    def _create_section(self, node_id: str) -> Any:
+        node = self.nodes[node_id]
+        section = self.document.add_section()
+        properties = node["properties"]
+        size: dict[str, int] = {}
+        if properties.get("pageWidthMm") is not None:
+            size["width"] = _mm_units(properties["pageWidthMm"], 59528)
+        if properties.get("pageHeightMm") is not None:
+            size["height"] = _mm_units(properties["pageHeightMm"], 84189)
+        if size:
+            section.properties.set_page_size(width=size.get("width"), height=size.get("height"))
+        self.created[node_id] = CreatedBinding("section", section)
+        paragraph_ids = [child for child in node["children"] if self.nodes[child]["kind"] == "paragraph"]
+        existing = list(section.paragraphs)
+        for index, paragraph_id in enumerate(paragraph_ids):
+            paragraph = existing[index] if index < len(existing) else None
+            self._create_paragraph(paragraph_id, section, existing=paragraph)
+        for child_id in node["children"]:
+            if self.nodes[child_id]["kind"] == "memo":
+                self._create_memo(child_id, section)
+        return section
+
+    def create_root(
+        self,
+        parent: NodeRecord,
+        position: dict[str, Any],
+        view: HwpxAgentDocument,
+    ) -> dict[str, CreatedBinding]:
+        root_id = str(self.manifest["root"]["blueprintId"])
+        root = self.nodes[root_id]
+        kind = str(root["kind"])
+        if kind == "document":
+            self.created[root_id] = CreatedBinding("document", self.document)
+            for child_id in root["children"]:
+                self._create_section(child_id)
+        elif kind == "section":
+            if position["mode"] != "append":
+                raise AgentContractError("unsupported_operation", "section replay is append-only")
+            self._create_section(root_id)
+        elif kind == "paragraph":
+            self._create_paragraph(
+                root_id,
+                parent.native,
+                root_view=view,
+                root_parent=parent,
+                position=position,
+            )
+        elif kind == "run":
+            # A run is text at a character offset (blueprint v2): python-hwpx's insert_text (N1).
+            character = self._dependency(root, "styleRefs")
+            char_ref = character["identity"]["charPrIDRef"] if character is not None else None
+            offset, _anchor = _offset_in(view, parent, position)
+            runs = parent.native.insert_text(
+                offset, str(root["properties"].get("text") or ""), char_pr_id_ref=char_ref
+            )
+            self.created[root_id] = CreatedBinding("run", runs[0] if runs else None)
+        elif kind in _INLINE_KINDS:
+            native = self._create_inline_or_table(root_id, parent.native)
+            if position["mode"] != "append":
+                _place_object(view, native, parent, position, copy=False, target=root_id)
+        elif kind == "memo":
+            if position["mode"] != "append":
+                raise AgentContractError("unsupported_operation", "memo replay is append-only")
+            self._create_memo(root_id, parent.native)
+        elif kind == "row":
+            properties = root["properties"]
+            created_element = _add(
+                self.document,
+                view,
+                parent,
+                "row",
+                {"cellCount": int(properties["cellCount"]), "heightMm": properties.get("heightMm")},
+                position,
+            )
+            row = next(
+                (candidate for candidate in parent.native.rows if candidate.element is created_element),
+                None,
+            )
+            if row is None:
+                raise AgentContractError("not_found", "replayed row was not materialized", target=root_id)
+            self._populate_row(root_id, row)
+        else:
+            raise AgentContractError("unsupported_content", f"root kind is not replayable: {kind}")
+        return self.created
+
+
+__all__ = [
+    "CreatedBinding",
+    "TypedNativeBridge",
+    "create_character_format",
+    "create_numbering",
+    "create_paragraph_style",
+]

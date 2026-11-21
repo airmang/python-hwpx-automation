@@ -1,0 +1,3103 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Byte-preserving form-fill: address a table cell and splice only its text.
+
+Byte-preserving form-fill work (spec ``specs/011-byte-preserving-formfill``).
+The 2026-07-03 case
+study failed because the only byte-preserving entry point
+(:func:`hwpx.patch.paragraph_patch`) addresses a flat paragraph index that is
+ambiguous inside tables, so an agent could not say "fill cell (r,c) of table T"
+and fell back to rebuilding tables (destroying formatting). This module adds
+cell addressing on top of the same byte machinery:
+
+* locate the ``N``-th ``<hp:tbl>`` (document order) in a section,
+* resolve a logical ``(row, col)`` -- merge aware -- to the covering ``<hp:tc>``,
+* splice **only** that cell's first paragraph text (reusing
+  :func:`hwpx.patch._text_edit_for_paragraph`, which handles empty / self-closing
+  ``<hp:run/>`` / ``<hp:t/>`` cells -- the edge case an early spike hit),
+* strip that paragraph's stale ``<hp:linesegarray>`` so Hancom relayouts,
+* rewrite only the changed section parts through the ZIP partial-patch writer, so
+  every untouched byte of the document round-trips identical (Constitution VII).
+
+Table structure primitives (delete/insert row/column/table) build on the same
+parsing helpers and live alongside this in a follow-up; this file is the cell
+fill (FR-001/FR-002) plus the grid validator (FR-004) they share.
+"""
+from __future__ import annotations
+
+import html
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, Iterable, Mapping, Sequence
+
+from .errors import HwpxError, HwpxTypeError
+from .oxml.table_sizes import COLUMN_FLOOR_EXTRA, GridPositions, effective_cell_margin_source
+from .opc.security import guard_zip_file, read_member, read_zip_members
+from .mutation_report import MutationReport, project_byte_splice
+from .patch import (
+    _LINESEG_ARRAY_RE,
+    _RUN_OPEN_RE,
+    _TEXT_RE,
+    _apply_edits,
+    _escaped_text,
+    _patch_zip_entries,
+    _read_source_bytes,
+    _rewrite_zip_entries,
+    _strip_paragraph_layout_cache,
+    _text_edit_for_paragraph,
+    _finalize,
+)
+
+# --- byte-level table / row / cell parsing (namespace-prefix agnostic) ---------
+
+def _tag(name: str) -> bytes:
+    # match <hp:name  /  <hh:name  /  <name  (any or no prefix)
+    return rb"<(?:[A-Za-z_][\w.-]*:)?" + name.encode() + rb"\b"
+
+def _top_spans(xml: bytes, name: str) -> list[tuple[int, int]]:
+    """Top-level (depth-0) ``<name ...>...</name>`` spans within *xml*.
+
+    Handles same-name nesting by depth counting. Used to find nested tables so
+    they can be masked out before scanning a table's *direct* rows/cells.
+    """
+    open_re = re.compile(_tag(name))
+    close_re = re.compile(rb"</(?:[A-Za-z_][\w.-]*:)?" + name.encode() + rb">")
+    events = sorted(
+        [(m.start(), 1, m.end()) for m in open_re.finditer(xml)]
+        + [(m.start(), -1, m.end()) for m in close_re.finditer(xml)]
+    )
+    spans: list[tuple[int, int]] = []
+    depth = 0
+    start = 0
+    for pos, delta, end in events:
+        if delta == 1:
+            if depth == 0:
+                start = pos
+            depth += 1
+        else:
+            depth -= 1
+            if depth == 0:
+                spans.append((start, end))
+    return spans
+
+def _mask_nested_tables(xml: bytes) -> bytes:
+    """Blank nested ``<hp:tbl>...</hp:tbl>`` with same-length spaces (offset-
+    preserving), so direct-child row/cell scans never descend into them."""
+    out = bytearray(xml)
+    for s, e in _top_spans(xml, "tbl"):
+        out[s:e] = b" " * (e - s)
+    return bytes(out)
+
+_TBL_EVENT_RE = re.compile(_tag("tbl") + rb"|</(?:[A-Za-z_][\w.-]*:)?tbl>")
+
+def _iter_table_spans(section: bytes) -> list[tuple[int, int]]:
+    """Byte spans of every ``<hp:tbl>...</hp:tbl>`` in document order (of open
+    tags), balanced for nesting -- matching the ``table_index`` convention."""
+    spans: list[tuple[int, int]] = []
+    for m in re.finditer(_tag("tbl"), section):
+        start = m.start()
+        depth = 0
+        end = None
+        for t in _TBL_EVENT_RE.finditer(section, start):
+            depth += -1 if t.group().startswith(b"</") else 1
+            if depth == 0:
+                end = t.end()
+                break
+        if end is not None:
+            spans.append((start, end))
+    return spans
+
+def _open_tag_end(table: bytes) -> int:
+    return table.index(b">") + 1
+
+def _iattr(chunk: bytes, name: str, attr: str) -> int | None:
+    m = re.search(_tag(name) + rb'[^>]*\b' + attr.encode() + rb'="(-?\d+)"', chunk)
+    return int(m.group(1)) if m else None
+
+
+@dataclass(frozen=True)
+class _Cell:
+    start: int  # byte offset within the table
+    end: int
+    row: int
+    col: int
+    row_span: int
+    col_span: int
+
+
+def _direct_cells(table: bytes) -> list[_Cell]:
+    """Direct ``<hp:tc>`` of *table* (skips nested-table cells), with byte spans
+    relative to the table and their cellAddr/cellSpan."""
+    open_end = _open_tag_end(table)
+    body_start = open_end
+    body = table[body_start:]
+    masked = _mask_nested_tables(body)
+    cells: list[_Cell] = []
+    positions = GridPositions()
+    for m in re.finditer(rb"<(?:[A-Za-z_][\w.-]*:)?tc\b.*?</(?:[A-Za-z_][\w.-]*:)?tc>", masked, re.DOTALL):
+        own = m.group(0)  # nested tables stay masked during metadata lookup too
+        col = _iattr(own, "cellAddr", "colAddr")
+        row = _iattr(own, "cellAddr", "rowAddr")
+        cspan = _iattr(own, "cellSpan", "colSpan") or 1
+        rspan = _iattr(own, "cellSpan", "rowSpan") or 1
+        if row is None or col is None:
+            continue
+        positions.take(rspan, cspan)  # what the spans in the file may cover in all
+        cells.append(_Cell(body_start + m.start(), body_start + m.end(), row, col, rspan, cspan))
+    return cells
+
+
+@dataclass(frozen=True)
+class GridReport:
+    ok: bool
+    row_count: int
+    col_count: int
+    issues: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"ok": self.ok, "rowCount": self.row_count, "colCount": self.col_count, "issues": list(self.issues)}
+
+
+def build_grid(table: bytes) -> tuple[dict[tuple[int, int], _Cell], GridReport]:
+    """Expand merged cells into a logical grid and check it (FR-004).
+
+    Returns ``{(row, col): cell}`` covering every logical position, plus a report
+    flagging overlaps, holes, and out-of-bounds spans against the table's declared
+    ``rowCnt``/``colCnt``.
+    """
+    cells = _direct_cells(table)
+    declared_rows = _iattr(table, "tbl", "rowCnt")
+    declared_cols = _iattr(table, "tbl", "colCnt")
+    grid: dict[tuple[int, int], _Cell] = {}
+    issues: list[str] = []
+    max_r = max_c = 0
+    for c in cells:
+        for dr in range(c.row_span):
+            for dc in range(c.col_span):
+                key = (c.row + dr, c.col + dc)
+                if key in grid:
+                    issues.append(f"overlap at {key}")
+                grid[key] = c
+                max_r = max(max_r, key[0])
+                max_c = max(max_c, key[1])
+    n_rows = max_r + 1
+    n_cols = max_c + 1
+    for r in range(n_rows):
+        for col in range(n_cols):
+            if (r, col) not in grid:
+                issues.append(f"hole at {(r, col)}")
+    if declared_cols is not None and n_cols != declared_cols:
+        issues.append(f"colCnt {declared_cols} != observed {n_cols}")
+    if declared_rows is not None and n_rows != declared_rows:
+        issues.append(f"rowCnt {declared_rows} != observed {n_rows}")
+    return grid, GridReport(not issues, n_rows, n_cols, tuple(issues))
+
+
+_P_SPAN_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?p\b.*?</(?:[A-Za-z_][\w.-]*:)?p>", re.DOTALL)
+_SQUEEZE_WRAP_RE = re.compile(
+    rb'<(?:[A-Za-z_][\w.-]*:)?subList\b[^>]*?\blineWrap="(?P<value>SQUEEZE)"'
+)
+
+_SUBLIST_EVENT_RE = re.compile(rb"<(/?)(?:[A-Za-z_][\w.-]*:)?subList\b[^>]*?(/?)>")
+
+
+def _mask_cell_objects(cell: bytes) -> bytes:
+    """`_mask_nested_tables`, plus every paragraph list below the cell's own one
+    (a text box's drawText, a footnote or endnote body ...), offset-preserving.
+    The cell's own paragraphs, runs and ``hp:t`` are then found without
+    descending into an object's paragraphs, whose ``</hp:p>`` would otherwise
+    end the enclosing paragraph's span early."""
+    out = bytearray(_mask_nested_tables(cell))
+    depth = 0
+    start = 0
+    for m in _SUBLIST_EVENT_RE.finditer(bytes(out)):
+        if m.group(2):  # <hp:subList/>
+            continue
+        if not m.group(1):
+            depth += 1
+            if depth == 2:
+                start = m.start()
+        else:
+            if depth == 2:
+                out[start:m.end()] = b" " * (m.end() - start)
+            depth -= 1
+    return bytes(out)
+
+
+def _first_paragraph_span(cell: bytes) -> tuple[int, int] | None:
+    """Byte span of the cell's first ``<hp:p>...</hp:p>`` (its own subList's
+    first paragraph), skipping nested table and object content."""
+    m = _P_SPAN_RE.search(_mask_cell_objects(cell))
+    return (m.start(), m.end()) if m else None
+
+def _all_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
+    """Byte spans of every direct ``<hp:p>`` of the cell (its own paragraphs,
+    not those of a nested table or object)."""
+    masked = _mask_cell_objects(cell)
+    return [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
+
+
+_P_OPEN_TAG_RE = re.compile(rb"<(?P<prefix>(?:[A-Za-z_][\w.-]*:)?)p\b[^>]*>")
+
+
+def _cell_text_edits(cell: bytes, text: str, shrink: tuple[str, str] | None) -> tuple[list[tuple[int, int, bytes]], str | None]:
+    """Cell-relative byte edits that make the cell's own visible text *text*.
+
+    Line k goes to the k-th own text paragraph; lines past the last one stay in
+    it as ``hp:lineBreak``; later own paragraphs are emptied, so stale template
+    text does not survive. A paragraph holding a nested table is never
+    re-serialised: only its own ``hp:t`` outside the nested table are emptied
+    and its own line cache dropped, leaving the nested table's bytes unchanged.
+    A paragraph holding an object with its own paragraphs (a text box, a
+    footnote) is treated the same way. A cell whose only paragraphs hold tables
+    gets a new paragraph (the holder's paragraph/char shape) before the first
+    one. Returns ``(edits, first original own text)``; edits are empty when the
+    cell already shows *text*.
+    """
+    masked = _mask_cell_objects(cell)
+    spans = [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
+    holders = [(s, e) for s, e in spans if masked[s:e] != cell[s:e]]
+    targets = [(s, e) for s, e in spans if masked[s:e] == cell[s:e]]
+    lines = text.split("\n")
+    if targets and len(lines) > len(targets):
+        lines = lines[: len(targets) - 1] + ["\n".join(lines[len(targets) - 1:])]
+
+    def remap(paragraph: bytes) -> bytes:
+        if shrink is None:
+            return paragraph
+        base_id, new_id = shrink
+        return re.sub(rb'(charPrIDRef=")' + re.escape(base_id.encode()) + rb'(")', rb"\g<1>" + new_id.encode() + rb"\g<2>", paragraph)
+
+    edits: list[tuple[int, int, bytes]] = []
+    first_orig: str | None = None
+    for idx, (ps, pe) in enumerate(targets):
+        para = cell[ps:pe]
+        line = lines[idx] if idx < len(lines) else ""
+        edit = _text_edit_for_paragraph(para, line)
+        if edit is None:
+            continue
+        _s, _e, replacement, original_text = edit
+        if idx == 0:
+            first_orig = original_text
+        if original_text == line:
+            continue
+        new_para = _strip_paragraph_layout_cache(replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]))
+        edits.append((ps, pe, remap(new_para)))
+
+    # Own text beside a nested table is cleared -- or, when the cell has no other
+    # text paragraph, replaced in place so the cell keeps its layout.
+    pending = text if not targets else ""
+    for hs, he in holders:
+        own = masked[hs:he]
+        found = [m for m in _TEXT_RE.finditer(own) if m.group("text")]
+        if not found:
+            continue
+        original_text = "".join(html.unescape(m.group("text").decode("utf-8", "replace")) for m in found)
+        if not targets and first_orig is None:
+            first_orig = original_text
+        if original_text == pending:
+            pending = ""
+            continue
+        for k, m in enumerate(found):
+            new = _escaped_text(pending, m.group("prefix")) if k == 0 else b""
+            edits.append((hs + m.start("text"), hs + m.end("text"), new))
+        pending = ""
+        edits.extend((hs + m.start(), hs + m.end(), b"") for m in _LINESEG_ARRAY_RE.finditer(own))
+
+    if not targets and holders and pending:
+        hs, he = holders[0]
+        own = masked[hs:he]
+        p_open = _P_OPEN_TAG_RE.match(own)
+        run = _RUN_OPEN_RE.search(own)
+        if p_open is not None:
+            prefix = p_open.group("prefix")
+            open_tag = re.sub(rb'\b(pageBreak|columnBreak)="1"', rb'\1="0"', p_open.group(0))
+            char_pr = re.search(rb'\bcharPrIDRef="[^"]*"', run.group(0)) if run is not None else None
+            run_open = b"<" + prefix + b"run" + ((b" " + char_pr.group(0)) if char_pr else b"") + b">"
+            new_para = (
+                open_tag + run_open
+                + b"<" + prefix + b"t>" + _escaped_text(pending, prefix) + b"</" + prefix + b"t>"
+                + b"</" + prefix + b"run></" + prefix + b"p>"
+            )
+            edits.append((hs, hs, remap(new_para)))
+    return edits, first_orig
+
+
+def _squeeze_wrap_edit(cell: bytes) -> tuple[int, int, bytes] | None:
+    """Return a minimal edit that makes a filled cell wrap instead of squeeze.
+
+    Hancom's ``lineWrap=SQUEEZE`` keeps long replacement text on the existing
+    line by compressing glyph advances.  Template placeholders often fit, but
+    real filled values can become nearly unreadable even though their charPr
+    spacing is normal.  Only the addressed cell's direct subList is considered;
+    nested tables remain untouched.
+    """
+
+    match = _SQUEEZE_WRAP_RE.search(_mask_nested_tables(cell))
+    if match is None:
+        return None
+    return match.start("value"), match.end("value"), b"BREAK"
+
+
+# --- font shrink-to-fit helpers (byte-preserving charPr materialisation) ------
+
+def _header_part_name(parts: Mapping[str, bytes]) -> str | None:
+    return next((n for n in parts if n.endswith("header.xml")), None)
+
+def _charpr_height(header: bytes, cid: str) -> int | None:
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + re.escape(cid.encode()) + rb'"[^>]*?\bheight="(\d+)"', header)
+    return int(m.group(1)) if m else None
+
+def _cell_run_charpr(cell: bytes) -> str | None:
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?run\b[^>]*?\bcharPrIDRef="(\d+)"', cell)
+    return m.group(1).decode() if m else None
+
+_ATTR_RE = re.compile(rb'\b([A-Za-z_][\w.:-]*)="([^"]*)"')
+
+def _open_tag_attrs(chunk: bytes, name: str) -> dict[str, str] | None:
+    m = re.search(_tag(name) + rb"[^>]*", chunk)
+    if m is None:
+        return None
+    return {k.decode(): v.decode() for k, v in _ATTR_RE.findall(m.group(0))}
+
+def _cell_side_margins(table: bytes, cell: bytes) -> int:
+    """The cell's effective left and right margins together (``cell.margins``):
+    the table's ``hp:inMargin`` unless the cell's ``hasMargin`` is on."""
+    own = _mask_nested_tables(cell)  # the cell's own children, not a nested table's
+    body = _mask_nested_tables(table[_open_tag_end(table):])
+    first_row = re.search(_tag("tr"), body)
+    source = effective_cell_margin_source(
+        (_open_tag_attrs(own, "tc") or {}).get("hasMargin"),
+        _open_tag_attrs(own, "cellMargin"),
+        _open_tag_attrs(body[: first_row.start()] if first_row else body, "inMargin"),
+    )
+    return _iattr_value(source, "left") + _iattr_value(source, "right") if source else 0
+
+def _cell_inner_width(table: bytes, cell: bytes) -> int:
+    """Cell width minus the effective left/right margins (:func:`_cell_side_margins`)."""
+    w = _iattr(_mask_nested_tables(cell), "cellSz", "width") or 0
+    return max(w - _cell_side_margins(table, cell), 0)
+
+def _iattr_value(attrs: Mapping[str, str], name: str) -> int:
+    try:
+        return int(attrs.get(name) or 0)
+    except ValueError:
+        return 0
+
+def _materialize_charpr(header: bytes, base_id: str, new_height: int, cache: dict[tuple[str, int], str]) -> tuple[bytes, str]:
+    """Clone charPr *base_id* with *new_height*, append it to the charProperties
+    list (itemCnt bumped), return (new_header, new_charpr_id). Deduped via *cache*."""
+    key = (base_id, new_height)
+    if key in cache:
+        return header, cache[key]
+    bid = re.escape(base_id.encode())
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + bid + rb'".*?</(?:[A-Za-z_][\w.-]*:)?charPr>', header, re.DOTALL)
+    if m is None:
+        m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + bid + rb'"[^>]*/>', header)
+    if m is None:
+        raise KeyError(f"base charPr {base_id} not found")
+    ids = [int(x) for x in re.findall(rb'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="(\d+)"', header)]
+    new_id = str((max(ids) + 1) if ids else 0)
+    clone = re.sub(rb'(\bid=")\d+(")', rb'\g<1>' + new_id.encode() + rb'\g<2>', m.group(0), count=1)
+    if re.search(rb'\bheight="\d+"', clone):
+        clone = re.sub(rb'(\bheight=")\d+(")', rb'\g<1>' + str(new_height).encode() + rb'\g<2>', clone, count=1)
+    close = re.search(rb'</(?:[A-Za-z_][\w.-]*:)?charProperties>', header)
+    if close is None:
+        raise KeyError("charProperties close tag not found")
+    header = header[:close.start()] + clone + header[close.start():]
+    header = re.sub(
+        rb'(<(?:[A-Za-z_][\w.-]*:)?charProperties\b[^>]*?\bitemCnt=")(\d+)(")',
+        lambda mm: mm.group(1) + str(int(mm.group(2)) + 1).encode() + mm.group(3),
+        header, count=1,
+    )
+    cache[key] = new_id
+    return header, new_id
+
+def _shrunk_font_id(header: bytes, table_bytes: bytes, cell_bytes: bytes, text: str, target_lines: int,
+                    min_font_pt: float, cache: dict[tuple[str, int], str]) -> tuple[bytes, str, str] | None:
+    """If *text* needs more than *target_lines* at the cell's base font, decide a
+    shrink (form_fit FitEngine) and materialise it. Returns (new_header, base_id,
+    new_id) or None (no shrink needed / not resolvable)."""
+    from .form_fit.engine import FitEngine
+    from .form_fit.measure import SlotMetrics
+    from .form_fit.policy import FitPolicy
+
+    base_id = _cell_run_charpr(_mask_cell_objects(cell_bytes))  # the cell's own run, not a nested one
+    if base_id is None:
+        return None
+    inner = _cell_inner_width(table_bytes, cell_bytes)
+    base_h = _charpr_height(header, base_id)
+    if not inner or not base_h:
+        return None
+    base_pt = base_h / 100.0
+    slot = SlotMetrics(available_width=inner * 0.94, font_pt=base_pt, max_lines=target_lines)
+    result = FitEngine().fit(text, slot, FitPolicy(mode="wrap_then_shrink", max_lines=target_lines, min_font_pt=min_font_pt))
+    new_pt = result.font_pt
+    if not new_pt or new_pt >= base_pt - 1e-6:
+        return None
+    header, new_id = _materialize_charpr(header, base_id, int(round(new_pt * 100)), cache)
+    return header, base_id, new_id
+
+
+# --- public API ---------------------------------------------------------------
+
+@dataclass(frozen=True)
+class CellApplied:
+    section_path: str
+    table_index: int
+    row: int
+    col: int
+    original_text: str
+    replacement_text: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sectionPath": self.section_path, "tableIndex": self.table_index,
+            "row": self.row, "col": self.col,
+            "originalText": self.original_text, "replacementText": self.replacement_text,
+        }
+
+
+@dataclass(frozen=True)
+class CellSkipped:
+    section_path: str
+    table_index: int
+    row: int
+    col: int
+    reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sectionPath": self.section_path, "tableIndex": self.table_index,
+            "row": self.row, "col": self.col, "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
+class ResolvedCellTarget:
+    """One non-mutating, merge-aware table-cell locator resolution.
+
+    ``logical_row``/``logical_col`` record the address selected by the label
+    semantics.  ``row``/``col`` are the physical ``cellAddr`` coordinates of
+    the covering cell and are therefore the coordinates a semantic document
+    projection can bind to exactly, even when the logical address lands inside
+    a row/column-spanning cell.
+    """
+
+    section_path: str
+    table_index: int
+    logical_row: int
+    logical_col: int
+    row: int
+    col: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sectionPath": self.section_path,
+            "tableIndex": self.table_index,
+            "logicalRow": self.logical_row,
+            "logicalColumn": self.logical_col,
+            "physicalRow": self.row,
+            "physicalColumn": self.col,
+        }
+
+
+@dataclass(frozen=True)
+class CellFillResult:
+    data: bytes
+    applied: tuple[CellApplied, ...]
+    skipped: tuple[CellSkipped, ...]
+    changed_parts: tuple[str, ...]
+    byte_identical: bool
+    zip_method: str
+    open_safety: dict[str, Any]
+    # 구조 op별 해석·검증 결과(승인 근거) — dry-run 상의 루프의 기계 증거.
+    transcript: tuple[dict[str, Any], ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.open_safety.get("ok")) and not self.skipped
+
+    def to_dict(self) -> dict[str, Any]:
+        out = {
+            "ok": self.ok,
+            "applied": [a.to_dict() for a in self.applied],
+            "skipped": [s.to_dict() for s in self.skipped],
+            "changedParts": list(self.changed_parts),
+            "byteIdentical": self.byte_identical,
+            "zipMethod": self.zip_method,
+            "openSafety": self.open_safety,
+        }
+        if self.transcript:
+            out["transcript"] = list(self.transcript)
+        return out
+
+    def as_mutation_report(self, *, source: bytes | str | Path | None = None) -> MutationReport:
+        """Project this cell-fill result onto ``hwpx.mutation-report/v1`` (specs/032
+        §3). Additive — the fields above are untouched. This path never renders,
+        so the visual verdict stays ``not_performed``. Pass the original *source*
+        for real ranges and a measured preservation summary.
+        """
+
+        return project_byte_splice(
+            data=self.data,
+            changed_part_names=self.changed_parts,
+            byte_identical=self.byte_identical,
+            open_safety=self.open_safety,
+            source=source,
+        )
+
+
+# --- FR-002: anchor / heading addressing (byte-level, unique-or-skip) ---------
+#
+# A table can be addressed by the text of its preceding section heading/label
+# ("[6] 평가의 종류와 반영비율", "나. 학기 단위 성취수준") instead of a table_index
+# that delete_table shifts; a cell by an adjacent label ("담당교사" -> right). An
+# anchor that resolves to 0 or >1 targets is SKIPPED with a reason (fail-closed,
+# Constitution VI), never guessed. Resolution is byte-level (no re-serialization).
+
+def _norm_anchor(s: str) -> str:
+    return re.sub(r"[\s\[\]().·,:/\-]+", "", str(s)).lower()
+
+_ANCHOR_T = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t>(.*?)</(?:[A-Za-z_][\w.-]*:)?t>", re.DOTALL)
+_ANCHOR_TR = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?tr\b")
+
+def _text_of(chunk: bytes) -> str:
+    txt = "".join(m.group(1).decode("utf-8", "replace") for m in _ANCHOR_T.finditer(chunk))
+    return re.sub(r"<[^>]+>", "", txt)  # strip inline run markup (markpenEnd, tab, ...)
+
+def _phys_row_count(table: bytes) -> int:
+    return len(_ANCHOR_TR.findall(_mask_nested_tables(table[_open_tag_end(table):])))
+
+def _find_tables_by_anchor(section: bytes, anchor: str, spans: list[tuple[int, int]] | None = None) -> list[int]:
+    """Indices of tables whose preceding-heading window contains *anchor*.
+
+    A table's window runs from the end of the nearest preceding **data** table
+    (>=2 physical rows) up to its own start, so it captures the numbered
+    header-box tables (1-row) and heading paragraphs between them, but not the
+    table's own cells. Bounded to 8 KiB of lookback."""
+    if spans is None:
+        spans = _iter_table_spans(section)
+    na = _norm_anchor(anchor)
+    if not na:
+        return []
+    is_data = [_phys_row_count(section[s:e]) >= 2 for (s, e) in spans]
+    matches: list[int] = []
+    for ti, (s, _e) in enumerate(spans):
+        w_start = 0
+        for j in range(ti - 1, -1, -1):
+            if is_data[j]:
+                w_start = spans[j][1]
+                break
+        w_start = max(w_start, s - 8000)
+        if na in _norm_anchor(_text_of(section[w_start:s])):
+            matches.append(ti)
+    return matches
+
+def _resolve_cell_anchor(
+    table: bytes,
+    label: str,
+    direction: str,
+    *,
+    exact: bool = False,
+) -> list[tuple[int, int]]:
+    """Logical (row, col) of the cell *direction* of the unique cell containing
+    *label*. ``exact=True`` requires normalized equality for canonical planning;
+    the compatibility default retains normalized substring matching. direction
+    in {right,left,below,above}."""
+    grid, _rep = build_grid(table)
+    nl = _norm_anchor(label)
+    if not nl:
+        return []
+    seen: set[tuple[int, int]] = set()
+    targets: list[tuple[int, int]] = []
+    for _key, cell in grid.items():
+        span_id = (cell.start, cell.end)
+        if span_id in seen:
+            continue
+        seen.add(span_id)
+        normalized_cell_text = _norm_anchor(_text_of(table[cell.start:cell.end]))
+        label_matches = normalized_cell_text == nl if exact else nl in normalized_cell_text
+        if label_matches:
+            if direction == "left":
+                tr, tc = cell.row, cell.col - 1
+            elif direction == "below":
+                tr, tc = cell.row + cell.row_span, cell.col
+            elif direction == "above":
+                tr, tc = cell.row - 1, cell.col
+            else:  # right (default)
+                tr, tc = cell.row, cell.col + cell.col_span
+            if (tr, tc) in grid:
+                targets.append((tr, tc))
+    return targets
+
+def _resolve_anchor_cells(
+    parts: Mapping[str, bytes],
+    cells: Sequence[Any],
+    *,
+    exact_cell_labels: bool = False,
+) -> tuple[list[Any], list[CellSkipped]]:
+    """Turn anchor-bearing cell specs into concrete (table_index,row,col) specs.
+    Coordinate specs pass through untouched; unresolvable anchors -> CellSkipped."""
+    out: list[Any] = []
+    skips: list[CellSkipped] = []
+    span_cache: dict[str, list[tuple[int, int]]] = {}
+    for cell in cells:
+        get = cell.get if isinstance(cell, Mapping) else (lambda k, d=None: getattr(cell, k, d))
+        section = str(get("section_path") or get("sectionPath") or "Contents/section0.xml")
+        ti = get("table_index", get("tableIndex"))
+        row, col = get("row"), get("col")
+        tanchor = get("table_anchor") or get("tableAnchor")
+        canchor = get("cell_anchor") or get("cellAnchor")
+        if tanchor is None and canchor is None:
+            out.append(cell)
+            continue
+        sec = parts.get(section)
+        if sec is None:
+            skips.append(CellSkipped(section, -1, -1, -1, "section part not found"))
+            continue
+        spans = span_cache.setdefault(section, _iter_table_spans(sec))
+        if ti is None and tanchor is not None:
+            m = _find_tables_by_anchor(sec, str(tanchor), spans)
+            if len(m) == 1:
+                ti = m[0]
+            elif not m:
+                skips.append(CellSkipped(section, -1, -1, -1, f"table anchor {tanchor!r} matched no table"))
+                continue
+            else:
+                skips.append(CellSkipped(section, -1, -1, -1, f"table anchor {tanchor!r} ambiguous ({len(m)} tables)"))
+                continue
+        if ti is None:
+            skips.append(CellSkipped(section, -1, -1, -1, "cell needs table_index or table_anchor"))
+            continue
+        ti = int(ti)
+        if (row is None or col is None) and canchor is not None:
+            if not (0 <= ti < len(spans)):
+                skips.append(CellSkipped(section, ti, -1, -1, "table out of range for cell anchor"))
+                continue
+            s, e = spans[ti]
+            cget = canchor.get if isinstance(canchor, Mapping) else (lambda k, d=None: getattr(canchor, k, d))
+            label = cget("label") or ""
+            direction = str(cget("dir") or cget("direction") or "right")
+            m2 = _resolve_cell_anchor(
+                sec[s:e],
+                str(label),
+                direction,
+                exact=exact_cell_labels,
+            )
+            if len(m2) == 1:
+                row, col = m2[0]
+            elif not m2:
+                skips.append(CellSkipped(section, ti, -1, -1, f"cell anchor {label!r}/{direction} matched no cell"))
+                continue
+            else:
+                skips.append(CellSkipped(section, ti, -1, -1, f"cell anchor {label!r}/{direction} ambiguous ({len(m2)})"))
+                continue
+        nd: dict[str, Any] = {"section_path": section, "table_index": ti, "row": row, "col": col, "text": get("text")}
+        mx = get("max_lines", get("maxLines"))
+        if mx is not None:
+            nd["max_lines"] = mx
+        out.append(nd)
+    return out, skips
+
+
+def _normalize(cell: Mapping[str, Any] | Any) -> tuple[str, int, int, int, str, int | None]:
+    get = cell.get if isinstance(cell, Mapping) else (lambda k, d=None: getattr(cell, k, d))
+    section = str(get("section_path") or get("sectionPath") or "Contents/section0.xml")
+    table_index = get("table_index", get("tableIndex"))
+    row = get("row")
+    col = get("col")
+    text = get("text")
+    max_lines = get("max_lines", get("maxLines"))
+    if table_index is None or row is None or col is None or text is None:
+        raise ValueError("cell fill requires table_index, row, col, text")
+    return section, int(table_index), int(row), int(col), str(text), (int(max_lines) if max_lines else None)
+
+
+def resolve_cell_target(
+    source: str | Path | bytes,
+    locator: Mapping[str, Any],
+) -> ResolvedCellTarget:
+    """Resolve one existing table/cell locator without mutating the package.
+
+    This is the narrow public planning seam for the same heading/table semantics
+    used by :func:`fill_cells`, with stricter normalized-exact adjacent labels.
+    It deliberately raises instead of returning a guessed target: zero/multiple
+    anchor matches, absent sections, invalid table indices, and out-of-range
+    cells all fail closed.
+    """
+
+    source_bytes = _read_source_bytes(source)
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as archive:
+        guard_zip_file(archive)
+        parts = {
+            info.filename: read_member(archive, info)
+            for info in archive.infolist()
+            if not info.is_dir()
+        }
+
+    # _resolve_anchor_cells also accepts concrete coordinates.  A placeholder
+    # text value is supplied only because its historical fill-cell record shape
+    # includes text; no edit or serialization occurs here.
+    spec = dict(locator)
+    spec.setdefault("text", "")
+    # Mixed-form planning is a canonical, fail-closed path: after whitespace
+    # and punctuation normalization, a cell label must be exactly equal.  The
+    # older fill_cells compatibility path deliberately keeps substring matching.
+    resolved, skipped = _resolve_anchor_cells(parts, [spec], exact_cell_labels=True)
+    if skipped:
+        raise ValueError(skipped[0].reason)
+    if len(resolved) != 1:
+        raise ValueError("cell locator did not resolve exactly one target")
+
+    section_path, table_index, logical_row, logical_col, _text, _max_lines = _normalize(
+        resolved[0]
+    )
+    section = parts.get(section_path)
+    if section is None:
+        raise ValueError("section part not found")
+    spans = _iter_table_spans(section)
+    if not 0 <= table_index < len(spans):
+        raise ValueError("table_index out of range")
+    start, end = spans[table_index]
+    grid, report = build_grid(section[start:end])
+    if not report.ok:
+        raise ValueError("table grid is invalid: " + "; ".join(report.issues[:5]))
+    cell = grid.get((logical_row, logical_col))
+    if cell is None:
+        raise ValueError("cell address out of range")
+    return ResolvedCellTarget(
+        section_path=section_path,
+        table_index=table_index,
+        logical_row=logical_row,
+        logical_col=logical_col,
+        row=cell.row,
+        col=cell.col,
+    )
+
+
+def fill_cells(
+    source: str | Path | bytes,
+    cells: Sequence[Mapping[str, Any] | Any],
+    *,
+    output_path: str | Path | None = None,
+    fit_max_lines: int | None = None,
+    min_font_pt: float = 8.0,
+) -> CellFillResult:
+    """Byte-preserving fill of table cells by ``(table_index, row, col)`` address.
+
+    Only the addressed cells' first-paragraph text is spliced; the stale
+    ``<hp:linesegarray>`` of each edited paragraph is stripped. Untouched section
+    parts and untouched tables round-trip byte-identical. Empty / self-closing
+    cells are filled (text inserted), never silently reported as done. An
+    unresolvable address is reported in ``skipped`` and mutates nothing.
+
+    **Font shrink-to-fit** (optional): when ``fit_max_lines`` is set (or a cell
+    carries ``max_lines``), a cell whose text would wrap past that many lines at
+    its template font is shrunk — the smallest font ``>= min_font_pt`` that fits
+    (form_fit FitEngine) is materialised as a real ``charPr`` and the cell's run
+    points at it. Column widths and the rest of the document are untouched.
+    """
+    source_bytes = _read_source_bytes(source)
+    if not cells:
+        open_safety, _ = _finalize(source_bytes, output_path, source=source)
+        return CellFillResult(source_bytes, (), (), (), True, "none", open_safety)
+
+    import io
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
+        guard_zip_file(zf)
+        parts = read_zip_members(zf)
+
+    # FR-002: resolve table/cell anchors to concrete (table_index,row,col) first.
+    resolved_cells, anchor_skips = _resolve_anchor_cells(parts, cells)
+    specs = [_normalize(c) for c in resolved_cells]
+
+    header_name = _header_part_name(parts)
+    header_xml = parts.get(header_name) if header_name else None
+    charpr_cache: dict[tuple[str, int], str] = {}
+    header_changed = False
+
+    applied: list[CellApplied] = []
+    skipped: list[CellSkipped] = list(anchor_skips)
+    by_section: dict[str, list[tuple[int, int, int, str, int | None]]] = {}
+    for section, ti, row, col, text, mx in specs:
+        by_section.setdefault(section, []).append((ti, row, col, text, mx))
+
+    if not by_section:
+        # every spec was an unresolvable anchor -> source unchanged, skips reported.
+        open_safety, _ = _finalize(source_bytes, output_path, source=source)
+        return CellFillResult(source_bytes, tuple(applied), tuple(skipped), (), True, "none", open_safety)
+
+    changed_parts: dict[str, bytes] = {}
+    for section_path, section_specs in by_section.items():
+        section_xml = parts.get(section_path)
+        if section_xml is None:
+            skipped.extend(CellSkipped(section_path, ti, r, c, "section part not found") for ti, r, c, _t, _m in section_specs)
+            continue
+        table_spans = _iter_table_spans(section_xml)
+        # accumulate byte edits over the whole section (table region splices)
+        section_edits: list[tuple[int, int, bytes]] = []
+        occupied: set[tuple[int, int]] = set()  # filled cell spans (merge-collision guard)
+        # One grid per table: the section's bytes stay as read until every edit is collected,
+        # so each address in the same table reads the same table bytes.
+        grids: dict[int, tuple[bytes, dict[tuple[int, int], _Cell], GridReport]] = {}
+        for ti, row, col, text, mx in section_specs:
+            if ti < 0 or ti >= len(table_spans):
+                skipped.append(CellSkipped(section_path, ti, row, col, "table_index out of range"))
+                continue
+            ts, te = table_spans[ti]
+            built = grids.get(ti)
+            if built is None:
+                table = section_xml[ts:te]
+                built = grids[ti] = (table, *build_grid(table))
+            table, grid, report = built
+            if not report.ok:
+                skipped.append(CellSkipped(section_path, ti, row, col, "table grid is invalid: " + "; ".join(report.issues[:5])))
+                continue
+            cell = grid.get((row, col))
+            if cell is None:
+                skipped.append(CellSkipped(section_path, ti, row, col, "cell address out of range"))
+                continue
+            cell_bytes = table[cell.start:cell.end]
+            p_spans = _all_paragraph_spans(cell_bytes)
+            if not p_spans:
+                skipped.append(CellSkipped(section_path, ti, row, col, "cell has no paragraph"))
+                continue
+            # Font shrink-to-fit: a cell with a max-lines target whose text would
+            # wrap past it gets its run pointed at a smaller (materialised) charPr.
+            shrink: tuple[str, str] | None = None
+            target = mx or fit_max_lines
+            if target and header_xml is not None and text.strip():
+                res = _shrunk_font_id(header_xml, table, cell_bytes, text, target, min_font_pt, charpr_cache)
+                if res is not None:
+                    header_xml, base_id, new_id = res
+                    header_changed = True
+                    shrink = (base_id, new_id)
+            # Replace the WHOLE cell's own visible text with `text` (stale multi-line
+            # template content — e.g. stacked 성취기준 codes — does not survive);
+            # a nested table in the cell keeps its bytes (_cell_text_edits).
+            edits, first_orig = _cell_text_edits(cell_bytes, text, shrink)
+            if not edits:
+                continue
+            span = (ts + cell.start, ts + cell.end)
+            if span in occupied:
+                skipped.append(CellSkipped(section_path, ti, row, col, "cell shares a merged region already filled by an earlier address"))
+                continue
+            occupied.add(span)
+            cell_edits = [(ts + cell.start + s, ts + cell.start + e, b) for s, e, b in edits]
+            # A template's short placeholder may legitimately fit under
+            # lineWrap=SQUEEZE, while a real filled value is compressed until
+            # glyphs appear to overlap.  Changed non-empty values must wrap and
+            # reflow; preserve SQUEEZE for no-op/clear operations.
+            if text.strip():
+                wrap_edit = _squeeze_wrap_edit(cell_bytes)
+                if wrap_edit is not None:
+                    ws, we, replacement = wrap_edit
+                    section_edits.append(
+                        (ts + cell.start + ws, ts + cell.start + we, replacement)
+                    )
+            section_edits.extend(cell_edits)
+            applied.append(CellApplied(section_path, ti, row, col, first_orig or "", text))
+        if section_edits:
+            new_section = _apply_edits(section_xml, section_edits)
+            if new_section != section_xml:
+                changed_parts[section_path] = new_section
+
+    if header_changed and header_name and header_xml is not None:
+        changed_parts[header_name] = header_xml
+
+    if not changed_parts:
+        open_safety, _ = _finalize(source_bytes, output_path, source=source)
+        return CellFillResult(source_bytes, tuple(applied), tuple(skipped), (), True, "none", open_safety)
+
+    try:
+        output = _patch_zip_entries(source_bytes, changed_parts)
+        zip_method = "partial-local-record-copy"
+    except ValueError:
+        output = _rewrite_zip_entries(source_bytes, changed_parts)
+        zip_method = "zipfile-rewrite-fallback"
+    open_safety, _ = _finalize(output, output_path, source=source)
+    return CellFillResult(
+        output, tuple(applied), tuple(skipped), tuple(changed_parts),
+        output == source_bytes, zip_method, open_safety,
+    )
+
+
+# --- table structure primitives (FR-003/FR-004) ------------------------------
+#
+# A structure edit is performed on the isolated table's *decoded* XML (str), then
+# the produced table replaces ONLY that table's byte span in the section, so every
+# other byte round-trips identical (Constitution VII). The edited table itself is
+# re-serialised (its byte identity is intentionally forfeit -- it is the thing you
+# changed). Every op is grid-validated afterwards and refuses (raises) on an
+# invalid result (fail-closed, Constitution VI). A table nested in a cell is
+# hidden behind a marker for the edit (_hide_nested_tables) and put back byte
+# for byte, so it moves, stays or goes with its cell but is never re-parsed.
+
+_S_TR = re.compile(r"<hp:tr\b.*?</hp:tr>", re.DOTALL)
+_S_TC = re.compile(r"<hp:tc\b.*?</hp:tc>", re.DOTALL)
+_NESTED_MARK_RE = re.compile(r"<!--hwpx-nested-table:(\d+)-->")
+_S_TBL_EVENT_RE = re.compile(r"<(/?)(?:[A-Za-z_][\w.-]*:)?tbl\b")
+
+
+class TableStructureError(HwpxError, ValueError):
+    """A structure edit was refused (fail-closed) or is unsupported.
+
+    Structured on :class:`~hwpx.errors.HwpxError` (``code="table-structure"``)
+    while still subclassing :class:`ValueError` for backward compatibility. The
+    many string-only raise sites keep working and gain the ``code``/``context``/
+    ``suggestion`` fields via the base default.
+    """
+
+    default_code = "table-structure"
+
+
+def _si(chunk: str, tag: str, attr: str) -> int | None:
+    m = re.search(rf'<hp:{tag}\b[^>]*\b{attr}="(-?\d+)"', chunk)
+    return int(m.group(1)) if m else None
+
+
+def _ss(chunk: str, tag: str, attr: str, val: int) -> str:
+    return re.sub(rf'(<hp:{tag}\b[^>]*\b{attr}=")-?\d+(")', rf"\g<1>{val}\g<2>", chunk, count=1)
+
+
+def _hide_nested_tables(table: str) -> tuple[str, list[str]]:
+    """*table* with every table nested in its cells replaced by a marker comment,
+    plus those tables in marker order (see :func:`_restore_nested_tables`)."""
+    if _NESTED_MARK_RE.search(table):
+        raise TableStructureError("table already holds a nested-table marker")
+    body = table.index(">") + 1
+    nested: list[str] = []
+    parts: list[str] = [table[:body]]
+    depth, start, last = 0, 0, body
+    for m in _S_TBL_EVENT_RE.finditer(table, body):
+        if not m.group(1):
+            if depth == 0:
+                start = m.start()
+            depth += 1
+            continue
+        depth -= 1
+        if depth == 0:
+            end = table.index(">", m.end()) + 1
+            parts.append(table[last:start] + f"<!--hwpx-nested-table:{len(nested)}-->")
+            nested.append(table[start:end])
+            last = end
+        elif depth < 0:  # the table's own closing tag
+            break
+    parts.append(table[last:])
+    return "".join(parts), nested
+
+
+def _clone_nested_table(table: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """A copy of nested *table* for a cloned cell, copied as :func:`_clone_content` copies a
+    cell's content: the table, like a pasted one, takes a fresh ``id`` and a ``zOrder`` on top."""
+    return _clone_content(table, fresh_id)
+
+
+def _restore_nested_tables(table: str, nested: Sequence[str], *, used_ids: set[int] | None = None) -> str:
+    """Put back the tables :func:`_hide_nested_tables` hid. An edit that dropped a
+    marker dropped that table with its cell; a marker it copied (a cloned cell)
+    gets a copy of the table with fresh ids (:func:`_clone_nested_table`)."""
+    seen: dict[int, int] = {}
+    fresh_id = _fresh_ids(table + "".join(nested), used_ids)
+
+    def put(match: re.Match[str]) -> str:
+        k = int(match.group(1))
+        seen[k] = seen.get(k, -1) + 1
+        return nested[k] if not seen[k] else _clone_nested_table(nested[k], fresh_id)
+
+    return _NESTED_MARK_RE.sub(put, table)
+
+
+def _with_nested_hidden(table: str, edit: Callable[[str], Any], *, used_ids: set[int] | None = None) -> Any:
+    """Run *edit* on *table* with nested tables hidden; restore them in its result
+    (a table string or a tuple of them, which a nested table goes to only once)."""
+    hidden, nested = _hide_nested_tables(table)
+    if not nested:
+        return edit(table)
+    result = edit(hidden)
+    if isinstance(result, tuple):
+        marks = [m for part in result for m in _NESTED_MARK_RE.findall(part)]
+        if len(marks) != len(set(marks)):
+            raise TableStructureError("a nested table would land in both halves")
+        return tuple(_restore_nested_tables(part, nested, used_ids=used_ids) for part in result)
+    return _restore_nested_tables(result, nested, used_ids=used_ids)
+
+
+def _guard_flat(table: str) -> None:
+    """Refuse a table structure edits cannot handle: one holding a table, or one with a
+    cell missing the address or size OWPML requires of it."""
+    # the table's own <hp:tbl> plus any nested ones; >1 open == nested
+    if len(re.findall(r"<hp:tbl\b", table)) > 1:
+        raise TableStructureError("nested tables are unsupported for structure edits")
+    for tc in _S_TC.findall(table):
+        if None in (_si(tc, "cellAddr", "colAddr"), _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSz", "width")):
+            raise TableStructureError(
+                "a cell without hp:cellAddr or hp:cellSz is unsupported for structure edits"
+            )
+
+
+def _parse_table(table: str) -> tuple[str, list[str], str]:
+    first = table.index("<hp:tr")
+    last = table.rindex("</hp:tr>") + len("</hp:tr>")
+    return table[:first], _S_TR.findall(table[first:last]), table[last:]
+
+
+def _rebuild(prefix: str, rows: list[str], suffix: str, *, rowcnt: int | None = None, colcnt: int | None = None) -> str:
+    out = prefix + "".join(rows) + suffix
+    if rowcnt is not None:
+        out = re.sub(r'(<hp:tbl\b[^>]*\browCnt=")\d+(")', rf"\g<1>{rowcnt}\g<2>", out, count=1)
+    if colcnt is not None:
+        out = re.sub(r'(<hp:tbl\b[^>]*\bcolCnt=")\d+(")', rf"\g<1>{colcnt}\g<2>", out, count=1)
+    return out
+
+
+def _map_cells(row: str, fn) -> str:
+    parts, last = [], 0
+    for m in _S_TC.finditer(row):
+        parts.append(row[last:m.start()])
+        r = fn(m.group(0))
+        if r is not None:
+            parts.append(r)
+        last = m.end()
+    parts.append(row[last:])
+    return "".join(parts)
+
+
+def _uniform_col_widths(rows: list[str]) -> dict[int, int] | None:
+    """Column widths from the first row whose cells are all one column wide and
+    cover every column. A row whose right-hand columns are covered by a cell
+    merged down from an earlier row does not qualify."""
+    ncol = _grid_width(rows)
+    for row in rows:
+        w: dict[int, int] = {}
+        ok = True
+        for tc in _S_TC.findall(row):
+            if (_si(tc, "cellSpan", "colSpan") or 1) != 1:
+                ok = False
+                break
+            col_addr = _si(tc, "cellAddr", "colAddr")
+            width = _si(tc, "cellSz", "width")
+            assert col_addr is not None and width is not None  # required hp:tc attrs
+            w[col_addr] = width
+        if ok and w and len(w) == ncol and max(w) + 1 == ncol:
+            return w
+    return None
+
+
+def _grid_width(rows: list[str]) -> int:
+    """Columns the cells of *rows* cover: the largest ``colAddr + colSpan``."""
+    width = 0
+    for row in rows:
+        for tc in _S_TC.findall(row):
+            col_addr = _si(tc, "cellAddr", "colAddr") or 0
+            width = max(width, col_addr + (_si(tc, "cellSpan", "colSpan") or 1))
+    return width
+
+
+def _grid_col_widths(table: str) -> dict[int, int] | None:
+    """Per-column widths derived from the *merged* grid (FR-003) — for tables that
+    have no single uniform ``colSpan==1`` row (e.g. the 반영비율 반영표).
+
+    Every ``colSpan==1`` cell gives its column's width exactly; a remaining column
+    that is only ever spanned takes an even split of a covering cell's width across
+    its still-unknown columns. Returns ``None`` (fail-closed) if any logical column
+    stays underivable, so :func:`_delete_columns` refuses rather than guessing.
+    """
+    tb = table.encode("utf-8")
+    _grid, rep = build_grid(tb)
+    ncol = rep.col_count
+    cells = _direct_cells(tb)
+    widths: dict[int, int] = {}
+    for c in cells:
+        w = _iattr(tb[c.start:c.end], "cellSz", "width")
+        if c.col_span == 1 and w:
+            widths[c.col] = w
+    for c in cells:  # fill columns only ever covered by a spanning cell
+        w = _iattr(tb[c.start:c.end], "cellSz", "width")
+        if c.col_span > 1 and w:
+            span = range(c.col, c.col + c.col_span)
+            unknown = [x for x in span if x not in widths]
+            if unknown:
+                known = sum(widths[x] for x in span if x in widths)
+                each = max(1, (w - known) // len(unknown))
+                for i, x in enumerate(unknown):
+                    widths[x] = each + ((w - known) - each * len(unknown) if i == len(unknown) - 1 else 0)
+    if any(c not in widths for c in range(ncol)):
+        return None
+    return widths
+
+
+def _delete_columns(table: str, del_cols: Iterable[int]) -> str:
+    _guard_flat(table)
+    del_cols = sorted(set(del_cols))
+    if not del_cols:
+        return table
+    dmax = del_cols[-1]
+    prefix, rows, suffix = _parse_table(table)
+    widths = _uniform_col_widths(rows)
+    if widths is None:
+        # FR-003: no uniform colSpan==1 row -> derive widths from the merged grid.
+        widths = _grid_col_widths(table)
+    if widths is None:
+        raise TableStructureError(
+            "delete_column: no uniform (all colSpan=1) row and merged grid widths "
+            "are underivable -- refusing (fail-closed). Fallback: split the merged "
+            "header cell that straddles the dropped column manually, then retry."
+        )
+    ncol = max(widths) + 1
+    freed = sum(widths[c] for c in del_cols)
+    survivors = [c for c in range(ncol) if c not in del_cols]
+    if not survivors:
+        raise TableStructureError(
+            "delete_column: deleting every column would leave no table -- delete the table instead "
+            "(table.remove(), or the delete_table op of apply_table_ops)",
+            suggestion="표를 통째로 지우려면 table.remove() 를 쓰세요(바이트 편집은 apply_table_ops 의 "
+            "{'op': 'delete_table'}).",
+        )
+    targets = [c for c in survivors if c > dmax and c != survivors[-1]] or survivors
+    add, rem = divmod(freed, len(targets))
+    nw = {c: widths[c] for c in survivors}
+    for i, c in enumerate(targets):
+        nw[c] += add + (1 if i < rem else 0)
+    newidx = {c: i for i, c in enumerate(survivors)}
+
+    def fix(tc: str):
+        ca = _si(tc, "cellAddr", "colAddr")
+        cs = _si(tc, "cellSpan", "colSpan") or 1
+        assert ca is not None  # required hp:tc attr
+        surv = [c for c in range(ca, ca + cs) if c not in del_cols]
+        if not surv:
+            return None
+        tc = _ss(tc, "cellAddr", "colAddr", newidx[surv[0]])
+        tc = _ss(tc, "cellSpan", "colSpan", len(surv))
+        tc = _ss(tc, "cellSz", "width", sum(nw[c] for c in surv))
+        return tc
+
+    rows = [_map_cells(r, fix) for r in rows]
+    return _rebuild(_drop_zone_lines(prefix, "Col", del_cols), rows, suffix, colcnt=len(survivors))
+
+
+def _collapse_empty_rows(table: str) -> str:
+    """Cascade: drop physical rows left with 0 cells (e.g. a row that existed only
+    for a now-deleted column block), collapsing rowSpans that crossed them."""
+    prefix, rows, suffix = _parse_table(table)
+    while True:
+        empty = next((i for i, r in enumerate(rows) if not _S_TC.findall(r)), None)
+        if empty is None:
+            break
+        heights = []
+        for r in rows:
+            for tc in _S_TC.findall(r):
+                ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+                assert ra is not None  # required hp:tc attr
+                if ra < empty < ra + rs:
+                    h = _si(tc, "cellSz", "height")
+                    if h:
+                        heights.append(h // rs)
+        drop_h = min(heights) if heights else 0
+
+        def fix(tc: str):
+            ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+            assert ra is not None and empty is not None  # required hp:tc attr / closure narrowing
+            if ra < empty < ra + rs:
+                tc = _ss(tc, "cellSpan", "rowSpan", rs - 1)
+                h = _si(tc, "cellSz", "height")
+                if h and drop_h:
+                    tc = _ss(tc, "cellSz", "height", max(1, h - drop_h))
+            elif ra > empty:
+                tc = _ss(tc, "cellAddr", "rowAddr", ra - 1)
+            return tc
+
+        rows = [_map_cells(r, fix) for i, r in enumerate(rows) if i != empty]
+        prefix = _collapse_zone_line(prefix, "Row", empty)
+    rowcnt = len(rows)
+    return _rebuild(prefix, rows, suffix, rowcnt=rowcnt)
+
+
+def _collapse_zone_line(prefix: str, axis: str, removed: int) -> str:
+    """The ``hp:cellzone`` entries of a table head with row (*axis* ``"Row"``) or column
+    ``"Col"`` *removed* folded into its neighbours, as a cell merge folds a line no cell
+    starts at: the cells across it stay, so no zone goes."""
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None:
+            return zone
+        start = start - 1 if start > removed else start
+        end = max(end - 1 if end >= removed and end > 0 else end, start)
+        return _ss(_ss(zone, "cellzone", f"start{axis}Addr", start), "cellzone", f"end{axis}Addr", end)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
+
+
+def _physical_row_height(rows: Sequence[str], row: int) -> int | None:
+    """Return the exact height of a physical row when direct cells expose it.
+
+    A physical row can contain several ``rowSpan==1`` cells with different
+    ``cellSz`` heights.  Hancom uses the tallest direct cell as the row height;
+    shorter values can belong to sparse/covered-looking cells.  ``None`` means
+    the row is covered entirely by vertical merges and remains underivable.
+    """
+    heights: list[int] = []
+    for physical_row in rows:
+        for tc in _S_TC.findall(physical_row):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            height = _si(tc, "cellSz", "height")
+            if ra == row and rs == 1 and height is not None and height > 0:
+                heights.append(height)
+    return max(heights) if heights else None
+
+
+def _delete_rows(table: str, del_rows: Iterable[int]) -> str:
+    """Delete physical rows by index, reconciling rowAddr/rowSpan and covering
+    cells' height."""
+    _guard_flat(table)
+    del_rows = sorted(set(del_rows), reverse=True)
+    prefix, rows, suffix = _parse_table(table)
+    if set(range(len(rows))) <= set(del_rows):
+        raise TableStructureError(
+            "delete_row: deleting every row would leave no table -- delete the table instead "
+            "(table.remove(), or the delete_table op of apply_table_ops)",
+            suggestion="표를 통째로 지우려면 table.remove() 를 쓰세요(바이트 편집은 apply_table_ops 의 "
+            "{'op': 'delete_table'}).",
+        )
+    for empty in del_rows:
+        if empty >= len(rows):
+            raise TableStructureError(f"row index {empty} out of range")
+        exact_height = _physical_row_height(rows, empty)
+        heights = []
+        for r in rows:
+            for tc in _S_TC.findall(r):
+                ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+                assert ra is not None  # required hp:tc attr
+                if ra <= empty < ra + rs and rs > 1:
+                    h = _si(tc, "cellSz", "height")
+                    if h:
+                        heights.append(h // rs)
+        # Prefer the exact physical-row height.  Fully merged rows expose no
+        # rowSpan==1 cell, so preserve the previous conservative estimate there.
+        drop_h = exact_height if exact_height is not None else (min(heights) if heights else 0)
+
+        def fix(tc: str):
+            ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+            assert ra is not None  # required hp:tc attr
+            if ra <= empty < ra + rs:
+                if rs > 1:
+                    tc = _ss(tc, "cellSpan", "rowSpan", rs - 1)
+                    h = _si(tc, "cellSz", "height")
+                    if h and drop_h:
+                        tc = _ss(tc, "cellSz", "height", max(1, h - drop_h))
+                    return tc
+                return None  # single-row cell in the deleted row -> drop
+            if ra > empty:
+                tc = _ss(tc, "cellAddr", "rowAddr", ra - 1)
+            return tc
+
+        rows = [_map_cells(r, fix) for i, r in enumerate(rows)]
+        # What is left in the deleted row are the cells merged down from it: they
+        # move into the next row, one row shorter, content kept (as Hancom does).
+        moved = _S_TC.findall(rows[empty])
+        if moved and empty + 1 < len(rows):
+            for cell in moved:
+                rows[empty + 1] = _insert_tc_in_order(rows[empty + 1], cell, _si(cell, "cellAddr", "colAddr") or 0)
+        rows = [r for i, r in enumerate(rows) if i != empty]
+    return _rebuild(_drop_zone_lines(prefix, "Row", del_rows), rows, suffix, rowcnt=len(rows))
+
+
+def _reorder_rows(table: str, order: Sequence[int]) -> str:
+    """물리 행 재배열 — 편집기 [표>정렬…] 대응의 엔진 프리미티브.
+
+    *order*는 현재 물리 행 인덱스의 완전 순열: 새 ``i``번째 행 = 기존
+    ``order[i]``. 행 문자열을 통째로 옮기고 각 셀의 ``rowAddr``만 목적지
+    인덱스로 재기입한다(행 높이·서식·문단은 행과 함께 이동). 수직 병합
+    (rowSpan>1)이 하나라도 있으면 refuse — 병합 블록을 가로지르는 재배열은
+    의미가 정의되지 않는다. 정렬 키 비교(어떤 순서로 놓을지)는 호출자 몫이다.
+    """
+    _guard_flat(table)
+    prefix, rows, suffix = _parse_table(table)
+    if sorted(order) != list(range(len(rows))):
+        raise TableStructureError(
+            f"reorder_rows: order must be a permutation of 0..{len(rows) - 1}, got {list(order)}"
+        )
+    for row in rows:
+        for tc in _S_TC.findall(row):
+            if (_si(tc, "cellSpan", "rowSpan") or 1) > 1:
+                raise TableStructureError(
+                    "reorder_rows: vertical merge (rowSpan>1) present — refuse"
+                )
+    new_rows = [
+        _map_cells(rows[src], lambda tc, dest=dest: _ss(tc, "cellAddr", "rowAddr", dest))
+        for dest, src in enumerate(order)
+    ]
+    return _rebuild(prefix, new_rows, suffix)
+
+
+_PARA_ID_RE = re.compile(r'(<hp:p\b[^>]*\bid=")(\d+)(")')
+
+
+def _bump_table_id(table: str, bump: int) -> str:
+    """Bump ``<hp:tbl>``'s own ``id``/``instid`` (if present) -- used by
+    split_table so its new second table doesn't share the original's id
+    (real-corpus confirmed: table ids are unique across a section when
+    present at all, 434/438 sampled tables carry one)."""
+    for attr in ("id", "instid"):
+        current = _si(table, "tbl", attr)
+        if current is not None:
+            table = _ss(table, "tbl", attr, (current + bump) & 0x7FFFFFFF)
+    return table
+
+
+def _drop_line_caches(tc: str) -> str:
+    """*tc* without its paragraphs' layout caches (``linesegarray``), for Hancom to lay out anew."""
+    return re.sub(
+        r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
+        "", tc, flags=re.S,
+    )
+
+
+def _insert_tc_in_order(row: str, new_tc: str, col: int) -> str:
+    """Insert *new_tc* into a ``<hp:tr>`` keeping tcs in ascending colAddr order."""
+    at = None
+    for m in _S_TC.finditer(row):
+        if (_si(m.group(0), "cellAddr", "colAddr") or 0) > col:
+            at = m.start()
+            break
+    if at is None:
+        at = row.rindex("</hp:tr>")
+    return row[:at] + new_tc + row[at:]
+
+
+def _split_cell_vertical(table: str, row: int, col: int, sizes: Sequence[int], *, used_ids: set[int] | None = None) -> str:
+    """Split the rowSpan cell at (row, col) into ``len(sizes)`` stacked cells with
+    the given rowSpans (``sum(sizes)`` must equal the current rowSpan). The first
+    keeps (row, col) and the content; each subsequent boundary gets a NEW cell of the
+    original's format (borderFill/cellSz, its first paragraph's shape) holding one empty
+    paragraph with a fresh id, inserted in colAddr order. Grid-validated; fail-closed."""
+    _guard_flat(table)
+    sizes = [int(s) for s in sizes]
+    if len(sizes) < 2 or any(s < 1 for s in sizes):
+        raise TableStructureError("split_cell_vertical: sizes must be >=2 positive integers")
+    prefix, rows, suffix = _parse_table(table)
+    if not 0 <= row < len(rows):
+        raise TableStructureError(f"split_cell_vertical: row {row} out of range")
+    target = None
+    for tc in _S_TC.findall(rows[row]):
+        if _si(tc, "cellAddr", "rowAddr") == row and _si(tc, "cellAddr", "colAddr") == col:
+            target = tc
+            break
+    if target is None:
+        raise TableStructureError(f"split_cell_vertical: no cell at (row={row}, col={col})")
+    cur = _si(target, "cellSpan", "rowSpan") or 1
+    if sum(sizes) != cur:
+        raise TableStructureError(f"split_cell_vertical: sizes sum {sum(sizes)} != current rowSpan {cur}")
+
+    fresh_id = _fresh_ids(table, used_ids)
+    rows[row] = rows[row].replace(target, _ss(target, "cellSpan", "rowSpan", sizes[0]), 1)
+    boundary = row
+    for i in range(1, len(sizes)):
+        boundary += sizes[i - 1]
+        if boundary >= len(rows):
+            raise TableStructureError("split_cell_vertical: boundary beyond table rows")
+        new_tc = _ss(target, "cellSpan", "rowSpan", sizes[i])
+        new_tc = _ss(new_tc, "cellAddr", "rowAddr", boundary)
+        new_tc = _PARA_ID_RE.sub(fresh_id, _empty_cell_like(new_tc))
+        rows[boundary] = _insert_tc_in_order(rows[boundary], new_tc, col)
+    out = _rebuild(prefix, rows, suffix)
+    _validate_or_raise(out)
+    return out
+
+
+#: Hancom splits a cell into at most this many rows and as many columns.
+SPLIT_CELL_MAX = 63
+
+
+def _cell_at(rows: Sequence[str], row: int, col: int) -> str:
+    for tc in _S_TC.findall(rows[row] if 0 <= row < len(rows) else ""):
+        if _si(tc, "cellAddr", "colAddr") == col:
+            return tc
+    raise TableStructureError(f"split_cell: no cell starts at ({row}, {col})")
+
+
+def _regrid_zone_columns(prefix: str, lines: Sequence[int], index: Mapping[int, int]) -> str:
+    """The ``hp:cellzone`` columns of a table head moved from grid *lines* to the grid
+    numbered by *index* (x position -> column): a zone keeps the x range it covers."""
+
+    def regrid(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", "startColAddr"), _si(zone, "cellzone", "endColAddr")
+        if start is None or end is None or end + 1 >= len(lines):
+            return zone
+        zone = _ss(zone, "cellzone", "startColAddr", index[lines[start]])
+        return _ss(zone, "cellzone", "endColAddr", index[lines[end + 1]] - 1)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", regrid, prefix)
+
+
+def _split_cell_columns(table: str, row: int, col: int, parts: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Split the cell at (*row*, *col*) into *parts* cells side by side, as Hancom does: they
+    share out its width evenly (the last takes what is left over), new grid lines go where
+    they fall, and every other cell keeps its width over the grid columns it covers.
+
+    A part narrower than Hancom draws a column (the cell's left and right margins and
+    :data:`COLUMN_FLOOR_EXTRA`) is written that wide, as Hancom writes it: the grid lines right
+    of the cell and the table's width move over by what the parts gained."""
+    prefix, rows, suffix = _parse_table(table)
+    widths = _uniform_col_widths(rows) or _grid_col_widths(table)
+    if widths is None:
+        raise TableStructureError("split_cell: the column widths are underivable from the grid -- refusing (fail-closed)")
+    lines = [0]
+    for column in range(len(widths)):
+        lines.append(lines[-1] + widths[column])
+    target = _cell_at(rows, row, col)
+    x0, x1 = lines[col], lines[col + (_si(target, "cellSpan", "colSpan") or 1)]
+    each = (x1 - x0) // parts
+    floor = _cell_side_margins(table.encode(), target.encode()) + COLUMN_FLOOR_EXTRA
+    sizes = [max(size, floor) for size in [each] * (parts - 1) + [x1 - x0 - each * (parts - 1)]]
+    gained = sum(sizes) - (x1 - x0)
+    if gained:
+        lines = [line + gained if line >= x1 else line for line in lines]
+        prefix = _ss(prefix, "sz", "width", (_si(prefix, "sz", "width") or 0) + gained)
+    cuts = [x0 + sum(sizes[:part]) for part in range(parts + 1)]
+    index = {x: number for number, x in enumerate(sorted(set(lines) | set(cuts)))}
+
+    def regrid(tc: str) -> str:
+        start, span = _si(tc, "cellAddr", "colAddr"), _si(tc, "cellSpan", "colSpan") or 1
+        assert start is not None  # required hp:tc attr
+        if (_si(tc, "cellAddr", "rowAddr"), start) != (row, col):
+            tc = _ss(tc, "cellAddr", "colAddr", index[lines[start]])
+            return _ss(tc, "cellSpan", "colSpan", index[lines[start + span]] - index[lines[start]])
+        pieces = []
+        for part in range(parts):
+            piece = _drop_line_caches(tc) if part == 0 else _PARA_ID_RE.sub(fresh_id, _empty_cell_like(tc))
+            piece = _ss(piece, "cellAddr", "colAddr", index[cuts[part]])
+            piece = _ss(piece, "cellSpan", "colSpan", index[cuts[part + 1]] - index[cuts[part]])
+            pieces.append(_ss(piece, "cellSz", "width", sizes[part]))
+        return "".join(pieces)
+
+    new_rows = [_map_cells(r, regrid) for r in rows]
+    return _rebuild(_regrid_zone_columns(prefix, lines, index), new_rows, suffix, colcnt=len(index) - 1)
+
+
+def _split_cell_rows(table: str, row: int, col: int, parts: int, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Split the cell at (*row*, *col*) into *parts* cells one under another, as Hancom
+    does: over rows the cell already covers when they divide evenly, else one row each and
+    as many new rows as it lacks after its last, which the cells beside it grow over. The
+    parts share out its stored height evenly, as Hancom's split does with "split row heights
+    evenly" on (off, it gives the first parts their content's height and the last the rest)."""
+    prefix, rows, suffix = _parse_table(table)
+    target = _cell_at(rows, row, col)
+    span = _si(target, "cellSpan", "rowSpan") or 1
+    if span % parts == 0:
+        each, added = span // parts, 0
+    elif parts > span:
+        each, added = 1, parts - span
+    else:
+        raise TableStructureError(
+            f"split_cell: a cell over {span} rows splits into {parts} rows only evenly or one row each"
+        )
+    last = row + span - 1
+    height = _si(target, "cellSz", "height") or 0
+    sizes = [height // parts] * (parts - 1) + [height - height // parts * (parts - 1)]
+
+    def make_room(tc: str):
+        start, length = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+        assert start is not None  # required hp:tc attr
+        if (start, _si(tc, "cellAddr", "colAddr")) == (row, col):
+            tc = _ss(_ss(tc, "cellSpan", "rowSpan", each), "cellSz", "height", sizes[0])
+            return tc
+        if start > last:
+            return _ss(tc, "cellAddr", "rowAddr", start + added)
+        if start <= last < start + length:  # beside the cell's last row -> over the new rows too
+            return _ss(tc, "cellSpan", "rowSpan", length + added)
+        return tc
+
+    new_rows = [_map_cells(r, make_room) for r in rows]
+    opening = re.match(r"<hp:tr\b[^>]*>", rows[last])
+    new_rows[last + 1:last + 1] = [(opening.group(0) if opening else "<hp:tr>") + "</hp:tr>"] * added
+    for part in range(1, parts):
+        piece = _PARA_ID_RE.sub(fresh_id, _empty_cell_like(target))
+        piece = _ss(piece, "cellAddr", "rowAddr", row + part * each)
+        piece = _ss(_ss(piece, "cellSpan", "rowSpan", each), "cellSz", "height", sizes[part])
+        new_rows[row + part * each] = _insert_tc_in_order(new_rows[row + part * each], piece, col)
+    if added:
+        prefix = _shift_zones(prefix, "Row", last + 1, added, touching=True)
+    return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
+def _split_cell(
+    table: str, row: int, col: int, *, rows: int = 1, cols: int = 1, used_ids: set[int] | None = None
+) -> str:
+    """Split the cell at (*row*, *col*) into *rows* x *cols* cells, as Hancom's cell split
+    does: the cell's content stays in the first, the others hold one empty paragraph of
+    its format. Columns split first, then each part into rows."""
+    _guard_flat(table)
+    for name, value in (("rows", rows), ("cols", cols)):
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= SPLIT_CELL_MAX:
+            raise TableStructureError(f"split_cell: {name} must be an int in 1..{SPLIT_CELL_MAX}, got {value!r}")
+    if rows == cols == 1:
+        raise TableStructureError("split_cell: rows or cols must be 2 or more")
+    _grid, report = build_grid(table.encode("utf-8"))
+    if not report.ok:
+        raise TableStructureError(f"split_cell: the table's grid is invalid before the split: {report.issues}")
+    _, original_rows, _ = _parse_table(table)
+    _cell_at(original_rows, row, col)  # require the exact anchor even for a row-only split
+    fresh_id = _fresh_ids(table, used_ids)
+    if cols > 1:
+        table = _split_cell_columns(table, row, col, cols, fresh_id)
+    if rows > 1:
+        _, grid_rows, _ = _parse_table(table)
+        starts = sorted(_si(tc, "cellAddr", "colAddr") or 0 for tc in _S_TC.findall(grid_rows[row]))
+        for part in [start for start in starts if start >= col][:cols]:
+            table = _split_cell_rows(table, row, part, rows, fresh_id)
+    return table
+
+
+def _empty_cell_like(tc: str) -> str:
+    """*tc* holding one empty paragraph instead of its content, with the first
+    paragraph's paragraph shape and the first run's character shape kept."""
+    p_open = re.search(r"<hp:p\b[^>]*>", tc)
+    char = re.search(r'<hp:run\b[^>]*\bcharPrIDRef="(\d+)"', tc)
+    opening = p_open.group(0) if p_open else (
+        '<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">')
+    if opening.endswith("/>"):  # a paragraph with no run, as Hancom saves an empty cell: open it
+        opening = opening[:-2].rstrip() + ">"
+    paragraph = opening + f'<hp:run charPrIDRef="{char.group(1) if char else 0}"><hp:t/></hp:run></hp:p>'
+    return re.sub(r"(<hp:subList\b[^>]*>).*(</hp:subList>)", lambda m: m.group(1) + paragraph + m.group(2),
+                  tc, count=1, flags=re.S)
+
+
+def _clone_row_template(rows: list[str], ref_row: int, *, side: str = "below", blank: bool = False) -> str:
+    """The row a clone of physical row *ref_row* starts from, as Hancom inserts a row
+    below it: the cells of *ref_row* that end there, and under each cell of an upper
+    row that ends at *ref_row* an empty cell of its format and width (with the
+    height of *ref_row*). Cells running on below *ref_row* are not in it -- they
+    grow over the new rows instead. Above *ref_row* (*side* ``"above"``) it is the
+    cells starting at *ref_row*, one running on below as an empty cell one row high,
+    and cells running on into *ref_row* from above grow instead. With *blank* each
+    cell holds one empty paragraph of its format."""
+    height = _physical_row_height(rows, ref_row)
+    cells: list[tuple[int, str]] = []
+    for row in rows[: ref_row + 1]:
+        for tc in _S_TC.findall(row):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            if ra is None or (ra if side == "above" else ra + rs - 1) != ref_row:
+                continue
+            if blank or rs > 1:
+                tc = _empty_cell_like(tc)
+            if rs > 1:
+                tc = _ss(tc, "cellSpan", "rowSpan", 1)
+                tc = _ss(tc, "cellSz", "height", height or (_si(tc, "cellSz", "height") or 0) // rs)
+            cells.append((_si(tc, "cellAddr", "colAddr") or 0, tc))
+    if not cells:
+        where = "on into it from above" if side == "above" else "on below it"
+        raise TableStructureError(f"every cell of row {ref_row} runs {where}; nothing to clone")
+    opening = re.match(r"<hp:tr\b[^>]*>", rows[ref_row])
+    return (opening.group(0) if opening else "<hp:tr>") + "".join(tc for _, tc in sorted(cells, key=lambda c: c[0])) + "</hp:tr>"
+
+
+def _fresh_ids(table: str, used_ids: set[int] | None) -> Callable[[re.Match[str]], str]:
+    """A ``_PARA_ID_RE`` substitution giving each paragraph the lowest id used neither in
+    *table* nor in *used_ids* (the ids of the whole document)."""
+    occupied = set(used_ids or ()) | {int(m.group(2)) for m in _PARA_ID_RE.finditer(table)}
+    next_id = 1
+
+    def fresh_id(match: re.Match[str]) -> str:
+        nonlocal next_id
+        while next_id in occupied:
+            next_id += 1
+        occupied.add(next_id)
+        return match.group(1) + str(next_id) + match.group(3)
+
+    return fresh_id
+
+
+_OPENING_RE = re.compile(r'''<([\w:.-]+)\b((?:"[^"]*"|'[^']*'|[^'">])*)>''')
+_CLONE_ATTR_RE = re.compile(r'''(\s([\w:.-]+)\s*=\s*)(["'])(.*?)\3''', re.S)
+_MEMO_PARAMS_RE = re.compile(
+    r'(<hp:fieldBegin\b[^>]*\btype=(["\'])MEMO\2[^>]*>)(.*?</hp:parameters>)', re.S)
+#: Marks a number a clone must not share with what it copies; :func:`_number_clones` fills it in.
+_CLONE_MARK_RE = re.compile(r"hwpx-clone:(\d+):([oizfm]):([^\"'<:]*):")
+_clone_serial = iter(range(1, 1 << 62))
+
+
+def _clone_content(content: str, fresh_id: Callable[[re.Match[str]], str]) -> str:
+    """Copy cell content as Hancom pastes a copy: fresh paragraph ids here; objects (pictures,
+    shapes, equations, notes), fields and memos marked for fresh numbers (:func:`_number_clones`).
+    A field keeps its ``fieldid`` and name and a bookmark its name, as Hancom's copy does; a
+    connector copied loses its ends (``subjectIDRef="0"``). A table copied takes a fresh ``id`` and
+    a ``zOrder`` on top, as Hancom numbers a pasted table. Content that points into another part
+    or definition (a chart, linked text boxes, a header or footer) refuses. A nested table's
+    marker is copied as is; its table is copied on restore."""
+    serial = next(_clone_serial)
+
+    def mark(kind: str, value: str) -> str:
+        return f"hwpx-clone:{serial}:{kind}:{value}:"
+
+    def opening(match: re.Match[str]) -> str:
+        tag, body = match.group(1), match.group(2)
+        attrs = {m.group(2): m.group(4) for m in _CLONE_ATTR_RE.finditer(body)}
+        linked = any(attrs.get(name) not in (None, "", "0") for name in ("linkListIDRef", "linkListNextIDRef"))
+        if linked or "chartIDRef" in attrs or tag in ("hp:header", "hp:footer"):
+            raise TableStructureError(
+                "cannot copy cell content with local identities or references (a header, footer, chart "
+                "or linked text box); insert blank cells instead",
+                suggestion="빈 칸으로 넣으세요: table.insert_rows(...) / table.insert_columns(...)는 기본이 빈 칸이다"
+                "(copy_content=True 를 빼세요). apply_table_ops 는 \"blank\": True.",
+            )
+        if tag == "hp:p":
+            return match.group(0)
+        memo = tag == "hp:fieldBegin" and attrs.get("type") == "MEMO"
+        # Hancom saves the shapes inside a group with zOrder 0 and ids of 0 or shared within the
+        # group; only the group is numbered, so a copied shape keeps both.
+        grouped = attrs.get("groupLevel") not in (None, "", "0")
+
+        def attr(m: re.Match[str]) -> str:
+            name, value = m.group(2), m.group(4)
+            if name == "subjectIDRef":
+                value = "0"
+            elif tag == "hp:fieldBegin" and name == "id" and value:
+                value = mark("f", value)
+            elif tag == "hp:fieldEnd" and name == "beginIDRef" and value:
+                value = mark("f", value)
+            elif memo and name == "zorder":
+                value = mark("m", attrs.get("id", ""))
+            elif tag not in ("hp:fieldBegin", "hp:fieldEnd") and name == "id" and value not in ("", "0") and not grouped:
+                value = mark("o", value)
+            elif name in ("instid", "instId") and value not in ("", "0"):
+                value = mark("i", value)
+            elif name == "zOrder" and value and not grouped:
+                value = mark("z", value)
+            return m.group(1) + m.group(3) + value + m.group(3)
+
+        return "<" + tag + _CLONE_ATTR_RE.sub(attr, body) + ">"
+
+    def memo_params(match: re.Match[str]) -> str:
+        found = re.search(r'''\sid\s*=\s*["']([^"']*)["']''', match.group(1))
+        memo_mark = mark("m", found.group(1) if found else "")
+        params = re.sub(r'(<hp:integerParam name="Number">)[^<]*', lambda m: m.group(1) + memo_mark, match.group(3))
+        params = re.sub(r'(<hp:stringParam name="ID">memo)\d+', lambda m: m.group(1) + memo_mark, params)
+        params = re.sub(r'(<hp:stringParam name="Command">MEMO/[^/<]*/)\d+', lambda m: m.group(1) + memo_mark, params)
+        return match.group(1) + params
+
+    content = _MEMO_PARAMS_RE.sub(memo_params, content)
+    content = _OPENING_RE.sub(opening, content)
+    return _PARA_ID_RE.sub(fresh_id, content)
+
+
+def _number_clones(table: str, context: str) -> str:
+    """Fill in the numbers :func:`_clone_content` marked, as Hancom numbers what it pastes: each
+    copied object a fresh ``id`` and ``instid`` used nowhere in *context* (the document), a
+    ``zOrder`` above the document's, each copied field a fresh ``id`` its end follows, and each
+    copied memo the next memo number (its ``Number``, ``zorder``, ``memoN`` id and command)."""
+    if "hwpx-clone:" not in table:
+        return table
+    text = context + table
+    occupied = {int(v) for v in re.findall(r'''\s(?:id|instid|instId|beginIDRef)\s*=\s*["'](\d+)["']''', text)}
+    z_order = max((int(v) for v in re.findall(r'''\szOrder\s*=\s*["'](-?\d+)["']''', text)), default=-1)
+    memo = max((int(v) for v in re.findall(r'<hp:integerParam name="Number">(\d+)<', "".join(
+        m.group(0) for m in _MEMO_PARAMS_RE.finditer(text)))), default=0)
+    assigned: dict[tuple[str, str, str], int] = {}
+    next_number = 1
+
+    def number(match: re.Match[str]) -> str:
+        nonlocal next_number, z_order, memo
+        serial, kind, original = match.groups()
+        key = (serial, kind, original)
+        if key not in assigned:
+            if kind == "z":
+                z_order += 1
+                assigned[key] = z_order
+            elif kind == "m":
+                memo += 1
+                assigned[key] = memo
+            else:
+                while next_number in occupied:
+                    next_number += 1
+                occupied.add(next_number)
+                assigned[key] = next_number
+        return str(assigned[key])
+
+    return _CLONE_MARK_RE.sub(number, table)
+
+
+def _insert_row_by_clone(
+    table: str,
+    ref_row: int,
+    count: int = 1,
+    *,
+    side: str = "below",
+    blank: bool = False,
+    used_ids: set[int] | None = None,
+) -> str:
+    """Insert *count* rows after (or with *side* ``"above"``, before) physical row
+    *ref_row* by cloning it (formatting preserved, paragraph ids refreshed). Rows past
+    them shift. With *blank* each new cell holds one empty paragraph of its format, as
+    Hancom inserts them.
+    Copied objects, fields and memos are numbered as :func:`_clone_content` says; content
+    pointing into another part (a chart, linked text boxes) is refused.
+
+    Merged cells follow Hancom's row insertion: a cell running on across the new rows
+    grows its rowSpan over them instead of being cloned, and next to a merged cell
+    that ends (or, above, starts) at *ref_row* each new row gets an empty cell of its
+    format and width."""
+    _guard_flat(table)
+    if side not in ("above", "below"):
+        raise TableStructureError(f"insert_row_by_clone: side must be 'above' or 'below', got {side!r}")
+    if count < 1:
+        return table
+    prefix, rows, suffix = _parse_table(table)
+    if not 0 <= ref_row < len(rows):
+        raise TableStructureError(f"ref row {ref_row} out of range")
+    first = ref_row + 1 if side == "below" else ref_row  # the first new row
+
+    def shift(tc: str):
+        ra, rs = _si(tc, "cellAddr", "rowAddr"), _si(tc, "cellSpan", "rowSpan") or 1
+        assert ra is not None  # required hp:tc attr
+        if ra >= first:
+            return _ss(tc, "cellAddr", "rowAddr", ra + count)
+        if ra + rs - 1 >= first:
+            # cell spans across the insertion point -> extend
+            return _ss(tc, "cellSpan", "rowSpan", rs + count)
+        return tc
+
+    # build the clones from the ORIGINAL rows, before the shift
+    ref = _clone_row_template(rows, ref_row, side=side, blank=blank)
+    shifted = [_map_cells(r, shift) for r in rows]
+    fresh_id = _fresh_ids(table, used_ids)
+    clones = []
+    for k in range(count):
+        clone = _map_cells(ref, lambda tc: _ss(tc, "cellAddr", "rowAddr", first + k))
+        clone = _clone_content(clone, fresh_id)
+        clones.append(clone)
+    new_rows = shifted[:first] + clones + shifted[first:]
+    prefix = _shift_zones(prefix, "Row", first, count)
+    return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
+def _shift_zones(prefix: str, axis: str, first: int, count: int, *, touching: bool = False) -> str:
+    """The ``hp:cellzone`` entries of a table head with *count* rows (*axis* ``"Row"``)
+    or columns (``"Col"``) inserted from *first* on: a zone from there on moves over, a
+    zone running on across it grows (with *touching*, one ending just before it too)."""
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None or end < first - (1 if touching else 0):
+            return zone
+        if start >= first:
+            zone = _ss(zone, "cellzone", f"start{axis}Addr", start + count)
+        return _ss(zone, "cellzone", f"end{axis}Addr", end + count)
+
+    return re.sub(r"<hp:cellzone\b[^>]*>", shift, prefix)
+
+
+def _drop_zone_lines(prefix: str, axis: str, deleted: Iterable[int]) -> str:
+    """The ``hp:cellzone`` entries of a table head with the rows (*axis* ``"Row"``) or
+    columns (``"Col"``) *deleted*: a zone keeps the lines it covers that stay, moved back
+    over the deleted ones before them, and goes when none stays (the list with its last)."""
+    gone = set(deleted)
+
+    def moved(line: int) -> int:
+        return line - sum(1 for d in gone if d < line)
+
+    def shift(match: re.Match[str]) -> str:
+        zone = match.group(0)
+        start, end = _si(zone, "cellzone", f"start{axis}Addr"), _si(zone, "cellzone", f"end{axis}Addr")
+        if start is None or end is None:
+            return zone
+        kept = [line for line in range(start, end + 1) if line not in gone]
+        if not kept:
+            return ""
+        zone = _ss(zone, "cellzone", f"start{axis}Addr", moved(kept[0]))
+        return _ss(zone, "cellzone", f"end{axis}Addr", moved(kept[-1]))
+
+    prefix = re.sub(r"<hp:cellzone\b[^>]*?(?:/>|>.*?</hp:cellzone>)", shift, prefix, flags=re.S)
+    return re.sub(r"<hp:cellzoneList\b[^>]*>\s*</hp:cellzoneList>|<hp:cellzoneList\b[^>]*/>", "", prefix)
+
+
+def _insert_column_by_clone(
+    table: str,
+    ref_col: int,
+    count: int = 1,
+    *,
+    side: str = "right",
+    blank: bool = False,
+    used_ids: set[int] | None = None,
+) -> str:
+    """Insert *count* columns right (or with *side* ``"left"``, left) of grid column *ref_col*
+    by cloning it (formatting preserved, paragraph ids refreshed). Columns past them shift,
+    and the table grows by the new columns, each as wide as *ref_col*, as Hancom's column
+    insertion widens it. With *blank* each new cell holds one empty paragraph of its cell's
+    paragraph and character shape, as Hancom inserts them.
+    Copied objects, fields and memos are numbered as :func:`_clone_content` says; content
+    pointing into another part is refused. Empty-cell insertion keeps the original objects.
+
+    Merged cells follow Hancom's insertion as in :func:`_insert_row_by_clone`: a cell running
+    on across the new columns grows its colSpan and width over them instead of being cloned,
+    and next to a merged cell that ends (or, on the left, starts) at *ref_col* each new
+    column gets an empty cell of its format and rows."""
+    _guard_flat(table)
+    if side not in ("left", "right"):
+        raise TableStructureError(f"insert_column_by_clone: side must be 'left' or 'right', got {side!r}")
+    if count < 1:
+        return table
+    prefix, rows, suffix = _parse_table(table)
+    columns = _grid_width(rows)
+    if not 0 <= ref_col < columns:
+        raise TableStructureError(f"ref col {ref_col} out of range")
+    widths = _uniform_col_widths(rows) or _grid_col_widths(table)
+    if widths is None:
+        raise TableStructureError(
+            "insert_column_by_clone: the column widths are underivable from the grid -- refusing (fail-closed)"
+        )
+    width = widths[ref_col]
+    first = ref_col + 1 if side == "right" else ref_col  # the first new column
+    fresh_id = _fresh_ids(table, used_ids)
+
+    def clones(tc: str) -> str:
+        if blank or (_si(tc, "cellSpan", "colSpan") or 1) > 1:
+            tc = _ss(_ss(_empty_cell_like(tc), "cellSpan", "colSpan", 1), "cellSz", "width", width)
+        return "".join(
+            _clone_content(_ss(tc, "cellAddr", "colAddr", first + k), fresh_id) for k in range(count)
+        )
+
+    def widen(tc: str) -> str:
+        col, span = _si(tc, "cellAddr", "colAddr"), _si(tc, "cellSpan", "colSpan") or 1
+        assert col is not None  # required hp:tc attr
+        if col < first <= col + span - 1:  # runs on across the new columns -> grows over them
+            tc = _ss(tc, "cellSpan", "colSpan", span + count)
+            return _ss(tc, "cellSz", "width", (_si(tc, "cellSz", "width") or 0) + count * width)
+        moved = _ss(tc, "cellAddr", "colAddr", col + count) if col >= first else tc
+        if side == "right" and col + span - 1 == ref_col:
+            return moved + clones(tc)
+        if side == "left" and col == ref_col:
+            return clones(tc) + moved
+        return moved
+
+    new_rows = [_map_cells(row, widen) for row in rows]
+    prefix = _ss(prefix, "sz", "width", (_si(prefix, "sz", "width") or 0) + count * width)
+    prefix = _shift_zones(prefix, "Col", first, count)
+    return _rebuild(prefix, new_rows, suffix, colcnt=columns + count)
+
+
+def _insert_block_by_clone(table: str, r0: int, r1: int, count: int = 1, *, used_ids: set[int] | None = None) -> str:
+    """Clone a contiguous **vertical-merge block** (physical rows ``r0..r1``) *count*
+    times, preserving the block's internal span pattern (FR-001).
+
+    The 성취기준 A~E unit is one such block: a leading cell with ``rowSpan=N`` plus
+    ``N`` rows of ``rowSpan==1`` cells. :func:`_insert_row_by_clone` would grow the
+    leading cell over one new row; this clones the whole unit, offsets the
+    clones' ``rowAddr`` by the block height, shifts every row below, and grows ``rowCnt``;
+    the content is copied as :func:`_clone_content` copies it. Fail-closed (Constitution VI): the block must
+    be a clean merge unit — no cell inside spans out of ``[r0,r1]`` and no cell
+    outside straddles the boundary — else it raises. Formatting (borderFill/paraPr/
+    charPr/cellSz) is carried verbatim from the reference block.
+    """
+    _guard_flat(table)
+    if count < 1:
+        return table
+    prefix, rows, suffix = _parse_table(table)
+    if not (0 <= r0 <= r1 < len(rows)):
+        raise TableStructureError(f"insert_block_by_clone: ref_rows [{r0},{r1}] out of range (nrows={len(rows)})")
+    block_h = r1 - r0 + 1
+    for i, row in enumerate(rows):
+        for tc in _S_TC.findall(row):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            assert ra is not None  # required hp:tc attr
+            top, bot = ra, ra + rs - 1
+            inside = r0 <= i <= r1
+            if inside and (top < r0 or bot > r1):
+                raise TableStructureError(
+                    f"insert_block_by_clone: cell at row{top} rowSpan{rs} crosses the block "
+                    f"[{r0},{r1}] boundary -- ref_rows is not a clean vertical-merge unit"
+                )
+            if not inside and (top < r0 <= bot or top <= r1 < bot):
+                raise TableStructureError(
+                    f"insert_block_by_clone: outside cell at row{top} rowSpan{rs} straddles the "
+                    f"block [{r0},{r1}] -- refusing (fail-closed)"
+                )
+
+    def shift(tc: str):
+        ra = _si(tc, "cellAddr", "rowAddr")
+        assert ra is not None  # required hp:tc attr
+        if ra > r1:
+            return _ss(tc, "cellAddr", "rowAddr", ra + count * block_h)
+        return tc
+
+    shifted = [_map_cells(r, shift) for r in rows]
+    block = rows[r0:r1 + 1]
+    fresh_id = _fresh_ids(table, used_ids)
+    clones: list[str] = []
+    for k in range(1, count + 1):
+        def _clone_shift(tc: str, _k: int = k) -> str:
+            ra = _si(tc, "cellAddr", "rowAddr")
+            assert ra is not None  # required hp:tc attr
+            return _ss(tc, "cellAddr", "rowAddr", ra + _k * block_h)
+
+        for row in block:
+            clone = _clone_content(_map_cells(row, _clone_shift), fresh_id)
+            clones.append(clone)
+    new_rows = shifted[: r1 + 1] + clones + shifted[r1 + 1:]
+    return _rebuild(prefix, new_rows, suffix, rowcnt=len(new_rows))
+
+
+def _split_table_rows(table: str, split_row: int) -> tuple[str, str]:
+    """Split *table* into two independent tables at physical row *split_row*
+    (6.12 트레인㊸ 갭⑤ -- 표 나누기).
+
+    Rows ``[0, split_row)`` stay in the top table; rows ``[split_row, rowCnt)``
+    become the bottom table with ``rowAddr`` renumbered from 0. ``colCnt`` is
+    unchanged in both halves (splitting rows never touches columns). Neither
+    half's paragraph/cell ids are refreshed here -- nothing is duplicated,
+    every row keeps its own pre-existing (already-unique) ids; only the
+    caller-side wrapper paragraph and the new table's own ``id``/``instid``
+    need fresh values (real-corpus confirmed: 434/438 sampled tables carry a
+    non-``None`` ``id``, and it is unique across every table in a section --
+    zero duplicates observed anywhere in the 67-fixture corpus).
+
+    Fail-closed (같은 원칙, ``_insert_block_by_clone``의 straddle 거부와
+    동일한 이유): a merged cell whose ``rowSpan`` crosses ``split_row`` has no
+    well-defined home in either half (does it get duplicated? truncated?
+    which half keeps its content?) -- there is no real-corpus evidence for
+    what Hancom's own "표 나누기" does here, so this refuses rather than
+    guess an answer that could silently duplicate or drop cell content.
+    """
+    _guard_flat(table)
+    prefix, rows, suffix = _parse_table(table)
+    row_cnt = len(rows)
+    if not 0 < split_row < row_cnt:
+        raise TableStructureError(
+            f"split_table: split_row {split_row} out of range (1..{row_cnt - 1})"
+        )
+    for r in range(split_row):
+        for tc in _S_TC.findall(rows[r]):
+            ra = _si(tc, "cellAddr", "rowAddr")
+            rs = _si(tc, "cellSpan", "rowSpan") or 1
+            if ra is not None and ra + rs > split_row:
+                raise TableStructureError(
+                    f"split_table: a merged cell (rowAddr={ra}, rowSpan={rs}) "
+                    f"crosses split_row={split_row} -- refusing (ambiguous ownership)"
+                )
+
+    def _renumber_from_split(tc: str) -> str:
+        ra = _si(tc, "cellAddr", "rowAddr")
+        assert ra is not None  # required hp:tc attr
+        return _ss(tc, "cellAddr", "rowAddr", ra - split_row)
+
+    top_rows = rows[:split_row]
+    bottom_rows = [_map_cells(r, _renumber_from_split) for r in rows[split_row:]]
+    top_table = _rebuild(prefix, top_rows, suffix, rowcnt=len(top_rows))
+    bottom_table = _rebuild(prefix, bottom_rows, suffix, rowcnt=len(bottom_rows))
+    return top_table, bottom_table
+
+
+def _merge_table_rows(top: str, bottom: str) -> str:
+    """Merge *bottom*'s rows onto the end of *top*, forming one table
+    (6.12 트레인㊸ 갭⑤ -- 표 붙이기, the reverse of split).
+
+    ``bottom``'s ``rowAddr`` values are shifted by ``top``'s current
+    ``rowCnt`` so the combined table's addressing stays contiguous from 0.
+    ``top``'s own opening tag (``id``/``borderFillIDRef``/``cellzoneList``/
+    etc.) is kept -- the caller decides which table's wrapper paragraph
+    (and which one gets discarded) at the section-splicing layer.
+    """
+    _guard_flat(top)
+    _guard_flat(bottom)
+    top_prefix, top_rows, top_suffix = _parse_table(top)
+    _, bottom_rows, _ = _parse_table(bottom)
+
+    top_col_cnt = _si(top, "tbl", "colCnt")
+    bottom_col_cnt = _si(bottom, "tbl", "colCnt")
+    if top_col_cnt != bottom_col_cnt:
+        raise TableStructureError(
+            f"merge_table: colCnt mismatch ({top_col_cnt} vs {bottom_col_cnt}) -- "
+            "refusing (the two tables don't share a column layout)"
+        )
+
+    offset = len(top_rows)
+
+    def _shift_by_offset(tc: str) -> str:
+        ra = _si(tc, "cellAddr", "rowAddr")
+        assert ra is not None  # required hp:tc attr
+        return _ss(tc, "cellAddr", "rowAddr", ra + offset)
+
+    shifted_bottom = [_map_cells(r, _shift_by_offset) for r in bottom_rows]
+    combined_rows = top_rows + shifted_bottom
+    return _rebuild(top_prefix, combined_rows, top_suffix, rowcnt=len(combined_rows))
+
+
+def _set_column_widths(table: str, new_widths: dict[int, int]) -> str:
+    """Set logical column widths (HWPUNIT). Each cell's cellSz.width = sum of its
+    spanned columns' new widths. Byte-preserving cellSz edits; grid unchanged."""
+    _guard_flat(table)
+    prefix, rows, suffix = _parse_table(table)
+
+    def fix(tc: str):
+        ca = _si(tc, "cellAddr", "colAddr")
+        cs = _si(tc, "cellSpan", "colSpan") or 1
+        assert ca is not None  # required hp:tc attr
+        w = sum(int(new_widths.get(c, 0)) for c in range(ca, ca + cs))
+        if w > 0:
+            tc = _ss(tc, "cellSz", "width", w)
+        return tc
+
+    rows = [_map_cells(r, fix) for r in rows]
+    return _rebuild(prefix, rows, suffix)
+
+
+def _nested_hosts(table: str) -> dict[str, tuple[int, int, int, int]]:
+    """Each table nested in a direct cell of *table* -> (host colAddr, colSpan,
+    host width, width the host needs: the nested table's plus the cell's side margins)."""
+    tb = table.encode("utf-8")
+    hosts: dict[str, tuple[int, int, int, int]] = {}
+    for cell in _direct_cells(tb):
+        cb = tb[cell.start:cell.end]
+        body = cb.index(b">") + 1
+        width = _iattr(_mask_nested_tables(cb), "cellSz", "width") or 0
+        for s, e in _top_spans(cb[body:], "tbl"):
+            nested = cb[body + s:body + e]
+            sz = re.search(_tag("sz") + rb'[^>]*\bwidth="(\d+)"', _mask_nested_tables(nested[nested.index(b">") + 1:]))
+            need = (int(sz.group(1)) if sz else 0) + _cell_side_margins(tb, cb)
+            hosts[nested.decode("utf-8")] = (cell.col, cell.col_span, width, need)
+    return hosts
+
+
+def _nested_min_widths(table: str) -> dict[int, int]:
+    """Smallest width each column may take so the tables nested in its one-column
+    cells still fit (for :func:`_autofit_columns`)."""
+    need: dict[int, int] = {}
+    for col, span, _width, required in _nested_hosts(table).values():
+        if span == 1:
+            need[col] = max(need.get(col, 0), required)
+    return need
+
+
+def _check_nested_fit(before: str, after: str) -> None:
+    """Refuse an edit that leaves a nested table wider than the cell holding it,
+    unless that cell was already as narrow before the edit."""
+    old = _nested_hosts(before)
+    for nested, (_col, _span, width, need) in _nested_hosts(after).items():
+        if width < need and width < old.get(nested, (0, 0, 0, 0))[2]:
+            raise TableStructureError(
+                f"a cell would become narrower ({width}) than the table nested in it needs ({need})"
+            )
+
+
+def _autofit_columns(table: str, *, min_frac: float = 0.06, damp: float = 0.5,
+                     min_widths: Mapping[int, int] | None = None) -> str:
+    """Rebalance column widths to content: content-heavy columns widen, light ones
+    narrow, table total width preserved. Demand = longest single-span cell's text
+    width (form_fit advance model), sqrt-damped so a paragraph column doesn't run
+    away; every column keeps a floor of *min_frac* of the total, and a column
+    holding a nested table at least *min_widths* (its width when it is short of that)."""
+    from .form_fit.measure import estimate_text_width
+
+    _guard_flat(table)
+    prefix, rows, suffix = _parse_table(table)
+    cur = _uniform_col_widths(rows)
+    if cur is None:
+        raise TableStructureError("no uniform (all colSpan=1) row to autofit widths")
+    ncol = max(cur) + 1
+    total = sum(cur.values())
+    demand = {c: 0.0 for c in range(ncol)}
+    for r in rows:
+        for tc in _S_TC.findall(r):
+            if (_si(tc, "cellSpan", "colSpan") or 1) != 1:
+                continue
+            ca = _si(tc, "cellAddr", "colAddr")
+            assert ca is not None  # required hp:tc attr
+            txt = "".join(re.findall(r"<hp:t>(.*?)</hp:t>", tc, re.DOTALL))
+            demand[ca] = max(demand[ca], estimate_text_width(txt, 10.0))
+    weight = {c: max(demand[c], 1.0) ** damp for c in range(ncol)}
+    floor = total * min_frac
+    held = {c: min(int(w), cur[c]) for c, w in (min_widths or {}).items() if c in cur and min(int(w), cur[c]) > floor}
+    fixed: dict[int, float] = {}
+    while True:  # a column below its nested table's width is held there; the rest share what is left
+        free = [c for c in range(ncol) if c not in fixed]
+        rest = total - sum(fixed.values())
+        if rest <= 0 or not free:
+            raise TableStructureError("autofit_columns: the nested tables need more than the table's width")
+        sw = sum(weight[c] for c in free) or 1.0
+        raw = {c: max(floor, rest * weight[c] / sw) for c in free}
+        scale = rest / (sum(raw.values()) or 1.0)
+        low = [c for c in free if c in held and raw[c] * scale < held[c]]
+        if not low:
+            break
+        fixed.update((c, float(held[c])) for c in low)
+    new = {c: int(round(raw[c] * scale)) if c in raw else int(fixed[c]) for c in range(ncol)}
+    # absorb rounding drift into the widest free column so the total is exact
+    drift = total - sum(new.values())
+    new[max((c for c in new if c not in fixed), key=lambda c: new[c])] += drift
+    return _set_column_widths(table, new)
+
+
+def _validate_or_raise(table: str) -> None:
+    _grid, rep = build_grid(table.encode("utf-8"))
+    if not rep.ok:
+        raise TableStructureError(f"invalid table grid after edit: {rep.issues}")
+
+
+# --- section-level application (byte-region splice back) ----------------------
+
+def _widths_arg(o: Mapping[str, Any]) -> dict[int, int]:
+    w = o["widths"]
+    return {int(k): int(v) for k, v in w.items()} if isinstance(w, Mapping) else {i: int(v) for i, v in enumerate(w)}
+
+
+_STRUCT_OPS = {
+    "delete_column": lambda t, o: _collapse_empty_rows(_delete_columns(t, o["cols"] if "cols" in o else [o["col"]])),
+    "delete_row": lambda t, o: _delete_rows(t, o["rows"] if "rows" in o else [o["row"]]),
+    "reorder_rows": lambda t, o: _reorder_rows(t, [int(x) for x in o["order"]]),
+    "insert_row_by_clone": lambda t, o: _insert_row_by_clone(
+        t, o["ref_row"], int(o.get("count", 1)), side=str(o.get("side", "below")),
+        blank=bool(o.get("blank", False))),
+    "insert_column_by_clone": lambda t, o: _insert_column_by_clone(
+        t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
+        blank=bool(o.get("blank", False))),
+    "insert_block_by_clone": lambda t, o: _insert_block_by_clone(t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1))),
+    "set_column_widths": lambda t, o: _set_column_widths(t, _widths_arg(o)),
+    "autofit_columns": lambda t, o: _autofit_columns(t, min_frac=float(o.get("min_frac", 0.06)), damp=float(o.get("damp", 0.5))),
+    "set_row_heights": lambda t, o: _set_row_heights(
+        t, {int(k): int(v) for k, v in dict(o["heights"]).items()}),
+    "split_cell_vertical": lambda t, o: _split_cell_vertical(
+        t, int(o["row"]), int(o["col"]), o["sizes"]),
+    "split_cell": lambda t, o: _split_cell(
+        t, int(o["row"]), int(o["col"]), rows=int(o.get("rows", 1)), cols=int(o.get("cols", 1))),
+}
+
+
+#: The ops whose new paragraphs take ids unused in the whole document.
+_CLONE_OPS = {
+    "split_cell": lambda t, o, ids: _split_cell(
+        t, int(o["row"]), int(o["col"]), rows=int(o.get("rows", 1)), cols=int(o.get("cols", 1)), used_ids=ids),
+    "insert_row_by_clone": lambda t, o, ids: _insert_row_by_clone(
+        t, o["ref_row"], int(o.get("count", 1)), side=str(o.get("side", "below")),
+        blank=bool(o.get("blank", False)), used_ids=ids),
+    "insert_column_by_clone": lambda t, o, ids: _insert_column_by_clone(
+        t, int(o["ref_col"]), int(o.get("count", 1)), side=str(o.get("side", "right")),
+        blank=bool(o.get("blank", False)), used_ids=ids),
+    "insert_block_by_clone": lambda t, o, ids: _insert_block_by_clone(
+        t, int(o["ref_rows"][0]), int(o["ref_rows"][1]), int(o.get("count", 1)), used_ids=ids),
+    "split_cell_vertical": lambda t, o, ids: _split_cell_vertical(
+        t, int(o["row"]), int(o["col"]), o["sizes"], used_ids=ids),
+}
+
+
+def _restructure_table(
+    table: str, op: Mapping[str, Any], *, used_ids: set[int] | None = None, context: str = "",
+) -> str:
+    """One table's XML after *op*, an :func:`apply_table_ops` op dict naming one of its row,
+    column and cell edits, with the grid checked. New paragraphs take ids neither in the
+    table nor in *used_ids*; copied objects, fields and memos take numbers not in *context*
+    (the document's sections) either. A refused edit raises :class:`TableStructureError`."""
+    name = op.get("op")
+    if name in _CLONE_OPS:
+        new_table = _with_nested_hidden(table, lambda t: _CLONE_OPS[name](t, op, set(used_ids or ())),
+                                        used_ids=set(used_ids or ()))
+        new_table = _number_clones(new_table, context)
+    elif name == "autofit_columns":
+        mins = _nested_min_widths(table)
+        new_table = _with_nested_hidden(table, lambda t: _autofit_columns(
+            t, min_frac=float(op.get("min_frac", 0.06)), damp=float(op.get("damp", 0.5)), min_widths=mins))
+    elif name in _STRUCT_OPS:
+        new_table = _with_nested_hidden(table, lambda t: _STRUCT_OPS[name](t, op))
+    else:
+        raise TableStructureError(f"{name!r} is not a table structure op")
+    _validate_or_raise(new_table)
+    _check_nested_fit(table, new_table)
+    return new_table
+
+
+def _set_row_heights(table: str, heights: Mapping[int, int]) -> str:
+    """행높이 명시 설정(HWPUNIT, 1pt=100) — Stage 3 간격 프리미티브.
+
+    rowSpan==1 셀은 해당 행 높이로, 병합 셀은 덮는 행들의 (새/현재) 높이 합으로
+    cellSz height를 재계산한다. 현재 행높이를 유도할 수 없는 행이 끼면 refuse
+    (fail-closed). 사람 편집자의 "행높이 늘리고/줄여 페이지 안 재배분"에 해당."""
+    if len(re.findall(r"<hp:tbl\b", table)) > 1:
+        raise TableStructureError("set_row_heights: nested table inside — refuse")
+    m_rows = re.search(r'<hp:tbl\b[^>]*\browCnt="(\d+)"', table)
+    row_cnt = int(m_rows.group(1)) if m_rows else 0
+    for r in heights:
+        if not 0 <= r < row_cnt:
+            raise TableStructureError(f"set_row_heights: row {r} out of range (0..{row_cnt - 1})")
+    cells: list[tuple[int, int, int, int, int]] = []
+    for m in re.finditer(r"<hp:tc\b.*?</hp:tc>", table, re.S):
+        blk = m.group(0)
+        ra = re.search(r'<hp:cellAddr\b[^>]*\browAddr="(\d+)"', blk)
+        rs = re.search(r'<hp:cellSpan\b[^>]*\browSpan="(\d+)"', blk)
+        hz = re.search(r'<hp:cellSz\b[^>]*\bheight="(\d+)"', blk)
+        if ra is None or hz is None:
+            raise TableStructureError("set_row_heights: cell without cellAddr/cellSz")
+        cells.append((m.start(), m.end(), int(ra.group(1)),
+                      int(rs.group(1)) if rs else 1, int(hz.group(1))))
+    current: dict[int, int] = {}
+    for _, _, row_addr, row_span, height in cells:
+        if row_span == 1 and row_addr not in current:
+            current[row_addr] = height
+
+    def _new_height(ra: int, rs: int) -> int:
+        total = 0
+        for r in range(ra, ra + rs):
+            if r in heights:
+                total += heights[r]
+            elif r in current:
+                total += current[r]
+            else:
+                raise TableStructureError(
+                    f"set_row_heights: row {r} current height underivable (no rowSpan==1 cell)")
+        return total
+
+    out = table
+    for start, end, row_addr, row_span, height in sorted(cells, reverse=True):
+        if not any(r in heights for r in range(row_addr, row_addr + row_span)):
+            continue
+        nh = _new_height(row_addr, row_span)
+        if nh == height:
+            continue
+        blk = out[start:end]
+        blk = re.sub(r'(<hp:cellSz\b[^>]*\bheight=")\d+(")',
+                     lambda mm: mm.group(1) + str(nh) + mm.group(2), blk, count=1)
+        out = out[:start] + blk + out[end:]
+    return out
+
+
+def _materialize_parapr(header: bytes, base_id: str, line_spacing: int,
+                        cache: dict[tuple[str, int], str]) -> tuple[bytes, str]:
+    """paraPr *base_id*를 lineSpacing만 바꾼 변형으로 복제(header 추가·itemCnt 범프).
+
+    lineSpacing은 hp:switch/hp:case 분기 안에도 중복 존재하므로 클론 내 전부 치환."""
+    key = (base_id, line_spacing)
+    if key in cache:
+        return header, cache[key]
+    bid = re.escape(base_id.encode())
+    m = re.search(rb'<(?:[A-Za-z_][\w.-]*:)?paraPr\b[^>]*?\bid="' + bid + rb'".*?</(?:[A-Za-z_][\w.-]*:)?paraPr>', header, re.DOTALL)
+    if m is None:
+        raise KeyError(f"base paraPr {base_id} not found")
+    ids = [int(x) for x in re.findall(rb'<(?:[A-Za-z_][\w.-]*:)?paraPr\b[^>]*?\bid="(\d+)"', header)]
+    new_id = str(max(ids) + 1 if ids else 0)
+    clone = re.sub(rb'(\bid=")\d+(")', rb'\g<1>' + new_id.encode() + rb'\g<2>', m.group(0), count=1)
+    clone = re.sub(rb'(<(?:[A-Za-z_][\w.-]*:)?lineSpacing\b[^>]*?\bvalue=")\d+(")',
+                   lambda mm: mm.group(1) + str(line_spacing).encode() + mm.group(2), clone)
+    close = re.search(rb'</(?:[A-Za-z_][\w.-]*:)?paraProperties>', header)
+    if close is None:
+        raise KeyError("paraProperties close tag not found")
+    header = header[:close.start()] + clone + header[close.start():]
+    header = re.sub(
+        rb'(<(?:[A-Za-z_][\w.-]*:)?paraProperties\b[^>]*?\bitemCnt=")(\d+)(")',
+        lambda mm: mm.group(1) + str(int(mm.group(2)) + 1).encode() + mm.group(3),
+        header, count=1,
+    )
+    cache[key] = new_id
+    return header, new_id
+
+
+def _apply_cell_line_spacing(
+    source_bytes: bytes, ops: Sequence[Mapping[str, Any]],
+) -> tuple[bytes, list[dict[str, Any]], list[CellSkipped]]:
+    """셀 내부 문단 줄간격 조정 패스 — Stage 3 간격 프리미티브(사람 편집 1순위 수단).
+
+    op: {op:'set_cell_line_spacing', section_path?, table_index|table_anchor,
+    cells:[[r,c],...] 또는 rows:[r,...], line_spacing:int(PERCENT)}. 대상 셀의
+    각 문단 paraPr을 lineSpacing 변형으로 재매핑하고 linesegarray를 제거한다
+    (stale 캐시 줄겹침 방지). 표를 품은 셀은 셀 자신의 문단만 바꾸고 안쪽 표·글상자는
+    바이트 그대로 둔다."""
+    import io
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as zf:
+        guard_zip_file(zf)
+        parts = read_zip_members(zf)
+    header_name = _header_part_name(parts)
+    header = parts.get(header_name) if header_name else None
+    transcript: list[dict[str, Any]] = []
+    skipped: list[CellSkipped] = []
+    cache: dict[tuple[str, int], str] = {}
+    changed_parts: set[str] = set()
+
+    for op in ops:
+        sp = str(op.get("section_path") or op.get("sectionPath") or "Contents/section0.xml")
+        entry: dict[str, Any] = {"op": "set_cell_line_spacing", "sectionPath": sp}
+        section = parts.get(sp)
+        spacing = int(op.get("line_spacing", op.get("lineSpacing", 0)))
+        if section is None or header is None or spacing <= 0:
+            skipped.append(CellSkipped(sp, -1, -1, -1, "set_cell_line_spacing: bad section/header/line_spacing"))
+            entry["status"] = "refused: bad section/header/line_spacing"
+            transcript.append(entry)
+            continue
+        spans = _iter_table_spans(section)
+        ti_raw = op.get("table_index", op.get("tableIndex"))
+        tanchor = op.get("table_anchor") or op.get("tableAnchor")
+        if ti_raw is None and tanchor is not None:
+            m = _find_tables_by_anchor(section, str(tanchor), spans)
+            if len(m) != 1:
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"set_cell_line_spacing: anchor {tanchor!r} → {len(m)} tables"))
+                entry["status"] = f"refused: anchor → {len(m)} tables"
+                transcript.append(entry)
+                continue
+            ti = m[0]
+        else:
+            # ti_raw may be None here (neither table_index nor table_anchor
+            # given) -- int(None) intentionally raises TypeError, not a bug.
+            ti = int(ti_raw)  # type: ignore[reportArgumentType]
+        if not 0 <= ti < len(spans):
+            skipped.append(CellSkipped(sp, ti, -1, -1, "set_cell_line_spacing: table_index out of range"))
+            entry["status"] = "refused: table_index out of range"
+            transcript.append(entry)
+            continue
+        ts, te = spans[ti]
+        table = section[ts:te]
+        want_cells = {(int(r), int(c)) for r, c in op.get("cells", [])}
+        want_rows = {int(r) for r in op.get("rows", [])}
+        touched = 0
+        out_table = table
+        # The table's own cells and each cell's own paragraphs only: a table or text box in a
+        # cell keeps its bytes (address an inner table by its own table_index).
+        for cell in sorted(_direct_cells(table), key=lambda x: -x.start):
+            if not ((cell.row, cell.col) in want_cells or cell.row in want_rows):
+                continue
+            blk = table[cell.start:cell.end]
+            new_blk = blk
+            for ps, pe in reversed(_all_paragraph_spans(blk)):
+                pblk = new_blk[ps:pe]
+                open_end = pblk.index(b">") + 1
+                pid = re.search(rb'\bparaPrIDRef="(\d+)"', pblk[:open_end])
+                if pid is None:
+                    continue
+                header, new_id = _materialize_parapr(header, pid.group(1).decode(), spacing, cache)
+                open_tag = pblk[:open_end].replace(pid.group(0), f'paraPrIDRef="{new_id}"'.encode(), 1)
+                new_blk = new_blk[:ps] + _own_lineseg_dropped(open_tag + pblk[open_end:]) + new_blk[pe:]
+            if new_blk != blk:
+                out_table = out_table[:cell.start] + new_blk + out_table[cell.end:]
+                touched += 1
+        if out_table != table:
+            parts[sp] = section[:ts] + out_table + section[te:]
+            changed_parts.add(sp)
+        entry.update({"tableIndex": ti, "lineSpacing": spacing, "cellsTouched": touched,
+                      "status": "applied" if touched else "refused: no matching cells"})
+        if not touched:
+            skipped.append(CellSkipped(sp, ti, -1, -1, "set_cell_line_spacing: no matching cells"))
+        transcript.append(entry)
+
+    if changed_parts and header_name:
+        # changed_parts is only ever populated after the per-op loop's own
+        # "header is None -> skip" guard, so header is guaranteed set here.
+        assert header is not None
+        parts[header_name] = header
+        payload = {n: parts[n] for n in changed_parts | {header_name}}
+        try:
+            out = _patch_zip_entries(source_bytes, payload)
+        except ValueError:
+            out = _rewrite_zip_entries(source_bytes, payload)
+        return out, transcript, skipped
+    return source_bytes, transcript, skipped
+
+
+_P_OPEN_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?p\b")
+_P_TAG_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?p\b|</(?:[A-Za-z_][\w.-]*:)?p>")
+
+
+def _p_wrapper_span(section: bytes, table_start: int) -> tuple[int, int]:
+    """Byte span of the <hp:p> paragraph that wraps the table starting at
+    *table_start* (delete_table, clone_table, split_table, merge_table).
+
+    That is the innermost paragraph whose balanced close lies past the table.
+    A paragraph that closes before the table (inside a text box or an earlier
+    table of the same paragraph) is skipped, and so are elements whose names
+    only start with ``p`` (``hp:pagePr``, ``hp:pageBorderFill``, ``hp:pic``).
+    """
+    opens = [m.start() for m in _P_OPEN_RE.finditer(section, 0, table_start)]
+    for p_open in reversed(opens):
+        depth = 0
+        for t in _P_TAG_RE.finditer(section, p_open):
+            depth += -1 if t.group().startswith(b"</") else 1
+            if depth == 0:
+                if t.end() > table_start:
+                    return p_open, t.end()
+                break
+        else:
+            raise TableStructureError("unbalanced wrapping paragraph")
+    raise TableStructureError("could not find wrapping <hp:p> for table")
+
+
+_LINESEG_RE = re.compile(
+    rb"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)", re.S
+)
+_EMPTY_T_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t\b[^>]*/>|<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)t\b[^>]*>\s*</(?P=ns)t>")
+_P_RUN_TAG_RE = re.compile(rb"</?(?:[A-Za-z_][\w.-]*:)?(?:p|run)\b[^>]*>")
+_RUN_TAG_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?run\b[^>]*?(/?)>|</(?:[A-Za-z_][\w.-]*:)?run>")
+_P_CLOSE_ONLY_RE = re.compile(rb"\s*</(?:[A-Za-z_][\w.-]*:)?p>\s*")
+
+
+def _table_alone(section: bytes, ps: int, pe: int, ts: int, te: int) -> bool:
+    """Whether the paragraph ``section[ps:pe]`` holds the table ``section[ts:te]``
+    and nothing else -- no section setup, text or other object. Only then may a
+    table op delete or copy the whole paragraph."""
+    rest = section[ps:ts] + section[te:pe]
+    for pattern in (_LINESEG_RE, _EMPTY_T_RE, _P_RUN_TAG_RE):
+        rest = pattern.sub(b"", rest)
+    return not rest.strip()
+
+
+def _own_lineseg_dropped(paragraph: bytes) -> bytes:
+    """*paragraph* without its own ``hp:linesegarray`` (the one just before its
+    close): its line layout no longer holds once a table in it goes or changes."""
+    matches = list(_LINESEG_RE.finditer(paragraph))
+    if not matches or not _P_CLOSE_ONLY_RE.fullmatch(paragraph[matches[-1].end():]):
+        return paragraph
+    return paragraph[:matches[-1].start()] + paragraph[matches[-1].end():]
+
+
+def _table_run_open(section: bytes, ps: int, ts: int) -> bytes:
+    """The opening tag of the run that holds the table starting at *ts*."""
+    open_runs: list[bytes] = []
+    for m in _RUN_TAG_RE.finditer(section, ps, ts):
+        if m.group(0).startswith(b"</"):
+            if open_runs:
+                open_runs.pop()
+        elif not m.group(1):
+            open_runs.append(m.group(0))
+    if not open_runs:
+        raise TableStructureError("could not find the run that holds the table")
+    return open_runs[-1]
+
+
+def _paragraph_for(section: bytes, ps: int, ts: int, table: str) -> str:
+    """A paragraph holding only *table*, shaped like the paragraph at *ps* (its
+    paragraph shape and style, the table run's character shape), without a page
+    or column break -- for a table copied out of a paragraph that holds more."""
+    p_open = section[ps:section.index(b">", ps) + 1].decode("utf-8")
+    p_open = re.sub(r'\b(pageBreak|columnBreak)="1"', r'\1="0"', p_open)
+    prefix_match = re.match(r"<((?:[A-Za-z_][\w.-]*:)?)p\b", p_open)
+    prefix = prefix_match.group(1) if prefix_match else ""
+    run_open = _table_run_open(section, ps, ts).decode("utf-8")
+    return f"{p_open}{run_open}{table}</{prefix}run></{prefix}p>"
+
+
+def _bumped_ids(block: str, bump: int) -> str:
+    return _PARA_ID_RE.sub(lambda m: m.group(1) + str((int(m.group(2)) + bump) & 0x7FFFFFFF) + m.group(3), block)
+
+
+def _delete_table(section: bytes, ts: int, te: int) -> bytes:
+    """The section without the table: its paragraph goes when it holds nothing
+    else, otherwise only the table leaves it."""
+    ps, pe = _p_wrapper_span(section, ts)
+    if _table_alone(section, ps, pe, ts, te):
+        return section[:ps] + section[pe:]
+    return section[:ps] + _own_lineseg_dropped(section[ps:ts] + section[te:pe]) + section[pe:]
+
+
+def _clone_table(section: bytes, ts: int, te: int, count: int, *, used_ids: set[int] | None = None,
+                 context: str = "") -> bytes:
+    """*count* copies of the table after its paragraph: copies of the paragraph
+    when it holds nothing else, otherwise new paragraphs holding only the table.
+    Each copy is numbered as Hancom numbers a pasted table (:func:`_clone_content`):
+    fresh paragraph ids unused in *used_ids*, and the table, the tables nested in it
+    and its objects fresh numbers unused in *context* (the document's sections)."""
+    if count < 1:
+        raise TableStructureError("clone_table: count must be >= 1")
+    ps, pe = _p_wrapper_span(section, ts)
+    if _table_alone(section, ps, pe, ts, te):
+        block = section[ps:pe].decode("utf-8")
+    else:
+        block = _paragraph_for(section, ps, ts, section[ts:te].decode("utf-8"))
+    fresh_id = _fresh_ids(section.decode("utf-8"), used_ids)
+    clones = _number_clones("".join(_clone_content(block, fresh_id) for _ in range(count)), context)
+    return section[:pe] + clones.encode("utf-8") + section[pe:]
+
+
+def _split_table(section: bytes, ts: int, te: int, split_row: int) -> tuple[bytes, str]:
+    """The top rows stay in place; the bottom rows follow in a paragraph of their
+    own (a copy of the paragraph when it holds only the table)."""
+    ps, pe = _p_wrapper_span(section, ts)
+    top_table, bottom_table = _with_nested_hidden(
+        section[ts:te].decode("utf-8"), lambda t: _split_table_rows(t, split_row))
+    _validate_or_raise(top_table)
+    _validate_or_raise(bottom_table)
+    # tables nested in the bottom rows move with them: they keep their ids
+    bottom_table, bottom_nested = _hide_nested_tables(bottom_table)
+    if _table_alone(section, ps, pe, ts, te):
+        # top half replaces the table in place -- same wrapper paragraph, same
+        # table id (least surprise: it's "the same table", just shorter).
+        new_first = section[ps:ts] + top_table.encode("utf-8") + section[te:pe]
+        second_str = (section[ps:ts] + bottom_table.encode("utf-8") + section[te:pe]).decode("utf-8")
+    else:
+        new_first = _own_lineseg_dropped(section[ps:ts] + top_table.encode("utf-8") + section[te:pe])
+        second_str = _paragraph_for(section, ps, ts, bottom_table)
+    # the bottom half gets its own hp:p id and hp:tbl id/instid, bumped so
+    # nothing collides -- see _bump_table_id's real-corpus note.
+    second_str = _restore_nested_tables(_bump_table_id(_bumped_ids(second_str, 960000), 960000), bottom_nested)
+    new_section = section[:ps] + new_first + second_str.encode("utf-8") + section[pe:]
+    return new_section, f"{_table_dims(top_table)} + {_table_dims(bottom_table)}"
+
+
+def _merge_tables(section: bytes, spans: list[tuple[int, int]], ti: int) -> tuple[bytes, str]:
+    """The next table's rows join this table. A paragraph that held only the next
+    table goes (with the blank paragraphs before it); otherwise only that table
+    leaves its paragraph. Real text between the two tables refuses the merge."""
+    ts, te = spans[ti]
+
+    def enclosing(k: int) -> set[int]:
+        s, e = spans[k]
+        return {j for j, (s2, e2) in enumerate(spans) if s2 < s and e <= e2}
+
+    # the next table on this table's own level (tables nested in it come first in
+    # index order but are part of it)
+    nxt = next((k for k in range(ti + 1, len(spans)) if spans[k][0] >= te), None)
+    if nxt is None or enclosing(nxt) != enclosing(ti):
+        raise TableStructureError("merge_table: no next table to merge with")
+    ts2, te2 = spans[nxt]
+    ps1, pe1 = _p_wrapper_span(section, ts)
+    ps2, pe2 = _p_wrapper_span(section, ts2)
+    whole_second = ps2 >= pe1 and _table_alone(section, ps2, pe2, ts2, te2)
+    if not _blank_region(section, *((pe1, ps2) if whole_second else (te, ts2))):
+        raise TableStructureError(
+            "merge_table: real content (non-empty text) sits between the "
+            "two tables -- refusing (would silently discard it)"
+        )
+    top, top_nested = _hide_nested_tables(section[ts:te].decode("utf-8"))
+    bottom, bottom_nested = _hide_nested_tables(section[ts2:te2].decode("utf-8"))
+    bottom = _NESTED_MARK_RE.sub(lambda m: f"<!--hwpx-nested-table:{len(top_nested) + int(m.group(1))}-->", bottom)
+    merged_table = _restore_nested_tables(_merge_table_rows(top, bottom), top_nested + bottom_nested)
+    _validate_or_raise(merged_table)
+    merged = merged_table.encode("utf-8")
+    if whole_second:
+        new_section = section[:ps1] + section[ps1:ts] + merged + section[te:pe1] + section[pe2:]
+    elif ps2 == ps1:
+        paragraph = section[ps1:ts] + merged + section[te:ts2] + section[te2:pe1]
+        new_section = section[:ps1] + _own_lineseg_dropped(paragraph) + section[pe1:]
+    else:
+        first = _own_lineseg_dropped(section[ps1:ts] + merged + section[te:pe1])
+        second = _own_lineseg_dropped(section[ps2:ts2] + section[te2:pe2])
+        new_section = section[:ps1] + first + section[pe1:ps2] + second + section[pe2:]
+    return new_section, _table_dims(merged_table)
+
+
+_TEXT_SPAN_RE = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?t\b[^>]*>(.*?)</(?:[A-Za-z_][\w.-]*:)?t>", re.DOTALL)
+
+
+def _blank_region(section: bytes, start: int, end: int) -> bool:
+    """True if ``section[start:end]`` carries no non-whitespace ``hp:t`` text
+    -- used by merge_table to refuse silently eating real content that sits
+    between the two tables being joined."""
+    for m in _TEXT_SPAN_RE.finditer(section[start:end]):
+        if m.group(1).strip():
+            return False
+    return True
+
+
+def _sections(data: bytes) -> dict[str, bytes]:
+    import io
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        guard_zip_file(z)
+        return {n: read_member(z, n) for n in z.namelist() if re.search(r"section\d+\.xml$", n)}
+
+
+def _table_dims(table: str | bytes) -> str:
+    """``"RxC"`` from the table's own rowCnt/colCnt attributes (transcript용)."""
+    text = table.decode("utf-8", "ignore") if isinstance(table, bytes) else table
+    m = re.search(r'rowCnt="(\d+)"[^>]*colCnt="(\d+)"|colCnt="(\d+)"[^>]*rowCnt="(\d+)"', text)
+    if not m:
+        return "?"
+    if m.group(1) is not None:
+        return f"{m.group(1)}x{m.group(2)}"
+    return f"{m.group(4)}x{m.group(3)}"
+
+
+def apply_table_ops(
+    source: str | Path | bytes,
+    ops: Sequence[Mapping[str, Any]],
+    *,
+    output_path: str | Path | None = None,
+    dry_run: bool = False,
+) -> CellFillResult:
+    """Apply structure ops (then cell fills) to a document, byte-region splicing
+    each changed table back so untouched bytes stay identical.
+
+    Op dicts: ``{op: 'delete_column'|'delete_row'|'delete_table'|
+    'insert_row_by_clone'|'insert_column_by_clone'|'insert_block_by_clone'|
+    'split_table'|'merge_table'|'fill_cell', section_path?, table_index, ...}``.
+    ``insert_row_by_clone`` takes ``ref_row`` + ``count`` (+ ``side: 'above'``,
+    ``blank`` for empty new cells) and inserts below (above) that physical row;
+    ``insert_column_by_clone`` takes ``ref_col`` + ``count`` (+ ``side: 'left'``,
+    ``blank``) and inserts right (left) of that grid column, widening the table.
+    ``split_cell`` takes ``row`` + ``col`` (the cell's address) + ``rows`` and/or
+    ``cols`` (2..63) and splits that cell as Hancom's cell split does.
+    These row/column/cell edits adjust the table's saved height by its measured row-height delta,
+    as the object path does. If the row model cannot follow it, the saved height stays unchanged.
+    ``insert_block_by_clone``
+    takes ``ref_rows: [r0, r1]`` (a vertical-merge block) + ``count``;
+    ``delete_column`` derives widths from the merged grid when no uniform
+    ``colSpan==1`` row exists (FR-003).
+
+    ``split_table`` (6.12 트레인㊸ 갭⑤ -- 표 나누기) takes ``split_row``
+    (physical row index; rows ``[0, split_row)`` stay in place, rows
+    ``[split_row, rowCnt)`` become a new table directly below, with its own
+    wrapper paragraph and a freshly bumped table id) and refuses if any
+    merged cell's ``rowSpan`` crosses the boundary. ``merge_table`` (표
+    붙이기, the reverse) merges the table at ``table_index`` with the one
+    immediately after it, refusing on a ``colCnt`` mismatch or if real
+    (non-empty) text sits between them. Table flip ("표 뒤집기") was
+    evaluated and deliberately deferred -- reversing row/column order has no
+    well-defined behavior for merged cells or nested tables and there is no
+    real-corpus example to anchor a contract against (documented in
+    ``docs/support-matrix.md``'s table-structure row).
+
+    Structure ops run first, in order; ``delete_table`` shifts later table indices,
+    so sequence table deletes in reverse index order (as the recipe does). Every
+    structure edit is grid-validated and refuses on an invalid result
+    (fail-closed). Cell fills are then applied on the restructured document via
+    :func:`fill_cells`.
+
+    ``dry_run=True`` runs the identical pipeline (resolution·validation·fail-closed
+    전부 실제) but never writes ``output_path`` — 상의 루프에서 "이 계획이 무엇을
+    바꾸는지"를 transcript(구조 op별 해석·전후 dims)와 applied(old→new 텍스트)로
+    보여주는 승인 근거용.
+    """
+    source_bytes = _read_source_bytes(source)
+    struct_ops = [o for o in ops if o.get("op") not in ("fill_cell", "set_cell_line_spacing")]
+    spacing_ops = [o for o in ops if o.get("op") == "set_cell_line_spacing"]
+    fill_ops = [{**o, "section_path": o.get("section_path") or o.get("sectionPath") or "Contents/section0.xml"}
+                for o in ops if o.get("op") == "fill_cell"]
+
+    sections = _sections(source_bytes)
+    table_height = None
+    skipped: list[CellSkipped] = []
+    changed: set[str] = set()
+    transcript: list[dict[str, Any]] = []
+
+    def _log(name, sp, ti, status, **extra) -> None:
+        transcript.append({"op": name, "sectionPath": sp, "tableIndex": ti, "status": status, **extra})
+
+    for op in struct_ops:
+        name = op.get("op")
+        sp = str(op.get("section_path") or op.get("sectionPath") or "Contents/section0.xml")
+        section = sections.get(sp)
+        if section is None:
+            skipped.append(CellSkipped(sp, -1, -1, -1, "section part not found"))
+            _log(name, sp, -1, "refused: section part not found")
+            continue
+        spans = _iter_table_spans(section)
+        ti_raw = op.get("table_index", op.get("tableIndex"))
+        tanchor = op.get("table_anchor") or op.get("tableAnchor")
+        resolved_by = "index"
+        if ti_raw is None and tanchor is not None:
+            resolved_by = f"anchor:{tanchor}"
+            m = _find_tables_by_anchor(section, str(tanchor), spans)
+            if len(m) == 1:
+                ti = m[0]
+            elif not m:
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table anchor {tanchor!r} matched no table"))
+                _log(name, sp, -1, "refused: anchor matched no table", resolvedBy=resolved_by)
+                continue
+            else:
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table anchor {tanchor!r} ambiguous ({len(m)} tables)"))
+                _log(name, sp, -1, f"refused: anchor ambiguous ({len(m)} tables)", resolvedBy=resolved_by)
+                continue
+        else:
+            try:
+                # ti_raw may be None here (neither table_index nor table_anchor
+                # given) -- the except below already handles int(None)'s TypeError.
+                ti = int(ti_raw)  # type: ignore[reportArgumentType]
+            except (TypeError, ValueError):
+                skipped.append(CellSkipped(sp, -1, -1, -1, f"{name}: table_index or table_anchor required"))
+                _log(name, sp, -1, "refused: table_index or table_anchor required")
+                continue
+        if ti < 0 or ti >= len(spans):
+            skipped.append(CellSkipped(sp, ti, -1, -1, "table_index out of range"))
+            _log(name, sp, ti, "refused: table_index out of range", resolvedBy=resolved_by)
+            continue
+        ts, te = spans[ti]
+        dims_before = _table_dims(section[ts:te])
+        try:
+            if name == "delete_table":
+                new_section = _delete_table(section, ts, te)
+                dims_after = "deleted"
+            elif name == "clone_table":
+                count = int(op.get("count", 1))
+                new_section = _clone_table(
+                    section, ts, te, count,
+                    used_ids={int(m.group(2)) for data in sections.values()
+                              for m in _PARA_ID_RE.finditer(data.decode("utf-8"))},
+                    context="".join(data.decode("utf-8") for data in sections.values()))
+                dims_after = f"cloned x{count}"
+            elif name == "split_table":
+                split_row_raw = op.get("split_row")
+                if split_row_raw is None:
+                    raise TableStructureError("split_table: 'split_row' is required")
+                try:
+                    split_row = int(split_row_raw)
+                except (TypeError, ValueError):
+                    raise TableStructureError(
+                        f"split_table: 'split_row' must be an integer, got {split_row_raw!r}"
+                    )
+                new_section, dims_after = _split_table(section, ts, te, split_row)
+            elif name == "merge_table":
+                new_section, dims_after = _merge_tables(section, spans, ti)
+            elif name in _STRUCT_OPS:
+                used_ids = {int(m.group(2)) for data in sections.values()
+                            for m in _PARA_ID_RE.finditer(data.decode("utf-8"))} if name in _CLONE_OPS else None
+                context = "".join(data.decode("utf-8") for data in sections.values()) if name in _CLONE_OPS else ""
+                new_table = _restructure_table(section[ts:te].decode("utf-8"), op, used_ids=used_ids,
+                                               context=context)
+                if name in {"delete_column", "delete_row", "insert_row_by_clone", "insert_column_by_clone",
+                            "insert_block_by_clone", "split_cell"}:
+                    if table_height is None:
+                        from .oxml.table_structure import _ByteTableHeight
+                        table_height = _ByteTableHeight(source_bytes)
+                    if (height := table_height(sections, sp, ti, new_table)) is not None:
+                        new_table = _ss(new_table, "sz", "height", height)
+                new_section = section[:ts] + new_table.encode("utf-8") + section[te:]
+                dims_after = _table_dims(new_table)
+            else:
+                skipped.append(CellSkipped(sp, ti, -1, -1, f"unknown op {name!r}"))
+                _log(name, sp, ti, f"refused: unknown op {name!r}", resolvedBy=resolved_by)
+                continue
+        except TableStructureError as exc:
+            skipped.append(CellSkipped(sp, ti, -1, -1, f"{name}: {exc}"))
+            _log(name, sp, ti, f"refused: {exc}", resolvedBy=resolved_by, dims=dims_before)
+            continue
+        sections[sp] = new_section
+        changed.add(sp)
+        _log(name, sp, ti, "would_apply" if dry_run else "applied",
+             resolvedBy=resolved_by, dims=f"{dims_before}→{dims_after}")
+
+    intermediate = source_bytes
+    if changed:
+        try:
+            intermediate = _patch_zip_entries(source_bytes, {sp: sections[sp] for sp in changed})
+        except ValueError:
+            intermediate = _rewrite_zip_entries(source_bytes, {sp: sections[sp] for sp in changed})
+
+    if spacing_ops:
+        intermediate, sp_transcript, sp_skips = _apply_cell_line_spacing(intermediate, spacing_ops)
+        if dry_run:
+            for e in sp_transcript:
+                if e.get("status") == "applied":
+                    e["status"] = "would_apply"
+        transcript.extend(sp_transcript)
+        skipped.extend(sp_skips)
+        if intermediate != source_bytes:
+            changed.update(e["sectionPath"] for e in sp_transcript if "would_apply" in e.get("status", "") or e.get("status") == "applied")
+
+    effective_output = None if dry_run else output_path
+    if fill_ops:
+        fres = fill_cells(intermediate, fill_ops, output_path=effective_output)
+        return CellFillResult(
+            fres.data, fres.applied, tuple(skipped) + fres.skipped,
+            tuple(sorted(changed | set(fres.changed_parts))),
+            fres.data == source_bytes,
+            "partial-local-record-copy" if (changed or fres.changed_parts) else "none",
+            fres.open_safety,
+            tuple(transcript),
+        )
+
+    open_safety, _ = _finalize(intermediate, effective_output, source=source)
+    return CellFillResult(
+        intermediate, (), tuple(skipped), tuple(sorted(changed)),
+        intermediate == source_bytes,
+        "partial-local-record-copy" if changed else "none", open_safety,
+        tuple(transcript),
+    )
+
+
+# --- P3: real-Hancom oracle gate for form-fill (FR-005) -----------------------
+
+class RenderCheckRequired(HwpxError, RuntimeError):
+    """``verify_fill(require=True)`` but no real Hancom oracle rendered.
+
+    Structured on :class:`~hwpx.errors.HwpxError` (``code="render-check-required"``)
+    while still subclassing :class:`RuntimeError` for backward compatibility.
+    """
+
+    default_code = "render-check-required"
+
+
+def verify_fill(
+    before: str | Path | bytes | None,
+    after: str | Path | bytes,
+    *,
+    oracle: Any = None,
+    require: bool = False,
+    edit_mask: Any = None,
+    work_dir: str | None = None,
+):
+    """Render *before*/*after* in **real Hancom** and judge the fill.
+
+    *oracle* is an injected :class:`~hwpx.quality.rendering.RenderBackend`. It
+    carries the form-fill verdict so a caller never mistakes structural validity
+    (open-safety) or a lenient HTML preview for Hancom acceptance -- the exact
+    2026-07-03 overclaim. Returns a ``VisualReport`` carrying ``render_checked``
+    plus ``overflow_detected`` / ``overlap_detected`` (글자겹침) /
+    ``page_count_changed``.
+
+    Core does not discover a renderer; that belongs to a companion layer. Honest
+    degrade (Constitution V): with no injected backend, or one that cannot render,
+    the report is ``render_checked=False, ok=True`` and nothing raises -- **unless**
+    ``require=True``, which fails closed with :class:`RenderCheckRequired`.
+    """
+    import os
+    import shutil
+    import tempfile
+
+    from .quality.rendering import UnavailableRenderBackend
+
+    after_bytes = _read_source_bytes(after)
+    before_bytes = _read_source_bytes(before) if before is not None else None
+    if oracle is None:
+        oracle = UnavailableRenderBackend()
+
+    tmp = tempfile.mkdtemp(prefix="hwpx-verify-")
+    try:
+        after_path = os.path.join(tmp, "after.hwpx")
+        Path(after_path).write_bytes(after_bytes)
+        before_path = None
+        if before_bytes is not None:
+            before_path = os.path.join(tmp, "before.hwpx")
+            Path(before_path).write_bytes(before_bytes)
+        report = oracle.check(before_path, after_path, edit_mask=edit_mask, work_dir=work_dir)
+    finally:
+        if work_dir is None:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    if require and not report.render_checked:
+        raise RenderCheckRequired(
+            "render_check='required' but no Hancom oracle rendered: "
+            + "; ".join(list(report.warnings) + list(report.errors))
+        )
+    return report
+
+
+# --- FR-006: compact document map (summary, no per-cell dump) -----------------
+
+def table_summary(source: str | Path | bytes) -> list[dict[str, Any]]:
+    """Compact per-table map (FR-006) — bounded output for a whole form in one read.
+
+    For each table: ``{tableIndex, sectionPath, rows, cols (logical), merges,
+    heading (preceding section heading/label), firstRow (first logical row
+    preview)}`` — **no per-cell paragraph dump**, so a 37-table form fits well
+    under the token limit. ``tableIndex``/``sectionPath`` match the addressing
+    :func:`apply_table_ops`/:func:`fill_cells` accept; ``heading`` is the same
+    text :func:`_find_tables_by_anchor` resolves. The heavy full map stays.
+    """
+    data = _read_source_bytes(source)
+    out: list[dict[str, Any]] = []
+    for sp, section in sorted(_sections(data).items()):
+        spans = _iter_table_spans(section)
+        is_data = [_phys_row_count(section[s:e]) >= 2 for (s, e) in spans]
+        for ti, (s, e) in enumerate(spans):
+            table = section[s:e]
+            grid, rep = build_grid(table)
+            merges = sum(1 for c in _direct_cells(table) if c.row_span > 1 or c.col_span > 1)
+            w_start = 0
+            for j in range(ti - 1, -1, -1):
+                if is_data[j]:
+                    w_start = spans[j][1]
+                    break
+            w_start = max(w_start, s - 8000)
+            heading = " ".join(_text_of(section[w_start:s]).split())[-70:]
+            first: list[str] = []
+            for col in range(rep.col_count):
+                c = grid.get((0, col))
+                cell_txt = " ".join(_text_of(table[c.start:c.end]).split())[:22] if c else ""
+                if not first or first[-1] != cell_txt:
+                    first.append(cell_txt)
+            out.append({
+                "tableIndex": ti, "sectionPath": sp,
+                "rows": rep.row_count, "cols": rep.col_count, "merges": merges,
+                "heading": heading, "firstRow": " | ".join(first)[:90],
+            })
+    return out
+
+
+# --- trailing table-caption strip --------------------------------------------
+#
+# A donor 평가계획 form can bake a short "(N) <area>" sample caption as TRAILING
+# text of the same paragraph that wraps a table -- it sits between ``</hp:tbl>``
+# and that paragraph's ``<hp:linesegarray>``, so it is NOT a section-direct
+# paragraph that ``delete_paragraph`` can address. This removes only that caption
+# text (a ``(N) word`` group), closes the run cleanly right after the table, and
+# round-trips every other byte identical. Pattern-based, subject/grade agnostic.
+
+_TC_T = re.compile(r"<(?:[A-Za-z_][\w.-]*:)?t\b[^>]*>(.*?)</(?:[A-Za-z_][\w.-]*:)?t>", re.S)
+_TC_AFTER_TBL = re.compile(
+    r"</(?:[A-Za-z_][\w.-]*:)?tbl>(.*?)(?=<(?:[A-Za-z_][\w.-]*:)?linesegarray)", re.S
+)
+_TC_CAPTION = re.compile(r"\(\d+\)\s*\S{1,8}")
+
+
+def strip_trailing_table_captions(
+    source: str | Path | bytes, *, output_path: str | Path | None = None
+) -> CellFillResult:
+    """Strip short ``(N) <word>`` captions baked as trailing text of a table's
+    wrapper paragraph (between ``</hp:tbl>`` and its ``<hp:linesegarray>``).
+
+    Byte-preserving on every untouched part; namespace-prefix tolerant. Returns a
+    :class:`CellFillResult` whose ``applied`` records each stripped caption. Only a
+    parenthesised-ordinal + short word is removed; anything crossing a paragraph or
+    table boundary is left intact (fail-closed)."""
+    return _strip_trailing_table_text(
+        source, predicate=lambda text: bool(re.fullmatch(_TC_CAPTION, text)),
+        output_path=output_path, legacy=True,
+    )
+
+
+def strip_trailing_table_text(
+    source: str | Path | bytes, *, predicate: Callable[[str], bool],
+    output_path: str | Path | None = None,
+) -> CellFillResult:
+    """Remove caller-selected trailing text inside a table's wrapper paragraph.
+
+    ``predicate`` receives stripped, entity-decoded text. Only text/runs before
+    that paragraph's line cache are eligible; other controls, paragraph/table
+    boundaries and missing caches are preserved. Untouched package members keep
+    their bytes. Selection errors propagate before any output is published.
+    """
+    if not callable(predicate):
+        raise HwpxTypeError("predicate must be callable", context={"argument": "predicate"})
+    return _strip_trailing_table_text(source, predicate=predicate, output_path=output_path, legacy=False)
+
+
+def _strip_trailing_table_text(
+    source: str | Path | bytes, *, predicate: Callable[[str], bool],
+    output_path: str | Path | None, legacy: bool,
+) -> CellFillResult:
+    # The released caption API retains its exact 6.x splice/selection behavior.
+    # The neutral seam uses QName-aware bounded spans and preserves aliases.
+    import html
+
+    source_bytes = _read_source_bytes(source)
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(source_bytes), "r") as archive:
+        guard_zip_file(archive)
+        section_names = [
+            info.filename for info in archive.infolist()
+            if not info.is_dir() and re.search(r"section\d+\.xml$", info.filename)
+        ]
+        sections = {name: read_member(archive, name).decode("utf-8") for name in section_names}
+
+    applied: list[CellApplied] = []
+    changed_parts: dict[str, bytes] = {}
+    for name, sec in sections.items():
+        hits: list[str] = []
+
+        def _strip(m: "re.Match[str]") -> str:
+            stuff = m.group(1)
+            # never cross a paragraph or table boundary
+            if "</hp:p>" in stuff or "<hp:p" in stuff or "tbl>" in stuff or "<hp:tbl" in stuff:
+                return m.group(0)
+            texts = _TC_T.findall(stuff)
+            txt = html.unescape("".join(texts)).strip()
+            if predicate(txt):
+                hits.append(txt)
+                # drop the caption text + trailing runs; close the table's run cleanly
+                return "</hp:tbl></hp:run>"
+            return m.group(0)
+
+        if legacy:
+            new = _TC_AFTER_TBL.sub(_strip, sec)
+        else:
+            from ._trailing_table_text import trailing_text_edits
+
+            edits = trailing_text_edits(sec.encode("utf-8"), predicate)
+            hits.extend(edit[3] for edit in edits)
+            new = _apply_edits(sec.encode("utf-8"), [edit[:3] for edit in edits]).decode("utf-8")
+        if new != sec:
+            changed_parts[name] = new.encode("utf-8")
+            for txt in hits:
+                applied.append(CellApplied(name, -1, -1, -1, txt, ""))
+
+    if not changed_parts:
+        open_safety, _ = _finalize(source_bytes, output_path, source=source)
+        return CellFillResult(source_bytes, (), (), (), True, "none", open_safety)
+    try:
+        output = _patch_zip_entries(source_bytes, changed_parts)
+        zip_method = "partial-local-record-copy"
+    except ValueError:
+        output = _rewrite_zip_entries(source_bytes, changed_parts)
+        zip_method = "zipfile-rewrite-fallback"
+    open_safety, _ = _finalize(output, output_path, source=source)
+    return CellFillResult(
+        output, tuple(applied), (), tuple(changed_parts), output == source_bytes,
+        zip_method, open_safety,
+    )
+
+
+def iter_table_spans(section: bytes) -> list[tuple[int, int]]:
+    """Return balanced table byte spans in document order."""
+
+    return _iter_table_spans(section)
+
+
+def table_text(chunk: bytes) -> str:
+    """Return normalized text from one table/XML byte chunk."""
+
+    return _text_of(chunk)
+
+
+def section_parts(data: bytes) -> dict[str, bytes]:
+    """Return HWPX section XML parts keyed by package member name."""
+
+    return _sections(data)
+
+
+def read_source_bytes(source: str | Path | bytes) -> bytes:
+    """Read a path or byte payload through the byte-preserving patch reader."""
+
+    return _read_source_bytes(source)
+
+
+TableCell = _Cell
+
+
+def direct_table_cells(table: bytes) -> list[TableCell]:
+    """Return direct table cells with byte spans and logical addresses.
+
+    Nested-table cells are excluded. The returned immutable records use offsets
+    relative to ``table`` and carry row/column plus row/column-span metadata.
+    """
+
+    return _direct_cells(table)
+
+
+def cell_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
+    """Return direct paragraph byte spans inside one table-cell XML chunk."""
+
+    return _all_paragraph_spans(cell)
+
+
+__all__ = [
+    "CellApplied",
+    "CellFillResult",
+    "CellSkipped",
+    "GridReport",
+    "RenderCheckRequired",
+    "ResolvedCellTarget",
+    "TableCell",
+    "TableStructureError",
+    "apply_table_ops",
+    "build_grid",
+    "cell_paragraph_spans",
+    "direct_table_cells",
+    "fill_cells",
+    "iter_table_spans",
+    "read_source_bytes",
+    "resolve_cell_target",
+    "section_parts",
+    "strip_trailing_table_captions",
+    "strip_trailing_table_text",
+    "table_summary",
+    "table_text",
+    "verify_fill",
+]

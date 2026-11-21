@@ -1,0 +1,1806 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Contents/header.xml style, numbering, tracked-change, and resource service."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
+import xml.etree.ElementTree as ET
+
+from lxml import etree as LET  # type: ignore[reportAttributeAccessIssue]  # lxml has no complete bundled typing
+
+from .paragraph_heading import paragraph_heading, set_paragraph_heading
+from ._document_primitives import (
+    T,
+    attributes_in_order,
+    place_new_attributes,
+    set_id_first,
+    _FONT_FACE_LANG_TO_REF,
+    _HC_NS,
+    _HH,
+    _HP,
+    _allocate_font_id,
+    _append_child,
+    _attach_new_child,
+    _apply_optional_attrs,
+    _bool_str,
+    _border_fill_is_basic_solid_line,
+    _border_fill_matches,
+    _build_font_element,
+    _create_basic_border_fill_element,
+    _create_border_fill_element,
+    _definition_id_keys,
+    _element_local_name,
+    _lookup_keys,
+    _ensure_memo_shape,
+    _ensure_tab_definition_element,
+    _normalize_tab_stops,
+    _find_matching_para_pr,
+    _find_font_id,
+    _fontface_insert_index,
+    _get_bool_attr,
+    _get_int_attr,
+    _normalize_border_side_names,
+    _normalize_border_sides,
+    _normalize_border_type,
+    _normalize_color,
+    _normalize_font_langs,
+    _normalize_memo_shape_spec,
+    _resolve_font_substitute,
+    _serialize_xml,
+    _update_item_count,
+    _validate_font_type,
+)
+from .common import GenericElement
+from .header import (
+    Bullet,
+    Header,
+    MemoProperties,
+    MemoShape,
+    ParagraphProperty,
+    Style,
+    TabDefinition,
+    TrackChange,
+    TrackChangeAuthor,
+    memo_shape_from_attributes,
+    parse_bullet,
+    parse_bullets,
+    parse_border_fills,
+    parse_header_element,
+    parse_paragraph_properties,
+    parse_paragraph_property,
+    parse_style,
+    parse_styles,
+    parse_tab_definition,
+    parse_tab_definitions,
+    parse_track_change,
+    parse_track_change_author,
+    parse_track_change_authors,
+    parse_track_change_config,
+    parse_track_changes,
+    track_change_author_to_xml,
+    track_change_to_xml,
+)
+from .namespaces import tag_local_name, tag_namespace
+from .numbering import DocumentNumbering
+from .utils import normalize_line_width, parse_int
+
+if TYPE_CHECKING:
+    from ..objects.results import BorderFillInfo
+    from .document_parts import HwpxOxmlDocument
+
+
+#: ``hh:refList`` children in the order the OWPML schema (``owpml-header.xsd``) and
+#: Hancom's saves have them.
+_REF_LIST_ORDER = (
+    "fontfaces", "borderFills", "charProperties", "tabProperties", "numberings", "bullets",
+    "paraProperties", "styles", "memoProperties", "trackChanges", "trackChangeAuthors",
+)
+
+
+def _insert_in_ref_list_order(ref_list: Any, element: Any, tag: str) -> None:
+    """Put a new ``refList`` child *element* (local name *tag*) where the schema orders it:
+    before the first child that comes after it. A name outside the order goes last."""
+
+    if tag in _REF_LIST_ORDER:
+        rank = _REF_LIST_ORDER.index(tag)
+        for index, child in enumerate(ref_list):
+            name = tag_local_name(child.tag) if isinstance(child.tag, str) else ""
+            if name in _REF_LIST_ORDER and _REF_LIST_ORDER.index(name) > rank:
+                ref_list.insert(index, element)
+                return
+    ref_list.append(element)
+
+
+
+def _put_style_attributes_in_order(element: Any, before: "list[str] | None") -> None:
+    """A new ``hh:style`` (*before* ``None``) in Hancom's attribute order; for a style already there, only the
+    attributes added since *before* go to their place, the others staying as they are."""
+
+    if before is None:
+        attributes_in_order(element, _STYLE_ATTRIBUTE_ORDER)
+    else:
+        place_new_attributes(element, before, _STYLE_ATTRIBUTE_ORDER)
+
+
+#: Hancom's attribute order of hh:style (all of tests/fixtures/hancom_saved).
+_STYLE_ATTRIBUTE_ORDER = ("id", "type", "name", "engName", "paraPrIDRef", "charPrIDRef", "nextStyleIDRef", "langID",
+                          "lockForm")
+
+#: The bits of ``hh:trackchageConfig@flags`` that choose what Hancom draws of a tracked change, and
+#: the value Hancom writes itself (a new document, and a Hancom-saved document with changes:
+#: hwpxlib ``reader_writer__ChangeTrack``). Rendered with Hangul 12.30.0 for macOS, one tracked
+#: replacement per value: the change marks (red, struck out, a bar in the margin) for 40, 56, 57 and
+#: for no element; the final text without marks for 0, 1, 4, 8, 16, 24 and 60; the original text for
+#: 2; the final text with only the insertion marked for 32 and 48. What bit 0 means was not found.
+_TRACK_VIEW_BITS = 0b111110
+_TRACK_FLAGS_SHOWING_MARKS = 0b111000
+
+
+def _track_change_marks_shown(flags: int | None) -> bool:
+    """True when Hancom draws tracked changes with their marks for *flags* (``None``: no element)."""
+
+    return flags is None or (flags & 0b101000 == 0b101000 and not flags & 0b000110)
+
+
+class HwpxOxmlHeader:
+    """Represents a header XML part."""
+
+    def __init__(self, part_name: str, element: ET.Element, document: "HwpxOxmlDocument" | None = None):  # type: ignore[reportGeneralTypeIssues]  # frozen public annotation
+        self.part_name = part_name
+        self._element = element
+        self._dirty = False
+        self._document = document
+        # parsed lookups (paragraph shapes, styles, tab definitions, border fills ...), see _parsed()
+        self._lookup_cache: dict[tuple[object, ET.Element], tuple[bytes, object]] = {}
+        # kind -> (the refList list, id -> definition by every key, id -> definition as written),
+        # see _definition_element()
+        self._definition_index: dict[str, tuple[ET.Element, dict[str, ET.Element], dict[str, ET.Element]]] = {}
+
+    @property
+    def element(self) -> ET.Element:
+        return self._element
+
+    @property
+    def document(self) -> "HwpxOxmlDocument" | None:  # type: ignore[reportGeneralTypeIssues]  # frozen public annotation
+        return self._document
+
+    def attach_document(self, document: "HwpxOxmlDocument") -> None:
+        self._document = document
+
+    def to_model(self) -> Header:
+        return parse_header_element(self._convert_to_lxml(self._element))
+
+    @staticmethod
+    def _coerce_serialized_child(parent: ET.Element, child: LET._Element) -> ET.Element:
+        if isinstance(parent, LET._Element):
+            return child
+        return ET.fromstring(LET.tostring(child, encoding="utf-8"))
+
+    def _begin_num_element(self, create: bool = False) -> ET.Element | None:
+        element = self._element.find(f"{_HH}beginNum")
+        if element is None and create:
+            element = self._element.makeelement(f"{_HH}beginNum", {})
+            self._element.append(element)
+        return element
+
+    def _ref_list_element(self, create: bool = False) -> ET.Element | None:
+        element = self._element.find(f"{_HH}refList")
+        if element is None and create:
+            element = self._element.makeelement(f"{_HH}refList", {})
+            self._element.append(element)
+            self.mark_dirty()
+        return element
+
+    def _ref_list_default_child(self, tag: str, *, create: bool = False) -> ET.Element | None:
+        """Find-or-create a direct ``refList`` child defaulting to an empty
+        ``itemCnt="0"`` collection. Shared body for the sibling accessors
+        below — ``fontfaces`` is the one exception needing first-child
+        positioning (schema requires it precede the others), so it keeps
+        its own method.
+        """
+
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}{tag}")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}{tag}", {"itemCnt": "0"})
+            _insert_in_ref_list_order(ref_list, element, tag)
+            self.mark_dirty()
+        return element
+
+    def _border_fills_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("borderFills", create=create)
+
+    def _char_properties_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("charProperties", create=create)
+
+    def _fontfaces_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}fontfaces")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}fontfaces", {"itemCnt": "0"})
+            # 스키마 순서: MappingTableType 시퀀스에서 fontfaces 가 첫 자식이다.
+            ref_list.insert(0, element)
+            self.mark_dirty()
+        return element
+
+    def _allocate_style_id(self, element: ET.Element) -> str:
+        existing: set[str] = {child.get("id") or "" for child in element.findall(f"{_HH}style")}
+        existing.discard("")
+
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    def font_ref_for_face(self, face: str) -> dict[str, str] | None:
+        """Return ``hh:fontRef`` attributes for the languages that declare *face*.
+
+        Each language numbers its fonts on its own, so a language that does
+        not declare *face* gets no entry (its reference stays as it was).
+        """
+
+        target = face.strip()
+        if not target:
+            return None
+
+        refs: dict[str, str] = {}
+        for fontface in self._element.findall(f".//{_HH}fontface"):
+            attr_name = _FONT_FACE_LANG_TO_REF.get(fontface.get("lang", "").upper())
+            if attr_name is None:
+                continue
+            for font in fontface.findall(f"{_HH}font"):
+                if font.get("face") == target and font.get("id"):
+                    refs[attr_name] = font.get("id", "")
+                    break
+
+        return refs or None
+
+    def _allocate_char_property_id(
+        self,
+        element: ET.Element,
+        *,
+        preferred_id: str | int | None = None,
+    ) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in element.findall(f"{_HH}charPr")
+        }
+        existing.discard("")
+
+        if preferred_id is not None:
+            candidate = str(preferred_id)
+            if candidate not in existing:
+                return candidate
+
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    def _allocate_border_fill_id(self, element: ET.Element) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in element.findall(f"{_HH}borderFill")
+        }
+        existing.discard("")
+
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 0 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    def ensure_char_property(
+        self,
+        *,
+        predicate: Callable[[ET.Element], bool] | None = None,
+        modifier: Callable[[ET.Element], None] | None = None,
+        base_char_pr_id: str | int | None = None,
+        preferred_id: str | int | None = None,
+    ) -> ET.Element:
+        """Return a ``<hh:charPr>`` element matching *predicate* or create one.
+
+        When an existing entry satisfies *predicate*, it is returned unchanged.
+        Otherwise a new element is produced by cloning ``base_char_pr_id`` (or the
+        first available entry) and applying *modifier* before assigning a fresh
+        identifier and updating ``itemCnt``.
+        """
+
+        char_props = self._char_properties_element(create=True)
+        if char_props is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <charProperties> element")
+
+        if predicate is not None:
+            for child in char_props.findall(f"{_HH}charPr"):
+                if predicate(child):
+                    return child
+
+        base_element: ET.Element | None = None
+        if base_char_pr_id is not None:
+            base_element = char_props.find(f"{_HH}charPr[@id='{base_char_pr_id}']")
+        if base_element is None:
+            existing = char_props.find(f"{_HH}charPr")
+            if existing is not None:
+                base_element = existing
+
+        if base_element is None:
+            new_char_pr = ET.Element(f"{_HH}charPr")
+        else:
+            new_char_pr = deepcopy(base_element)
+            if "id" in new_char_pr.attrib:
+                del new_char_pr.attrib["id"]
+
+        if modifier is not None:
+            modifier(new_char_pr)
+
+        char_id = self._allocate_char_property_id(char_props, preferred_id=preferred_id)
+        set_id_first(new_char_pr, char_id)  # Hancom writes a definition's id first
+        char_props.append(new_char_pr)
+        _update_item_count(char_props, "charPr")
+        self.mark_dirty()
+        document = self.document
+        if document is not None:
+            document.invalidate_char_property_cache()
+        return new_char_pr
+
+    def _memo_properties_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("memoProperties", create=create)
+
+    def _bullets_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("bullets", create=create)
+
+    def _numberings_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("numberings", create=create)
+
+    def _para_properties_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("paraProperties", create=create)
+
+    def _tab_properties_element(self, create: bool = False) -> ET.Element | None:
+        return self._ref_list_default_child("tabProperties", create=create)
+
+    @staticmethod
+    def _allocate_ref_id(parent: ET.Element, child_tag: str) -> str:
+        existing: set[str] = {
+            child.get("id") or ""
+            for child in parent.findall(child_tag)
+        }
+        existing.discard("")
+        numeric_ids: list[int] = []
+        for value in existing:
+            try:
+                numeric_ids.append(int(value))
+            except ValueError:
+                continue
+        next_id = 1 if not numeric_ids else max(numeric_ids) + 1
+        candidate = str(next_id)
+        while candidate in existing:
+            next_id += 1
+            candidate = str(next_id)
+        return candidate
+
+    @staticmethod
+    def _update_item_count(parent: ET.Element, child_tag: str) -> None:
+        parent.set("itemCnt", str(len(parent.findall(child_tag))))
+
+    @staticmethod
+    def _default_para_head_attributes(level: int) -> dict[str, str]:
+        return {
+            "start": "1",
+            "level": str(level),
+            "align": "LEFT",
+            "useInstWidth": "1",
+            "autoIndent": "1",
+            "widthAdjust": "0",
+            "textOffsetType": "PERCENT",
+            "textOffset": "50",
+            "numFormat": "DIGIT",
+            "charPrIDRef": "4294967295",
+            "checkable": "0",
+        }
+
+    def _ensure_bullet_definition(self, char: str) -> str:
+        bullets = self._bullets_element(create=True)
+        if bullets is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <bullets> element")
+        for bullet in bullets.findall(f"{_HH}bullet"):
+            if bullet.get("char") == char:
+                bullet_id = bullet.get("id")
+                if bullet_id:
+                    return bullet_id
+
+        bullet_id = self._allocate_ref_id(bullets, f"{_HH}bullet")
+        bullet = bullets.makeelement(
+            f"{_HH}bullet",
+            {"id": bullet_id, "char": char, "useImage": "0"},
+        )
+        head_attrs = self._default_para_head_attributes(0)
+        head_attrs.pop("start", None)
+        head_attrs["useInstWidth"] = "0"
+        _append_child(bullet, f"{_HH}paraHead", head_attrs)
+        bullets.append(bullet)
+        self._update_item_count(bullets, f"{_HH}bullet")
+        self.mark_dirty()
+        return bullet_id
+
+    def _create_numbering_definition(self, levels: int | Sequence[Mapping[str, str]]) -> str:
+        if isinstance(levels, int):
+            level_specs: list[Mapping[str, str]] = [{} for _ in range(max(1, levels))]
+        else:
+            level_specs = list(levels) or [{}]
+
+        numberings = self._numberings_element(create=True)
+        if numberings is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <numberings> element")
+
+        first_start = str(level_specs[0].get("start") or "1")
+        numbering_id = self._allocate_ref_id(numberings, f"{_HH}numbering")
+        numbering = numberings.makeelement(
+            f"{_HH}numbering",
+            {"id": numbering_id, "start": first_start},
+        )
+        for index, level_spec in enumerate(level_specs):
+            level = index + 1
+            head_attrs = self._default_para_head_attributes(level)
+            num_format = level_spec.get("numFormat") or level_spec.get("format")
+            if num_format:
+                head_attrs["numFormat"] = str(num_format).upper()
+            start = level_spec.get("start")
+            if start is not None:
+                head_attrs["start"] = str(start)
+            head = _append_child(
+                numbering,
+                f"{_HH}paraHead",
+                head_attrs,
+            )
+            head.text = str(
+                level_spec.get("text")
+                or ".".join(f"^{part}" for part in range(1, level + 1)) + "."
+            )
+        numberings.append(numbering)
+        self._update_item_count(numberings, f"{_HH}numbering")
+        self.mark_dirty()
+        return numbering_id
+
+    def _ensure_para_property_heading(
+        self,
+        *,
+        heading_type: str,
+        id_ref: str,
+        level: int,
+    ) -> str:
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        for para_pr in para_properties.findall(f"{_HH}paraPr"):
+            heading = paragraph_heading(para_pr)
+            if heading is None:
+                continue
+            if (
+                heading.get("type") == heading_type
+                and heading.get("idRef") == str(id_ref)
+                and heading.get("level") == str(level)
+            ):
+                para_pr_id = para_pr.get("id")
+                if para_pr_id:
+                    return para_pr_id
+
+        base = para_properties.find(f"{_HH}paraPr")
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+        set_paragraph_heading(para_pr, {"type": heading_type, "idRef": str(id_ref), "level": str(level)})
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        set_id_first(para_pr, para_pr_id)  # Hancom writes a definition's id first
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
+    def ensure_paragraph_alignment(self, align: str) -> str:
+        """Return a paragraph property id with the requested horizontal alignment."""
+
+        horizontal = self._normalize_paragraph_alignment(align)
+
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        base = para_properties.find(f"{_HH}paraPr")
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+        align_element = para_pr.find(f"{_HH}align")
+        if align_element is None:
+            align_element = para_pr.makeelement(
+                f"{_HH}align",
+                {"horizontal": horizontal, "vertical": "BASELINE"},
+            )
+            para_pr.insert(0, align_element)
+        else:
+            align_element.set("horizontal", horizontal)
+            if align_element.get("vertical") is None:
+                align_element.set("vertical", "BASELINE")
+
+        # Reuse a shape only when it is the base shape with this alignment and
+        # nothing else. Any shape that happens to be aligned this way may also
+        # carry a border, spacing or list numbering of the paragraph it was
+        # made for.
+        wanted = self._para_pr_signature(para_pr)
+        for existing in para_properties.findall(f"{_HH}paraPr"):
+            existing_id = existing.get("id")
+            if existing_id and self._para_pr_signature(existing) == wanted:
+                return existing_id
+
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        set_id_first(para_pr, para_pr_id)  # Hancom writes a definition's id first
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
+    @staticmethod
+    def _para_pr_signature(para_pr: ET.Element) -> bytes:
+        """What a paragraph shape says, whatever its id."""
+
+        clone = deepcopy(para_pr)
+        clone.attrib.pop("id", None)
+        clone.tail = None
+        return LET.tostring(clone, method="c14n")
+
+    @staticmethod
+    def _normalize_paragraph_alignment(align: str) -> str:
+        normalized = align.strip().upper()
+        aliases = {
+            "LEFT": "LEFT",
+            "START": "LEFT",
+            "CENTER": "CENTER",
+            "CENTRE": "CENTER",
+            "MIDDLE": "CENTER",
+            "RIGHT": "RIGHT",
+            "END": "RIGHT",
+            "JUSTIFY": "JUSTIFY",
+            "DISTRIBUTE": "DISTRIBUTE",
+            "DISTRIBUTE_SPACE": "DISTRIBUTE_SPACE",
+        }
+        horizontal = aliases.get(normalized)
+        if horizontal is None:
+            raise ValueError(f"unsupported paragraph alignment: {align}")
+        return horizontal
+
+    @staticmethod
+    def _id_matches(raw_id: str | None, target: str | int | None) -> bool:
+        if raw_id is None or target is None:
+            return False
+        raw = str(raw_id).strip()
+        candidate = str(target).strip()
+        if raw == candidate:
+            return True
+        try:
+            return int(raw) == int(candidate)
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _direct_child_by_local(parent: ET.Element, local_name: str) -> ET.Element | None:
+        for child in parent:
+            if _element_local_name(child) == local_name:
+                return child
+        return None
+
+    @staticmethod
+    def _descendants_by_local(parent: ET.Element, local_name: str) -> list[ET.Element]:
+        return [
+            child
+            for child in parent.iter()
+            if child is not parent and _element_local_name(child) == local_name
+        ]
+
+    @staticmethod
+    def _remove_descendants_by_local(parent: ET.Element, local_name: str) -> None:
+        for candidate_parent in list(parent.iter()):
+            for child in list(candidate_parent):
+                if _element_local_name(child) == local_name:
+                    candidate_parent.remove(child)
+
+    @staticmethod
+    def _insert_child_after(
+        parent: ET.Element,
+        child: ET.Element,
+        after_local_names: set[str],
+    ) -> None:
+        insert_at = 0
+        for index, existing in enumerate(list(parent)):
+            if _element_local_name(existing) in after_local_names:
+                insert_at = index + 1
+        parent.insert(insert_at, child)
+
+    def _ensure_direct_para_child(
+        self,
+        para_pr: ET.Element,
+        local_name: str,
+        *,
+        after_local_names: set[str],
+    ) -> ET.Element:
+        child = self._direct_child_by_local(para_pr, local_name)
+        if child is not None:
+            return child
+        child = para_pr.makeelement(f"{_HH}{local_name}", {})
+        self._insert_child_after(para_pr, child, after_local_names)
+        return child
+
+    def _base_para_property(
+        self,
+        para_properties: ET.Element,
+        base_para_pr_id: str | int | None,
+    ) -> ET.Element | None:
+        if base_para_pr_id is not None:
+            for para_pr in para_properties.findall(f"{_HH}paraPr"):
+                if self._id_matches(para_pr.get("id"), base_para_pr_id):
+                    return para_pr
+        return para_properties.find(f"{_HH}paraPr")
+
+    @staticmethod
+    def _set_margin_unit_value(element: ET.Element, value: int) -> None:
+        safe_value = str(int(value))
+        if "value" in element.attrib or tag_namespace(element.tag) == _HC_NS:
+            element.set("value", safe_value)
+            element.set("unit", "HWPUNIT")
+            element.text = None
+            return
+        element.text = safe_value
+        if "unit" in element.attrib:
+            element.set("unit", "HWPUNIT")
+
+    def _apply_paragraph_margins(self, para_pr: ET.Element, margins: Mapping[str, int]) -> None:
+        margin_elements = self._descendants_by_local(para_pr, "margin")
+        if not margin_elements:
+            margin_elements = [self._ensure_direct_para_child(
+                para_pr, "margin", after_local_names={"breakSetting", "autoSpacing", "heading", "align"})]
+
+        # Hancom keeps hp:default at twice the hp:case value; a margin outside hp:switch is as given.
+        doubled = para_pr.findall(f"{_HP}switch/{_HP}default/{_HH}margin")
+        for margin in margin_elements:
+            scale = 2 if margin in doubled else 1
+            for name, value in margins.items():
+                if value is None:
+                    continue
+                child = self._direct_child_by_local(margin, name)
+                if child is None:
+                    child = margin.makeelement(f"{_HH}{name}", {})
+                    margin.append(child)
+                self._set_margin_unit_value(child, int(value) * scale)
+
+    def _apply_paragraph_line_spacing(self, para_pr: ET.Element, percent: int | float) -> None:
+        value = str(int(round(float(percent))))
+        line_spacing_elements = self._descendants_by_local(para_pr, "lineSpacing")
+        if not line_spacing_elements:
+            line_spacing = self._ensure_direct_para_child(
+                para_pr,
+                "lineSpacing",
+                after_local_names={"margin"},
+            )
+            line_spacing_elements = [line_spacing]
+        for line_spacing in line_spacing_elements:
+            line_spacing.set("type", "PERCENT")
+            line_spacing.set("value", value)
+            line_spacing.set("unit", "HWPUNIT")  # as Hancom writes a percentage too (the schema's CHAR|HWPUNIT)
+
+    def _apply_paragraph_border(self, para_pr: ET.Element, border: Mapping[str, str | int]) -> None:
+        self._remove_descendants_by_local(para_pr, "border")
+        attrs = {
+            "borderFillIDRef": str(border.get("borderFillIDRef", border.get("border_fill_id_ref", "0"))),
+            "offsetLeft": str(border.get("offsetLeft", border.get("offset_left", "0"))),
+            "offsetRight": str(border.get("offsetRight", border.get("offset_right", "0"))),
+            "offsetTop": str(border.get("offsetTop", border.get("offset_top", "0"))),
+            "offsetBottom": str(border.get("offsetBottom", border.get("offset_bottom", "0"))),
+            "connect": str(border.get("connect", "0")),
+            "ignoreMargin": str(border.get("ignoreMargin", border.get("ignore_margin", "0"))),
+        }
+        border_element = para_pr.makeelement(f"{_HH}border", attrs)
+        self._insert_child_after(
+            para_pr,
+            border_element,
+            {"align", "heading", "breakSetting", "autoSpacing", "margin", "lineSpacing", "switch"},
+        )
+
+    def _apply_paragraph_break_setting(
+        self, para_pr: ET.Element, break_setting: Mapping[str, bool]
+    ) -> None:
+        element = self._ensure_direct_para_child(
+            para_pr,
+            "breakSetting",
+            after_local_names={"align", "heading"},
+        )
+        attr_map = {
+            "keep_with_next": "keepWithNext",
+            "keep_lines": "keepLines",
+            "page_break_before": "pageBreakBefore",
+            "widow_orphan": "widowOrphan",
+        }
+        for key, attr in attr_map.items():
+            if key in break_setting and break_setting[key] is not None:
+                element.set(attr, "1" if break_setting[key] else "0")
+
+    def ensure_paragraph_format(
+        self,
+        *,
+        base_para_pr_id: str | int | None = None,
+        alignment: str | None = None,
+        line_spacing_percent: int | float | None = None,
+        margins: Mapping[str, int] | None = None,
+        heading: Mapping[str, str | int] | None = None,
+        border: Mapping[str, str | int] | None = None,
+        break_setting: Mapping[str, bool | str] | None = None,
+        tab_pr_id_ref: str | None = None,
+        line_spacing: object = None,
+        condense: int | None = None,
+    ) -> str:
+        """Return a new paragraph property id with requested formatting changes.
+
+        *line_spacing* (a ``LineSpacing`` or a percentage) and *condense* (공백 최소값 %)
+        are written as Hancom writes them (``formatting.apply_line_spacing``);
+        *break_setting* also takes ``break_latin_word``/``break_non_latin_word``
+        (``KEEP_WORD``/``BREAK_WORD``/``HYPHENATION``) and ``line_wrap``.
+        """
+
+        from . import formatting
+
+        extras = formatting.paragraph_extras(line_spacing, condense)
+
+        para_properties = self._para_properties_element(create=True)
+        if para_properties is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <paraProperties> element")
+
+        base = self._base_para_property(para_properties, base_para_pr_id)
+        para_pr = deepcopy(base) if base is not None else para_properties.makeelement(f"{_HH}paraPr", {})
+        para_pr.attrib.pop("id", None)
+
+        if alignment is not None:
+            align_element = self._ensure_direct_para_child(
+                para_pr,
+                "align",
+                after_local_names=set(),
+            )
+            align_element.set("horizontal", self._normalize_paragraph_alignment(alignment))
+            if align_element.get("vertical") is None:
+                align_element.set("vertical", "BASELINE")
+
+        if heading is not None:
+            set_paragraph_heading(para_pr, {
+                "type": str(heading.get("type", "NONE")).upper(),
+                "idRef": str(heading.get("idRef", heading.get("id_ref", "0"))),
+                "level": str(heading.get("level", "0")),
+            })
+
+        clean_margins = {name: value for name, value in dict(margins or {}).items() if value is not None}
+        if clean_margins:
+            self._apply_paragraph_margins(para_pr, clean_margins)
+
+        if line_spacing_percent is not None:
+            self._apply_paragraph_line_spacing(para_pr, line_spacing_percent)
+
+        if break_setting is not None:
+            self._apply_paragraph_break_setting(para_pr, break_setting)  # type: ignore[arg-type]  # str keys skipped there
+        extras(self, para_pr, break_setting or {})
+        if border is not None:
+            self._apply_paragraph_border(para_pr, border)
+        if tab_pr_id_ref is not None:
+            para_pr.set("tabPrIDRef", str(tab_pr_id_ref))
+
+        # Dedupe (ensure_tab_definition/ensure_style precedent): if the
+        # paraPr we just built is structurally identical to one that
+        # already exists, reuse its id instead of minting a duplicate.
+        # Without this, every add_heading()/set_paragraph_format() call
+        # mints a fresh paraPr even when an earlier call already produced
+        # the exact same one -- real Hancom merges these duplicates back
+        # down on its own next save (observed: a paraPrIDRef that
+        # round-tripped through real Hancom came back renumbered, not a
+        # bug -- see docs/owpml-deviations.md and the titleMark re-probe
+        # notes), so this closes the gap rather than fixing a rejection.
+        reusable_id = _find_matching_para_pr(para_properties, para_pr)
+        if reusable_id is not None:
+            return reusable_id
+
+        para_pr_id = self._allocate_ref_id(para_properties, f"{_HH}paraPr")
+        set_id_first(para_pr, para_pr_id)  # Hancom writes a definition's id first
+        para_properties.append(para_pr)
+        self._update_item_count(para_properties, f"{_HH}paraPr")
+        self.mark_dirty()
+        return para_pr_id
+
+    def ensure_tab_definition(
+        self,
+        *,
+        tab_stops: "Iterable[Mapping[str, object]] | None" = None,
+        auto_tab_left: bool = False,
+        auto_tab_right: bool = False,
+    ) -> str:
+        """Return a ``hh:tabPr`` id matching *tab_stops* (dedupe — ``ensure_style``
+        선례). Order is part of the dedupe key — see :func:`_normalize_tab_stops`.
+        """
+
+        # Read and checked once, before a header without the list gains an empty one; the result is
+        # what is written (the stops are not read a second time: an iterator, a mapping reused).
+        stops = _normalize_tab_stops(tab_stops)
+        element = self._tab_properties_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "failed to create <tabProperties> element",
+                code="style-tab-container-create-failed",
+            )
+
+        tab_id, created = _ensure_tab_definition_element(
+            element,
+            tab_stops=None,
+            normalized_stops=stops,
+            auto_tab_left=auto_tab_left,
+            auto_tab_right=auto_tab_right,
+        )
+        if created:
+            self.mark_dirty()
+        return tab_id
+
+    def ensure_numbering(
+        self,
+        *,
+        kind: str,
+        levels: Sequence[dict[str, str]] | None = None,
+    ) -> list[str]:
+        """글머리표/번호/개요 정의를 보장하고 각 레벨의 paraPr id를 돌려준다.
+
+        구현 본체는 `numbering_kinds.py`에 산다(owner-file 1600줄 캡에
+        헤드룸이 없어, 6.13 트레인㊻가 `outline` kind를 추가하며 이동).
+        """
+        from .numbering_kinds import ensure_numbering_refs
+
+        return ensure_numbering_refs(self, kind=kind, levels=levels)
+
+    def _styles_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}styles")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}styles", {"itemCnt": "0"})
+            _insert_in_ref_list_order(ref_list, element, "styles")
+            self.mark_dirty()
+        return element
+
+    def _track_changes_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}trackChanges")
+
+    def _track_changes_element_or_create(self) -> ET.Element:
+        ref_list = self._ref_list_element(create=True)
+        if ref_list is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <refList> element")
+        element = ref_list.find(f"{_HH}trackChanges")
+        if element is None:
+            element = ref_list.makeelement(f"{_HH}trackChanges", {"itemCnt": "0"})
+            _insert_in_ref_list_order(ref_list, element, "trackChanges")
+            self.mark_dirty()
+        return element
+
+    def _track_change_authors_element(self, create: bool = False) -> ET.Element | None:
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        return ref_list.find(f"{_HH}trackChangeAuthors")
+
+    def _track_change_authors_element_or_create(self) -> ET.Element:
+        ref_list = self._ref_list_element(create=True)
+        if ref_list is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <refList> element")
+        element = ref_list.find(f"{_HH}trackChangeAuthors")
+        if element is None:
+            element = ref_list.makeelement(f"{_HH}trackChangeAuthors", {"itemCnt": "0"})
+            _insert_in_ref_list_order(ref_list, element, "trackChangeAuthors")
+            self.mark_dirty()
+        return element
+
+    def _track_change_config_element(self, create: bool = False) -> ET.Element | None:
+        for child in self._element:
+            if tag_local_name(child.tag) in {"trackchageConfig", "trackchangeConfig"}:
+                return child
+        if not create:
+            return None
+        element = self._element.makeelement(f"{_HH}trackchageConfig", {"flags": "0"})
+        self._element.append(element)
+        self.mark_dirty()
+        return element
+
+    @property
+    def track_change_config(self):
+        element = self._track_change_config_element()
+        if element is None:
+            return None
+        return parse_track_change_config(self._convert_to_lxml(element))
+
+    def add_track_change(
+        self,
+        change_type: str,
+        *,
+        author_name: str = "AI Agent",
+        date: str | None = None,
+        minimum_id: int = 0,
+        show: bool = True,
+    ) -> int:
+        model = self.to_model()
+        change_id = model.add_track_change(
+            change_type,
+            author_name=author_name,
+            date=date,
+            minimum_id=minimum_id,
+            ids=self._document._id_source if self._document is not None else None,
+        )
+        if model.ref_list is None or model.ref_list.track_changes is None:
+            raise RuntimeError("failed to create tracked-change metadata")
+
+        change = next(
+            candidate
+            for candidate in model.ref_list.track_changes.changes
+            if candidate.id == change_id
+        )
+        changes_element = self._track_changes_element_or_create()
+        changes_element.append(
+            self._coerce_serialized_child(changes_element, track_change_to_xml(change))
+        )
+        changes_element.set("itemCnt", str(model.ref_list.track_changes.item_cnt or 0))
+
+        authors = model.ref_list.track_change_authors
+        if authors is not None and change.author_id is not None:
+            author = authors.author_by_id(change.author_id)
+            if author is not None:
+                authors_element = self._track_change_authors_element_or_create()
+                existing_ids = {
+                    child.get("id")
+                    for child in authors_element.findall(f"{_HH}trackChangeAuthor")
+                }
+                author_ids = {str(author.id)} if author.id is not None else set()
+                if author.raw_id is not None:
+                    author_ids.add(author.raw_id)
+                if not existing_ids.intersection(author_ids):
+                    authors_element.append(
+                        self._coerce_serialized_child(
+                            authors_element,
+                            track_change_author_to_xml(author),
+                        )
+                    )
+                authors_element.set("itemCnt", str(authors.item_cnt or 0))
+
+        # The change is to be seen: a document whose ``hh:trackchageConfig@flags`` hides the marks is
+        # set to show them (see :func:`_track_change_marks_shown`); one that shows them, or has no such
+        # element, is left as it is. Up to 7.0 development bit 0 was set here "for display". It is not
+        # what shows a change, and with it Hancom crashed opening a document that also had a table of
+        # contents to make again (``dirty="1"``, as ``add_table_of_contents`` writes one).
+        config_element = self._track_change_config_element() if show else None  # not for changes carried in
+        if config_element is not None:
+            try:
+                flags = int(config_element.get("flags", ""))
+            except ValueError:
+                flags = 0  # no flags, or not a number: read as 0, which hides the marks
+            if not _track_change_marks_shown(flags):
+                config_element.set("flags", str(_TRACK_FLAGS_SHOWING_MARKS | (flags & ~_TRACK_VIEW_BITS)))
+        self.mark_dirty()
+        return change_id
+
+    def find_basic_border_fill_id(self) -> str | None:
+        element = self._border_fills_element()
+        if element is None:
+            return None
+        for child in element.findall(f"{_HH}borderFill"):
+            if _border_fill_is_basic_solid_line(child):
+                identifier = child.get("id")
+                if identifier:
+                    return identifier
+        return None
+
+    def ensure_basic_border_fill(self) -> str:
+        element = self._border_fills_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <borderFills> element")
+
+        existing = self.find_basic_border_fill_id()
+        if existing is not None:
+            return existing
+
+        new_id = self._allocate_border_fill_id(element)
+        new_border_fill = _create_basic_border_fill_element(new_id)
+        _attach_new_child(element, new_border_fill)
+        _update_item_count(element, "borderFill")
+        self.mark_dirty()
+        return new_id
+
+    #: The border types Hancom reads; it draws a type it does not know as no border at all.
+    _BORDER_LINE_TYPES = frozenset({
+        "SOLID", "DASH", "DOT", "DASH_DOT", "DASH_DOT_DOT", "LONG_DASH",
+        "CIRCLE", "DOUBLE_SLIM", "SLIM_THICK", "THICK_SLIM", "SLIM_THICK_SLIM",
+        "WAVE", "DOUBLEWAVE", "THICK3D", "THICKREV3D", "3D", "REV3D",
+    })
+    #: Earlier python-hwpx names of the 3-D lines, which Hancom reads as no line.
+    _BORDER_LINE_TYPE_ALIASES = {"THICK_3D": "THICK3D", "THICK_3D_REVERSE_LIGHTING": "THICKREV3D",
+                                 "SLIM_3D": "3D", "SLIM_3D_REVERSE_LIGHTING": "REV3D"}
+
+    def ensure_border_fill(
+        self,
+        *,
+        border_color: str = "#BFBFBF",
+        border_width: str = "0.12 mm",
+        fill_color: str | None = None,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
+        active_borders: Iterable[str] | None = None,
+        border_type: str = "SOLID",
+        sides: "Mapping[str, Mapping[str, Any] | None] | None" = None,
+    ) -> str:
+        element = self._border_fills_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <borderFills> element")
+
+        normalized_border_type = _normalize_border_type(
+            self._BORDER_LINE_TYPE_ALIASES.get(str(border_type).upper(), border_type), self._BORDER_LINE_TYPES)
+        normalized_border_color = _normalize_color(border_color) or "#BFBFBF"
+        normalized_border_width = normalize_line_width(border_width or "0.12 mm")
+        normalized_active_borders = _normalize_border_side_names(active_borders)
+        normalized_fill_color = _normalize_color(fill_color)
+        side_lines = _normalize_border_sides(
+            sides, border_color=normalized_border_color, border_width=normalized_border_width,
+            border_type=normalized_border_type, allowed_types=self._BORDER_LINE_TYPES,
+            type_aliases=self._BORDER_LINE_TYPE_ALIASES,
+        )
+
+        for border_fill in element.findall(f"{_HH}borderFill"):
+            if _border_fill_matches(
+                border_fill,
+                border_color=normalized_border_color,
+                border_width=normalized_border_width,
+                fill_color=normalized_fill_color,
+                fill_image=fill_image, fill_gradient=fill_gradient,
+                active_borders=normalized_active_borders,
+                border_type=normalized_border_type, side_lines=side_lines,
+            ):
+                border_id = border_fill.get("id")
+                if border_id:
+                    return border_id
+
+        new_id = self._allocate_border_fill_id(element)
+        new_border_fill = _create_border_fill_element(
+            new_id,
+            border_color=normalized_border_color,
+            border_width=normalized_border_width,
+            fill_color=normalized_fill_color,
+            fill_image=fill_image, fill_gradient=fill_gradient,
+            active_borders=normalized_active_borders,
+            border_type=normalized_border_type, side_lines=side_lines,
+        )
+        _attach_new_child(element, new_border_fill)
+        _update_item_count(element, "borderFill")
+        self.mark_dirty()
+        return new_id
+
+    def ensure_style(
+        self,
+        name: str,
+        *,
+        style_type: str | None = None,
+        eng_name: str | None = None,
+        para_pr_id_ref: str | int | None = None,
+        char_pr_id_ref: str | int | None = None,
+        next_style_id_ref: str | int | None = None,
+        lang_id: int | None = None,
+        lock_form: bool | None = None,
+    ) -> str:
+        """Return a style id for *name*, creating or partially updating a ``<hh:style>``.
+
+        *name* is the dedupe key(Hancom style identity is name-based) — a
+        repeat call with a *name* that already exists reuses that style's id
+        instead of creating a duplicate(``hh:name`` must stay unique for
+        :meth:`HwpxOxmlDocument._style_name_id_map` to resolve it
+        unambiguously). Any other keyword left as ``None`` leaves that
+        attribute untouched on an existing style; on a brand-new style,
+        ``style_type`` defaults to ``"PARA"`` (the schema has no default —
+        every style must declare a type) and the rest stay unset like real
+        Hancom output.
+        """
+
+        styles = self._styles_element(create=True)
+        if styles is None:  # pragma: no cover - defensive branch
+            # The four sibling ensure_* guards above predate the typed-error
+            # vocabulary and are grandfathered in the census; new raises are
+            # not — the ratchet caught this one on merge, as designed.
+            from ..errors import HwpxStateError
+
+            raise HwpxStateError(
+                "failed to create <styles> element",
+                code="style-container-create-failed",
+            )
+
+        normalized_name = str(name)
+        element: ET.Element | None = None
+        for candidate in styles.findall(f"{_HH}style"):
+            if candidate.get("name") == normalized_name:
+                element = candidate
+                break
+
+        changed = False
+        created = False
+        if element is None:
+            new_id = self._allocate_style_id(styles)
+            new_style = ET.Element(
+                f"{_HH}style",
+                {"id": new_id, "type": style_type or "PARA", "name": normalized_name},
+            )
+            if isinstance(styles, LET._Element):
+                new_style = LET.fromstring(ET.tostring(new_style, encoding="utf-8"))
+            styles.append(new_style)
+            element = new_style
+            changed = created = True
+        elif style_type is not None and element.get("type") != style_type:
+            element.set("type", style_type)
+            changed = True
+
+        before_keys = list(element.attrib.keys())
+        if _apply_optional_attrs(
+            element,
+            (
+                ("engName", eng_name),
+                ("paraPrIDRef", None if para_pr_id_ref is None else str(para_pr_id_ref)),
+                ("charPrIDRef", None if char_pr_id_ref is None else str(char_pr_id_ref)),
+                ("nextStyleIDRef", None if next_style_id_ref is None else str(next_style_id_ref)),
+                ("langID", None if lang_id is None else str(lang_id)),
+            ),
+        ):
+            changed = True
+        if lock_form is not None and _get_bool_attr(element, "lockForm", False) != lock_form:
+            element.set("lockForm", _bool_str(lock_form))
+            changed = True
+        _put_style_attributes_in_order(element, None if created else before_keys)
+
+        if changed:
+            _update_item_count(styles, "style")
+            self.mark_dirty()
+        style_id = element.get("id")
+        assert style_id is not None  # allocated above or already present
+        return style_id
+
+    def _fontface_element(
+        self, fontfaces: ET.Element, lang: str, *, create: bool = False
+    ) -> ET.Element | None:
+        for child in fontfaces.findall(f"{_HH}fontface"):
+            if child.get("lang") == lang:
+                return child
+        if not create:
+            return None
+
+        element = fontfaces.makeelement(f"{_HH}fontface", {"lang": lang, "fontCnt": "0"})
+        fontfaces.insert(_fontface_insert_index(fontfaces, lang), element)
+        fontfaces.set("itemCnt", str(len(fontfaces.findall(f"{_HH}fontface"))))
+        self.mark_dirty()
+        return element
+
+    def ensure_font(
+        self,
+        face: str,
+        *,
+        lang: "str | Iterable[str] | None" = None,
+        font_type: str = "TTF",
+        is_embedded: bool = False,
+        binary_item_id_ref: str | None = None,
+        subst_face: str | None = None,
+        subst_type: str | None = None,
+        subst_is_embedded: bool = False,
+        subst_binary_item_id_ref: str | None = None,
+    ) -> str:
+        """Ensure *face* is declared in ``hh:fontfaces`` and return its id.
+
+        Hancom 관행(실코퍼스 176파일 전수): 글꼴 하나는 보통 7개 lang 블록
+        전부에 선언된다 — *lang* 생략 시 그 관행대로 전부(``FONTFACE_LANGS``)
+        에 등록해, 등록 뒤 ``ensure_run(font=face)`` 의 ``fontRef`` 7개 속성이
+        전부 유효한 해당-블록 id 를 가리키게 한다(블록마다 id 채번이 독립이라
+        다른 블록 id 를 빌려 쓰면 잘못된 글꼴을 가리킬 수 있다).
+
+        *face* 가 이미 그 lang 블록에 있으면(``ensure_style`` 의 이름 dedupe와
+        같은 관용구) 기존 id 를 재사용한다. 여러 블록에 걸쳐 등록할 때
+        블록마다 id 가 갈릴 수 있으므로, 반환값은 *정규 순서상 첫* lang
+        블록의 id 다. ``subst_face``/``subst_type`` 을 주면 ``hh:substFont``
+        대체 글꼴도 함께 방출한다(dedupe 로 기존 ``hh:font`` 를 재사용하는
+        경우는 대체 글꼴을 새로 끼워 넣지 않는다 — 기존 선언을 조용히
+        바꾸지 않는다는 6.0 원칙).
+        """
+
+        from ..errors import HwpxStateError, HwpxValueError
+
+        normalized_face = (face or "").strip()
+        if not normalized_face:
+            raise HwpxValueError("face must not be empty", code="style-font-face-empty")
+
+        normalized_type = _validate_font_type(font_type, param_name="font_type")
+        normalized_subst_face, normalized_subst_type = _resolve_font_substitute(
+            subst_face, subst_type
+        )
+        langs = _normalize_font_langs(lang)
+
+        fontfaces = self._fontfaces_element(create=True)
+        if fontfaces is None:  # pragma: no cover - defensive branch
+            raise HwpxStateError(
+                "failed to create <fontfaces> element",
+                code="style-font-container-create-failed",
+            )
+
+        primary_id: str | None = None
+        for lang_name in langs:
+            fontface = self._fontface_element(fontfaces, lang_name, create=True)
+            if fontface is None:  # pragma: no cover - defensive branch
+                raise HwpxStateError(
+                    "failed to create <fontface> element",
+                    code="style-font-container-create-failed",
+                    context={"lang": lang_name},
+                )
+            font_id = _find_font_id(fontface, normalized_face)
+            if font_id is None:
+                font_id = _allocate_font_id(fontface)
+                font_element = _build_font_element(
+                    font_id=font_id,
+                    face=normalized_face,
+                    font_type=normalized_type,
+                    is_embedded=is_embedded,
+                    binary_item_id_ref=binary_item_id_ref,
+                    subst_face=normalized_subst_face,
+                    subst_type=normalized_subst_type,
+                    subst_is_embedded=subst_is_embedded,
+                    subst_binary_item_id_ref=subst_binary_item_id_ref,
+                )
+                if isinstance(fontface, LET._Element):
+                    font_element = LET.fromstring(ET.tostring(font_element, encoding="utf-8"))
+                fontface.append(font_element)
+                fontface.set("fontCnt", str(len(fontface.findall(f"{_HH}font"))))
+                self.mark_dirty()
+            if primary_id is None:
+                primary_id = font_id
+
+        assert primary_id is not None  # langs is non-empty (validated by _normalize_font_langs)
+        return primary_id
+
+    def ensure_shading_border_fill(
+        self,
+        color: str | None = None,
+        *,
+        fill_image: Mapping[str, str] | None = None,
+        fill_gradient: Mapping[str, object] | None = None,
+        base_border_fill_id: str | int | None = None,
+    ) -> str:
+        """The id of a border fill that is *base_border_fill_id* (the basic solid one when it is
+        not given or not in the header) with the fill changed: the solid *color* (``None`` takes
+        the face away), else the picture *fill_image*, else the gradation *fill_gradient*. Its
+        lines and diagonals stay; an identical border fill is reused. The fill follows the one
+        rule every border-fill derivation uses (:func:`hwpx.oxml.formatting.set_border_fill_color`)."""
+
+        from .formatting import (
+            derive_definition, find_definition, set_border_fill_color, set_border_fill_gradient,
+            set_border_fill_image,
+        )
+
+        base = base_border_fill_id
+        if base is None or find_definition(self, "borderFill", base) is None:
+            base = self.ensure_basic_border_fill()
+
+        def modify(border_fill: ET.Element) -> None:
+            if fill_image is not None:
+                set_border_fill_image(border_fill, fill_image)
+            elif fill_gradient is not None:
+                set_border_fill_gradient(border_fill, fill_gradient)
+            else:
+                set_border_fill_color(border_fill, _normalize_color(color))
+
+        return derive_definition(self, "borderFill", base, modify)
+
+    @property
+    def border_fills(self) -> "dict[str, BorderFillInfo]":
+        """Every ``hh:borderFill``, by id (as written and as a plain number), as the
+        :class:`~hwpx.objects.BorderFillInfo` :meth:`border_fill` reads."""
+
+        from .header_fonts import border_fill_info
+
+        return {key: info for key in self._border_fill_elements()
+                if (info := border_fill_info(self, key)) is not None}
+
+    def border_fill(self, border_fill_id_ref: int | str | None) -> "BorderFillInfo | None":
+        """One ``hh:borderFill`` read as a value (:class:`~hwpx.objects.BorderFillInfo`: its four sides,
+        diagonal and solid fill), ``doc.styles.border_fill``'s; ``None`` for an unknown id. The XML itself:
+        ``header.element``."""
+
+        from .header_fonts import border_fill_info
+
+        return border_fill_info(self, border_fill_id_ref)
+
+    def _border_fill_elements(self) -> dict[str, GenericElement]:
+        """Every ``hh:borderFill`` parsed as a :class:`GenericElement`, by id (as written and as a plain
+        number)."""
+
+        element = self._border_fills_element()
+        if element is None:
+            return {}
+
+        fill_list = self._parsed(element, parse_border_fills)
+        mapping: dict[str, GenericElement] = {}
+        for border_fill in fill_list.fills:
+            raw_id = border_fill.attributes.get("id")
+            keys: list[str] = []
+            if raw_id:
+                keys.append(raw_id)
+                try:
+                    normalized = str(int(raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = border_fill
+        return mapping
+
+    @staticmethod
+    def _convert_to_lxml(element: ET.Element) -> LET._Element:
+        # The header tree is lxml already; only a plain ElementTree element needs the round trip.
+        if isinstance(element, LET._Element):
+            return element
+        return LET.fromstring(ET.tostring(element, encoding="utf-8"))
+
+    def _parsed(self, element: ET.Element, parse: Callable[[LET._Element], T]) -> T:
+        """``parse(element)``, kept until the header is marked dirty or the element's XML differs.
+
+        The kept result is compared by the element's serialized bytes, so an edit made on the tree
+        without ``mark_dirty()`` is seen as well.  Callers get the kept objects themselves, as
+        ``char_property`` gives its cached styles: treat them as read-only.
+        """
+
+        if not isinstance(element, LET._Element):
+            return parse(self._convert_to_lxml(element))
+        stamp = LET.tostring(element)
+        key = (parse, element)
+        kept = self._lookup_cache.get(key)
+        if kept is not None and kept[0] == stamp:
+            return kept[1]  # type: ignore[return-value]
+        value = parse(element)
+        if len(self._lookup_cache) >= 4096:
+            self._lookup_cache.clear()
+        self._lookup_cache[key] = (stamp, value)
+        return value
+
+    def _definition_element(
+        self, container: ET.Element, kind: str, key: str, *, exact: bool = False
+    ) -> ET.Element | None:
+        """The first ``<kind>`` child of the ``hh:refList`` list *container* found under *key*: by
+        its ``id`` as written when *exact*, else as written or as a plain number (the keys the
+        definition dicts give it, :func:`_definition_id_keys`). ``None`` when none is.
+
+        The id -> element index is kept between lookups and checked, not trusted: the answer must
+        still be a ``<kind>`` child of *container* under *key*, and a key the index lacks (or an
+        answer that fails the check) reads the ids again. So a lookup costs the same however many
+        definitions the list has, and an edit made through ``.element`` (a definition added,
+        removed, moved out or given another id) is seen. Not seen: a second definition given an
+        id another already has (two under one id, which Hangul does not write) while the first
+        stays as it was.
+        """
+
+        if not isinstance(container, LET._Element):  # a plain ElementTree header: no parent links
+            return next((child for child in container if _element_local_name(child) == kind and (
+                child.get("id") == key if exact else key in _definition_id_keys(child.get("id")))), None)
+        kept = self._definition_index.get(kind)
+        if kept is not None and kept[0] is container:
+            found: Any = (kept[2] if exact else kept[1]).get(key)
+            if (
+                found is not None
+                and found.getparent() is container
+                and _element_local_name(found) == kind
+                and (found.get("id") == key if exact else key in _definition_id_keys(found.get("id")))
+            ):
+                return found
+        by_key: dict[str, ET.Element] = {}
+        by_id: dict[str, ET.Element] = {}
+        for child in container:
+            if _element_local_name(child) != kind:
+                continue
+            raw = child.get("id")
+            if raw is not None:
+                by_id.setdefault(raw, child)
+            for name in _definition_id_keys(raw):
+                by_key.setdefault(name, child)
+        # Holding *container* keeps its lxml proxy alive, so the ``is`` check above stays meaningful.
+        self._definition_index[kind] = (container, by_key, by_id)
+        return (by_id if exact else by_key).get(key)
+
+    def _definition_value(
+        self, container: ET.Element | None, kind: str, key: str, parse: Callable[[LET._Element], T]
+    ) -> T | None:
+        """The definition *key* names in *container* (:meth:`_definition_element`), parsed alone and
+        kept while its XML is the same (:meth:`_parsed`) -- the value the list's ``as_dict()``
+        gives under *key*, without reading the others."""
+
+        found = None if container is None else self._definition_element(container, kind, key)
+        return None if found is None else self._parsed(found, parse)
+
+    def _definition_by_id(
+        self, container: ET.Element | None, kind: str, identifier: int | str | None,
+        parse: Callable[[LET._Element], T],
+    ) -> T | None:
+        """:meth:`_lookup_by_id` over this list's ``as_dict()``, looking up only the one asked for."""
+
+        for key in _lookup_keys(identifier):
+            found = self._definition_value(container, kind, key, parse)
+            if found is not None:
+                return found
+        return None
+
+    @staticmethod
+    def _lookup_by_id(mapping: dict[str, T], identifier: int | str | None) -> T | None:
+        if identifier is None:
+            return None
+
+        if isinstance(identifier, str):
+            key = identifier.strip()
+        else:
+            key = str(identifier)
+
+        if not key:
+            return None
+
+        value = mapping.get(key)
+        if value is not None:
+            return value
+
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return mapping.get(normalized)
+
+    @property
+    def begin_numbering(self) -> DocumentNumbering:
+        element = self._begin_num_element()
+        if element is None:
+            return DocumentNumbering()
+        return DocumentNumbering(
+            page=_get_int_attr(element, "page", 1),
+            footnote=_get_int_attr(element, "footnote", 1),
+            endnote=_get_int_attr(element, "endnote", 1),
+            picture=_get_int_attr(element, "pic", 1),
+            table=_get_int_attr(element, "tbl", 1),
+            equation=_get_int_attr(element, "equation", 1),
+        )
+
+    def set_begin_numbering(
+        self,
+        *,
+        page: int | None = None,
+        footnote: int | None = None,
+        endnote: int | None = None,
+        picture: int | None = None,
+        table: int | None = None,
+        equation: int | None = None,
+    ) -> None:
+        element = self._begin_num_element(create=True)
+        if element is None:
+            return
+
+        current = self.begin_numbering
+        values = {
+            "page": page if page is not None else current.page,
+            "footnote": footnote if footnote is not None else current.footnote,
+            "endnote": endnote if endnote is not None else current.endnote,
+            "pic": picture if picture is not None else current.picture,
+            "tbl": table if table is not None else current.table,
+            "equation": equation if equation is not None else current.equation,
+        }
+
+        changed = False
+        for attr, value in values.items():
+            safe_value = str(max(value, 0))
+            if element.get(attr) != safe_value:
+                element.set(attr, safe_value)
+                changed = True
+
+        if changed:
+            self.mark_dirty()
+
+    @property
+    def memo_shapes(self) -> dict[str, MemoShape]:
+        memo_props_element = self._memo_properties_element()
+        if memo_props_element is None:
+            return {}
+
+        memo_shapes = [
+            memo_shape_from_attributes(child.attrib)
+            for child in memo_props_element.findall(f"{_HH}memoPr")
+        ]
+        memo_properties = MemoProperties(
+            item_cnt=parse_int(memo_props_element.get("itemCnt")),
+            memo_shapes=memo_shapes,
+            attributes={
+                key: value
+                for key, value in memo_props_element.attrib.items()
+                if key != "itemCnt"
+            },
+        )
+        return memo_properties.as_dict()
+
+    def memo_shape(self, memo_shape_id_ref: int | str | None) -> MemoShape | None:
+        if memo_shape_id_ref is None:
+            return None
+
+        if isinstance(memo_shape_id_ref, str):
+            key = memo_shape_id_ref.strip()
+        else:
+            key = str(memo_shape_id_ref)
+
+        if not key:
+            return None
+
+        shapes = self.memo_shapes
+        shape = shapes.get(key)
+        if shape is not None:
+            return shape
+
+        try:
+            normalized = str(int(key))
+        except (TypeError, ValueError):
+            return None
+        return shapes.get(normalized)
+
+    def ensure_memo_shape(
+        self,
+        *,
+        width: int = 15591,
+        line_width_mm: float = 0.12,
+        line_type: str = "SOLID",
+        line_color: str = "#000000",
+        fill_color: str = "#CCFF99",
+        active_color: str = "#FFFF99",
+        memo_type: str = "NOMAL",
+    ) -> str:
+        """The id of a ``hh:memoPr`` with these values (made when none matches). *line_width_mm* is one of
+        Hancom's line widths in mm, written as its index (``lineWidth``, :func:`~hwpx.oxml.header.memo_line_width_index`)."""
+
+        from .header import memo_line_width_index
+
+        line_width = memo_line_width_index(line_width_mm)  # checked before the header changes
+        spec = _normalize_memo_shape_spec(  # so are the colours: a refused call leaves no memoProperties
+            width=width, line_width=line_width, line_type=line_type, line_color=line_color,
+            fill_color=fill_color, active_color=active_color, memo_type=memo_type,
+        )
+        element = self._memo_properties_element(create=True)
+        if element is None:  # pragma: no cover - defensive branch
+            raise RuntimeError("failed to create <memoProperties> element")
+        shape_id, new_memo_pr = _ensure_memo_shape(element, spec)
+        if new_memo_pr is None:
+            return shape_id
+        _attach_new_child(element, new_memo_pr)
+        _update_item_count(element, "memoPr")
+        self.mark_dirty()
+        return shape_id
+
+    @property
+    def bullets(self) -> dict[str, Bullet]:
+        bullets_element = self._bullets_element()
+        if bullets_element is None:
+            return {}
+
+        bullet_list = self._parsed(bullets_element, parse_bullets)
+        return bullet_list.as_dict()
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Bullet | None:
+        return self._definition_by_id(self._bullets_element(), "bullet", bullet_id_ref, parse_bullet)
+
+    @property
+    def paragraph_properties(self) -> dict[str, ParagraphProperty]:
+        para_props_element = self._para_properties_element()
+        if para_props_element is None:
+            return {}
+
+        para_properties = self._parsed(para_props_element, parse_paragraph_properties)
+        return para_properties.as_dict()
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> ParagraphProperty | None:
+        # Parse only the hh:paraPr asked for, under the keys paragraph_properties gives it; parsing
+        # them all on each lookup cost most of a second in a header of many paragraph shapes.
+        return self._definition_by_id(
+            self._para_properties_element(), "paraPr", para_pr_id_ref, parse_paragraph_property
+        )
+
+    @property
+    def tab_properties(self) -> dict[str, TabDefinition]:
+        element = self._tab_properties_element()
+        if element is None:
+            return {}
+        return self._parsed(element, parse_tab_definitions).as_dict()
+
+    def tab_property(self, tab_pr_id_ref: int | str | None) -> TabDefinition | None:
+        return self._definition_by_id(self._tab_properties_element(), "tabPr", tab_pr_id_ref, parse_tab_definition)
+
+    @property
+    def styles(self) -> dict[str, Style]:
+        styles_element = self._styles_element()
+        if styles_element is None:
+            return {}
+
+        style_list = self._parsed(styles_element, parse_styles)
+        return style_list.as_dict()
+
+    def style(self, style_id_ref: int | str | None) -> Style | None:
+        return self._definition_by_id(self._styles_element(), "style", style_id_ref, parse_style)
+
+    @property
+    def track_changes(self) -> dict[str, TrackChange]:
+        changes_element = self._track_changes_element()
+        if changes_element is None:
+            return {}
+
+        change_list = self._parsed(changes_element, parse_track_changes)
+        return change_list.as_dict()
+
+    def track_change(self, change_id_ref: int | str | None) -> TrackChange | None:
+        return self._definition_by_id(self._track_changes_element(), "trackChange", change_id_ref, parse_track_change)
+
+    @property
+    def track_change_authors(self) -> dict[str, TrackChangeAuthor]:
+        authors_element = self._track_change_authors_element()
+        if authors_element is None:
+            return {}
+
+        author_list = self._parsed(authors_element, parse_track_change_authors)
+        return author_list.as_dict()
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> TrackChangeAuthor | None:
+        return self._definition_by_id(
+            self._track_change_authors_element(), "trackChangeAuthor", author_id_ref, parse_track_change_author
+        )
+
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+        self._lookup_cache.clear()
+
+    def reset_dirty(self) -> None:
+        self._dirty = False
+
+    # ------------------------------------------------------------------
+    # BinData / Image management
+    # ------------------------------------------------------------------
+
+    def _bin_data_list_element(self, create: bool = False) -> ET.Element | None:
+        """Return the ``<hh:binDataList>`` element inside ``<hh:refList>``."""
+
+        ref_list = self._ref_list_element(create=create)
+        if ref_list is None:
+            return None
+        element = ref_list.find(f"{_HH}binDataList")
+        if element is None and create:
+            element = ref_list.makeelement(f"{_HH}binDataList", {"itemCnt": "0"})
+            ref_list.append(element)
+            self.mark_dirty()
+        return element
+
+    def _update_bin_data_list_count(self, bin_data_list: ET.Element) -> None:
+        count = len(list(bin_data_list.findall(f"{_HH}binItem")))
+        bin_data_list.set("itemCnt", str(count))
+
+    def _allocate_bin_item_id(self, bin_data_list: ET.Element) -> str:
+        """Return the next available numeric id for a ``<hh:binItem>``."""
+
+        existing: set[int] = set()
+        for child in bin_data_list.findall(f"{_HH}binItem"):
+            raw = child.get("id")
+            if raw is not None:
+                try:
+                    existing.add(int(raw))
+                except ValueError:
+                    pass
+        next_id = 0 if not existing else max(existing) + 1
+        return str(next_id)
+
+    def add_bin_item(
+        self,
+        *,
+        item_type: str = "Embedding",
+        bin_data_id: str | None = None,
+        format: str | None = None,
+        a_path: str | None = None,
+        r_path: str | None = None,
+    ) -> tuple[str, ET.Element]:
+        """Add a ``<hh:binItem>`` and return ``(id, element)``.
+
+        For embedded images *bin_data_id* should be the ``BIN0001.jpg``-style
+        identifier stored in the ZIP and *format* should be the image format
+        extension (``jpg``, ``png``, …).
+        """
+
+        bin_data_list = self._bin_data_list_element(create=True)
+        if bin_data_list is None:  # pragma: no cover
+            raise RuntimeError("failed to create <binDataList> element")
+
+        item_id = self._allocate_bin_item_id(bin_data_list)
+
+        attrs: dict[str, str] = {"id": item_id, "Type": item_type}
+        if bin_data_id is not None:
+            attrs["BinData"] = bin_data_id
+        if format is not None:
+            attrs["Format"] = format
+        if a_path is not None:
+            attrs["APath"] = a_path
+        if r_path is not None:
+            attrs["RPath"] = r_path
+
+        element = bin_data_list.makeelement(f"{_HH}binItem", attrs)
+        bin_data_list.append(element)
+        self._update_bin_data_list_count(bin_data_list)
+        self.mark_dirty()
+        return item_id, element
+
+    def list_bin_items(self) -> list[dict[str, str]]:
+        """Return a list of dicts describing each ``<hh:binItem>``."""
+
+        bin_data_list = self._bin_data_list_element()
+        if bin_data_list is None:
+            return []
+        items: list[dict[str, str]] = []
+        for child in bin_data_list.findall(f"{_HH}binItem"):
+            items.append(dict(child.attrib))
+        return items
+
+    def remove_bin_item(self, item_id: str | int) -> bool:
+        """Remove a ``<hh:binItem>`` by ID.  Returns ``True`` if removed."""
+
+        bin_data_list = self._bin_data_list_element()
+        if bin_data_list is None:
+            return False
+        target_id = str(item_id)
+        for child in bin_data_list.findall(f"{_HH}binItem"):
+            if child.get("id") == target_id:
+                bin_data_list.remove(child)
+                self._update_bin_data_list_count(bin_data_list)
+                self.mark_dirty()
+                return True
+        return False
+
+    def to_bytes(self) -> bytes:
+        return _serialize_xml(self._element)
+
+__all__ = ["HwpxOxmlHeader"]

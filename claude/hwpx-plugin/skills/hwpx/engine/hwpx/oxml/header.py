@@ -1,0 +1,2005 @@
+# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+import logging
+import base64
+import binascii
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, cast
+
+from lxml import etree
+
+from .common import GenericElement, parse_generic_element
+from .namespaces import HP
+from .paragraph_heading import paragraph_heading
+from .utils import local_name, parse_bool, parse_int, text_or_none
+
+if TYPE_CHECKING:
+    from ._document_primitives import IdSource
+    from ..objects.results import Alignment
+
+
+@dataclass(slots=True)
+class BeginNum:
+    page: int
+    footnote: int
+    endnote: int
+    pic: int
+    tbl: int
+    equation: int
+
+
+@dataclass(slots=True)
+class LinkInfo:
+    path: str
+    page_inherit: bool
+    footnote_inherit: bool
+
+
+@dataclass(slots=True)
+class LicenseMark:
+    """``hh:docOption/hh:licensemark`` — 문서 수준 라이선스 레코드.
+
+    ``type``이 ``str``인 건 실측이다: 스키마(``Header XML schema.xml``의
+    ``DocOptionType``)는 ``xs:unsignedInt use="required"``라고 선언하지만
+    실한컴(HWP 13.0.0.3901)이 실제로 쓰는 값은 ``"CCL"``이라는 문자열이다
+    (gold ``tests/fixtures/gui_probes/license_mark_ccl.hwpx``). 이전
+    ``int`` 선언은 스키마만 보고 정한 것이라, 실한컴이 만든 CCL 문서를
+    ``to_model()``로 읽으면 ``ValueError: Invalid integer value: 'CCL'``로
+    터졌다 — 저작 쪽(``header_compat.set_license_mark``)을 열면서 실측으로
+    드러났다. 실측 우선 원칙(DEV-043과 같은 부류)에 따라 값은 그대로
+    보존한다. ``flag``/``lang``은 관측값이 ``"0"``/``"6"``이라 정수 그대로.
+    """
+
+    type: str
+    flag: int
+    lang: Optional[int]
+
+
+@dataclass(slots=True)
+class DocOption:
+    link_info: LinkInfo
+    license_mark: Optional[LicenseMark] = None
+
+
+@dataclass(slots=True)
+class LayoutCompatibility:
+    """``hh:layoutCompatibility`` — 존재 자체가 값인 마커 자식 요소 집합.
+
+    스키마(Header XML schema.xml)는 48개 플래그 이름을 전부 나열하지만
+    (``applyFontWeightToBold``·``useInnerUnderline``…), 실코퍼스 176파일
+    전수는 **전부 비어 있었다**(플래그 0개, 감사 §4-R1이 "코드가 단어조차
+    모르는" 요소로 지목한 자리). 실물에 등장한 적 없는 어휘를 하드코딩
+    열거하지 않고, 실제로 있는 자식 요소 이름 집합만 보존한다 — 문서마다
+    다른 조합이 등장해도 무손실이다.
+    """
+
+    flags: frozenset[str] = field(default_factory=frozenset)
+
+    def has(self, flag: str) -> bool:
+        return flag in self.flags
+
+
+@dataclass(slots=True)
+class CompatibleDocument:
+    """``hh:compatibleDocument`` — 문서 호환성 대상 프로그램 + 레이아웃
+    호환 플래그. 실코퍼스 176파일 전수 ``targetProgram="HWP201X"``."""
+
+    target_program: Optional[str] = None
+    layout_compatibility: Optional[LayoutCompatibility] = None
+
+
+@dataclass(slots=True)
+class KeyDerivation:
+    algorithm: Optional[str]
+    size: Optional[int]
+    count: Optional[int]
+    salt: Optional[bytes]
+
+
+@dataclass(slots=True)
+class KeyEncryption:
+    derivation_key: KeyDerivation
+    hash_value: bytes
+
+
+@dataclass(slots=True)
+class TrackChangeConfig:
+    flags: Optional[int]
+    encryption: Optional[KeyEncryption] = None
+
+
+@dataclass(slots=True)
+class FontSubstitution:
+    face: str
+    type: str
+    is_embedded: bool
+    #: The embedded font file's binary item (``binaryItemIDRef``), as ``doc.media.images`` names items.
+    item_id: Optional[str]
+
+
+@dataclass(slots=True)
+class FontTypeInfo:
+    attributes: Dict[str, str]
+
+
+@dataclass(slots=True)
+class Font:
+    id: Optional[int]
+    face: str
+    type: Optional[str]
+    is_embedded: bool
+    #: The embedded font file's binary item (``binaryItemIDRef``), as ``doc.media.images`` names items.
+    item_id: Optional[str]
+    substitution: Optional[FontSubstitution] = None
+    type_info: Optional[FontTypeInfo] = None
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class FontFace:
+    lang: Optional[str]
+    font_cnt: Optional[int]
+    fonts: List[Font]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class FontFaceList:
+    item_cnt: Optional[int]
+    fontfaces: List[FontFace]
+
+
+@dataclass(slots=True)
+class BorderFillList:
+    item_cnt: Optional[int]
+    fills: List[GenericElement]
+
+
+@dataclass(slots=True)
+class TabProperties:
+    item_cnt: Optional[int]
+    tabs: List[GenericElement]
+
+
+@dataclass(slots=True)
+class TabStop:
+    """A single ``hh:tabItem`` — one custom tab-stop position within a
+    ``hh:tabPr`` definition. ``pos`` is HWPUNIT (실측 6.1: 실코퍼스가
+    이 자리에 ``unit`` 속성을 쓰는 문서를 드물게 관측했으나 원인 미확인이라
+    ``attributes`` 캐치올로만 보존한다 — 저작 쪽에서 재현하지 않는다)."""
+
+    pos: int
+    type: str
+    leader: str
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class TabDefinitionVersionBranch:
+    """``hp:case``/``hp:default`` 한쪽 분기의 ``hh:tabItem`` 목록(DEV-022).
+
+    ``ParagraphPropertyVersionBranch``와 달리 두 분기 값이 **다르다** —
+    ``hp:case``는 ``unit="HWPUNIT"``을 명시하고 ``pos``가 한/글이 탭을 두는
+    HWPUNIT 위치다. ``hp:default``는 그 **두 배**다(옛 판 독자를 위한 값).
+    한/글은 스위치가 없는 ``hh:tabItem``도 HWPUNIT으로 읽고, 저장할 때
+    ``hp:case``(같은 값)와 ``hp:default``(두 배)로 나눠 쓴다.
+    ``TabDefinition.tab_stops``는 ``hp:case`` 값을 쓴다."""
+
+    tab_stops: List[TabStop] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TabDefinitionVersionSwitch:
+    """``hh:tabPr``를 감싸는 ``hp:switch``(DEV-022, ``hh:paraPr``의
+    DEV-018과 같은 wrapper이지만 다른 계약). ``required_namespace``는
+    ``hp:case``의 유일한 속성."""
+
+    required_namespace: Optional[str]
+    case: Optional[TabDefinitionVersionBranch] = None
+    default: Optional[TabDefinitionVersionBranch] = None
+
+
+@dataclass(slots=True)
+class TabDefinition:
+    """A single ``hh:tabPr`` — a document-level tab-stop set a paragraph
+    property references via ``paraPr/@tabPrIDRef``."""
+
+    id: Optional[int]
+    raw_id: Optional[str]
+    auto_tab_left: bool
+    auto_tab_right: bool
+    tab_stops: List[TabStop] = field(default_factory=list)
+    version_switch: Optional[TabDefinitionVersionSwitch] = None
+
+
+@dataclass(slots=True)
+class TabDefinitionList:
+    item_cnt: Optional[int]
+    definitions: List[TabDefinition]
+
+    def as_dict(self) -> Dict[str, TabDefinition]:
+        mapping: Dict[str, TabDefinition] = {}
+        for definition in self.definitions:
+            keys: List[str] = []
+            if definition.raw_id:
+                keys.append(definition.raw_id)
+                try:
+                    normalized = str(int(definition.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif definition.id is not None:
+                keys.append(str(definition.id))
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = definition
+        return mapping
+
+
+@dataclass(slots=True)
+class NumberingList:
+    item_cnt: Optional[int]
+    numberings: List[GenericElement]
+
+
+@dataclass(slots=True)
+class CharProperty:
+    id: Optional[int]
+    attributes: Dict[str, str]
+    child_attributes: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    child_elements: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class CharPropertyList:
+    item_cnt: Optional[int]
+    properties: List[CharProperty]
+
+
+@dataclass(slots=True)
+class ForbiddenWordList:
+    item_cnt: Optional[int]
+    words: List[str]
+
+
+def memo_line_width_index(line_width_mm: object, *, argument: str = "line_width_mm") -> int:
+    """The ``hh:memoPr@lineWidth`` value for a memo line *line_width_mm* mm thick: its index in Hancom's line
+    width list, which takes only the listed widths (``style-line-width-invalid`` otherwise).
+
+    Evidence (Hangul 2024, observed only): re-saving memos written with lineWidth 0, 1, 2, 6, 10, 12, 15,
+    33, 141 keeps them, 283 becomes 27 (one byte) and "0.6mm"/"0.4 mm" become 0; the 54 public Hangul-saved
+    documents hold only 1 (62 memo shapes) and 3 (6) — as HWPUNIT 1 would be an invisible line and 1 mm (283)
+    would not fit in the byte. Hangul draws no memo on the page, so the width itself was not seen on screen.
+    """
+
+    from .utils import LINE_WIDTHS, line_width_text
+
+    return LINE_WIDTHS.index(line_width_text(line_width_mm, argument=argument))
+
+
+@dataclass(slots=True)
+class MemoShape:
+    id: Optional[int]
+    width: Optional[int]
+    line_width: Optional[str]
+    line_type: Optional[str]
+    line_color: Optional[str]
+    fill_color: Optional[str]
+    active_color: Optional[str]
+    memo_type: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    @property
+    def line_width_mm(self) -> float | None:
+        """The memo's line width in millimetres (``0.12`` for ``lineWidth="1"``), or ``None``.
+
+        ``hh:memoPr@lineWidth`` is not a length but the index into Hancom's line widths (0.1,
+        0.12, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0 mm) that
+        borders use: see :func:`memo_line_width_index`. It is read as Hangul 2024 reads it: a
+        value that is no whole number (``"0.6mm"``) is ``0`` (0.1 mm) and a number is kept as one
+        byte (283 is 27). A byte past the list reads ``None``.
+        """
+
+        from .utils import LINE_WIDTHS
+
+        if self.line_width is None:
+            return None
+        try:
+            index = int(str(self.line_width).strip()) % 256
+        except ValueError:
+            index = 0  # Hangul 2024 saves "0.6mm" / "0.4 mm" back as lineWidth="0"
+        if not 0 <= index < len(LINE_WIDTHS):
+            return None
+        return float(LINE_WIDTHS[index].split()[0])
+
+    def matches_id(self, memo_shape_id_ref: int | str | None) -> bool:
+        if memo_shape_id_ref is None:
+            return False
+
+        if isinstance(memo_shape_id_ref, str):
+            candidate = memo_shape_id_ref.strip()
+        else:
+            candidate = str(memo_shape_id_ref)
+
+        if not candidate:
+            return False
+
+        raw_id = self.attributes.get("id")
+        if raw_id is not None and candidate == raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class MemoProperties:
+    item_cnt: Optional[int]
+    memo_shapes: List[MemoShape]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    def shape_by_id(self, memo_shape_id_ref: int | str | None) -> Optional[MemoShape]:
+        for shape in self.memo_shapes:
+            if shape.matches_id(memo_shape_id_ref):
+                return shape
+        return None
+
+    def as_dict(self) -> Dict[str, MemoShape]:
+        mapping: Dict[str, MemoShape] = {}
+        for shape in self.memo_shapes:
+            raw_id = shape.attributes.get("id")
+            keys: List[str] = []
+            if raw_id:
+                keys.append(raw_id)
+                try:
+                    normalized = str(int(raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif shape.id is not None:
+                keys.append(str(shape.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = shape
+        return mapping
+
+
+@dataclass(slots=True)
+class BulletParaHead:
+    text: str
+    level: Optional[int]
+    start: Optional[int]
+    alignment: "Alignment | None"
+    use_inst_width: Optional[bool]
+    auto_indent: Optional[bool]
+    width_adjust: Optional[int]
+    text_offset_type: Optional[str]
+    text_offset: Optional[int]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class Bullet:
+    id: Optional[int]
+    raw_id: Optional[str]
+    char: str
+    checked_char: Optional[str]
+    use_image: bool
+    para_head: BulletParaHead
+    image: Optional[GenericElement] = None
+    attributes: Dict[str, str] = field(default_factory=dict)
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+    def matches_id(self, bullet_id_ref: int | str | None) -> bool:
+        if bullet_id_ref is None:
+            return False
+
+        if isinstance(bullet_id_ref, str):
+            candidate = bullet_id_ref.strip()
+        else:
+            candidate = str(bullet_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class BulletList:
+    item_cnt: Optional[int]
+    bullets: List[Bullet]
+
+    def as_dict(self) -> Dict[str, Bullet]:
+        mapping: Dict[str, Bullet] = {}
+        for bullet in self.bullets:
+            keys: List[str] = []
+            if bullet.raw_id:
+                keys.append(bullet.raw_id)
+                try:
+                    normalized = str(int(bullet.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif bullet.id is not None:
+                keys.append(str(bullet.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = bullet
+        return mapping
+
+    def bullet_by_id(self, bullet_id_ref: int | str | None) -> Optional[Bullet]:
+        for bullet in self.bullets:
+            if bullet.matches_id(bullet_id_ref):
+                return bullet
+        return None
+
+
+@dataclass(slots=True)
+class ParagraphAlignment:
+    horizontal: Optional[str]
+    vertical: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphHeading:
+    type: Optional[str]
+    id_ref: Optional[int]
+    level: Optional[int]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphBreakSetting:
+    break_latin_word: Optional[str]
+    break_non_latin_word: Optional[str]
+    widow_orphan: Optional[bool]
+    keep_with_next: Optional[bool]
+    keep_lines: Optional[bool]
+    page_break_before: Optional[bool]
+    line_wrap: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphMargin:
+    intent: Optional[str]
+    left: Optional[str]
+    right: Optional[str]
+    prev: Optional[str]
+    next: Optional[str]
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+    units: Dict[str, Optional[str]] = field(default_factory=dict)  # each margin's unit: HWPUNIT or CHAR
+
+
+@dataclass(slots=True)
+class ParagraphLineSpacing:
+    spacing_type: Optional[str]
+    value: Optional[int]
+    unit: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphBorder:
+    border_fill_id_ref: Optional[int]
+    offset_left: Optional[int]
+    offset_right: Optional[int]
+    offset_top: Optional[int]
+    offset_bottom: Optional[int]
+    connect: Optional[bool]
+    ignore_margin: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphAutoSpacing:
+    e_asian_eng: Optional[bool]
+    e_asian_num: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphPropertyVersionBranch:
+    """``hp:switch``의 한 분기(``hp:case`` 또는 ``hp:default``) 내용 — 실코퍼스
+    관측(DEV-018)은 margin/lineSpacing뿐이지만, 스키마는 ``hh:paraPr``의 다른
+    자식도 이 안에 둘 수 있게 허용하므로 나머지는 ``other_children``으로
+    보존한다(``ParagraphProperty.other_children``과 같은 관용구)."""
+
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ParagraphPropertyVersionSwitch:
+    """``hp:switch`` — OWPML의 버전호환 분기 wrapper(DEV-018,
+    ``docs/owpml-deviations.md``). 어떤 벤더 스키마 파일에도 선언돼 있지
+    않지만 실코퍼스 ``hh:paraPr`` 236/237(99.6%)이 margin/lineSpacing을
+    직접 자식이 아니라 이 안(``hp:case`` 또는 ``hp:default``)에 둔다 — 최신
+    클라이언트는 자신이 인식하는 네임스페이스면 ``hp:case``를, 아니면
+    ``hp:default``(2011/레거시 값)를 읽는 것으로 보인다.
+    ``required_namespace``는 ``hp:case``의 유일한 속성이자 이 스키마
+    계열에서 속성 자체가 ``hp:`` 접두를 갖는 드문 경우다(``hp:required-
+    namespace``, 다른 속성은 거의 전부 접두 없음).
+
+    읽기 전용 모델이다 — 저작 경로는 이미 안전하다고 확인됐다(DEV-018 프로브:
+    ``_apply_paragraph_margins``/``_apply_paragraph_line_spacing``이 이미
+    ``hh:paraPr``의 모든 ``hh:margin``/``hh:lineSpacing`` 자손을 순회해
+    양쪽 분기를 함께 갱신한다). 그래서 이 타입에 대응하는 ``*_to_xml``
+    직렬화기가 없다 — ``ParagraphProperty``를 XML로 되쓰는 일반 경로 자체가
+    없다(순수 스냅샷 읽기 모델), 실제 편집은 살아있는 oxml 트리를 직접
+    건드리는 ``header_part.py`` 쪽이 담당한다."""
+
+    required_namespace: Optional[str]
+    case: Optional[ParagraphPropertyVersionBranch] = None
+    default: Optional[ParagraphPropertyVersionBranch] = None
+
+
+@dataclass(slots=True)
+class ParagraphProperty:
+    id: Optional[int]
+    raw_id: Optional[str]
+    tab_pr_id_ref: Optional[int]
+    condense: Optional[int]
+    font_line_height: Optional[bool]
+    snap_to_grid: Optional[bool]
+    suppress_line_numbers: Optional[bool]
+    checked: Optional[bool]
+    #: The paragraph shape's alignment (``hh:align``: ``.horizontal``, ``.vertical``).
+    alignment: Optional[ParagraphAlignment] = None
+    heading: Optional[ParagraphHeading] = None
+    break_setting: Optional[ParagraphBreakSetting] = None
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    border: Optional[ParagraphBorder] = None
+    auto_spacing: Optional[ParagraphAutoSpacing] = None
+    version_switch: Optional[ParagraphPropertyVersionSwitch] = None
+    attributes: Dict[str, str] = field(default_factory=dict)
+    other_children: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+    def matches_id(self, para_pr_id_ref: int | str | None) -> bool:
+        if para_pr_id_ref is None:
+            return False
+
+        if isinstance(para_pr_id_ref, str):
+            candidate = para_pr_id_ref.strip()
+        else:
+            candidate = str(para_pr_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class ParagraphPropertyList:
+    item_cnt: Optional[int]
+    properties: List[ParagraphProperty]
+
+    def as_dict(self) -> Dict[str, ParagraphProperty]:
+        mapping: Dict[str, ParagraphProperty] = {}
+        for prop in self.properties:
+            keys: List[str] = []
+            if prop.raw_id:
+                keys.append(prop.raw_id)
+                try:
+                    normalized = str(int(prop.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif prop.id is not None:
+                keys.append(str(prop.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = prop
+        return mapping
+
+    def property_by_id(
+        self, para_pr_id_ref: int | str | None
+    ) -> Optional[ParagraphProperty]:
+        for prop in self.properties:
+            if prop.matches_id(para_pr_id_ref):
+                return prop
+        return None
+
+
+@dataclass(slots=True)
+class Style:
+    id: Optional[int]
+    raw_id: Optional[str]
+    type: Optional[str]
+    name: Optional[str]
+    eng_name: Optional[str]
+    para_pr_id_ref: Optional[int]
+    char_pr_id_ref: Optional[int]
+    next_style_id_ref: Optional[int]
+    lang_id: Optional[int]
+    lock_form: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    def matches_id(self, style_id_ref: int | str | None) -> bool:
+        if style_id_ref is None:
+            return False
+
+        if isinstance(style_id_ref, str):
+            candidate = style_id_ref.strip()
+        else:
+            candidate = str(style_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class StyleList:
+    item_cnt: Optional[int]
+    styles: List[Style]
+
+    def as_dict(self) -> Dict[str, Style]:
+        mapping: Dict[str, Style] = {}
+        for style in self.styles:
+            keys: List[str] = []
+            if style.raw_id:
+                keys.append(style.raw_id)
+                try:
+                    normalized = str(int(style.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif style.id is not None:
+                keys.append(str(style.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = style
+        return mapping
+
+    def style_by_id(self, style_id_ref: int | str | None) -> Optional[Style]:
+        for style in self.styles:
+            if style.matches_id(style_id_ref):
+                return style
+        return None
+
+
+@dataclass(slots=True)
+class TrackChange:
+    id: Optional[int]
+    raw_id: Optional[str]
+    change_type: Optional[str]
+    date: Optional[str]
+    author_id: Optional[int]
+    char_shape_id: Optional[int]
+    para_shape_id: Optional[int]
+    hide: Optional[bool]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    def matches_id(self, change_id_ref: int | str | None) -> bool:
+        if change_id_ref is None:
+            return False
+
+        if isinstance(change_id_ref, str):
+            candidate = change_id_ref.strip()
+        else:
+            candidate = str(change_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class TrackChangeList:
+    item_cnt: Optional[int]
+    changes: List[TrackChange]
+
+    def as_dict(self) -> Dict[str, TrackChange]:
+        mapping: Dict[str, TrackChange] = {}
+        for change in self.changes:
+            keys: List[str] = []
+            if change.raw_id:
+                keys.append(change.raw_id)
+                try:
+                    normalized = str(int(change.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif change.id is not None:
+                keys.append(str(change.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = change
+        return mapping
+
+    def change_by_id(self, change_id_ref: int | str | None) -> Optional[TrackChange]:
+        for change in self.changes:
+            if change.matches_id(change_id_ref):
+                return change
+        return None
+
+
+@dataclass(slots=True)
+class TrackChangeAuthor:
+    id: Optional[int]
+    raw_id: Optional[str]
+    name: Optional[str]
+    mark: Optional[bool | int]
+    color: Optional[str]
+    attributes: Dict[str, str] = field(default_factory=dict)
+
+    def matches_id(self, author_id_ref: int | str | None) -> bool:
+        if author_id_ref is None:
+            return False
+
+        if isinstance(author_id_ref, str):
+            candidate = author_id_ref.strip()
+        else:
+            candidate = str(author_id_ref)
+
+        if not candidate:
+            return False
+
+        if self.raw_id and candidate == self.raw_id:
+            return True
+
+        if self.id is None:
+            return False
+
+        try:
+            return int(candidate) == self.id
+        except (TypeError, ValueError):  # pragma: no cover - defensive branch
+            return False
+
+
+@dataclass(slots=True)
+class TrackChangeAuthorList:
+    item_cnt: Optional[int]
+    authors: List[TrackChangeAuthor]
+
+    def as_dict(self) -> Dict[str, TrackChangeAuthor]:
+        mapping: Dict[str, TrackChangeAuthor] = {}
+        for author in self.authors:
+            keys: List[str] = []
+            if author.raw_id:
+                keys.append(author.raw_id)
+                try:
+                    normalized = str(int(author.raw_id))
+                except ValueError:
+                    normalized = None
+                if normalized and normalized not in keys:
+                    keys.append(normalized)
+            elif author.id is not None:
+                keys.append(str(author.id))
+
+            for key in keys:
+                if key not in mapping:
+                    mapping[key] = author
+        return mapping
+
+    def author_by_id(self, author_id_ref: int | str | None) -> Optional[TrackChangeAuthor]:
+        for author in self.authors:
+            if author.matches_id(author_id_ref):
+                return author
+        return None
+
+
+@dataclass(slots=True)
+class RefList:
+    fontfaces: Optional[FontFaceList] = None
+    border_fills: Optional[BorderFillList] = None
+    char_properties: Optional[CharPropertyList] = None
+    tab_properties: Optional[TabProperties] = None
+    numberings: Optional[NumberingList] = None
+    bullets: Optional[BulletList] = None
+    para_properties: Optional[ParagraphPropertyList] = None
+    styles: Optional[StyleList] = None
+    memo_properties: Optional[MemoProperties] = None
+    track_changes: Optional[TrackChangeList] = None
+    track_change_authors: Optional[TrackChangeAuthorList] = None
+    other_collections: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class Header:
+    version: str
+    sec_cnt: int
+    begin_num: Optional[BeginNum] = None
+    ref_list: Optional[RefList] = None
+    forbidden_word_list: Optional[ForbiddenWordList] = None
+    compatible_document: Optional[CompatibleDocument] = None
+    doc_option: Optional[DocOption] = None
+    meta_tag: Optional[str] = None
+    track_change_config: Optional[TrackChangeConfig] = None
+    other_elements: Dict[str, List[GenericElement]] = field(default_factory=dict)
+
+    def memo_shape(self, memo_shape_id_ref: int | str | None) -> Optional[MemoShape]:
+        if self.ref_list is None or self.ref_list.memo_properties is None:
+            return None
+        return self.ref_list.memo_properties.shape_by_id(memo_shape_id_ref)
+
+    def bullet(self, bullet_id_ref: int | str | None) -> Optional[Bullet]:
+        if self.ref_list is None or self.ref_list.bullets is None:
+            return None
+        return self.ref_list.bullets.bullet_by_id(bullet_id_ref)
+
+    def paragraph_property(
+        self, para_pr_id_ref: int | str | None
+    ) -> Optional[ParagraphProperty]:
+        if self.ref_list is None or self.ref_list.para_properties is None:
+            return None
+        return self.ref_list.para_properties.property_by_id(para_pr_id_ref)
+
+    def style(self, style_id_ref: int | str | None) -> Optional[Style]:
+        if self.ref_list is None or self.ref_list.styles is None:
+            return None
+        return self.ref_list.styles.style_by_id(style_id_ref)
+
+    def track_change(self, change_id_ref: int | str | None) -> Optional[TrackChange]:
+        if self.ref_list is None or self.ref_list.track_changes is None:
+            return None
+        return self.ref_list.track_changes.change_by_id(change_id_ref)
+
+    def track_change_author(
+        self, author_id_ref: int | str | None
+    ) -> Optional[TrackChangeAuthor]:
+        if self.ref_list is None or self.ref_list.track_change_authors is None:
+            return None
+        return self.ref_list.track_change_authors.author_by_id(author_id_ref)
+
+    def add_track_change(
+        self,
+        change_type: str,
+        *,
+        author_name: str = "AI Agent",
+        date: str | None = None,
+        ids: "IdSource | None",
+        minimum_id: int = 0,
+    ) -> int:
+        """Append tracked-change metadata and return the new change id. A change without *date* is
+        dated now, or with the ``now=`` of the document (its source *ids*). The id is at least
+        *minimum_id* (the document does not give one twice while it is open)."""
+
+        normalized_type = normalize_track_change_type(change_type)
+        resolved_author = author_name.strip() or "AI Agent"
+
+        if self.ref_list is None:
+            self.ref_list = RefList()
+        ref_list = self.ref_list
+
+        if ref_list.track_change_authors is None:
+            ref_list.track_change_authors = TrackChangeAuthorList(item_cnt=0, authors=[])
+        author_list = ref_list.track_change_authors
+
+        author = next(
+            (candidate for candidate in author_list.authors if candidate.name == resolved_author),
+            None,
+        )
+        if author is None:
+            author_id = _next_track_change_author_id(author_list.authors)
+            author = TrackChangeAuthor(
+                id=author_id,
+                raw_id=None,
+                name=resolved_author,
+                mark=True,  # xs:boolean (Hancom writes mark="1"); the id is no mark
+                color=None,
+            )
+            author_list.authors.append(author)
+        else:
+            author_id = _resolved_id(author.id, author.raw_id)
+        author_list.item_cnt = len(author_list.authors)
+
+        if ref_list.track_changes is None:
+            ref_list.track_changes = TrackChangeList(item_cnt=0, changes=[])
+        change_list = ref_list.track_changes
+
+        change_id = max(_next_track_change_id(change_list.changes), minimum_id)
+        change_list.changes.append(
+            TrackChange(
+                id=change_id,
+                raw_id=None,
+                change_type=normalized_type,
+                date=format_track_change_date(date, ids),
+                author_id=author_id,
+                char_shape_id=None,
+                para_shape_id=None,
+                hide=False,
+            )
+        )
+        change_list.item_cnt = len(change_list.changes)
+
+        # ``hh:trackchageConfig@flags`` is the header part's to write (HwpxOxmlHeader.add_track_change).
+        return change_id
+
+
+def format_track_change_date(value: str | None, ids: "IdSource | None") -> str:
+    if value is not None:
+        return value
+    from ._document_primitives import current_time
+
+    return current_time(ids).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def normalize_track_change_type(change_type: str) -> str:
+    normalized = change_type.strip().lower()
+    aliases = {
+        "insert": "Insert",
+        "delete": "Delete",
+        "charshape": "CharShape",
+        "char_shape": "CharShape",
+        "char-shape": "CharShape",
+    }
+    resolved = aliases.get(normalized)
+    if resolved is None:
+        raise ValueError("change_type must be 'Insert', 'Delete', or 'CharShape'")
+    return resolved
+
+
+def _resolved_id(identifier: int | None, raw_id: str | None) -> int:
+    if identifier is not None:
+        return identifier
+    if raw_id is not None:
+        return int(raw_id)
+    raise ValueError("tracked-change reference is missing an id")
+
+
+def _next_numeric_id(values: list[int]) -> int:
+    return 1 if not values else max(values) + 1
+
+
+def _next_track_change_id(changes: List[TrackChange]) -> int:
+    ids: list[int] = []
+    for change in changes:
+        if change.id is not None:
+            ids.append(change.id)
+        elif change.raw_id is not None:
+            try:
+                ids.append(int(change.raw_id))
+            except ValueError:
+                continue
+    return _next_numeric_id(ids)
+
+
+def _next_track_change_author_id(authors: List[TrackChangeAuthor]) -> int:
+    ids: list[int] = []
+    for author in authors:
+        if author.id is not None:
+            ids.append(author.id)
+        elif author.raw_id is not None:
+            try:
+                ids.append(int(author.raw_id))
+            except ValueError:
+                continue
+    return _next_numeric_id(ids)
+
+
+def parse_begin_num(node: etree._Element) -> BeginNum:
+    return BeginNum(
+        page=parse_int(node.get("page"), allow_none=False),
+        footnote=parse_int(node.get("footnote"), allow_none=False),
+        endnote=parse_int(node.get("endnote"), allow_none=False),
+        pic=parse_int(node.get("pic"), allow_none=False),
+        tbl=parse_int(node.get("tbl"), allow_none=False),
+        equation=parse_int(node.get("equation"), allow_none=False),
+    )
+
+
+def parse_link_info(node: etree._Element) -> LinkInfo:
+    return LinkInfo(
+        path=node.get("path", ""),
+        page_inherit=parse_bool(node.get("pageInherit"), default=False) or False,
+        footnote_inherit=parse_bool(node.get("footnoteInherit"), default=False) or False,
+    )
+
+
+def parse_license_mark(node: etree._Element) -> LicenseMark:
+    # 빠진 ``type``은 같은 ``DocOptionType`` 안에서 ``parse_link_info``가
+    # 스키마-required인 ``path``를 다루는 방식 그대로 빈 문자열로 둔다
+    # (문자열 속성은 이 모듈에서 raise 대상이 아니다 -- 정수 변환이
+    # 필요한 ``flag``/``lang``만 ``parse_int``가 검사한다).
+    return LicenseMark(
+        type=node.get("type", ""),
+        flag=parse_int(node.get("flag"), allow_none=False),
+        lang=parse_int(node.get("lang")),
+    )
+
+
+def parse_layout_compatibility(node: etree._Element) -> LayoutCompatibility:
+    return LayoutCompatibility(flags=frozenset(local_name(child) for child in node))
+
+
+def parse_compatible_document(node: etree._Element) -> CompatibleDocument:
+    layout_compatibility: Optional[LayoutCompatibility] = None
+    for child in node:
+        if local_name(child) == "layoutCompatibility":
+            layout_compatibility = parse_layout_compatibility(child)
+            break
+    return CompatibleDocument(
+        target_program=node.get("targetProgram"),
+        layout_compatibility=layout_compatibility,
+    )
+
+
+def parse_doc_option(node: etree._Element) -> DocOption:
+    link_info: Optional[LinkInfo] = None
+    license_mark: Optional[LicenseMark] = None
+
+    for child in node:
+        name = local_name(child)
+        if name == "linkinfo":
+            link_info = parse_link_info(child)
+        elif name == "licensemark":
+            license_mark = parse_license_mark(child)
+
+    if link_info is None:
+        raise ValueError("docOption element is missing required linkinfo child")
+
+    return DocOption(link_info=link_info, license_mark=license_mark)
+
+
+def _decode_base64(value: Optional[str]) -> Optional[bytes]:
+    if not value:
+        return None
+    try:
+        return base64.b64decode(value)
+    except (ValueError, binascii.Error) as exc:  # pragma: no cover - defensive branch
+        raise ValueError("Invalid base64 value") from exc
+
+
+def parse_key_encryption(node: etree._Element) -> Optional[KeyEncryption]:
+    derivation_node: Optional[etree._Element] = None
+    hash_node: Optional[etree._Element] = None
+    for child in node:
+        name = local_name(child)
+        if name == "derivationKey":
+            derivation_node = child
+        elif name == "hash":
+            hash_node = child
+
+    if derivation_node is None or hash_node is None:
+        return None
+
+    derivation = KeyDerivation(
+        algorithm=derivation_node.get("algorithm"),
+        size=parse_int(derivation_node.get("size")),
+        count=parse_int(derivation_node.get("count")),
+        salt=_decode_base64(derivation_node.get("salt")),
+    )
+
+    hash_text = text_or_none(hash_node) or ""
+    hash_bytes = _decode_base64(hash_text) or b""
+    return KeyEncryption(derivation_key=derivation, hash_value=hash_bytes)
+
+
+def parse_track_change_config(node: etree._Element) -> TrackChangeConfig:
+    encryption: Optional[KeyEncryption] = None
+    for child in node:
+        if local_name(child) == "trackChangeEncrpytion":
+            encryption = parse_key_encryption(child)
+            break
+    return TrackChangeConfig(flags=parse_int(node.get("flags")), encryption=encryption)
+
+
+def _embed_flag(node: etree._Element) -> bool:
+    """Read the font ``isEmbedded`` flag, tolerant of both spellings.
+
+    Hancom's OWPML reference model and some Hancom output use the single-d
+    spelling ``isEmbeded``; other corpora carry the double-d ``isEmbedded``.
+    Accept either on read so embedded fonts are never silently misclassified.
+    Emitted spelling is left unchanged pending a Hancom-oracle confirmation.
+    """
+    raw = node.get("isEmbedded")
+    if raw is None:
+        raw = node.get("isEmbeded")
+    return parse_bool(raw, default=False) or False
+
+
+def parse_font_substitution(node: etree._Element) -> FontSubstitution:
+    return FontSubstitution(
+        face=node.get("face", ""),
+        type=node.get("type", ""),
+        is_embedded=_embed_flag(node),
+        item_id=node.get("binaryItemIDRef"),
+    )
+
+
+def parse_font_type_info(node: etree._Element) -> FontTypeInfo:
+    return FontTypeInfo(attributes={key: value for key, value in node.attrib.items()})
+
+
+def parse_font(node: etree._Element) -> Font:
+    substitution: Optional[FontSubstitution] = None
+    type_info: Optional[FontTypeInfo] = None
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name == "substFont":
+            substitution = parse_font_substitution(child)
+        elif name == "typeInfo":
+            type_info = parse_font_type_info(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    return Font(
+        id=parse_int(node.get("id")),
+        face=node.get("face", ""),
+        type=node.get("type"),
+        is_embedded=_embed_flag(node),
+        item_id=node.get("binaryItemIDRef"),
+        substitution=substitution,
+        type_info=type_info,
+        other_children=other_children,
+    )
+
+
+def parse_font_face(node: etree._Element) -> FontFace:
+    fonts = [parse_font(child) for child in node if local_name(child) == "font"]
+    attributes = {key: value for key, value in node.attrib.items()}
+    return FontFace(
+        lang=node.get("lang"),
+        font_cnt=parse_int(node.get("fontCnt")),
+        fonts=fonts,
+        attributes=attributes,
+    )
+
+
+def parse_font_faces(node: etree._Element) -> FontFaceList:
+    fontfaces = [parse_font_face(child) for child in node if local_name(child) == "fontface"]
+    return FontFaceList(item_cnt=parse_int(node.get("itemCnt")), fontfaces=fontfaces)
+
+
+def parse_border_fills(node: etree._Element) -> BorderFillList:
+    fills = [parse_generic_element(child) for child in node if local_name(child) == "borderFill"]
+    return BorderFillList(item_cnt=parse_int(node.get("itemCnt")), fills=fills)
+
+
+def parse_char_property(node: etree._Element) -> CharProperty:
+    child_attributes: Dict[str, Dict[str, str]] = {}
+    child_elements: Dict[str, List[GenericElement]] = {}
+    for child in node:
+        if len(child) == 0 and (child.text is None or not child.text.strip()):
+            child_attributes[local_name(child)] = {
+                key: value for key, value in child.attrib.items()
+            }
+        else:
+            child_elements.setdefault(local_name(child), []).append(parse_generic_element(child))
+
+    return CharProperty(
+        id=parse_int(node.get("id")),
+        attributes={key: value for key, value in node.attrib.items() if key != "id"},
+        child_attributes=child_attributes,
+        child_elements=child_elements,
+    )
+
+
+def parse_char_properties(node: etree._Element) -> CharPropertyList:
+    properties = [
+        parse_char_property(child) for child in node if local_name(child) == "charPr"
+    ]
+    return CharPropertyList(item_cnt=parse_int(node.get("itemCnt")), properties=properties)
+
+
+def parse_tab_properties(node: etree._Element) -> TabProperties:
+    tabs = [parse_generic_element(child) for child in node if local_name(child) == "tabPr"]
+    return TabProperties(item_cnt=parse_int(node.get("itemCnt")), tabs=tabs)
+
+
+_TAB_STOP_KNOWN_ATTRS = {"pos", "type", "leader"}
+
+
+def parse_tab_stop(node: etree._Element) -> TabStop:
+    return TabStop(
+        pos=parse_int(node.get("pos")) or 0,
+        type=node.get("type", "LEFT"),
+        leader=node.get("leader", "NONE"),
+        attributes={
+            key: value
+            for key, value in node.attrib.items()
+            if key not in _TAB_STOP_KNOWN_ATTRS
+        },
+    )
+
+
+def parse_tab_definition_version_branch(node: etree._Element) -> TabDefinitionVersionBranch:
+    return TabDefinitionVersionBranch(
+        tab_stops=[parse_tab_stop(child) for child in node if local_name(child) == "tabItem"],
+    )
+
+
+def parse_tab_definition_version_switch(*nodes: etree._Element) -> TabDefinitionVersionSwitch:
+    """한 ``hh:tabPr``의 ``hp:switch``들(DEV-022). 한/글은 탭마다 스위치를
+    하나씩 쓰므로 각 분기는 모든 스위치의 탭을 차례대로 모은다.
+    ``hp:case``의 ``hp:required-namespace`` 속성은 DEV-018과 같은 Clark 표기
+    조회가 필요(bare가 아니다)."""
+
+    case_branch: Optional[TabDefinitionVersionBranch] = None
+    default_branch: Optional[TabDefinitionVersionBranch] = None
+    required_namespace: Optional[str] = None
+
+    for node in nodes:
+        for child in node:
+            name = local_name(child)
+            if name == "case":
+                case_branch = case_branch or TabDefinitionVersionBranch()
+                case_branch.tab_stops.extend(parse_tab_definition_version_branch(child).tab_stops)
+                required_namespace = required_namespace or child.get(f"{HP}required-namespace")
+            elif name == "default":
+                default_branch = default_branch or TabDefinitionVersionBranch()
+                default_branch.tab_stops.extend(parse_tab_definition_version_branch(child).tab_stops)
+
+    return TabDefinitionVersionSwitch(
+        required_namespace=required_namespace, case=case_branch, default=default_branch
+    )
+
+
+def parse_tab_definition(node: etree._Element) -> TabDefinition:
+    raw_id = node.get("id")
+    tab_stops = [parse_tab_stop(child) for child in node if local_name(child) == "tabItem"]
+    version_switch: Optional[TabDefinitionVersionSwitch] = None
+    switch_elements = [child for child in node if local_name(child) == "switch"]
+    if switch_elements:
+        version_switch = parse_tab_definition_version_switch(*switch_elements)
+
+    # 한/글이 저장한 hh:tabPr은 탭마다 hp:switch로 감싸 직속 hh:tabItem이 없다
+    # (DEV-022). 그럴 때 탭 위치는 hp:case(한/글이 탭을 두는 HWPUNIT 값)에서
+    # 읽는다. hp:default는 그 두 배라, case가 없을 때만 절반으로 읽는다.
+    if not tab_stops and version_switch is not None:
+        if version_switch.case is not None and version_switch.case.tab_stops:
+            tab_stops = version_switch.case.tab_stops
+        elif version_switch.default is not None:
+            tab_stops = [replace(stop, pos=stop.pos // 2) for stop in version_switch.default.tab_stops]
+
+    return TabDefinition(
+        id=parse_int(raw_id),
+        raw_id=raw_id,
+        auto_tab_left=parse_bool(node.get("autoTabLeft"), default=False) or False,
+        auto_tab_right=parse_bool(node.get("autoTabRight"), default=False) or False,
+        tab_stops=tab_stops,
+        version_switch=version_switch,
+    )
+
+
+def parse_tab_definitions(node: etree._Element) -> TabDefinitionList:
+    definitions = [
+        parse_tab_definition(child) for child in node if local_name(child) == "tabPr"
+    ]
+    return TabDefinitionList(item_cnt=parse_int(node.get("itemCnt")), definitions=definitions)
+
+
+def parse_numberings(node: etree._Element) -> NumberingList:
+    numberings = [
+        parse_generic_element(child) for child in node if local_name(child) == "numbering"
+    ]
+    return NumberingList(item_cnt=parse_int(node.get("itemCnt")), numberings=numberings)
+
+
+def parse_forbidden_word_list(node: etree._Element) -> ForbiddenWordList:
+    words = [text_or_none(child) or "" for child in node if local_name(child) == "forbiddenWord"]
+    return ForbiddenWordList(item_cnt=parse_int(node.get("itemCnt")), words=words)
+
+
+def memo_shape_from_attributes(attrs: Mapping[str, str]) -> MemoShape:
+    return MemoShape(
+        id=parse_int(attrs.get("id")),
+        width=parse_int(attrs.get("width")),
+        line_width=attrs.get("lineWidth"),
+        line_type=attrs.get("lineType"),
+        line_color=attrs.get("lineColor"),
+        fill_color=attrs.get("fillColor"),
+        active_color=attrs.get("activeColor"),
+        memo_type=attrs.get("memoType"),
+        attributes=dict(attrs),
+    )
+
+
+def parse_memo_shape(node: etree._Element) -> MemoShape:
+    return memo_shape_from_attributes(node.attrib)
+
+
+def parse_memo_properties(node: etree._Element) -> MemoProperties:
+    memo_shapes = [
+        parse_memo_shape(child) for child in node if local_name(child) == "memoPr"
+    ]
+    attributes = {key: value for key, value in node.attrib.items() if key != "itemCnt"}
+    return MemoProperties(
+        item_cnt=parse_int(node.get("itemCnt")),
+        memo_shapes=memo_shapes,
+        attributes=attributes,
+    )
+
+
+def _head_alignment(token: Optional[str]) -> "Alignment | None":
+    """A bullet head's ``align`` as an :class:`~hwpx.objects.Alignment` (``None`` when unsaid; a token
+    outside the list reads as written)."""
+
+    from ..objects.results import Alignment
+
+    if token is None:
+        return None
+    try:
+        return Alignment(token.strip().upper())
+    except ValueError:
+        return cast("Alignment", token)
+
+
+def parse_bullet_para_head(node: etree._Element) -> BulletParaHead:
+    return BulletParaHead(
+        text=text_or_none(node) or "",
+        level=parse_int(node.get("level")),
+        start=parse_int(node.get("start")),
+        alignment=_head_alignment(node.get("align")),
+        use_inst_width=parse_bool(node.get("useInstWidth")),
+        auto_indent=parse_bool(node.get("autoIndent")),
+        width_adjust=parse_int(node.get("widthAdjust")),
+        text_offset_type=node.get("textOffsetType"),
+        text_offset=parse_int(node.get("textOffset")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_bullet(node: etree._Element) -> Bullet:
+    image: Optional[GenericElement] = None
+    para_head: Optional[BulletParaHead] = None
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name == "img":
+            image = parse_generic_element(child)
+        elif name == "paraHead":
+            para_head = parse_bullet_para_head(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    if para_head is None:
+        raise ValueError("bullet element missing required paraHead child")
+
+    return Bullet(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        char=node.get("char", ""),
+        checked_char=node.get("checkedChar"),
+        use_image=parse_bool(node.get("useImage"), default=False) or False,
+        para_head=para_head,
+        image=image,
+        attributes={key: value for key, value in node.attrib.items()},
+        other_children=other_children,
+    )
+
+
+def parse_bullets(node: etree._Element) -> BulletList:
+    bullets = [parse_bullet(child) for child in node if local_name(child) == "bullet"]
+    return BulletList(item_cnt=parse_int(node.get("itemCnt")), bullets=bullets)
+
+
+def parse_paragraph_alignment(node: etree._Element) -> ParagraphAlignment:
+    return ParagraphAlignment(
+        horizontal=node.get("horizontal"),
+        vertical=node.get("vertical"),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_heading(node: etree._Element) -> ParagraphHeading:
+    return ParagraphHeading(
+        type=node.get("type"),
+        id_ref=parse_int(node.get("idRef")),
+        level=parse_int(node.get("level")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_break_setting(node: etree._Element) -> ParagraphBreakSetting:
+    return ParagraphBreakSetting(
+        break_latin_word=node.get("breakLatinWord"),
+        break_non_latin_word=node.get("breakNonLatinWord"),
+        widow_orphan=parse_bool(node.get("widowOrphan")),
+        keep_with_next=parse_bool(node.get("keepWithNext")),
+        keep_lines=parse_bool(node.get("keepLines")),
+        page_break_before=parse_bool(node.get("pageBreakBefore")),
+        line_wrap=node.get("lineWrap"),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def _margin_value(child: etree._Element) -> Optional[str]:
+    # Hancom writes a margin as ``<hc:left value="1000" unit="HWPUNIT"/>``; older files put it in the text.
+    attribute = child.get("value")
+    if attribute is not None:
+        return attribute
+    value = text_or_none(child)
+    return value if value is not None else child.text.strip() if child.text else None
+
+
+def parse_paragraph_margin(node: etree._Element) -> ParagraphMargin:
+    values: Dict[str, Optional[str]] = {
+        "intent": None,
+        "left": None,
+        "right": None,
+        "prev": None,
+        "next": None,
+    }
+    other_children: Dict[str, List[GenericElement]] = {}
+    units: Dict[str, Optional[str]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name in values:
+            values[name] = _margin_value(child)
+            units[name] = child.get("unit")
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    return ParagraphMargin(
+        intent=values["intent"],
+        left=values["left"],
+        right=values["right"],
+        prev=values["prev"],
+        next=values["next"],
+        other_children=other_children,
+        units=units,
+    )
+
+
+def parse_paragraph_line_spacing(node: etree._Element) -> ParagraphLineSpacing:
+    return ParagraphLineSpacing(
+        spacing_type=node.get("type"),
+        value=parse_int(node.get("value")),
+        unit=node.get("unit"),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_border(node: etree._Element) -> ParagraphBorder:
+    return ParagraphBorder(
+        border_fill_id_ref=parse_int(node.get("borderFillIDRef")),
+        offset_left=parse_int(node.get("offsetLeft")),
+        offset_right=parse_int(node.get("offsetRight")),
+        offset_top=parse_int(node.get("offsetTop")),
+        offset_bottom=parse_int(node.get("offsetBottom")),
+        connect=parse_bool(node.get("connect")),
+        ignore_margin=parse_bool(node.get("ignoreMargin")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_auto_spacing(node: etree._Element) -> ParagraphAutoSpacing:
+    return ParagraphAutoSpacing(
+        e_asian_eng=parse_bool(node.get("eAsianEng")),
+        e_asian_num=parse_bool(node.get("eAsianNum")),
+        attributes={key: value for key, value in node.attrib.items()},
+    )
+
+
+def parse_paragraph_property_version_branch(
+    node: etree._Element,
+) -> ParagraphPropertyVersionBranch:
+    """``hp:case``/``hp:default`` 한쪽 분기 — ``ParagraphProperty`` 최상위
+    루프와 같은 관용구지만 이 두 종류(margin/lineSpacing)만 실측된다."""
+
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name == "margin":
+            margin = parse_paragraph_margin(child)
+        elif name == "lineSpacing":
+            line_spacing = parse_paragraph_line_spacing(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    return ParagraphPropertyVersionBranch(
+        margin=margin, line_spacing=line_spacing, other_children=other_children
+    )
+
+
+def parse_paragraph_property_version_switch(
+    node: etree._Element,
+) -> ParagraphPropertyVersionSwitch:
+    """``hp:switch`` 전체(DEV-018) — ``hp:case``의 ``hp:required-namespace``
+    속성은 이 스키마 계열에서 드물게 접두를 갖는다(``f"{HP}required-
+    namespace"``로 Clark 표기 조회가 필요, 다른 속성처럼 bare가 아니다)."""
+
+    case_branch: Optional[ParagraphPropertyVersionBranch] = None
+    default_branch: Optional[ParagraphPropertyVersionBranch] = None
+    required_namespace: Optional[str] = None
+
+    for child in node:
+        name = local_name(child)
+        if name == "case":
+            case_branch = parse_paragraph_property_version_branch(child)
+            required_namespace = child.get(f"{HP}required-namespace")
+        elif name == "default":
+            default_branch = parse_paragraph_property_version_branch(child)
+
+    return ParagraphPropertyVersionSwitch(
+        required_namespace=required_namespace, case=case_branch, default=default_branch
+    )
+
+
+def parse_paragraph_property(node: etree._Element) -> ParagraphProperty:
+    align: Optional[ParagraphAlignment] = None
+    heading: Optional[ParagraphHeading] = None
+    break_setting: Optional[ParagraphBreakSetting] = None
+    margin: Optional[ParagraphMargin] = None
+    line_spacing: Optional[ParagraphLineSpacing] = None
+    border: Optional[ParagraphBorder] = None
+    auto_spacing: Optional[ParagraphAutoSpacing] = None
+    version_switch: Optional[ParagraphPropertyVersionSwitch] = None
+    other_children: Dict[str, List[GenericElement]] = {}
+
+    for child in node:
+        name = local_name(child)
+        if name == "align":
+            align = parse_paragraph_alignment(child)
+        elif name == "heading":
+            heading = parse_paragraph_heading(child)
+        elif name == "breakSetting":
+            break_setting = parse_paragraph_break_setting(child)
+        elif name == "margin":
+            margin = parse_paragraph_margin(child)
+        elif name == "lineSpacing":
+            line_spacing = parse_paragraph_line_spacing(child)
+        elif name == "border":
+            border = parse_paragraph_border(child)
+        elif name == "autoSpacing":
+            auto_spacing = parse_paragraph_auto_spacing(child)
+        elif name == "switch":
+            version_switch = parse_paragraph_property_version_switch(child)
+        else:
+            other_children.setdefault(name, []).append(parse_generic_element(child))
+
+    # 개요 8~10 수준의 heading은 hp:switch 안(hp:case)에 있다(한컴 표기).
+    if heading is None:
+        switched = paragraph_heading(node)
+        if switched is not None:
+            heading = parse_paragraph_heading(switched)
+
+    # 실코퍼스 236/237(99.6%)은 margin/lineSpacing을 직접 자식이 아니라
+    # hp:switch 안(hp:case 또는 hp:default)에 둔다(DEV-018) -- 직접 자식이
+    # 없었을 때만 스위치 분기에서 채운다(직접 자식이 있으면 그게 우선,
+    # 관측상 둘이 동시에 있는 경우는 없지만 방어적으로). hp:case가
+    # required_namespace로 최신 클라이언트를 가리는 설계이므로 case를
+    # 먼저, 없으면 default로 폴백 -- 헤더 편집 경로
+    # (_apply_paragraph_margins/_apply_paragraph_line_spacing, DEV-018
+    # 프로브가 확인)가 양쪽을 함께 갱신한다. 여백은 hp:default에 hp:case의
+    # 두 배가 든다(한컴 표기, 편집 경로도 같게 씀).
+    if version_switch is not None:
+        preferred = version_switch.case or version_switch.default
+        if preferred is not None:
+            if margin is None:
+                margin = preferred.margin
+            if line_spacing is None:
+                line_spacing = preferred.line_spacing
+
+    known_attrs = {
+        "id",
+        "tabPrIDRef",
+        "condense",
+        "fontLineHeight",
+        "snapToGrid",
+        "suppressLineNumbers",
+        "checked",
+    }
+
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+
+    return ParagraphProperty(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        tab_pr_id_ref=parse_int(node.get("tabPrIDRef")),
+        condense=parse_int(node.get("condense")),
+        font_line_height=parse_bool(node.get("fontLineHeight")),
+        snap_to_grid=parse_bool(node.get("snapToGrid")),
+        suppress_line_numbers=parse_bool(node.get("suppressLineNumbers")),
+        checked=parse_bool(node.get("checked")),
+        alignment=align,
+        heading=heading,
+        break_setting=break_setting,
+        margin=margin,
+        line_spacing=line_spacing,
+        border=border,
+        auto_spacing=auto_spacing,
+        version_switch=version_switch,
+        attributes=attributes,
+        other_children=other_children,
+    )
+
+
+def parse_paragraph_properties(node: etree._Element) -> ParagraphPropertyList:
+    properties = [
+        parse_paragraph_property(child) for child in node if local_name(child) == "paraPr"
+    ]
+    return ParagraphPropertyList(item_cnt=parse_int(node.get("itemCnt")), properties=properties)
+
+
+def parse_style(node: etree._Element) -> Style:
+    known_attrs = {
+        "id",
+        "type",
+        "name",
+        "engName",
+        "paraPrIDRef",
+        "charPrIDRef",
+        "nextStyleIDRef",
+        "langID",
+        "lockForm",
+    }
+
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+
+    return Style(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        type=node.get("type"),
+        name=node.get("name"),
+        eng_name=node.get("engName"),
+        para_pr_id_ref=parse_int(node.get("paraPrIDRef")),
+        char_pr_id_ref=parse_int(node.get("charPrIDRef")),
+        next_style_id_ref=parse_int(node.get("nextStyleIDRef")),
+        lang_id=parse_int(node.get("langID")),
+        lock_form=parse_bool(node.get("lockForm")),
+        attributes=attributes,
+    )
+
+
+def parse_styles(node: etree._Element) -> StyleList:
+    styles = [parse_style(child) for child in node if local_name(child) == "style"]
+    return StyleList(item_cnt=parse_int(node.get("itemCnt")), styles=styles)
+
+
+def parse_track_change(node: etree._Element) -> TrackChange:
+    known_attrs = {
+        "id",
+        "type",
+        "date",
+        "authorID",
+        "charShapeID",
+        "paraShapeID",
+        "hide",
+    }
+
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+
+    # The schema spells charShapeID/paraShapeID; a paragraph shape change converted from
+    # HWP 5.0 is written parashapeID (hwp5.header_xml, as Hancom converts it). That spelling
+    # is read too and stays in ``attributes``, so it is written back as it was.
+    return TrackChange(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        change_type=node.get("type"),
+        date=node.get("date"),
+        author_id=parse_int(node.get("authorID")),
+        char_shape_id=parse_int(node.get("charShapeID") or node.get("charshapeID")),
+        para_shape_id=parse_int(node.get("paraShapeID") or node.get("parashapeID")),
+        hide=parse_bool(node.get("hide")),
+        attributes=attributes,
+    )
+
+
+def parse_track_changes(node: etree._Element) -> TrackChangeList:
+    changes = [
+        parse_track_change(child) for child in node if local_name(child) == "trackChange"
+    ]
+    return TrackChangeList(item_cnt=parse_int(node.get("itemCnt")), changes=changes)
+
+
+def parse_track_change_author(node: etree._Element) -> TrackChangeAuthor:
+    known_attrs = {"id", "name", "mark", "color"}
+    attributes = {
+        key: value for key, value in node.attrib.items() if key not in known_attrs
+    }
+    mark = _parse_track_change_author_mark(node.get("mark"))
+    return TrackChangeAuthor(
+        id=parse_int(node.get("id")),
+        raw_id=node.get("id"),
+        name=node.get("name"),
+        mark=mark,
+        color=node.get("color"),
+        attributes=attributes,
+    )
+
+
+def parse_track_change_authors(node: etree._Element) -> TrackChangeAuthorList:
+    authors = [
+        parse_track_change_author(child)
+        for child in node
+        if local_name(child) == "trackChangeAuthor"
+    ]
+    return TrackChangeAuthorList(
+        item_cnt=parse_int(node.get("itemCnt")),
+        authors=authors,
+    )
+
+
+def parse_ref_list(node: etree._Element) -> RefList:
+    ref_list = RefList()
+    for child in node:
+        name = local_name(child)
+        if name == "fontfaces":
+            ref_list.fontfaces = parse_font_faces(child)
+        elif name == "borderFills":
+            ref_list.border_fills = parse_border_fills(child)
+        elif name == "charProperties":
+            ref_list.char_properties = parse_char_properties(child)
+        elif name == "tabProperties":
+            ref_list.tab_properties = parse_tab_properties(child)
+        elif name == "numberings":
+            ref_list.numberings = parse_numberings(child)
+        elif name == "bullets":
+            ref_list.bullets = parse_bullets(child)
+        elif name == "paraProperties":
+            ref_list.para_properties = parse_paragraph_properties(child)
+        elif name == "styles":
+            ref_list.styles = parse_styles(child)
+        elif name == "memoProperties":
+            ref_list.memo_properties = parse_memo_properties(child)
+        elif name == "trackChanges":
+            ref_list.track_changes = parse_track_changes(child)
+        elif name == "trackChangeAuthors":
+            ref_list.track_change_authors = parse_track_change_authors(child)
+        else:
+            ref_list.other_collections.setdefault(name, []).append(parse_generic_element(child))
+    return ref_list
+
+
+def parse_header_element(node: etree._Element) -> Header:
+    version = node.get("version")
+    if version is None:
+        raise ValueError("Header element is missing required version attribute")
+    sec_cnt = parse_int(node.get("secCnt"), allow_none=False)
+
+    header = Header(version=version, sec_cnt=sec_cnt)
+
+    for child in node:
+        name = local_name(child)
+        if name == "beginNum":
+            header.begin_num = parse_begin_num(child)
+        elif name == "refList":
+            header.ref_list = parse_ref_list(child)
+        elif name == "forbiddenWordList":
+            header.forbidden_word_list = parse_forbidden_word_list(child)
+        elif name == "compatibleDocument":
+            header.compatible_document = parse_compatible_document(child)
+        elif name == "docOption":
+            header.doc_option = parse_doc_option(child)
+        elif name == "metaTag":
+            header.meta_tag = text_or_none(child)
+        elif name in {"trackchageConfig", "trackchangeConfig"}:
+            header.track_change_config = parse_track_change_config(child)
+        else:
+            header.other_elements.setdefault(name, []).append(parse_generic_element(child))
+
+    return header
+
+
+def _parse_track_change_author_mark(value: str | None) -> bool | int | None:
+    if value is None:
+        return None
+    try:
+        return parse_bool(value)
+    except ValueError:
+        return parse_int(value, allow_none=False)
+
+
+def _set_optional_int_attr(
+    attributes: Dict[str, str],
+    name: str,
+    value: int | None,
+) -> None:
+    if value is not None:
+        attributes[name] = str(value)
+
+
+def _set_optional_str_attr(
+    attributes: Dict[str, str],
+    name: str,
+    value: str | None,
+) -> None:
+    if value is not None:
+        attributes[name] = value
+
+
+def _set_optional_flag_attr(
+    attributes: Dict[str, str],
+    name: str,
+    value: bool | None,
+) -> None:
+    if value is not None:
+        attributes[name] = "1" if value else "0"
+
+
+def track_change_to_xml(change: TrackChange) -> etree._Element:
+    attributes = dict(change.attributes)
+    _set_optional_str_attr(attributes, "type", change.change_type)
+    _set_optional_str_attr(attributes, "date", change.date)
+    _set_optional_int_attr(attributes, "authorID", change.author_id)
+    if "charshapeID" not in attributes:  # read from that spelling: written back in it
+        _set_optional_int_attr(attributes, "charShapeID", change.char_shape_id)
+    if "parashapeID" not in attributes:
+        _set_optional_int_attr(attributes, "paraShapeID", change.para_shape_id)
+    _set_optional_flag_attr(attributes, "hide", change.hide)
+    _set_optional_int_attr(attributes, "id", change.id)
+    if change.raw_id is not None and change.id is None:
+        attributes["id"] = change.raw_id
+    return etree.Element("{http://www.hancom.co.kr/hwpml/2011/head}trackChange", attributes)
+
+
+def track_change_author_to_xml(author: TrackChangeAuthor) -> etree._Element:
+    attributes = dict(author.attributes)
+    _set_optional_str_attr(attributes, "name", author.name)
+    if author.mark is not None:
+        if isinstance(author.mark, bool):
+            attributes["mark"] = "1" if author.mark else "0"
+        else:
+            attributes["mark"] = str(author.mark)
+    _set_optional_int_attr(attributes, "id", author.id)
+    if author.raw_id is not None and author.id is None:
+        attributes["id"] = author.raw_id
+    _set_optional_str_attr(attributes, "color", author.color)
+    return etree.Element(
+        "{http://www.hancom.co.kr/hwpml/2011/head}trackChangeAuthor",
+        attributes,
+    )
+
+
+__all__ = [
+    "BeginNum",
+    "BorderFillList",
+    "Bullet",
+    "BulletList",
+    "BulletParaHead",
+    "CharProperty",
+    "CharPropertyList",
+    "CompatibleDocument",
+    "DocOption",
+    "Font",
+    "FontFace",
+    "FontFaceList",
+    "FontSubstitution",
+    "FontTypeInfo",
+    "ForbiddenWordList",
+    "Header",
+    "KeyDerivation",
+    "KeyEncryption",
+    "LayoutCompatibility",
+    "LinkInfo",
+    "LicenseMark",
+    "MemoProperties",
+    "MemoShape",
+    "NumberingList",
+    "ParagraphAlignment",
+    "ParagraphAutoSpacing",
+    "ParagraphBreakSetting",
+    "ParagraphBorder",
+    "ParagraphHeading",
+    "ParagraphLineSpacing",
+    "ParagraphMargin",
+    "ParagraphProperty",
+    "ParagraphPropertyList",
+    "ParagraphPropertyVersionBranch",
+    "ParagraphPropertyVersionSwitch",
+    "RefList",
+    "Style",
+    "StyleList",
+    "TabDefinition",
+    "TabDefinitionList",
+    "TabDefinitionVersionBranch",
+    "TabDefinitionVersionSwitch",
+    "TabProperties",
+    "TabStop",
+    "TrackChange",
+    "TrackChangeAuthor",
+    "TrackChangeAuthorList",
+    "TrackChangeConfig",
+    "TrackChangeList",
+    "format_track_change_date",
+    "memo_shape_from_attributes",
+    "normalize_track_change_type",
+    "parse_begin_num",
+    "parse_bullet",
+    "parse_bullet_para_head",
+    "parse_bullets",
+    "parse_char_property",
+    "parse_char_properties",
+    "parse_compatible_document",
+    "parse_doc_option",
+    "parse_forbidden_word_list",
+    "parse_header_element",
+    "parse_layout_compatibility",
+    "parse_memo_properties",
+    "parse_memo_shape",
+    "parse_numberings",
+    "parse_paragraph_alignment",
+    "parse_paragraph_auto_spacing",
+    "parse_paragraph_border",
+    "parse_paragraph_break_setting",
+    "parse_paragraph_line_spacing",
+    "parse_paragraph_margin",
+    "parse_paragraph_property",
+    "parse_paragraph_properties",
+    "parse_paragraph_property_version_branch",
+    "parse_paragraph_property_version_switch",
+    "parse_ref_list",
+    "parse_style",
+    "parse_styles",
+    "parse_tab_definition",
+    "parse_tab_definitions",
+    "parse_tab_definition_version_branch",
+    "parse_tab_definition_version_switch",
+    "parse_tab_properties",
+    "parse_tab_stop",
+    "parse_track_change",
+    "parse_track_change_author",
+    "parse_track_change_authors",
+    "parse_track_changes",
+    "track_change_author_to_xml",
+    "track_change_to_xml",
+]
+
+logger = logging.getLogger(__name__)

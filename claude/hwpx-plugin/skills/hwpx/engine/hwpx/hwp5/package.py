@@ -1,0 +1,497 @@
+# SPDX-License-Identifier: Apache-2.0
+"""An HWP 5.0 document as the parts of an HWPX package.
+
+:func:`convert` reads the compound file, turns DocInfo into
+``Contents/header.xml``, every BodyText section into
+``Contents/section<N>.xml`` and its master pages into
+``Contents/masterpage<N>.xml``, copies embedded binary data to ``BinData/``
+(and the chart part a Hancom chart keeps in its storage to ``Chart/``),
+and writes the package files (``mimetype``, ``version.xml``, the
+``META-INF`` container, ``Contents/content.hpf``, ``settings.xml`` and the
+text preview) around them, with the memo replies (``Contents/memoExtended.xml``)
+and the bibliography (``Custom/bibliography.xml``) a document keeps. :func:`to_hwpx_bytes` zips the parts so the
+ordinary HWPX reader can open them.
+"""
+
+from __future__ import annotations
+
+import io
+import re
+import struct
+import zipfile
+from dataclasses import dataclass
+
+from lxml import etree  # type: ignore[reportAttributeAccessIssue]
+
+from . import bodytext as bt
+from . import controls as ct
+from . import docinfo as di
+from . import records as rec
+from . import shapes as sh
+from .errors import Hwp5Error, damaged, limit_exceeded
+from .header_xml import blank_border_fill_id, build_header, track_changes
+from .owpml import NS, XML_DECLARATION, root, serialize, sub, xml_text
+from .reader import Hwp5File, read_hwp5
+from .section_xml import ConversionReport, build_section, memo_bodies
+from .summary import (
+    AUTHOR,
+    COMMENTS,
+    CREATED,
+    DATE_TEXT,
+    KEYWORDS,
+    LAST_AUTHOR,
+    LAST_SAVED,
+    SUBJECT,
+    TITLE,
+    default_scripts,
+    filetime_text,
+    read_scripts,
+    read_summary,
+)
+
+MIMETYPE = b"application/hwp+zip"
+
+VERSION_XML = (
+    XML_DECLARATION
+    + b'<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version" '
+    b'tagetApplication="WORDPROCESSOR" major="5" minor="1" micro="1" buildNumber="0" '
+    b'os="1" xmlVersion="1.5" application="Hancom Office Hangul" appVersion="13, 0, 0, 1408 WIN32LEWindows_10"/>'
+)
+
+CONTAINER_XML = (
+    XML_DECLARATION
+    + b'<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" '
+    b'xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf"><ocf:rootfiles>'
+    b'<ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
+    b'<ocf:rootfile full-path="Preview/PrvText.txt" media-type="text/plain"/>'
+    b'<ocf:rootfile full-path="META-INF/container.rdf" media-type="application/rdf+xml"/>'
+    b"</ocf:rootfiles></ocf:container>"
+)
+
+MANIFEST_XML = XML_DECLARATION + b'<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>'
+
+_RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+_PKG = "http://www.hancom.co.kr/hwpml/2016/meta/pkg#"
+
+
+@dataclass
+class Converted:
+    """The parts of the converted package and what could not be converted."""
+
+    files: dict[str, bytes]
+    report: ConversionReport
+    source: Hwp5File
+
+
+def _container_rdf(sections: int) -> bytes:
+    rdf = etree.Element(f"{{{_RDF}}}RDF", nsmap={"rdf": _RDF})
+    for part, kind in [("Contents/header.xml", "HeaderFile")] + [
+        (f"Contents/section{index}.xml", "SectionFile") for index in range(sections)
+    ]:
+        has = etree.SubElement(rdf, f"{{{_RDF}}}Description")
+        has.set(f"{{{_RDF}}}about", "")
+        part_ref = etree.SubElement(has, f"{{{_PKG}}}hasPart", nsmap={"ns0": _PKG})
+        part_ref.set(f"{{{_RDF}}}resource", part)
+        describe = etree.SubElement(rdf, f"{{{_RDF}}}Description")
+        describe.set(f"{{{_RDF}}}about", part)
+        kind_ref = etree.SubElement(describe, f"{{{_RDF}}}type")
+        kind_ref.set(f"{{{_RDF}}}resource", _PKG + kind)
+    document = etree.SubElement(rdf, f"{{{_RDF}}}Description")
+    document.set(f"{{{_RDF}}}about", "")
+    kind_ref = etree.SubElement(document, f"{{{_RDF}}}type")
+    kind_ref.set(f"{{{_RDF}}}resource", _PKG + "Document")
+    return XML_DECLARATION + etree.tostring(rdf, encoding="UTF-8")
+
+
+def _bin_items(doc: Hwp5File, info: di.DocInfo) -> list[tuple[str, str, bytes, str, bool]]:
+    """``(item id, href, payload, media type, embedded)`` for every BinData record.
+
+    A picture, fill, bullet or video refers to its item by the place of the
+    BinData record (1 first), not by the id the record keeps (which names its
+    stream), so the items are named by place: ``video`` for a file a video
+    plays, else ``image`` (or ``ole`` for a storage). A linked file keeps its
+    path as its href and has no part.
+    """
+
+    videos = {place for section in doc.sections for place in sh.video_files(section.records)}
+    items = []
+    for place, item in enumerate(info.bin_data, 1):
+        kind = "video" if place in videos else "image"
+        if item.kind == di.BIN_LINK:
+            href = item.abs_path or item.rel_path
+            ext = href.rsplit(".", 1)[-1].lower() if "." in href.replace("/", chr(92)).rsplit(chr(92), 1)[-1] else ""
+            items.append((f"{kind}{place}", href, b"", f"{kind}/{ext}", False))
+            continue
+        path = f"BinData/{item.stream_name}"
+        if not doc.compound.has_stream(path):
+            continue
+        compressed = doc.header.compressed if item.compression == 0 else item.compression == 1
+        payload = rec.inflate_stream(doc.compound, path) if compressed else doc.compound.read(path)
+        if item.kind == di.BIN_STORAGE:
+            items.append((f"ole{place}", f"BinData/ole{place}.ole", payload, "application/ole", False))
+        else:
+            ext = item.extension
+            items.append((f"{kind}{place}", f"BinData/{kind}{place}.{ext}", payload, f"{kind}/{ext.lower()}", True))
+    return items
+
+
+def _content_hpf(
+    summary: dict[int, object],
+    master_pages: list[int],
+    bins: list[tuple[str, str, bytes, str, bool]],
+    scripts: bool = False,
+    memo_replies: bool = False,
+    bibliography: bool = False,
+) -> bytes:
+    """The package manifest and spine; *master_pages* holds the number of
+    master pages of each section, whose items go just before the section's.
+    The memo replies part follows the header, and the bibliography comes
+    last in both, as Hancom lists them."""
+
+    sections = len(master_pages)
+    package = root("opf:package")
+    package.set("version", "")
+    package.set("unique-identifier", "")
+    package.set("id", "")
+    metadata = sub(package, "opf:metadata")
+    title = sub(metadata, "opf:title")
+    if summary.get(TITLE):
+        title.text = xml_text(summary[TITLE])
+    sub(metadata, "opf:language").text = "ko"
+
+    def meta(name: str, value: object) -> None:
+        element = sub(metadata, "opf:meta", (("name", name), ("content", "text")))
+        if value:
+            element.text = xml_text(value)
+
+    meta("creator", summary.get(AUTHOR, ""))
+    meta("subject", summary.get(SUBJECT, ""))
+    meta("description", summary.get(COMMENTS, ""))
+    meta("lastsaveby", summary.get(LAST_AUTHOR, ""))
+    created = summary.get(CREATED)
+    saved = summary.get(LAST_SAVED)
+    meta("CreatedDate", filetime_text(created) if isinstance(created, int) else "")
+    meta("ModifiedDate", filetime_text(saved) if isinstance(saved, int) else "")
+    meta("date", summary.get(DATE_TEXT, ""))
+    meta("keyword", summary.get(KEYWORDS, ""))
+    manifest = sub(package, "opf:manifest")
+    for item_id, href, _payload, media, embedded in bins:
+        attrs: list[tuple[str, object]] = [("id", item_id), ("href", href), ("media-type", media)]
+        attrs.append(("isEmbeded", 1 if embedded else 0))
+        sub(manifest, "opf:item", attrs)
+    sub(manifest, "opf:item", (("id", "header"), ("href", "Contents/header.xml"), ("media-type", "application/xml")))
+    if memo_replies:
+        sub(
+            manifest,
+            "opf:item",
+            (("id", "memoextended"), ("href", "Contents/memoExtended.xml"), ("media-type", "application/xml")),
+        )
+    first = 0
+    for index, count in enumerate(master_pages):
+        for number in range(first, first + count):
+            sub(
+                manifest,
+                "opf:item",
+                (("id", f"masterpage{number}"), ("href", f"Contents/masterpage{number}.xml"), ("media-type", "application/xml")),
+            )
+        first += count
+        sub(
+            manifest,
+            "opf:item",
+            (("id", f"section{index}"), ("href", f"Contents/section{index}.xml"), ("media-type", "application/xml")),
+        )
+    for item_id, href in _SCRIPT_PARTS if scripts else ():
+        sub(manifest, "opf:item", (("id", item_id), ("href", href), ("media-type", _SCRIPT_MEDIA)))
+    sub(manifest, "opf:item", (("id", "settings"), ("href", "settings.xml"), ("media-type", "application/xml")))
+    if bibliography:
+        sub(manifest, "opf:item", (("id", "bibliography"), ("href", "Custom/bibliography.xml"), ("media-type", "application/xml")))
+    spine = sub(package, "opf:spine")
+    sub(spine, "opf:itemref", (("idref", "header"), ("linear", "yes")))
+    for index in range(sections):
+        sub(spine, "opf:itemref", (("idref", f"section{index}"), ("linear", "yes")))
+    for item_id, _ in _SCRIPT_PARTS if scripts else ():
+        sub(spine, "opf:itemref", (("idref", item_id), ("linear", "yes")))
+    if bibliography:
+        sub(spine, "opf:itemref", (("idref", "bibliography"), ("linear", "yes")))
+    return serialize(package)
+
+
+#: The package parts of a document's header and source scripts.
+_SCRIPT_PARTS = (("headersc", "Scripts/headerScripts"), ("sourcesc", "Scripts/sourceScripts"))
+_SCRIPT_MEDIA = "application/x-javascript ;charset=utf-16"
+
+
+def _scripts(doc: Hwp5File, report: ConversionReport) -> list[str] | None:
+    """The header and source scripts to keep as package parts; None when the
+    document has none beyond a new document's."""
+
+    if not doc.compound.has_stream("Scripts/DefaultJScript"):
+        return None
+    raw, packed = doc.compound.read("Scripts/DefaultJScript"), doc.header.compressed
+    if packed:
+        try:  # counted against the document's total like every other stream
+            raw, packed = rec.inflate_stream(doc.compound, "Scripts/DefaultJScript", raw), False
+        except Hwp5Error as exc:
+            if exc.code == "hwp5-limit-exceeded":
+                raise
+    scripts = read_scripts(raw, is_compressed=packed)
+    if scripts is None:
+        report.drop("scripts")
+        return None
+    if default_scripts(scripts):
+        return None
+    if any(scripts[2:]):
+        report.drop("script-before-after")
+    return (scripts + ["", ""])[:2]
+
+
+def _settings(info: di.DocInfo, report: ConversionReport) -> bytes:
+    settings = etree.Element(f"{{{NS['ha']}}}HWPApplicationSetting", nsmap={"ha": NS["ha"], "config": NS["config"]})
+    caret = etree.SubElement(settings, f"{{{NS['ha']}}}CaretPosition")
+    caret.set("listIDRef", str(info.properties.caret_list_id))
+    caret.set("paraIDRef", str(info.properties.caret_para_id))
+    caret.set("pos", str(info.properties.caret_pos))
+    # The print settings DOC_DATA keeps; other document data has no place.
+    for record in info.other:
+        if record.tag != rec.DOC_DATA:
+            continue
+        found = ct.print_info(record.payload)
+        if found is None:
+            report.drop("doc-data")
+            continue
+        values, unnamed = found
+        for _ in range(unnamed):
+            report.drop("print-setting")
+        if not values:
+            continue
+        group = etree.SubElement(settings, f"{{{NS['config']}}}config-item-set", name="PrintInfo")
+        for name, (_, kind, _) in ct.PRINT_INFO_ITEMS.items():
+            if name in values:
+                item = etree.SubElement(group, f"{{{NS['config']}}}config-item", name=name, type=kind)
+                item.text = ("true" if values[name] else "false") if kind == "boolean" else str(values[name])
+    return serialize(settings)
+
+
+_EXTENDED = "http://www.hancom.co.kr/hwpml/2021/extended"
+
+
+def _memo_replies(doc: Hwp5File, report: ConversionReport) -> bytes | None:
+    """``Contents/memoExtended.xml`` from the ``MemoExtended`` stream: its one
+    record holds a count, then each answering memo's id and the id of the memo
+    it answers. None when the document has no such stream."""
+
+    if not doc.compound.has_stream("MemoExtended"):
+        return None
+    try:
+        records = rec.parse_records(doc.stream("MemoExtended"), "MemoExtended").records
+    except Hwp5Error as exc:  # a damaged optional stream drops only itself
+        if exc.code == "hwp5-limit-exceeded":
+            raise  # the document is past its total: that is not this stream's damage
+        records = []
+    payload = next((record.payload for record in records if record.tag == rec.MEMO_EXTENDED), b"")
+    count = struct.unpack_from("<I", payload)[0] if len(payload) >= 4 else -1
+    if count < 0 or len(payload) != 4 + 8 * count:
+        report.drop("memo-replies")
+        return None
+    memos = etree.Element(f"{{{_EXTENDED}}}memosEx", nsmap={"he": _EXTENDED})
+    for offset in range(4, len(payload), 8):
+        memo_id, parent_id = struct.unpack_from("<II", payload, offset)
+        etree.SubElement(memos, f"{{{_EXTENDED}}}memo", id=str(memo_id), parentId=str(parent_id))
+    return serialize(memos)
+
+
+def _bibliography(doc: Hwp5File, report: ConversionReport) -> bytes | None:
+    """``Custom/bibliography.xml``: the document's sources, which the
+    ``Bibliography`` stream keeps as its length and then the part itself."""
+
+    if not doc.compound.has_stream("Bibliography"):
+        return None
+    try:
+        data = doc.stream("Bibliography")
+    except Hwp5Error as exc:
+        if exc.code == "hwp5-limit-exceeded":
+            raise
+        data = b""
+    if len(data) < 4 or struct.unpack_from("<I", data)[0] != len(data) - 4:
+        report.drop("bibliography")
+        return None
+    return data[4:]
+
+
+def _preview_text(doc: Hwp5File) -> bytes:
+    if not doc.compound.has_stream("PrvText"):
+        return b""
+    text = doc.compound.read("PrvText").decode("utf-16-le", errors="replace").split("\0", 1)[0]
+    return text.encode("utf-8")
+
+
+#: A section's reference to border and fill 0 (none), as serialized: pages,
+#: tables, cells and cell zones without a border and fill.
+_NO_BORDER_FILL = b' borderFillIDRef="0"'
+#: A start tag of a serialized part (attribute values keep < and > escaped).
+_START_TAG = re.compile(rb"<[^<>]*>")
+
+
+def _refers_to_no_border_fill(part: bytes) -> bool:
+    return _NO_BORDER_FILL in part and any(_NO_BORDER_FILL in tag.group(0) for tag in _START_TAG.finditer(part))
+
+
+def _to_blank_border_fill(part: bytes, blank: int) -> bytes:
+    """*part* with its references to border and fill 0 made to the blank one."""
+
+    if _NO_BORDER_FILL not in part:
+        return part
+    to = f' borderFillIDRef="{blank}"'.encode()
+    return _START_TAG.sub(lambda tag: tag.group(0).replace(_NO_BORDER_FILL, to), part)
+
+#: The largest ``.hwp`` file that is read (each stream inside is bounded
+#: separately by :data:`hwpx.hwp5.cfb.MAX_STREAM_BYTES`).
+MAX_FILE_BYTES = 512 * 1024 * 1024
+
+#: What decoding a damaged file can raise below the checks that raise
+#: :class:`Hwp5Error` themselves. Type and attribute errors are left alone:
+#: they are faults of this package, not of the input.
+_INPUT_FAULTS = (ValueError, ArithmeticError, LookupError, struct.error)
+
+
+def convert(data: bytes) -> Converted:
+    """Convert the bytes of a ``.hwp`` file into HWPX package parts.
+
+    Every failure caused by the input is an :class:`Hwp5Error`; when it wraps
+    another exception that one is its ``__cause__``.
+    """
+
+    if len(data) > MAX_FILE_BYTES:
+        raise limit_exceeded("the file is larger than the size limit", size=len(data), limit=MAX_FILE_BYTES)
+    try:
+        return _convert(data)
+    except Hwp5Error:
+        raise
+    except RecursionError as exc:
+        raise limit_exceeded("the file nests its content too deeply", reason=type(exc).__name__) from exc
+    except MemoryError as exc:
+        raise limit_exceeded("the file needs more memory than is available", reason=type(exc).__name__) from exc
+    except _INPUT_FAULTS as exc:
+        raise damaged("the file holds a value that cannot be read", reason=type(exc).__name__) from exc
+
+
+def _defines_section(paragraph: rec.Record) -> bool:
+    """Whether the paragraph holds a section definition (``secd``)."""
+
+    return any(bt.record_ctrl_id(child) == "secd" for child in paragraph.children)
+
+
+def _sections(doc: Hwp5File) -> list[rec.RecordStream]:
+    """The document's sections. A section stream whose later paragraph
+    defines a section of its own (a file not written by Hancom) holds that
+    many sections: Hancom starts a section at each definition."""
+
+    out: list[rec.RecordStream] = []
+    for stream in doc.sections:
+        groups: list[list[rec.Record]] = [[]]
+        for record in stream.roots:
+            if record.tag == rec.PARA_HEADER and groups[-1] and _defines_section(record):
+                groups.append([])
+            groups[-1].append(record)
+        if len(groups) == 1:
+            out.append(stream)
+            continue
+        for group in groups:
+            out.append(rec.RecordStream([r for top in group for r in top.walk()], group))
+    return out
+
+
+def _convert(data: bytes) -> Converted:
+    doc = read_hwp5(data)
+    doc.sections = _sections(doc)
+    info = di.decode_docinfo(doc.docinfo)
+    report = ConversionReport()
+    header = doc.header
+    license_mark = None
+    if header.has("ccl") or header.has("kogl"):
+        license_mark = ("CCL" if header.has("ccl") else "KOGL", header.flags2, header.kogl_country)
+    link_doc = doc.compound.read("DocOptions/_LinkDoc") if doc.compound.has_stream("DocOptions/_LinkDoc") else None
+    files: dict[str, bytes] = {"mimetype": MIMETYPE, "version.xml": VERSION_XML}
+    bins = _bin_items(doc, info)
+    # A Hancom chart keeps its chart part in its OLE storage; the part goes
+    # just before the storage, numbered in BinData order, in no manifest.
+    charts: dict[str, str] = {}
+    for item_id, href, payload, _media, _embedded in bins:
+        chart = sh.chart_xml(payload) if item_id.startswith("ole") else None
+        if chart is not None:
+            charts[item_id] = f"Chart/chart{len(charts) + 1}.xml"
+            files[charts[item_id]] = chart
+        if href.startswith("BinData/"):
+            files[href] = payload
+    # The header goes before the sections in the package; it is built after
+    # them, as it lists a border and fill of nothing when they refer to one.
+    files["Contents/header.xml"] = b""
+    memos = memo_bodies(doc.sections)
+    master_pages: list[bytes] = []
+    counts: list[int] = []
+    parts: list[bytes] = []
+    track_ids = [0]
+    for section in doc.sections:
+        before = len(master_pages)
+        parts.append(build_section(section, report, memos, master_pages, charts, track_ids))
+        counts.append(len(master_pages) - before)
+    for _ in memos:
+        report.skip("memo-body")
+    blank_used = any(_refers_to_no_border_fill(part) for part in parts + master_pages)
+    if blank_used:
+        blank = blank_border_fill_id(info)
+        parts = [_to_blank_border_fill(part, blank) for part in parts]
+        master_pages = [_to_blank_border_fill(page, blank) for page in master_pages]
+    files["Contents/header.xml"] = build_header(
+        info, len(doc.sections), link_doc=link_doc, license_mark=license_mark, blank_border_fill=blank_used
+    )
+    # Each section's master pages come just before it, as Hancom stores them.
+    first = 0
+    for index, (part, count) in enumerate(zip(parts, counts)):
+        for number in range(first, first + count):
+            files[f"Contents/masterpage{number}.xml"] = master_pages[number]
+        first += count
+        files[f"Contents/section{index}.xml"] = part
+    files["Preview/PrvText.txt"] = _preview_text(doc)
+    files["settings.xml"] = _settings(info, report)
+    files["META-INF/container.rdf"] = _container_rdf(len(doc.sections))
+    summary = read_summary(doc.compound.read("\x05HwpSummaryInformation")) if doc.compound.has_stream(
+        "\x05HwpSummaryInformation"
+    ) else {}
+    scripts = _scripts(doc, report)
+    if scripts is not None:
+        for (_, href), text in zip(_SCRIPT_PARTS, scripts):
+            files[href] = text.encode("utf-16-le", errors="surrogatepass")
+    replies = _memo_replies(doc, report)
+    if replies is not None:
+        files["Contents/memoExtended.xml"] = replies
+    sources = _bibliography(doc, report)
+    if sources is not None:
+        files["Custom/bibliography.xml"] = sources
+    files["Contents/content.hpf"] = _content_hpf(
+        summary, counts, bins, scripts is not None, replies is not None, sources is not None
+    )
+    files["META-INF/container.xml"] = CONTAINER_XML
+    files["META-INF/manifest.xml"] = MANIFEST_XML
+    # The header leaves out tracked changes it cannot express.
+    if track_changes(info) is None:
+        report.skip("track-changes")
+    # The document's saved versions (DocHistory), which Hancom's conversion
+    # keeps as DocHistory parts, are not converted.
+    if any(path.startswith("DocHistory/") for path in doc.compound.stream_paths()):
+        report.skip("doc-history")
+    return Converted(files, report, doc)
+
+
+def to_hwpx_bytes(files: dict[str, bytes]) -> bytes:
+    """Zip package parts the way HWPX expects: ``mimetype`` first and stored."""
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as zf:
+        zf.writestr(zipfile.ZipInfo("mimetype"), files["mimetype"], compress_type=zipfile.ZIP_STORED)
+        for name, payload in files.items():
+            if name == "mimetype":
+                continue
+            method = zipfile.ZIP_STORED if name.startswith("BinData/") or name == "version.xml" else zipfile.ZIP_DEFLATED
+            zf.writestr(zipfile.ZipInfo(name), payload, compress_type=method)
+    return out.getvalue()

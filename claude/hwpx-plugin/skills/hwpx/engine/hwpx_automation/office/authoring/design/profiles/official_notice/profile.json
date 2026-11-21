@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "hwpx.design.profile.v2",
+  "id": "official_notice",
+  "template": "template.hwpx",
+  "fragments_document": "fragments.hwpx",
+  "fragments": {
+    "title": {
+      "start": 1,
+      "count": 1
+    },
+    "heading": {
+      "start": 2,
+      "count": 1
+    },
+    "body": {
+      "start": 3,
+      "count": 1
+    },
+    "info_table": {
+      "start": 4,
+      "count": 1
+    }
+  },
+  "page": {
+    "width": 59528,
+    "height": 84188,
+    "orientation": "WIDELY",
+    "margins": {
+      "left": 5669,
+      "right": 5669,
+      "top": 4251,
+      "bottom": 2834
+    }
+  },
+  "char_pr_count": 65,
+  "style_coverage_threshold": 0.98,
+  "source_basename": "synthetic_official_notice_source.hwpx"
+}

@@ -1,0 +1,1629 @@
+# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+import argparse
+import re
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from collections.abc import Iterator
+from typing import Any, BinaryIO, Iterable, Literal, Mapping, Sequence
+from zipfile import ZIP_STORED, BadZipFile, ZipFile, ZipInfo
+
+from lxml import etree as LET  # type: ignore[reportMissingImports]
+
+from ..oxml.namespaces import HWPML_COMPAT_ROOT_NAMESPACES
+from ..oxml.objects import _REQUIRED_SHAPE_CHILD_NAMES
+from ..oxml.utils import hancom_text_length, line_seg_past_text
+from ..opc.security import _duplicate_entry_notice, note_well_formed, open_archive
+from ..opc.security import HwpxSecurityError, MAX_ZIP_MEMBER_BYTES, MAX_ZIP_MIMETYPE_BYTES, MAX_ZIP_SMALL_PART_BYTES, read_member
+from ..opc.relationships import (
+    MAIN_ROOTFILE_MEDIA_TYPE,
+    ManifestRelationships,
+    RootFileRef,
+    is_header_part_name,
+    is_linked_file,
+    is_section_part_name,
+    parse_container_rootfiles,
+    parse_manifest_relationships,
+    select_main_rootfile,
+)
+from ..opc.security import (
+    guard_xml_bytes,
+    guard_xml_depth,
+    guard_zip_file,
+    parse_xml_stdlib,
+)
+
+EXPECTED_MIMETYPE = "application/hwp+zip"
+MIMETYPE_PATH = "mimetype"
+CONTAINER_PATH = "META-INF/container.xml"
+HEADER_PATH = "Contents/header.xml"
+VERSION_PATH = "version.xml"
+PREVIEW_TEXT_PATH = "Preview/PrvText.txt"
+RECOMMENDED_HANCOM_TARGET = "HWP201X"
+# Both markers appear in real Hancom output across versions/filters: HWP2018 in
+# some converted corpora, HWP201X in current Hancom-saved files and our captured
+# Skeleton.hwpx (the from-scratch template every new document clones). Accept
+# either so our own canonical output does not trip a false warning.
+ACCEPTED_HANCOM_TARGETS = frozenset({"HWP2018", "HWP201X"})
+# hh:head version: 1.4 was the original measured baseline; current Hancom emits
+# 1.5 (our Skeleton.hwpx is 1.5). Accept both measured baselines.
+ACCEPTED_HEAD_VERSIONS = frozenset({"1.4", "1.5"})
+
+_XML_DECLARATION_RE = re.compile(rb"^<\?xml\s+([^?]*?)\?>", re.IGNORECASE)
+_STANDALONE_YES_RE = re.compile(rb"\bstandalone\s*=\s*(['\"])yes\1", re.IGNORECASE)
+
+IssueLevel = Literal["error", "warning"]
+
+__all__ = [
+    "EDITOR_OPEN_ADVISORY_ERROR_MARKERS",
+    "PackageValidationIssue",
+    "PackageValidationReport",
+    "EditorOpenSafetyReport",
+    "is_editor_open_blocking_issue",
+    "validate_editor_open_safety",
+    "validate_package",
+    "main",
+]
+
+#: The error for a section whose ``hp:secPr`` sits in a later paragraph than its first one.
+SECTION_PROPERTIES_NOT_FIRST_MESSAGE = (
+    "hp:secPr is not in the section's first paragraph (section-properties-not-first): Hancom reads "
+    "a section's settings only from its first paragraph and gives the section default paper and margins"
+)
+
+#: The error for a section whose first paragraph holds its ``hp:secPr`` but no column definition.
+SECTION_COLUMNS_MISSING_MESSAGE = (
+    "the section's first paragraph holds hp:secPr but no column definition (hp:ctrl/hp:colPr) "
+    "(section-columns-missing): Hancom opens the section with default paper and margins; "
+    "`hwpx-repair` writes the one-column definition Hancom writes"
+)
+
+EDITOR_OPEN_ADVISORY_ERROR_MARKERS = (
+    "(section-columns-missing)",  # reported, not refused on saving: a document read that way still saves
+    'missing XML declaration with standalone="yes"',
+    "missing Hancom-compatible HWPML root namespace declarations",
+    "manifest href missing from archive",
+    "must be the first ZIP entry",
+    "must use ZIP_STORED",
+)
+
+
+@dataclass(frozen=True)
+class PackageValidationIssue:
+    part_name: str
+    message: str
+    level: IssueLevel = "error"
+
+    @property
+    def is_error(self) -> bool:
+        return self.level == "error"
+
+    def __str__(self) -> str:  # pragma: no cover - human readable helper
+        return f"{self.part_name}: {self.message}"
+
+
+def is_editor_open_blocking_issue(issue: PackageValidationIssue) -> bool:
+    """Return whether a package issue should block editor-open-safe saves."""
+
+    if not issue.is_error:
+        return False
+    return not any(
+        marker in issue.message for marker in EDITOR_OPEN_ADVISORY_ERROR_MARKERS
+    )
+
+
+@dataclass(frozen=True)
+class PackageValidationReport:
+    checked_parts: tuple[str, ...]
+    issues: tuple[PackageValidationIssue, ...]
+
+    @property
+    def errors(self) -> tuple[PackageValidationIssue, ...]:
+        return tuple(issue for issue in self.issues if issue.is_error)
+
+    @property
+    def warnings(self) -> tuple[PackageValidationIssue, ...]:
+        return tuple(issue for issue in self.issues if not issue.is_error)
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    def __bool__(self) -> bool:  # pragma: no cover - convenience alias
+        return self.ok
+
+
+@dataclass(frozen=True)
+class EditorOpenSafetyReport:
+    """Combined checks used before handing a saved HWPX to an editor."""
+
+    validate_package: PackageValidationReport
+    validate_document: Any | None
+    blocking_package_errors: tuple[PackageValidationIssue, ...]
+    reopen_ok: bool
+    reopen_error: str | None = None
+    document_validation_error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        document_ok = (
+            self.document_validation_error is None
+            and self.validate_document is not None
+            and bool(getattr(self.validate_document, "ok", False))
+        )
+        return not self.blocking_package_errors and self.reopen_ok and document_ok
+
+    @property
+    def summary(self) -> str:
+        if self.ok:
+            return "editor-open safety verification passed"
+        failures: list[str] = []
+        if self.blocking_package_errors:
+            failures.extend(str(issue) for issue in self.blocking_package_errors[:10])
+        if not self.reopen_ok and self.reopen_error:
+            failures.append(f"reopen failed: {self.reopen_error}")
+        if self.document_validation_error:
+            failures.append(
+                f"document validation could not run: {self.document_validation_error}"
+            )
+        document_report = self.validate_document
+        if document_report is not None and not bool(
+            getattr(document_report, "ok", False)
+        ):
+            errors = list(getattr(document_report, "errors", ()))
+            if errors:
+                failures.extend(
+                    f"document validation failed: {error}" for error in errors[:10]
+                )
+            else:
+                failures.append("document validation failed")
+        return (
+            "; ".join(failures)
+            if failures
+            else "editor-open safety verification failed"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        document_report = self.validate_document
+        return {
+            "ok": self.ok,
+            "summary": self.summary,
+            "validatePackage": {
+                "ok": self.validate_package.ok,
+                "errors": [str(issue) for issue in self.validate_package.errors],
+                "warnings": [str(issue) for issue in self.validate_package.warnings],
+                "blockingErrors": [
+                    str(issue) for issue in self.blocking_package_errors
+                ],
+            },
+            "validateDocument": (
+                {
+                    "ok": False,
+                    "errors": [self.document_validation_error],
+                    "warnings": [],
+                }
+                if document_report is None
+                else {
+                    "ok": bool(getattr(document_report, "ok", False)),
+                    "errors": [
+                        str(issue) for issue in getattr(document_report, "errors", ())
+                    ],
+                    "warnings": [
+                        str(issue) for issue in getattr(document_report, "warnings", ())
+                    ],
+                }
+            ),
+            "reopen": {"ok": self.reopen_ok, "error": self.reopen_error},
+        }
+
+
+def validate_editor_open_safety(source: str | Path | bytes) -> EditorOpenSafetyReport:
+    """Return package/document/reopen evidence for editor-open-safe handoff."""
+
+    package_report = validate_package(source)
+    blocking_errors = tuple(
+        issue for issue in package_report.errors if is_editor_open_blocking_issue(issue)
+    )
+
+    # The document is opened once: that open is the reopen evidence, and the
+    # document check reads the same open document instead of opening it again.
+    reopened: Any | None = None
+    reopen_ok = False
+    reopen_error: str | None = None
+    try:
+        from ..document import HwpxDocument
+
+        reopened = HwpxDocument.open(source)
+        reopen_ok = True
+    except Exception as exc:  # noqa: BLE001 - reported as evidence, not hidden
+        reopen_error = f"{type(exc).__name__}: {exc}"
+
+    document_report: Any | None = None
+    document_error: str | None = None
+    if reopened is None:
+        # The document check opens the document first, so it stops on the same error.
+        document_error = reopen_error
+    else:
+        try:
+            from .validator import validate_document
+
+            document_report = validate_document(reopened)
+        except Exception as exc:  # noqa: BLE001 - reported as evidence, not hidden
+            document_error = f"{type(exc).__name__}: {exc}"
+        finally:
+            reopened.close()
+
+    return EditorOpenSafetyReport(
+        validate_package=package_report,
+        validate_document=document_report,
+        blocking_package_errors=blocking_errors,
+        reopen_ok=reopen_ok,
+        reopen_error=reopen_error,
+        document_validation_error=document_error,
+    )
+
+
+def _open_zip(source: str | Path | bytes | BinaryIO) -> ZipFile:
+    if isinstance(source, (str, Path)):
+        return ZipFile(source, "r")
+    if isinstance(source, bytes):
+        return open_archive(source)
+    return ZipFile(source, "r")
+
+
+def _parse_xml(payload: bytes) -> ET.Element:
+    return parse_xml_stdlib(payload)
+
+
+def _root_declared_namespaces(payload: bytes) -> dict[str, str]:
+    try:
+        guard_xml_bytes(payload)
+        parser = LET.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+        root = LET.fromstring(payload, parser=parser)
+        guard_xml_depth(root)
+    except (LET.XMLSyntaxError, ValueError):
+        return {}
+    return {
+        "" if prefix is None else prefix: uri
+        for prefix, uri in root.nsmap.items()
+        if uri
+    }
+
+
+def _has_standalone_yes_declaration(payload: bytes) -> bool:
+    stripped = payload.lstrip()
+    if stripped.startswith(b"\xef\xbb\xbf"):
+        stripped = stripped[3:]
+    match = _XML_DECLARATION_RE.match(stripped)
+    return bool(match and _STANDALONE_YES_RE.search(match.group(1)))
+
+
+def _check_hwpml_compat_root(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    payload: bytes,
+    root: ET.Element,
+) -> None:
+    if not (
+        is_section_part_name(part_name)
+        or is_header_part_name(part_name)
+        or part_name == HEADER_PATH
+    ):
+        return
+    if not (root.tag.endswith("}sec") or root.tag.endswith("}head")):
+        return
+    if not _has_standalone_yes_declaration(payload):
+        _error(
+            issues,
+            part_name,
+            'missing XML declaration with standalone="yes"',
+        )
+    declared = _root_declared_namespaces(payload)
+    missing = [
+        prefix
+        for prefix, uri in HWPML_COMPAT_ROOT_NAMESPACES.items()
+        if declared.get(prefix) != uri
+    ]
+    if missing:
+        _error(
+            issues,
+            part_name,
+            "missing Hancom-compatible HWPML root namespace declarations: "
+            + ", ".join(missing),
+        )
+
+
+#: Local names by tag. Every check walks the parts and asks for the same few
+#: hundred tags again; the cap keeps a hostile document from growing the table.
+_LOCAL_NAMES: dict[str, str] = {}
+_LOCAL_NAMES_LIMIT = 4096
+
+
+def _local_name(element: ET.Element) -> str:
+    tag = element.tag
+    known = _LOCAL_NAMES.get(tag)
+    if known is not None:
+        return known
+    if not isinstance(tag, str):
+        # A comment or processing instruction: its ``tag`` is a function, not
+        # a name. ``""`` matches no element, so every check passes over it.
+        return ""
+    name = tag.rsplit("}", 1)[1] if "}" in tag else tag
+    if len(_LOCAL_NAMES) < _LOCAL_NAMES_LIMIT:
+        _LOCAL_NAMES[tag] = name
+    return name
+
+
+def _children_by_local(element: ET.Element, name: str) -> list[ET.Element]:
+    return [child for child in list(element) if _local_name(child) == name]
+
+
+def _first_child_by_local(element: ET.Element, name: str) -> ET.Element | None:
+    for child in list(element):
+        if _local_name(child) == name:
+            return child
+    return None
+
+
+def _simple_paragraph_text(paragraph: ET.Element) -> str | None:
+    """Return visible text for plain text-only paragraphs (``None`` = 판정 불가).
+
+    Paragraphs containing fields, shapes, tables, or other embedded controls are
+    skipped to avoid guessing how a specific editor counts their layout units.
+    Single-position control characters (tab/linebreak/hyphen/nbspace) are
+    represented as one space — a deliberate width underestimate so downstream
+    width judgments stay conservative.
+    """
+
+    pieces: list[str] = []
+    for child in paragraph:
+        child_name = _local_name(child).lower()
+        if child_name == "linesegarray":
+            continue
+        if child_name != "run":
+            return None
+        for run_child in child:
+            run_child_name = _local_name(run_child).lower()
+            if run_child_name == "t":
+                pieces.append("".join(run_child.itertext()))
+            elif run_child_name in {"tab", "linebreak", "hyphen", "nbspace"}:
+                pieces.append(" ")
+            else:
+                return None
+    return "".join(pieces)
+
+
+def _simple_paragraph_text_length(paragraph: ET.Element) -> int | None:
+    """Length in Hancom's text positions, the unit of ``hp:lineseg@textpos``.
+
+    An inline element of ``hp:t`` takes its Hancom width (a tab takes 8); a
+    run-level control counts one, as in :func:`_simple_paragraph_text`.
+    """
+    if _simple_paragraph_text(paragraph) is None:
+        return None
+    total = 0
+    for run in paragraph:
+        if _local_name(run).lower() != "run":
+            continue
+        for child in run:
+            total += hancom_text_length(child) if _local_name(child).lower() == "t" else 1
+    return total
+
+
+#: 꼬리 폭 판정 마진 — 추정 폭이 줄 폭의 이 배수를 넘을 때만 증명으로 취급.
+_STALE_TAIL_WIDTH_FACTOR = 2.0
+_STALE_TAIL_MIN_CHARS = 8
+
+
+def _check_line_seg_tail_coverage(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    paragraph_index: int,
+    text: str,
+    line_segs: list[ET.Element],
+    narrowest: float = 1.0,
+) -> None:
+    """Catch caches that lack lines for text grown past the last cached line.
+
+    The stale-cache direction the textpos range check cannot see: an edit made
+    the paragraph *longer* but an old ``<hp:linesegarray>`` survived, so every
+    cached ``textpos`` is still in range — yet the cache has too few lines and
+    Hancom renders the tail overlapped (the tracked-change overlap defect).
+    Provable-with-margin: the tail after the last cached line start must not
+    measure wider than that line's extent × ``_STALE_TAIL_WIDTH_FACTOR``,
+    with width estimated by the same conservative metrics the overflow lint
+    uses, scaled by *narrowest*: the smallest share of their size the
+    paragraph's characters are laid out at (상대 크기 times 장평, see
+    :func:`narrowed_char_shapes`), so a valid cache of small glyphs is kept.
+    """
+
+    last: tuple[int, int, int] | None = None
+    for seg in line_segs:
+        try:
+            textpos = int(seg.get("textpos") or "")
+            horzsize = int(seg.get("horzsize") or "")
+            textheight = int(seg.get("textheight") or "")
+        except ValueError:
+            return
+        if last is None or textpos > last[0]:
+            last = (textpos, horzsize, textheight)
+    if last is None:
+        return
+    last_pos, horzsize, textheight = last
+    if horzsize <= 0 or textheight <= 0 or not 0 <= last_pos <= len(text):
+        return
+    tail = text[last_pos:]
+    if len(tail) < _STALE_TAIL_MIN_CHARS:
+        return
+    from hwpx.form_fit.measure import estimate_text_width
+
+    tail_width = estimate_text_width(tail, textheight / 100.0) * narrowest
+    if tail_width > horzsize * _STALE_TAIL_WIDTH_FACTOR:
+        _error(
+            issues,
+            part_name,
+            f"paragraph {paragraph_index} lineseg cache lacks lines for its tail: "
+            f"{len(tail)} chars after the last cached line start (textpos={last_pos}) "
+            f"measure ~{tail_width / horzsize:.1f}x the cached line extent {horzsize} "
+            "— stale layout cache; Hancom reuses it and renders the tail overlapped",
+        )
+
+
+def squeezed_paragraph_shapes(header_root: ET.Element | None) -> frozenset[str]:
+    """The ids of the paragraph shapes that press a paragraph onto one line (``hh:breakSetting@lineWrap``
+    SQUEEZE, 한 줄로 입력): Hancom caches one line for all of such a paragraph's text, however long."""
+
+    if header_root is None:
+        return frozenset()
+    return frozenset(
+        shape.get("id") or ""
+        for shape in header_root.iter()
+        if _local_name(shape) == "paraPr"
+        and any(_local_name(node) == "breakSetting" and node.get("lineWrap") == "SQUEEZE" for node in shape.iter())
+    )
+
+
+def narrowed_char_shapes(header_root: ET.Element | None) -> dict[str, float]:
+    """The character shapes whose glyphs Hancom lays out narrower than their size, by id: the smallest share
+    of the size over their scripts, 상대 크기 (``hh:relSz``) times 장평 (``hh:ratio``); shapes at full width
+    or wider are left out."""
+
+    if header_root is None:
+        return {}
+    shares: dict[str, float] = {}
+    for shape in header_root.iter():
+        if _local_name(shape) != "charPr":
+            continue
+        sizes = next((node for node in shape if _local_name(node) == "relSz"), None)
+        ratios = next((node for node in shape if _local_name(node) == "ratio"), None)
+        share = 1.0
+        for script in ("hangul", "latin", "hanja", "japanese", "other", "symbol", "user"):
+            try:
+                size = int(sizes.get(script, 100)) if sizes is not None else 100
+                ratio = int(ratios.get(script, 100)) if ratios is not None else 100
+            except ValueError:
+                continue
+            share = min(share, size * ratio / 10000)
+        if share < 1.0:
+            shares[shape.get("id") or ""] = max(share, 0.01)
+    return shares
+
+
+def paragraph_narrowest(paragraph: ET.Element, narrowed: Mapping[str, float]) -> float:
+    """The smallest share of their size *paragraph*'s runs lay glyphs out at (see :func:`narrowed_char_shapes`)."""
+
+    return min((narrowed.get(run.get("charPrIDRef") or "", 1.0) for run in paragraph
+                if _local_name(run) == "run"), default=1.0)
+
+
+def _check_line_seg_text_positions(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+    squeezed: frozenset[str] = frozenset(),
+    narrowed: Mapping[str, float] | None = None,
+) -> None:
+    if not is_section_part_name(part_name):
+        return
+
+    for paragraph_index, paragraph in enumerate(
+        element for element in root.iter() if _local_name(element) == "p"
+    ):
+        text = _simple_paragraph_text(paragraph)
+        text_length = _simple_paragraph_text_length(paragraph)
+        if text is None or text_length is None:
+            continue
+        for child in paragraph:
+            if _local_name(child).lower() != "linesegarray":
+                continue
+            line_segs: list[ET.Element] = []
+            for line_seg in child:
+                if _local_name(line_seg).lower() != "lineseg":
+                    continue
+                line_segs.append(line_seg)
+                textpos_raw = line_seg.get("textpos")
+                if textpos_raw is None:
+                    continue
+                try:
+                    textpos = int(textpos_raw)
+                except ValueError:
+                    _error(
+                        issues,
+                        part_name,
+                        f"paragraph {paragraph_index} has non-integer lineseg textpos={textpos_raw!r}",
+                    )
+                    continue
+                if line_seg_past_text(line_seg, text_length):
+                    _error(
+                        issues,
+                        part_name,
+                        "paragraph "
+                        f"{paragraph_index} has stale lineseg textpos={textpos} "
+                        f"beyond text length {text_length}",
+                    )
+            if paragraph.get("paraPrIDRef") not in squeezed:
+                _check_line_seg_tail_coverage(
+                    issues, part_name, paragraph_index, text, line_segs,
+                    paragraph_narrowest(paragraph, narrowed or {}),
+                )
+
+
+def _check_table_editor_acceptance(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if not is_section_part_name(part_name):
+        return
+
+    required_table_children = ("sz", "pos", "outMargin", "inMargin")
+    required_cell_children = ("subList", "cellAddr", "cellSpan", "cellSz", "cellMargin")
+    for table_index, table in enumerate(
+        element for element in root.iter() if _local_name(element) == "tbl"
+    ):
+        for child_name in required_table_children:
+            if _first_child_by_local(table, child_name) is None:
+                _error(
+                    issues,
+                    part_name,
+                    f"table {table_index} missing Hancom-required hp:{child_name}",
+                )
+        for cell_index, cell in enumerate(
+            element for element in table.iter() if _local_name(element) == "tc"
+        ):
+            for child_name in required_cell_children:
+                if _first_child_by_local(cell, child_name) is None:
+                    _error(
+                        issues,
+                        part_name,
+                        "table "
+                        f"{table_index} cell {cell_index} missing Hancom-required hp:{child_name}",
+                    )
+
+
+#: 실코퍼스 실측(cycle 6.6 트레인㉒): 도형 계열(offset/orgSz/curSz/sz/pos
+#: 5종을 다 갖춰야 실한컴이 여는) 요소 집합. hp:container의 부재(member)는
+#: 의도적으로 이 5종이 없다(DEV-016 — AbstractShapeObjectType 꼬리는
+#: 그룹 자신만 갖는다) -- 422개 최상위 도형 전량 0건 결여, 179개
+#: 컨테이너-내부 부재 179건 "결여"(정상, 결여가 계약)로 실측 확인했다.
+#: pic/equation/chart/audio는 이 5종 계약을 공유하지
+#: 않거나(별도 필수요소 계약) 전용 저작 경로가 이미 완전한 구조를 쓰므로
+#: 범위 밖이다.
+#:
+#: 글맵시·OLE·동영상(2026-11 점검 ENG-23): 탈출구(``add_raw``)로 만든 빈
+#: ``hp:textart``·``hp:ole``·``hp:video``를 한/글 2024가 열다가 경고 없이
+#: 죽는다(종료 코드 0xC0000005). 한/글이 저장한 것은 모두 위 5종과
+#: ``renderingInfo``를 갖추고 있다(tests 자료의 글맵시 1·OLE 5·동영상 1개).
+#: 빈 ``hp:equation``은 한/글이 정상으로 열므로 넣지 않는다.
+_SHAPE_OPEN_SAFETY_TAGS = frozenset(
+    {"line", "rect", "ellipse", "arc", "polygon", "curve", "connectLine", "container", "textart", "ole", "video"}
+)
+
+
+def _iter_shape_open_safety_risks(
+    element: ET.Element, *, inside_container: bool = False
+) -> Iterator[tuple[ET.Element, list[str]]]:
+    """Yield ``(shape_element, missing_child_names)`` for every shape-family
+    element this codebase's own escape hatches (``add_shape``) can produce
+    incomplete, skipping anything nested inside a ``hp:container`` -- group
+    members legitimately omit the required children by design (see the
+    module comment above ``_SHAPE_OPEN_SAFETY_TAGS``)."""
+
+    local = _local_name(element)
+    if local in _SHAPE_OPEN_SAFETY_TAGS and not inside_container:
+        present = {_local_name(child) for child in element}
+        missing = [name for name in _REQUIRED_SHAPE_CHILD_NAMES if name not in present]
+        if missing:
+            yield element, missing
+
+    next_inside_container = inside_container or local == "container"
+    for child in list(element):
+        yield from _iter_shape_open_safety_risks(child, inside_container=next_inside_container)
+
+
+def _check_shape_open_safety_risks(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    """Flag shapes/controls the low-level escape hatches (``add_shape``,
+    ``add_control``) can produce that Hancom refuses to open (a shape without
+    its required children) or crashes on (an empty ``hp:ctrl``). These are
+    errors: ``add_shape``/``add_control`` raise a ``UserWarning`` at creation
+    time, but that warning is not persisted in the saved file, and a document
+    Hancom cannot open must not pass as editor-open-safe. Zero false
+    positives against every shape in the vendored real corpus (422/422
+    top-level shapes complete, table_patch/dedicated shape helpers
+    unaffected).
+    """
+
+    if not is_section_part_name(part_name):
+        return
+
+    for shape, missing in _iter_shape_open_safety_risks(root):
+        _error(
+            issues,
+            part_name,
+            f"hp:{_local_name(shape)} missing {', '.join(missing)}; Hancom refuses to "
+            "open a document containing it (produced by the add_shape escape hatch, "
+            "or hand-authored without the required OWPML children)",
+        )
+
+    for ctrl in (element for element in root.iter() if _local_name(element) == "ctrl"):
+        if len(ctrl) == 0:
+            _error(
+                issues,
+                part_name,
+                "hp:ctrl has no control child; Hancom crashes on a document "
+                "containing it (produced by the add_control escape hatch before a "
+                "control element was appended)",
+            )
+
+
+def _check_section_properties_location(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if not is_section_part_name(part_name):
+        return
+
+    section_properties = next(
+        (element for element in root.iter() if _local_name(element) == "secPr"),
+        None,
+    )
+    if section_properties is None:
+        _warning(issues, part_name, "missing hp:secPr section properties")
+        return
+
+    first_paragraph = _first_child_by_local(root, "p")
+    first_run = (
+        _first_child_by_local(first_paragraph, "run")
+        if first_paragraph is not None
+        else None
+    )
+    in_later_paragraph = any(
+        _first_child_by_local(run, "secPr") is section_properties
+        for paragraph in _children_by_local(root, "p")[1:]
+        for run in _children_by_local(paragraph, "run")
+    )
+    if in_later_paragraph:
+        # Hancom reads a section's settings only from its first paragraph: Hangul 2024 opens such a
+        # part with default paper and margins and saves a default hp:secPr in the first paragraph
+        # (out/move8/sync/check/secpr_second_paragraph*.hwpx). None of 1,717 sections with a hp:secPr
+        # in tests/fixtures, the rhwp/kordoc samples and 250 Hangul 2024 conversions has it there.
+        _error(issues, part_name, SECTION_PROPERTIES_NOT_FIRST_MESSAGE)
+        return
+    if (
+        first_run is None
+        or _first_child_by_local(first_run, "secPr") is not section_properties
+    ):
+        _warning(
+            issues,
+            part_name,
+            "hp:secPr must be carried by the first paragraph's first hp:run",
+        )
+    if first_paragraph is not None and not _holds_column_definition(first_paragraph):
+        # Hangul 2024 opened a section with hp:secPr and no hp:colPr beside it with default margins and saved
+        # a one-column definition (out/preview9/colpr); every one of the 1,271 sections of
+        # tests/fixtures/hancom_saved has its hp:colPr in the first paragraph.
+        _error(issues, part_name, SECTION_COLUMNS_MISSING_MESSAGE)
+
+
+def _holds_column_definition(paragraph: ET.Element) -> bool:
+    return any(
+        _local_name(control) == "colPr"
+        for run in _children_by_local(paragraph, "run")
+        for child in run
+        if _local_name(child) == "ctrl"
+        for control in child
+    )
+
+
+def _check_header_editor_acceptance(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if part_name != HEADER_PATH or _local_name(root) != "head":
+        return
+
+    compatible = _first_child_by_local(root, "compatibleDocument")
+    if compatible is None:
+        _warning(issues, part_name, "missing hh:compatibleDocument declaration")
+    else:
+        target_program = compatible.get("targetProgram")
+        if not target_program:
+            _warning(issues, part_name, "hh:compatibleDocument missing targetProgram")
+        elif target_program not in ACCEPTED_HANCOM_TARGETS:
+            _warning(
+                issues,
+                part_name,
+                "hh:compatibleDocument targetProgram is "
+                f"{target_program!r}; expected one of "
+                f"{sorted(ACCEPTED_HANCOM_TARGETS)} "
+                f"({RECOMMENDED_HANCOM_TARGET!r} recommended) for Hancom compatibility",
+            )
+
+    version = root.get("version")
+    if version not in ACCEPTED_HEAD_VERSIONS:
+        _warning(
+            issues,
+            part_name,
+            f"hh:head version is {version!r}; expected one of "
+            f"{sorted(ACCEPTED_HEAD_VERSIONS)} (measured compatibility baselines)",
+        )
+
+
+def _char_properties(root: ET.Element) -> dict[str, ET.Element]:
+    return {
+        element.get("id", ""): element
+        for element in root.iter()
+        if _local_name(element) == "charPr" and element.get("id")
+    }
+
+
+def _check_bold_fontref_axis(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if part_name != HEADER_PATH or _local_name(root) != "head":
+        return
+
+    for char_pr_id, char_pr in _char_properties(root).items():
+        if _first_child_by_local(char_pr, "bold") is None:
+            continue
+        font_ref = _first_child_by_local(char_pr, "fontRef")
+        if font_ref is None:
+            _warning(
+                issues,
+                part_name,
+                f"bold charPr id={char_pr_id!r} has no hh:fontRef; "
+                "macOS Hancom may not synthesize bold weight",
+            )
+            continue
+        if not any(font_ref.get(attr) for attr in ("hangul", "latin", "hanja")):
+            _warning(
+                issues,
+                part_name,
+                f"bold charPr id={char_pr_id!r} has an empty hh:fontRef",
+            )
+
+
+#: Attributes and children whose absence makes Hancom refuse to open a document
+#: (reject), crash, or never finish laying it out (hang): each removed from
+#: Hancom-authored documents one at a time, consistently across documents.
+_REQUIRED_TABLE_ATTRIBUTES = ("rowCnt", "colCnt")
+_REQUIRED_CELL_PART_ATTRIBUTES = {"cellAddr": ("colAddr", "rowAddr"), "cellSpan": ("colSpan", "rowSpan")}
+_REQUIRED_SECTION_PROPERTY_CHILDREN = ("startNum", "visibility")
+_RENDERING_MATRICES = ("transMatrix", "scaMatrix", "rotMatrix")
+#: Hancom's field types and the control ids it writes as ``fieldid`` for them
+#: (the control id's four characters read as a big-endian 32-bit integer).
+#: Hancom opens a field when either one is recognised and refuses it when both
+#: are unknown (e.g. ``type="ClickHere"`` with ``fieldid="field-date"``).
+#: Hancom 2024 writes a date code as ``SUMMERY`` (its spelling, also the OWPML
+#: schema's) with ``%smr``, and the proofreading marks other than the sign and
+#: delete marks as ``PROOFREADING_MARKS_LINEATTACH``/``_ATTACH``/``_CLIPPING``
+#: with ``%%*A``/``%%*a``/``%%*C``.
+_HANCOM_FIELD_TYPES = frozenset({
+    "CLICK_HERE", "HYPERLINK", "BOOKMARK", "FORMULA", "SUMMARY", "SUMMERY", "USER_INFO", "DATE", "DOC_DATE",
+    "PATH", "CROSSREF", "MAILMERGE", "MEMO", "PROOFREADING_MARKS", "PROOFREADING_MARKS_SIGN",
+    "PROOFREADING_MARKS_DELETE", "PROOFREADING_MARKS_LINEATTACH", "PROOFREADING_MARKS_ATTACH",
+    "PROOFREADING_MARKS_CLIPPING", "PRIVATE_INFO", "METADATA", "CITATION", "BIBLIOGRAPHY", "TABLEOFCONTENTS",
+})
+_HANCOM_FIELD_IDS = frozenset({
+    "627600491", "627272811", "623209829", "627207531", "627469685", "627340389", "628650598",
+    "628387683", "627928423", "628121972", "628320615", "623192676",
+    "628321650", "623192641", "623192673", "623192643",  # %smr, %%*A, %%*a, %%*C
+})
+_RECT_CORNERS = ("pt0", "pt1", "pt2", "pt3")
+
+
+def _check_hancom_required_structure(
+    issues: list[PackageValidationIssue],
+    part_name: str,
+    root: ET.Element,
+) -> None:
+    if _local_name(root) == "HCFVersion" and root.get("tagetApplication") is None:
+        _error(
+            issues,
+            part_name,
+            "HCFVersion missing tagetApplication (Hancom's spelling); Hancom refuses to open the document",
+        )
+    if root.tag == "masterPage":  # Hancom's master page part: its root is in no namespace
+        _check_master_page_lists(issues, part_name, root)
+        return
+    if not is_section_part_name(part_name):
+        return
+    for element in root.iter():
+        name = _local_name(element)
+        if name == "tbl":
+            _check_required_table_structure(issues, part_name, element)
+        elif name in _REQUIRED_CELL_PART_ATTRIBUTES:
+            for attribute in _REQUIRED_CELL_PART_ATTRIBUTES[name]:
+                if element.get(attribute) is None:
+                    _error(issues, part_name, f"hp:{name} missing {attribute}; Hancom crashes or never finishes laying out the table")
+        elif name == "secPr":
+            for child in _REQUIRED_SECTION_PROPERTY_CHILDREN:
+                if _first_child_by_local(element, child) is None:
+                    _error(issues, part_name, f"hp:secPr missing hp:{child}; Hancom refuses to open the document")
+        elif name.lower() == "lineseg" and element.get("textpos") is None:
+            _error(issues, part_name, "hp:lineseg missing textpos; Hancom crashes on the document")
+        elif name == "fieldBegin":
+            _check_field_begin(issues, part_name, element)
+        elif name == "fieldEnd" and element.get("beginIDRef") is None:
+            _error(issues, part_name, "hp:fieldEnd missing beginIDRef; Hancom refuses to open the document")
+        elif name in ("parameterset", "indexmark"):
+            _check_parameter_set_or_index_mark(issues, part_name, element, name)
+        elif name == "ctrl":
+            for story in element:
+                kind = _local_name(story)
+                if kind in ("header", "footer") and _first_child_by_local(story, "subList") is None:
+                    _error(issues, part_name, f"hp:{kind} without hp:subList; Hancom crashes on the document")
+        elif name == "subList" and _first_child_by_local(element, "p") is None:
+            _error(issues, part_name, "hp:subList without hp:p; Hancom crashes on the document")
+    _check_required_drawing_structure(issues, part_name, root)
+
+
+def _check_master_page_lists(issues: list[PackageValidationIssue], part_name: str, root: ET.Element) -> None:
+    """A master page keeps its text in an ``hp:subList``, and that list, like every paragraph list, needs a
+    paragraph."""
+
+    if _first_child_by_local(root, "subList") is None:
+        _error(issues, part_name, "masterPage without hp:subList; Hancom crashes on the document")
+    for element in root.iter():
+        if _local_name(element) == "subList" and _first_child_by_local(element, "p") is None:
+            _error(issues, part_name, "hp:subList without hp:p; Hancom crashes on the document")
+
+
+#: Parameters inside a shape's hp:parameterset that must carry a name, and what Hancom does without one.
+_NAMED_PARAMETERS = {
+    "listParam": "Hancom refuses to open the document",
+    "unsignedintegerParam": "Hancom crashes on the document",
+}
+
+
+def _check_parameter_set_or_index_mark(
+    issues: list[PackageValidationIssue], part_name: str, element: ET.Element, name: str
+) -> None:
+    """An index mark needs its first key. A shape's parameter set may hold no ``hp:booleanParam``, its
+    ``hp:listParam``/``hp:unsignedintegerParam`` need a name, and it and its lists may not be empty while
+    ``cnt`` counts parameters (``cnt="0"`` with none, or a count other than the parameters held, opens)."""
+
+    if name == "indexmark":
+        if _first_child_by_local(element, "firstKey") is None:
+            _error(issues, part_name, "hp:indexmark without hp:firstKey; Hancom refuses to open the document")
+        return
+    nodes = list(element.iter())
+    if any(_local_name(node) == "booleanParam" for node in nodes):
+        _error(issues, part_name, "hp:booleanParam inside hp:parameterset; Hancom crashes on the document")
+    for node in nodes:
+        kind = _local_name(node)
+        if kind in _NAMED_PARAMETERS and node.get("name") is None:
+            _error(issues, part_name, f"hp:{kind} missing name; {_NAMED_PARAMETERS[kind]}")
+        if kind in ("parameterset", "listParam") and _counts_parameters_it_lacks(node):
+            _error(issues, part_name, f"hp:{kind} cnt={node.get('cnt')} holds no parameter; Hancom crashes on the document")
+
+
+def _counts_parameters_it_lacks(element: ET.Element) -> bool:
+    try:
+        return int(element.get("cnt", "0")) > 0 and len(element) == 0
+    except ValueError:
+        return False
+
+
+def _check_field_begin(issues: list[PackageValidationIssue], part_name: str, element: ET.Element) -> None:
+    if element.get("id") is None:
+        _error(issues, part_name, "hp:fieldBegin missing id; Hancom refuses to open the document")
+    field_type, field_id = element.get("type"), element.get("fieldid")
+    if field_type not in _HANCOM_FIELD_TYPES and field_id not in _HANCOM_FIELD_IDS:
+        _error(
+            issues,
+            part_name,
+            f"hp:fieldBegin type={field_type!r} is not a Hancom field type and fieldid={field_id!r} "
+            "is not a Hancom field control id; Hancom refuses to open the document",
+        )
+
+
+def _check_required_table_structure(
+    issues: list[PackageValidationIssue], part_name: str, table: ET.Element
+) -> None:
+    for attribute in _REQUIRED_TABLE_ATTRIBUTES:
+        if table.get(attribute) is None:
+            _error(issues, part_name, f"hp:tbl missing {attribute}; Hancom refuses to open the document")
+    rows = _children_by_local(table, "tr")
+    if not rows or any(not _children_by_local(row, "tc") for row in rows):
+        _error(issues, part_name, "hp:tbl has a missing hp:tr or hp:tc; Hancom refuses to open the document")
+
+
+def _check_required_drawing_structure(
+    issues: list[PackageValidationIssue], part_name: str, root: ET.Element
+) -> None:
+    """Top-level drawing objects need their rendering matrices and a picture its
+    image (group members are skipped, as in ``_iter_shape_open_safety_risks``);
+    a rectangle needs its four corner points wherever it sits."""
+
+    def visit(element: ET.Element, inside_container: bool) -> None:
+        name = _local_name(element)
+        if name in (_SHAPE_OPEN_SAFETY_TAGS | {"pic"}) and not inside_container:
+            rendering = _first_child_by_local(element, "renderingInfo")
+            if rendering is None or any(_first_child_by_local(rendering, m) is None for m in _RENDERING_MATRICES):
+                _error(issues, part_name, f"hp:{name} missing hp:renderingInfo matrices; Hancom crashes on the document")
+            if name == "pic" and _first_child_by_local(element, "img") is None:
+                _error(issues, part_name, "hp:pic missing hc:img; Hancom refuses to open the document")
+        if name == "connectLine":
+            original = _first_child_by_local(element, "orgSz")
+            if original is not None and "0" in (original.get("width"), original.get("height")):
+                # Hancom 2024 divides by it when it redraws the connector from its shapes, saves its scaMatrix
+                # as -nan(ind) and draws it nowhere (objlim keepsrc, grpconn); it opens the document all the
+                # same, so this warns and does not block.
+                _warning(issues, part_name, "hp:connectLine has an orgSz side of 0; Hancom draws such a connector "
+                                            "nowhere (python-hwpx before 7.0 wrote horizontal and vertical "
+                                            "connectors so: make it again with doc.shapes.add_connector)")
+        if name == "rect" and any(_first_child_by_local(element, pt) is None for pt in _RECT_CORNERS):
+            _error(issues, part_name, "hp:rect missing a corner point (hc:pt0..pt3); Hancom refuses to open the document")
+        for child in element:
+            if isinstance(child.tag, str):
+                visit(child, inside_container or name == "container")
+
+    visit(root, False)
+
+
+def _check_container_rootfiles(container_root: ET.Element, issues: list[PackageValidationIssue]) -> None:
+    for rootfile in (element for element in container_root.iter() if _local_name(element) == "rootfile"):
+        if rootfile.get("media-type") is None:
+            _error(issues, CONTAINER_PATH, "rootfile missing media-type; Hancom refuses to open the document")
+
+
+def _check_manifest_entries(
+    manifest_root: ET.Element, manifest_path: str, issues: list[PackageValidationIssue]
+) -> None:
+    manifest = next((element for element in manifest_root.iter() if _local_name(element) == "manifest"), None)
+    items = _children_by_local(manifest, "item") if manifest is not None else []
+    if not items:
+        _error(issues, manifest_path, "opf:manifest lists no opf:item; Hancom refuses to open the document")
+    for element in manifest_root.iter():
+        name = _local_name(element)
+        required = {"item": ("id", "href", "media-type"), "itemref": ("idref",), "meta": ("name",)}.get(name, ())
+        for attribute in required:
+            if element.get(attribute) is None:
+                _error(issues, manifest_path, f"opf:{name} missing {attribute}; Hancom crashes on the document")
+
+
+def _check_field_end_pairs(
+    xml_roots: dict[str, ET.Element], section_paths: list[str], issues: list[PackageValidationIssue]
+) -> None:
+    """A field end naming no field begin, at the very start of its run.
+
+    Hancom refuses the document when nothing comes before such an end in its
+    ``hp:run``. After text, an empty ``hp:t`` or another control in the run it
+    opens the document and drops the end.
+    """
+
+    begins: set[str] = set()
+    ends: list[tuple[str, str]] = []
+    for path in section_paths:
+        root = xml_roots.get(path)
+        if root is None:
+            continue
+        for element in root.iter():
+            name = _local_name(element)
+            if name == "fieldBegin" and element.get("id") is not None:
+                begins.add(element.get("id") or "")
+            elif name == "run" and len(element) and _local_name(element[0]) == "ctrl" and len(element[0]):
+                end = element[0][0]
+                if _local_name(end) == "fieldEnd" and end.get("beginIDRef") is not None:
+                    ends.append((path, end.get("beginIDRef") or ""))
+    for path, begin_ref in ends:
+        if begin_ref not in begins:
+            _error(
+                issues,
+                path,
+                f"hp:fieldEnd beginIDRef={begin_ref!r} names no hp:fieldBegin and starts its run; "
+                "Hancom refuses to open the document",
+            )
+
+
+def _error(issues: list[PackageValidationIssue], part_name: str, message: str) -> None:
+    issues.append(PackageValidationIssue(part_name, message, "error"))
+
+
+def _warning(
+    issues: list[PackageValidationIssue], part_name: str, message: str
+) -> None:
+    issues.append(PackageValidationIssue(part_name, message, "warning"))
+
+
+def _safe_read(
+    zf: ZipFile, part_name: str, *, limit: int = MAX_ZIP_MEMBER_BYTES
+) -> bytes | None:
+    try:
+        return read_member(zf, part_name, limit=limit)
+    except (BadZipFile, KeyError, OSError, HwpxSecurityError):
+        return None
+
+
+def _fallback_named_parts(
+    names: set[str], *, token: str, extra_token: str | None = None
+) -> list[str]:
+    matches: list[str] = []
+    for name in sorted(names):
+        part_name = PurePosixPath(name).name.lower()
+        if token not in part_name:
+            continue
+        if extra_token is not None and extra_token not in part_name:
+            continue
+        matches.append(name)
+    return matches
+
+
+def _check_mimetype(
+    zf: ZipFile,
+    infos: list[ZipInfo],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    if MIMETYPE_PATH not in name_set:
+        _error(issues, MIMETYPE_PATH, "missing required file")
+        return
+    mimetype_bytes = _safe_read(zf, MIMETYPE_PATH, limit=MAX_ZIP_MIMETYPE_BYTES)
+    if mimetype_bytes is None:
+        _error(
+            issues,
+            MIMETYPE_PATH,
+            "unable to read entry for integrity validation",
+        )
+        return
+    try:
+        mimetype = mimetype_bytes.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        mimetype = "<binary>"
+    if mimetype != EXPECTED_MIMETYPE:
+        _error(
+            issues,
+            MIMETYPE_PATH,
+            f"expected {EXPECTED_MIMETYPE!r}, got {mimetype!r}",
+        )
+    if infos[0].filename != MIMETYPE_PATH:
+        _error(issues, MIMETYPE_PATH, "must be the first ZIP entry")
+    if zf.getinfo(MIMETYPE_PATH).compress_type != ZIP_STORED:
+        _error(issues, MIMETYPE_PATH, "must use ZIP_STORED")
+
+
+def _check_required_presence(
+    name_set: set[str], issues: list[PackageValidationIssue]
+) -> None:
+    if CONTAINER_PATH not in name_set:
+        _error(issues, CONTAINER_PATH, "missing required file")
+    if VERSION_PATH not in name_set:
+        _warning(
+            issues,
+            VERSION_PATH,
+            "missing optional version.xml; minimum editor-open package set allows omission",
+        )
+
+
+def _check_preview_text(
+    zf: ZipFile, name_set: set[str], issues: list[PackageValidationIssue]
+) -> None:
+    if PREVIEW_TEXT_PATH not in name_set:
+        _warning(
+            issues,
+            PREVIEW_TEXT_PATH,
+            "missing Preview/PrvText.txt; macOS Hancom compatibility may require it",
+        )
+        return
+    preview_bytes = _safe_read(zf, PREVIEW_TEXT_PATH, limit=MAX_ZIP_SMALL_PART_BYTES)
+    if preview_bytes is None:
+        _error(issues, PREVIEW_TEXT_PATH, "unable to read preview text entry")
+    elif len(preview_bytes) > 1024 * 1024:
+        _warning(
+            issues,
+            PREVIEW_TEXT_PATH,
+            "Preview/PrvText.txt is unusually large; expected a compact text snapshot",
+        )
+
+
+def _parse_all_xml(
+    zf: ZipFile, names: list[str], issues: list[PackageValidationIssue]
+) -> dict[str, ET.Element]:
+    xml_roots: dict[str, ET.Element] = {}
+    squeezed: frozenset[str] = frozenset()
+    narrowed: dict[str, float] = {}
+    header_payload: bytes | None = None
+    header_root: ET.Element | None = None
+    if HEADER_PATH in names:
+        header_payload = _safe_read(zf, HEADER_PATH)
+        try:
+            header_root = _parse_xml(header_payload) if header_payload else None
+            squeezed = squeezed_paragraph_shapes(header_root)
+            narrowed = narrowed_char_shapes(header_root)
+        except ValueError:
+            header_root = None  # reported when the header is parsed below
+    for name in names:
+        if not (name.endswith(".xml") or name.endswith(".hpf")):
+            continue
+        payload = _safe_read(zf, name)
+        if payload is None:
+            _error(issues, name, "unable to read entry for XML parsing")
+            continue
+        try:
+            if name == HEADER_PATH and header_root is not None and payload == header_payload:
+                root = header_root  # the same bytes were parsed for the shapes above
+            else:
+                root = _parse_xml(payload)
+            note_well_formed(zf, name)
+            xml_roots[name] = root
+            _check_hwpml_compat_root(issues, name, payload, root)
+            _check_line_seg_text_positions(issues, name, root, squeezed, narrowed)
+            _check_table_editor_acceptance(issues, name, root)
+            _check_shape_open_safety_risks(issues, name, root)
+            _check_section_properties_location(issues, name, root)
+            _check_header_editor_acceptance(issues, name, root)
+            _check_bold_fontref_axis(issues, name, root)
+            _check_hancom_required_structure(issues, name, root)
+        except ValueError as exc:
+            _error(issues, name, str(exc))
+    return xml_roots
+
+
+def _check_rootfile_parts(
+    rootfiles: tuple[RootFileRef, ...],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    for rootfile in rootfiles:
+        if rootfile.full_path not in name_set:
+            # Hancom opens a document whose declared preview is absent; any other missing root is an error.
+            report = _warning if rootfile.full_path.startswith("Preview/") else _error
+            report(
+                issues,
+                CONTAINER_PATH,
+                f"rootfile points to missing part {rootfile.full_path!r}",
+            )
+
+
+def _check_manifest_hrefs(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    for item in relationships.items:
+        # an item linking a file outside the package has no part by design
+        if item.resolved_path not in name_set and not is_linked_file(item.href, item.is_embeded):
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"manifest href missing from archive: {item.href!r} -> {item.resolved_path!r}",
+            )
+
+    for idref in relationships.dangling_idrefs:
+        _warning(
+            issues,
+            selected_rootfile.full_path,
+            f"spine itemref references missing manifest id {idref!r}",
+        )
+    _check_hrefs_from_package_root(relationships, selected_rootfile, name_set, issues)
+
+
+def _check_hrefs_from_package_root(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    """Hancom looks up every ``opf:item@href`` from the package root, exactly as written.
+
+    An href relative to the manifest's folder, or one starting with ``/``, still finds its part
+    here but not in Hancom: a header or section named that way makes Hancom refuse the document,
+    a picture named that way is left out of it.
+    """
+    spine = set(relationships.spine_paths)
+    for item in relationships.items:
+        written = item.href.replace("\\", "/").strip()
+        if item.resolved_path not in name_set or written in name_set:
+            continue
+        found_only_here = f"manifest href {item.href!r} is not the part name {item.resolved_path!r}"
+        if item.resolved_path in spine:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"{found_only_here}; Hancom reads hrefs from the package root and refuses to open the document",
+            )
+        elif item.resolved_path.startswith("BinData/") or (item.media_type or "").startswith("image/"):
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                f"{found_only_here}; Hancom reads hrefs from the package root and leaves the picture out",
+            )
+
+
+def _resolve_section_paths(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> list[str]:
+    section_paths = [
+        path for path in relationships.spine_paths if is_section_part_name(path)
+    ]
+    resolved_section_paths: list[str]
+    if section_paths:
+        resolved_section_paths = list(dict.fromkeys(section_paths))
+        for path in section_paths:
+            if path not in name_set:
+                _error(
+                    issues,
+                    selected_rootfile.full_path,
+                    f"spine section part missing from archive: {path!r}",
+                )
+    else:
+        fallback_sections = [
+            name for name in sorted(name_set) if is_section_part_name(name)
+        ]
+        if fallback_sections:
+            resolved_section_paths = fallback_sections
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest spine does not resolve any section parts; engine will fall back "
+                "to filename-based section discovery",
+            )
+        else:
+            resolved_section_paths = []
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                "no section parts found in manifest spine or archive fallback",
+            )
+    return resolved_section_paths
+
+
+def _check_header_section_counts(
+    relationships: ManifestRelationships,
+    xml_roots: dict[str, ET.Element],
+    resolved_section_paths: list[str],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    resolved_header_paths = list(dict.fromkeys(relationships.header_paths))
+    if not resolved_header_paths and HEADER_PATH in name_set:
+        resolved_header_paths = [HEADER_PATH]
+    for header_path in resolved_header_paths:
+        header_root = xml_roots.get(header_path)
+        if header_root is None or _local_name(header_root) != "head":
+            continue
+        declared_section_count = header_root.get("secCnt")
+        if declared_section_count is None:
+            _error(
+                issues,
+                header_path,
+                "hh:head secCnt is missing; Hancom refuses to open the document",
+            )
+            continue
+        try:
+            parsed_section_count = int(declared_section_count)
+        except ValueError:
+            _error(
+                issues,
+                header_path,
+                f"hh:head secCnt must be an integer, got {declared_section_count!r}",
+            )
+            continue
+        if parsed_section_count != len(resolved_section_paths):
+            _error(
+                issues,
+                header_path,
+                "hh:head secCnt does not match resolved section count: "
+                f"declared={parsed_section_count}, resolved={len(resolved_section_paths)}",
+            )
+
+
+def _check_section_ids(
+    relationships: ManifestRelationships,
+    selected_rootfile: RootFileRef,
+    resolved_section_paths: list[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    """Hancom finds the sections by the manifest ids ``section0``, ``section1``, ... in number order.
+
+    It does not open a document that lacks one of these ids (the part names and the spine do not
+    count), and it reads the sections in the order of the numbers, not in the spine's order.
+    """
+    # the ids the spine lists for the sections: another item naming the same part does not count
+    section_paths = set(resolved_section_paths)
+    section_ids = [
+        ident for ident, path in zip(relationships.spine_ids, relationships.spine_paths) if path in section_paths
+    ]
+    if len(section_ids) != len(resolved_section_paths):  # sections found without the spine: other checks report it
+        return
+    wanted = [f"section{index}" for index in range(len(section_ids))]
+    missing = [ident for ident in wanted if ident not in section_ids]
+    if missing:
+        _error(
+            issues,
+            selected_rootfile.full_path,
+            f"section manifest ids {section_ids} are not section0 to section{len(section_ids) - 1}; "
+            f"Hancom finds sections by these ids and refuses to open the document without {missing[0]!r}",
+        )
+    elif section_ids != wanted:
+        _warning(
+            issues,
+            selected_rootfile.full_path,
+            f"the spine lists the sections as {section_ids}; Hancom reads them in the order of their ids",
+        )
+
+
+def _check_header_fallback(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    if not relationships.header_paths and HEADER_PATH in name_set:
+        _warning(
+            issues,
+            selected_rootfile.full_path,
+            "manifest spine does not resolve a header part; engine will fall back to "
+            f"{HEADER_PATH!r}",
+        )
+
+    for path in relationships.header_paths:
+        if path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"header part missing from archive: {path!r}",
+            )
+
+
+def _check_master_page_parts(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    if not relationships.master_page_paths:
+        fallback_master_pages = _fallback_named_parts(
+            name_set, token="master", extra_token="page"
+        )
+        if fallback_master_pages:
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest does not reference masterPage parts; engine will fall back to "
+                "filename-based discovery",
+            )
+    for path in relationships.master_page_paths:
+        if path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"masterPage part missing from archive: {path!r}",
+            )
+
+
+def _check_section_master_page_refs(
+    relationships: ManifestRelationships,
+    xml_roots: dict[str, ET.Element],
+    section_paths: Iterable[str],
+    name_set: set[str],
+    issues: list[PackageValidationIssue],
+) -> None:
+    present = {item.item_id for item in relationships.items if item.item_id and item.resolved_path in name_set}
+    for path in section_paths:
+        root = xml_roots.get(path)
+        if root is None:
+            continue
+        for element in root.iter():
+            if _local_name(element) == "masterPage" and element.get("idRef") not in present:
+                _error(
+                    issues,
+                    path,
+                    f"hp:masterPage refers to {element.get('idRef')!r}, a master page the package does not have; "
+                    "Hancom refuses to open the document",
+                )
+
+
+def _check_history_parts(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    if not relationships.history_paths:
+        fallback_histories = _fallback_named_parts(name_set, token="history")
+        if fallback_histories:
+            _warning(
+                issues,
+                selected_rootfile.full_path,
+                "manifest does not reference history parts; engine will fall back to "
+                "filename-based discovery",
+            )
+    for path in relationships.history_paths:
+        if path not in name_set:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                f"history part missing from archive: {path!r}",
+            )
+
+
+def _check_version_part(
+    relationships: ManifestRelationships,
+    name_set: set[str],
+    selected_rootfile: RootFileRef,
+    issues: list[PackageValidationIssue],
+) -> None:
+    # Hancom does not list version.xml in the manifest: it sits at the fixed path. Every
+    # Hancom-saved HWPX checked (96 public, 1,127 in tests/fixtures/hancom_saved) has it there and
+    # none references it, so a missing reference is the normal state, not a warning.
+    if (
+        relationships.version_path is not None
+        and relationships.version_path not in name_set
+    ):
+        _error(
+            issues,
+            selected_rootfile.full_path,
+            f"manifest version part missing from archive: {relationships.version_path!r}",
+        )
+
+
+def validate_package(source: str | Path | bytes | BinaryIO) -> PackageValidationReport:
+    checked_parts: list[str] = []
+    issues: list[PackageValidationIssue] = []
+
+    try:
+        archive = _open_zip(source)
+    except BadZipFile:
+        return PackageValidationReport(
+            checked_parts=(),
+            issues=(PackageValidationIssue("archive", "not a valid ZIP archive"),),
+        )
+
+    with archive as zf:
+        infos = [info for info in zf.infolist() if not info.is_dir()]
+        names = [info.filename for info in infos]
+        name_set = set(names)
+        checked_parts.extend(names)
+        duplicates = _duplicate_entry_notice(names)
+        if duplicates is not None:
+            _warning(issues, "archive", duplicates)
+        try:
+            guard_zip_file(zf)
+        except HwpxSecurityError as exc:
+            _error(issues, "archive", str(exc))
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+
+        if not infos:
+            _error(issues, "archive", "empty archive")
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+
+        bad_entry = zf.testzip()
+        if bad_entry is not None:
+            _error(issues, bad_entry, "ZIP CRC/integrity check failed")
+
+        _check_mimetype(zf, infos, name_set, issues)
+        _check_required_presence(name_set, issues)
+        _check_preview_text(zf, name_set, issues)
+
+        xml_roots = _parse_all_xml(zf, names, issues)
+
+        container_root = xml_roots.get(CONTAINER_PATH)
+        if container_root is None:
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+
+        _check_container_rootfiles(container_root, issues)
+        rootfiles = parse_container_rootfiles(container_root)
+        if not rootfiles:
+            _error(issues, CONTAINER_PATH, "declares no rootfile entries")
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+
+        _check_rootfile_parts(rootfiles, name_set, issues)
+
+        selected_rootfile, used_rootfile_fallback = select_main_rootfile(rootfiles)
+        if selected_rootfile is None:
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+        if used_rootfile_fallback:
+            _warning(
+                issues,
+                CONTAINER_PATH,
+                "no rootfile is marked as "
+                f"{MAIN_ROOTFILE_MEDIA_TYPE!r}; engine will use the first declaration "
+                f"{selected_rootfile.full_path!r}",
+            )
+
+        manifest_root = xml_roots.get(selected_rootfile.full_path)
+        if manifest_root is None:
+            _error(
+                issues,
+                selected_rootfile.full_path,
+                "selected main rootfile is missing or not well-formed XML",
+            )
+            return PackageValidationReport(tuple(checked_parts), tuple(issues))
+
+        relationships = parse_manifest_relationships(
+            manifest_root,
+            selected_rootfile.full_path,
+            known_parts=name_set,
+        )
+
+        _check_manifest_entries(manifest_root, selected_rootfile.full_path, issues)
+        _check_manifest_hrefs(relationships, selected_rootfile, name_set, issues)
+        resolved_section_paths = _resolve_section_paths(
+            relationships, selected_rootfile, name_set, issues
+        )
+        _check_field_end_pairs(xml_roots, resolved_section_paths, issues)
+        _check_header_section_counts(
+            relationships, xml_roots, resolved_section_paths, name_set, issues
+        )
+        _check_section_ids(relationships, selected_rootfile, resolved_section_paths, issues)
+        _check_header_fallback(relationships, name_set, selected_rootfile, issues)
+        _check_master_page_parts(relationships, name_set, selected_rootfile, issues)
+        _check_section_master_page_refs(relationships, xml_roots, resolved_section_paths, name_set, issues)
+        _check_history_parts(relationships, name_set, selected_rootfile, issues)
+        _check_version_part(relationships, name_set, selected_rootfile, issues)
+
+    return PackageValidationReport(tuple(checked_parts), tuple(issues))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    from .archive_cli import _printable_stdout
+    _printable_stdout()
+    parser = argparse.ArgumentParser(
+        description="Validate HWPX package structure using engine-aligned ZIP/container/manifest checks"
+    )
+    parser.add_argument("source", help="Path to the HWPX file")
+    args = parser.parse_args(argv)
+
+    from .archive_cli import _input_file_problem
+
+    problem = _input_file_problem(args.source, tool="hwpx-validate-package")
+    if problem is not None:
+        print(f"ERROR: {problem}")
+        return 1
+    try:
+        report = validate_package(args.source)
+    except Exception as exc:  # noqa: BLE001 - one line for the person at the terminal
+        print(f"ERROR: cannot read {args.source}: {exc}")
+        return 1
+    for issue in report.issues:
+        prefix = "ERROR" if issue.is_error else "WARN"
+        print(f"{prefix}: {issue}")
+
+    if report.errors:
+        return 1
+
+    if report.warnings:
+        print("Package validation passed with warnings.")
+    else:
+        print("All package validations passed.")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI convenience
+    raise SystemExit(main())

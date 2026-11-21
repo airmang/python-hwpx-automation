@@ -1,0 +1,282 @@
+{
+  "schemaVersion": "python-hwpx-automation.identity/v1",
+  "product": "python-hwpx-automation",
+  "releaseMajor": 6,
+  "releaseState": {
+    "status": "release-approved",
+    "candidate": {
+      "pythonHwpx": "7.0.0",
+      "canonicalDistribution": "python-hwpx-automation",
+      "canonicalAutomation": "8.0.0",
+      "compatibilityDistribution": "hwpx-mcp-server",
+      "compatibility": "8.0.0",
+      "plugin": "8.0.0",
+      "contractHash": "c895883d5f4350ae"
+    },
+    "currentPublic": {
+      "pythonHwpx": "6.6.0",
+      "primaryDistribution": "python-hwpx-automation",
+      "primaryApplication": "7.3.1",
+      "plugin": "2.4.0",
+      "contractHash": "5e5c23651f92785a"
+    },
+    "promotionGate": "Three states are mandatory: unreleased-candidate while auditing; release-approved only after separate owner approval and while currentPublic still names the previously observed coherent stack; released only in a follow-up commit after remote truth is observed for core, canonical automation, the compatibility distribution, the plugin GitHub release, the marketplace entry, and a real marketplace install. The automation tag workflow publishes only release-approved, leaves currentPublic unchanged, and hands an attached receipt to plugin publication.",
+    "previousPublic": {
+      "pythonHwpx": "6.6.0",
+      "primaryDistribution": "python-hwpx-automation",
+      "primaryApplication": "7.3.1",
+      "plugin": "2.4.0",
+      "contractHash": "5e5c23651f92785a"
+    },
+    "publicationEvidence": null
+  },
+  "releaseFloors": {
+    "description": "Frozen historical coordinates. Unlike releaseState these do not advance train by train; they pin the pre-6.0 legacy compatibility cap that every core 5 resolution must be observed against. They live here so the release path has no version literal that is not declared data.",
+    "legacyCompatibilityDistribution": "hwpx-mcp-server",
+    "legacyCompatibilityVersion": "5.1.1",
+    "legacyCoreVersion": "4.2.0",
+    "legacyCoreSpecifiers": [
+      ">=4.2.0",
+      "<5"
+    ],
+    "legacyCoreRequirementCount": 3
+  },
+  "identifiers": [
+    {
+      "surface": "repository",
+      "value": "airmang/python-hwpx-automation",
+      "classification": "canonical"
+    },
+    {
+      "surface": "distribution",
+      "value": "python-hwpx-automation",
+      "classification": "canonical"
+    },
+    {
+      "surface": "import-namespace",
+      "value": "hwpx_automation",
+      "classification": "canonical"
+    },
+    {
+      "surface": "task-console",
+      "value": "hwpx",
+      "classification": "canonical"
+    },
+    {
+      "surface": "mcp-console",
+      "value": "hwpx-automation-mcp",
+      "classification": "canonical"
+    },
+    {
+      "surface": "fastmcp-server-info-name",
+      "value": "python-hwpx-automation",
+      "classification": "canonical"
+    },
+    {
+      "surface": "host-config-key",
+      "value": "hwpx",
+      "classification": "host-local-alias"
+    },
+    {
+      "surface": "environment-prefix",
+      "value": "HWPX_AUTOMATION_",
+      "classification": "canonical"
+    },
+    {
+      "surface": "distribution",
+      "value": "hwpx-mcp-server",
+      "classification": "compatibility"
+    },
+    {
+      "surface": "import-namespace",
+      "value": "hwpx_mcp_server",
+      "classification": "compatibility"
+    },
+    {
+      "surface": "mcp-console",
+      "value": "hwpx-mcp-server",
+      "classification": "compatibility"
+    },
+    {
+      "surface": "environment-prefix",
+      "value": "HWPX_MCP_",
+      "classification": "compatibility"
+    },
+    {
+      "surface": "capability-version-field",
+      "value": "versions.automation",
+      "classification": "canonical"
+    },
+    {
+      "surface": "capability-version-field",
+      "value": "versions.mcp",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "capability-floor-field",
+      "value": "minAutomationVersion",
+      "classification": "canonical"
+    },
+    {
+      "surface": "capability-floor-field",
+      "value": "minMcpVersion",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "contract-floor-constant",
+      "value": "MIN_AUTOMATION_VERSION",
+      "classification": "canonical"
+    },
+    {
+      "surface": "contract-floor-constant",
+      "value": "MIN_MCP_VERSION",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "protocol-error-schema",
+      "value": "hwpx.mcp-error/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.authoring-runtime-owner/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.compliance-quality-utilities-owner/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.document-operations-owner/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.evalplan-runtime-owner/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.exam-runtime-owner/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.form-fill-runtime-owner/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.form-fill-runtime-parity/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-receipt-schema",
+      "value": "hwpx-mcp.visual-runtime-owner/v1",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "frozen-parity-receipt-field",
+      "value": "mcpRuntimeMembers",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "workflow-state-environment",
+      "value": "HWPX_AUTOMATION_WORKFLOW_STORE",
+      "classification": "canonical"
+    },
+    {
+      "surface": "workflow-state-environment",
+      "value": "HWPX_WORKFLOW_STORE",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "workflow-state-path",
+      "value": "${XDG_STATE_HOME:-~/.local/state}/hwpx-mcp-server/workflows.sqlite3",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "render-queue-principal",
+      "value": "hwpx-mcp-server",
+      "classification": "compatibility-preserved"
+    },
+    {
+      "surface": "render-integration-environment",
+      "value": "HWPX_RENDER_QUEUE_ROOT",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "render-integration-environment",
+      "value": "HWPX_RENDER_QUEUE_URL",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "render-integration-environment",
+      "value": "HWPX_RENDER_QUEUE_SECRET",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "render-integration-environment",
+      "value": "HWPX_RENDER_TRANSPORT_AUTH",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "render-integration-environment",
+      "value": "HWPX_RENDER_CA_FILE",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "render-integration-environment",
+      "value": "HWPX_RENDER_CLIENT_CERT_FILE",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "render-integration-environment",
+      "value": "HWPX_RENDER_CLIENT_KEY_FILE",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "workflow-security-environment",
+      "value": "HWPX_WORKFLOW_ENCRYPTION_KEY",
+      "classification": "capability-preserved"
+    },
+    {
+      "surface": "oracle-capability-environment",
+      "value": "HWPX_ORACLE_STRUCTURAL_ONLY",
+      "classification": "capability-preserved"
+    },
+    {
+      "surface": "oracle-capability-environment",
+      "value": "HWPX_ORACLE_BUDGET_SECONDS",
+      "classification": "capability-preserved"
+    },
+    {
+      "surface": "plugin-integration-environment",
+      "value": "HWPX_SKILL_VERSION",
+      "classification": "integration-preserved"
+    },
+    {
+      "surface": "plugin-integration-environment",
+      "value": "HWPX_PLUGIN_ROOT",
+      "classification": "integration-preserved"
+    }
+  ],
+  "compatibilityPolicy": {
+    "supportedThroughMajor": 6,
+    "removalNotBeforeMajor": 7,
+    "minimumPublicNoticeDays": 90,
+    "requiresObservedUsageWindow": true,
+    "requiresSeparateOwnerApproval": true,
+    "statePathMigrationInMajor6": false
+  },
+  "notes": {
+    "hostConfigKey": "The key is a host-local alias, not the MCP protocol identity.",
+    "environmentPrecedence": "HWPX_AUTOMATION_* wins; HWPX_MCP_* remains a 6.x fallback.",
+    "preservedWireIdentifiers": "The public hwpx.mcp-error/v1 schema, versions.mcp/minMcpVersion/MIN_MCP_VERSION aliases, frozen hwpx-mcp.* architecture receipt IDs, and mcpRuntimeMembers parity-receipt field remain exact in 6.x. They are compatibility identifiers, not statements that MCP owns the automation product.",
+    "preservedIntegrationEnvironment": "Product-neutral HWPX_RENDER_*, HWPX_WORKFLOW_ENCRYPTION_KEY, HWPX_ORACLE_*, HWPX_SKILL_VERSION, and HWPX_PLUGIN_ROOT names do not encode the former MCP product identity. They remain unchanged and are not aliases in the HWPX_AUTOMATION_ transition.",
+    "statePath": "HWPX_AUTOMATION_WORKFLOW_STORE wins over the prior HWPX_WORKFLOW_STORE override; the existing hwpx-mcp-server on-disk default remains in 6.x to avoid silent workflow loss.",
+    "renderQueuePrincipal": "The signed queue principal remains hwpx-mcp-server in 6.x so queued work and worker authorization do not split during the rename."
+  }
+}

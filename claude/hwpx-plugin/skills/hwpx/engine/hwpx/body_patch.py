@@ -1,0 +1,818 @@
+"""본문(섹션 직속 문단) 바이트보존 op — Stage 2 결정표의 표-밖 실행 어휘.
+
+KACE 투고본 변환 스파이크(본문 인용 [n] 치환 · 참고문헌 문단 재배열)의 스택 승격.
+:func:`hwpx.table_patch.apply_table_ops` 와 동형 계약: 순차 적용, fail-closed
+(정합 불가 시 이유와 함께 skip), op별 transcript, ``dry_run`` (해석·검증은 전부
+실제로 수행하되 파일은 쓰지 않음 — 상의 루프의 승인 근거).
+
+Ops (index = 섹션 직속 ``<hp:p>`` 문서순, **op 실행 시점의 현재 상태** 기준):
+
+- ``replace_text``  {find, replace, count=1}
+    ``<hp:t>`` 텍스트 콘텐츠 안에서만 매치(태그/속성 불가침). 발견 수가 count와
+    다르면 refuse — 런 경계를 걸친 문자열은 매치되지 않아 자연히 refuse된다.
+- ``delete_paragraph``  {index}
+    표를 품은 문단은 refuse(표까지 무음 소실 방지, ``allow_tables=True``로 해제).
+- ``insert_paragraph_by_clone``  {ref_index, count=1, texts=[...]?}
+    참조 문단을 서식 verbatim 복제(id 재작성·linesegarray 제거) 후 ref 뒤에 삽입.
+    texts[i]가 있으면 해당 클론의 텍스트를 교체 — **이웃 문단 서식 상속** 경로.
+- ``set_paragraph_text``  {index, text}
+    index번째 섹션 직속 문단의 텍스트를 통째 설정(fill_cell의 본문판) — 빈/마커
+    문단("가." 등)에 내용을 넣을 때. 첫 런 서식 상속, stale linesegarray 제거.
+- ``reorder_paragraphs``  {start, end, order}
+    연속 구간 [start..end]를 order(구간 내 상대 인덱스 순열)로 재배열.
+- ``restyle_text``  {find, count=1, text_color?, drop_italic=True}
+    find를 품은 런의 charPr을 정규화 변형(색 교체·이탤릭 제거)으로 재매핑 —
+    안내용 슬롯 서식(파란 이탤릭 등)을 상속한 채움 텍스트를 "사람이 작성한
+    본문"으로 만든다(2026-07-07 AI중점학교 신청서 실측). 원본 charPr은 불변,
+    변형은 header에 새 id로 추가(dedupe).
+
+거부(공통): 구역 정의(``hp:secPr``)를 품은 문단은 지우거나 복제하거나 자리를
+옮기지 않는다(구역마다 하나, 첫 문단에 있어야 한다). 글상자·각주·머리말처럼
+다른 문단을 품은 문단에는 ``set_paragraph_text``와 texts를 준 복제를 하지
+않는다(안쪽 글이 비워진다).
+"""
+
+from __future__ import annotations
+
+import html
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from .errors import HwpxValueError
+from .opc.security import guard_zip_file, read_member
+from .mutation_report import MutationReport, project_byte_splice
+from .patch import (
+    _escaped_text,
+    _finalize,
+    _patch_zip_entries,
+    _read_source_bytes,
+    _rewrite_zip_entries,
+    _strip_paragraph_layout_cache,
+    _text_edit_for_paragraph,
+)
+
+__all__ = [
+    "BodyOpsResult", "apply_body_ops", "direct_paragraph_spans",
+    "strip_runs_by_color", "recolor_runs_by_color",
+]
+
+_P_EDGE_RE = re.compile(r"<hp:p[ >]|</hp:p>")
+_T_CONTENT_RE = re.compile(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", re.S)
+_PARA_ID_RE = re.compile(r'(<hp:p\b[^>]*\bid=")(\d+)(")')
+_TBL_RE = re.compile(r"<hp:tbl\b")
+_SEC_PR_RE = re.compile(r"<hp:secPr\b")
+
+
+def _holds_section_settings(block: str) -> bool:
+    """구역 정의(``hp:secPr``: 용지·여백·단)를 품은 문단인가. 구역의 첫 문단이
+    이것을 갖고, 한/글은 구역마다 하나를 그 자리에서 읽는다."""
+
+    return _SEC_PR_RE.search(block) is not None
+
+
+def _holds_another_paragraph(block: str) -> bool:
+    """글상자·각주·머리말처럼 안에 다른 문단을 품었는가(표가 아니어도)."""
+
+    return sum(1 for m in _P_EDGE_RE.finditer(block) if not m.group().startswith("</")) > 1
+_SUBLIST_EDGE_RE = re.compile(r"<hp:subList\b[^>]*>|</hp:subList>")
+_SQUEEZE_VALUE_RE = re.compile(r'\blineWrap="(?P<value>SQUEEZE)"')
+
+
+def direct_paragraph_spans(section_xml: str) -> list[tuple[int, int]]:
+    """섹션 직속 ``<hp:p>`` 블록들의 (start, end) — 중첩(셀 내부) 문단 제외."""
+    spans: list[tuple[int, int]] = []
+    depth, start = 0, -1
+    for m in _P_EDGE_RE.finditer(section_xml):
+        if m.group().startswith("</"):
+            depth -= 1
+            if depth == 0 and start >= 0:
+                spans.append((start, m.end()))
+                start = -1
+        else:
+            if depth == 0:
+                start = m.start()
+            depth += 1
+    return spans
+
+
+def _all_paragraph_spans(section_xml: str) -> list[tuple[int, int]]:
+    """모든 깊이의 ``<hp:p>`` 블록 span (셀 내부 포함) — lineseg 무효화 대상 탐색용."""
+    spans: list[tuple[int, int]] = []
+    stack: list[int] = []
+    for m in _P_EDGE_RE.finditer(section_xml):
+        if m.group().startswith("</"):
+            if stack:
+                spans.append((stack.pop(), m.end()))
+        else:
+            stack.append(m.start())
+    return spans
+
+
+def _all_sublist_spans(section_xml: str) -> list[tuple[int, int]]:
+    """모든 깊이의 ``<hp:subList>`` 블록 span(표 셀 하나 = subList 하나, 중첩
+    표 포함) — SQUEEZE 보호 대상(문단이 속한 셀) 탐색용."""
+    spans: list[tuple[int, int]] = []
+    stack: list[int] = []
+    for m in _SUBLIST_EDGE_RE.finditer(section_xml):
+        if m.group().startswith("</"):
+            if stack:
+                spans.append((stack.pop(), m.end()))
+        else:
+            stack.append(m.start())
+    return spans
+
+
+def _innermost_span(pos: int, spans: Sequence[tuple[int, int]]) -> tuple[int, int] | None:
+    """*pos*를 담는 가장 좁은(innermost) span — 중첩 표에서도 직속 셀/문단만 고른다."""
+
+    best: tuple[int, int] | None = None
+    for a, b in spans:
+        if a <= pos < b and (best is None or (a >= best[0] and b <= best[1])):
+            best = (a, b)
+    return best
+
+
+def _squeeze_wrap_edit_for_sublist(section_xml: str, sublist_span: tuple[int, int]) -> tuple[int, int, str] | None:
+    """*sublist_span*(그 subList 자신의 여는 태그 ~ 닫는 태그)이
+    ``lineWrap="SQUEEZE"``면 값 부분만 ``"BREAK"``로 바꾸는 최소 편집을 낸다.
+
+    ``table_patch._squeeze_wrap_edit``의 body_patch 판(문자열 기반) — 표 밖
+    ``replace_text``는 원래 대상이 아니었지만, ``<hp:t>`` 검색은 구조적으로
+    셀 내부까지 닿는다(``_all_paragraph_spans``가 깊이 무관인 이유와 동일).
+    긴 채움값이 SQUEEZE로 자간 압축되어 글자가 겹치는 것을 막는다(실측:
+    2026-07-07 AI중점학교 신청서 — 같은 세션에서 lineseg 캐시 문제도 발견됨,
+    위 ``_op_replace_text``의 캐시 제거 로직 참조).
+    """
+
+    start, _end = sublist_span
+    open_tag_end = section_xml.find(">", start)
+    if open_tag_end == -1:
+        return None
+    open_tag = section_xml[start : open_tag_end + 1]
+    match = _SQUEEZE_VALUE_RE.search(open_tag)
+    if match is None:
+        return None
+    return start + match.start("value"), start + match.end("value"), "BREAK"
+
+
+@dataclass(frozen=True)
+class _RunScan:
+    """한 ``<hp:run>``과 그 run이 **직접** 가진 ``<hp:t>``들."""
+
+    open_start: int
+    open_end: int
+    char_pr: str | None
+    texts: tuple[tuple[int, int], ...]  # 각 hp:t 내용의 (start, end)
+    holds_runs: bool  # 표·글상자·각주처럼 안에 다른 run을 품었는가
+
+
+_RUN_SCAN_RE = re.compile(
+    r"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>"
+    r"|<hp:run\b[^>]*>|</hp:run>|<hp:t\b[^>]*>",
+    re.S,
+)
+_CHAR_PR_REF_RE = re.compile(r'\bcharPrIDRef="(\d+)"')
+_LINESEG_ARRAY_STR_RE = re.compile(
+    r"<(?P<ns>(?:[A-Za-z_][\w.-]*:)?)linesegarray\b(?:[^>]*?/>|[^>]*>.*?</(?P=ns)linesegarray>)",
+    re.S | re.I,
+)
+
+
+def _scan_runs(xml: str) -> list[_RunScan]:
+    """모든 깊이의 run을 중첩을 따라가며 읽는다.
+
+    run은 표·글상자·각주를 품을 수 있고 그 안에 다시 run이 있다. 여는 태그를
+    그 뒤 첫 ``</hp:run>``과 짝지으면 안쪽 run의 닫는 태그에 걸려 다른 run의
+    글을 건드리게 되므로, 깊이를 세어 각 ``<hp:t>``를 그것을 직접 가진 run에
+    붙인다. 주석·CDATA·처리 지시문 안의 닮은 글은 건너뛴다.
+    """
+
+    done: list[_RunScan] = []
+    stack: list[dict[str, Any]] = []
+    pos = 0
+    while True:
+        m = _RUN_SCAN_RE.search(xml, pos)
+        if m is None:
+            break
+        token = m.group()
+        pos = m.end()
+        if token.startswith("<hp:run"):
+            ref = _CHAR_PR_REF_RE.search(token)
+            char_pr = ref.group(1) if ref else None
+            if stack:
+                stack[-1]["holds"] = True
+            if token.endswith("/>"):
+                done.append(_RunScan(m.start(), m.end(), char_pr, (), False))
+            else:
+                stack.append({"a": m.start(), "b": m.end(), "id": char_pr, "texts": [], "holds": False})
+        elif token == "</hp:run>":
+            if stack:
+                top = stack.pop()
+                done.append(_RunScan(top["a"], top["b"], top["id"], tuple(top["texts"]), top["holds"]))
+        elif token.startswith("<hp:t"):
+            if token.endswith("/>"):
+                continue
+            close = xml.find("</hp:t>", m.end())
+            if close == -1:
+                break
+            if stack:
+                stack[-1]["texts"].append((m.end(), close))
+            pos = close + len("</hp:t>")
+    done.sort(key=lambda run: run.open_start)
+    return done
+
+
+def _own_layout_cache_spans(
+    xml: str, para_span: tuple[int, int], para_spans: Sequence[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """*para_span* 문단 자신의 ``linesegarray`` 자리(안쪽 문단의 것은 뺀다)."""
+
+    a, b = para_span
+    return [
+        (m.start(), m.end())
+        for m in _LINESEG_ARRAY_STR_RE.finditer(xml, a, b)
+        if _innermost_span(m.start(), para_spans) == para_span
+    ]
+
+
+def _preview(text: str, limit: int = 60) -> str:
+    flat = re.sub(r"\s+", " ", text).strip()
+    return flat[: limit - 1] + "…" if len(flat) > limit else flat
+
+
+@dataclass(frozen=True)
+class BodyOpsResult:
+    data: bytes
+    skipped: tuple[dict[str, Any], ...]
+    transcript: tuple[dict[str, Any], ...]
+    changed_parts: tuple[str, ...]
+    byte_identical: bool
+    open_safety: dict[str, Any]
+
+    @property
+    def ok(self) -> bool:
+        return bool(self.open_safety.get("ok")) and not self.skipped
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "skipped": list(self.skipped),
+            "transcript": list(self.transcript),
+            "changedParts": list(self.changed_parts),
+            "byteIdentical": self.byte_identical,
+            "openSafety": self.open_safety,
+        }
+
+    def as_mutation_report(self, *, source: bytes | str | Path | None = None) -> MutationReport:
+        """Project this body-ops result onto ``hwpx.mutation-report/v1`` (specs/032
+        §3). Additive — the fields above are untouched. This path never renders,
+        so the visual verdict stays ``not_performed``. Pass the original *source*
+        for real ranges and a measured preservation summary.
+        """
+
+        return project_byte_splice(
+            data=self.data,
+            changed_part_names=self.changed_parts,
+            byte_identical=self.byte_identical,
+            open_safety=self.open_safety,
+            source=source,
+        )
+
+
+def _op_replace_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    find = str(op["find"])
+    replace = str(op.get("replace", ""))
+    expected = int(op.get("count", 1))
+    esc_find = html.escape(find, quote=False)
+    # A tab goes in as an hp:tab element (Hancom never finishes laying out a
+    # raw tab character inside hp:t), a line break as an hp:lineBreak.
+    esc_replace = _escaped_text(replace, b"hp:").decode("utf-8")
+    hits: list[tuple[int, int]] = []
+    for t in _T_CONTENT_RE.finditer(xml):
+        a, b = t.start(1), t.end(1)
+        pos = xml.find(esc_find, a)
+        while pos != -1 and pos + len(esc_find) <= b:
+            hits.append((pos, pos + len(esc_find)))
+            pos = xml.find(esc_find, pos + 1)
+            if pos >= b:
+                break
+    if len(hits) != expected:
+        raise ValueError(
+            f"replace_text: {find!r} matched {len(hits)} time(s) inside <hp:t> "
+            f"(expected {expected}) — run-spanning or ambiguous text is refused"
+        )
+    # 편집된 문단의 linesegarray(한컴 줄배치 캐시)를 함께 제거해야 한다 — 안 지우면
+    # 한컴이 옛 텍스트 기준 줄배치를 재사용해 긴 새 텍스트가 겹쳐 렌더된다
+    # (2026-07-07 AI중점학교 신청서 실측: 교체 문단만 줄겹침, lineseg 제거된
+    # 클론 문단은 정상). 문단 단위로 묶어 뒤에서부터: 치환 → 캐시 제거 → 재조립.
+    para_spans = _all_paragraph_spans(xml)
+
+    by_para: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for hit in hits:
+        span = _innermost_span(hit[0], para_spans)
+        if span is None:
+            raise ValueError("replace_text: match outside any <hp:p> paragraph")
+        by_para.setdefault(span, []).append(hit)
+
+    # 모듈 취지는 표-밖 본문이지만(위 docstring), <hp:t> 검색은 구조적으로
+    # 표 셀 내부까지 닿는다 — 편집된 문단이 셀(subList) 안이면 그 셀의
+    # lineWrap=SQUEEZE도 함께 BREAK로 바꾼다. 안 바꾸면 실측대로 압축 자간이
+    # 새(더 긴) 텍스트를 겹쳐 그린다 — table_patch.fill_cells의 셀 채움
+    # 경로가 이미 하는 보호(_squeeze_wrap_edit)와 동형이며, 여기서는
+    # replace_text가 우연히 셀까지 닿을 때를 위한 안전망이다. 같은 셀에
+    # 문단이 여럿이어도 셀 편집은 한 번만.
+    sublist_spans = _all_sublist_spans(xml)
+    fixed_sublists: set[tuple[int, int]] = set()
+    wrap_edits: list[tuple[int, int, str]] = []
+    for pa, _pb in by_para:
+        sublist_span = _innermost_span(pa, sublist_spans)
+        if sublist_span is None or sublist_span in fixed_sublists:
+            continue
+        fixed_sublists.add(sublist_span)
+        wrap_edit = _squeeze_wrap_edit_for_sublist(xml, sublist_span)
+        if wrap_edit is not None:
+            wrap_edits.append(wrap_edit)
+
+    # 표를 담은 문단과 그 표의 셀 문단이 둘 다 편집되면 두 문단 구간이 겹친다.
+    # 바깥 문단 하나로 묶어 그 안의 치환·셀 SQUEEZE 편집을 한 번에 적용한 뒤
+    # 캐시를 지운다(바깥 문단의 캐시 제거가 안쪽 문단의 캐시도 지운다).
+    outer = [
+        span for span in by_para
+        if not any(other != span and other[0] <= span[0] and span[1] <= other[1] for other in by_para)
+    ]
+    edits: list[tuple[int, int, str]] = []
+    for pa, pb in outer:
+        local = [(a, b, esc_replace) for a, b in hits if pa <= a < pb]
+        local += [edit for edit in wrap_edits if pa <= edit[0] and edit[1] <= pb]
+        block = xml[pa:pb]
+        for a, b, replacement in sorted(local, key=lambda e: e[0], reverse=True):
+            block = block[: a - pa] + replacement + block[b - pa:]
+        block = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
+        edits.append((pa, pb, block))
+    edits += [
+        edit for edit in wrap_edits
+        if not any(pa <= edit[0] and edit[1] <= pb for pa, pb in outer)
+    ]
+
+    for a, b, replacement in sorted(edits, key=lambda e: e[0], reverse=True):
+        xml = xml[:a] + replacement + xml[b:]
+    return xml, {"find": _preview(find), "replace": _preview(replace), "hits": expected}
+
+
+def _op_delete_paragraph(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    spans = direct_paragraph_spans(xml)
+    index = int(op["index"])
+    if not 0 <= index < len(spans):
+        raise ValueError(f"delete_paragraph: index {index} out of range (0..{len(spans) - 1})")
+    a, b = spans[index]
+    block = xml[a:b]
+    if _holds_section_settings(block):
+        raise HwpxValueError(
+            "delete_paragraph: paragraph holds the section settings (hp:secPr) — refuse; "
+            "clear its text with set_paragraph_text instead",
+            code="body-op-section-settings",
+        )
+    if _TBL_RE.search(block) and not op.get("allow_tables"):
+        raise ValueError(
+            "delete_paragraph: paragraph wraps a table — refuse (allow_tables=True to override)"
+        )
+    old = "".join(m.group(1) for m in _T_CONTENT_RE.finditer(block))
+    return xml[:a] + xml[b:], {"index": index, "old": _preview(html.unescape(old))}
+
+
+def _op_insert_paragraph_by_clone(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    spans = direct_paragraph_spans(xml)
+    ref = int(op["ref_index"])
+    count = int(op.get("count", 1))
+    texts = list(op.get("texts") or [])
+    if not 0 <= ref < len(spans):
+        raise ValueError(f"insert_paragraph_by_clone: ref_index {ref} out of range")
+    if count < 1:
+        raise ValueError("insert_paragraph_by_clone: count must be >= 1")
+    if texts and len(texts) != count:
+        raise ValueError("insert_paragraph_by_clone: len(texts) must equal count")
+    a, b = spans[ref]
+    block = xml[a:b]
+    if _TBL_RE.search(block):
+        raise ValueError("insert_paragraph_by_clone: ref paragraph wraps a table — refuse")
+    if _holds_section_settings(block):
+        raise HwpxValueError(
+            "insert_paragraph_by_clone: ref paragraph holds the section settings (hp:secPr) — refuse; "
+            "a copy would give the section a second set",
+            code="body-op-section-settings",
+        )
+    if texts and _holds_another_paragraph(block):
+        raise HwpxValueError(
+            "insert_paragraph_by_clone: ref paragraph holds another paragraph (text box, note) — "
+            "refuse to set texts; its inner text would be emptied",
+            code="body-op-nested-paragraph",
+        )
+    stripped = _strip_paragraph_layout_cache(block.encode("utf-8")).decode("utf-8")
+    clones: list[str] = []
+    for i in range(count):
+        clone = _PARA_ID_RE.sub(
+            lambda m: m.group(1) + str((int(m.group(2)) + (i + 1) * 100003) & 0x7FFFFFFF) + m.group(3),
+            stripped,
+        )
+        if texts:
+            edited = _text_edit_for_paragraph(clone.encode("utf-8"), str(texts[i]))
+            if edited is None:
+                raise ValueError("insert_paragraph_by_clone: ref paragraph has no text run to fill")
+            clone = edited[2].decode("utf-8")
+        clones.append(clone)
+    return xml[:b] + "".join(clones) + xml[b:], {
+        "refIndex": ref,
+        "count": count,
+        "texts": [_preview(str(t)) for t in texts],
+    }
+
+
+def _op_reorder_paragraphs(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    spans = direct_paragraph_spans(xml)
+    start, end = int(op["start"]), int(op["end"])
+    order = [int(i) for i in op["order"]]
+    if not (0 <= start <= end < len(spans)):
+        raise ValueError(f"reorder_paragraphs: range {start}..{end} out of bounds")
+    size = end - start + 1
+    if sorted(order) != list(range(size)):
+        raise ValueError("reorder_paragraphs: order must be a permutation of 0..end-start")
+    region = spans[start:end + 1]
+    for (a0, b0), (a1, _b1) in zip(region, region[1:]):
+        if xml[b0:a1].strip():
+            raise ValueError("reorder_paragraphs: non-whitespace content between paragraphs — refuse")
+    blocks = [xml[a:b] for a, b in region]
+    if any(source != place and _holds_section_settings(blocks[source]) for place, source in enumerate(order)):
+        raise HwpxValueError(
+            "reorder_paragraphs: the paragraph holding the section settings (hp:secPr) would move — refuse",
+            code="body-op-section-settings",
+        )
+    new_region = "".join(blocks[i] for i in order)
+    return xml[: region[0][0]] + new_region + xml[region[-1][1]:], {
+        "start": start, "end": end, "order": order,
+    }
+
+
+def _materialize_restyled_charpr(
+    header: str, base_id: str, text_color: str | None, drop_italic: bool,
+    cache: dict[tuple, str],
+) -> tuple[str, str]:
+    """charPr *base_id*를 색/이탤릭만 바꾼 변형으로 복제해 header에 추가."""
+    key = (base_id, text_color, drop_italic)
+    if key in cache:
+        return header, cache[key]
+    bid = re.escape(base_id)
+    m = re.search(r'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + bid + r'".*?</(?:[A-Za-z_][\w.-]*:)?charPr>', header, re.DOTALL)
+    if m is None:
+        m = re.search(r'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="' + bid + r'"[^>]*/>', header)
+    if m is None:
+        raise ValueError(f"restyle_text: base charPr {base_id} not found in header")
+    ids = [int(x) for x in re.findall(r'<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?\bid="(\d+)"', header)]
+    new_id = str(max(ids) + 1 if ids else 0)
+    clone = re.sub(r'(\bid=")\d+(")', r"\g<1>" + new_id + r"\g<2>", m.group(0), count=1)
+    if text_color is not None:
+        if re.search(r'\btextColor="[^"]*"', clone):
+            clone = re.sub(r'(\btextColor=")[^"]*(")', r"\g<1>" + text_color + r"\g<2>", clone, count=1)
+        else:
+            clone = re.sub(r'(<(?:[A-Za-z_][\w.-]*:)?charPr\b)', r"\g<1>" + f' textColor="{text_color}"', clone, count=1)
+    if drop_italic:
+        clone = re.sub(r'<(?:[A-Za-z_][\w.-]*:)?italic\b[^>]*/>', "", clone)
+        clone = re.sub(r'<((?:[A-Za-z_][\w.-]*:)?)italic\b[^>]*>.*?</\1italic>', "", clone, flags=re.DOTALL)
+    close = re.search(r'</(?:[A-Za-z_][\w.-]*:)?charProperties>', header)
+    if close is None:
+        raise ValueError("restyle_text: charProperties close tag not found")
+    header = header[: close.start()] + clone + header[close.start():]
+    header = re.sub(
+        r'(<(?:[A-Za-z_][\w.-]*:)?charProperties\b[^>]*?\bitemCnt=")(\d+)(")',
+        lambda mm: mm.group(1) + str(int(mm.group(2)) + 1) + mm.group(3),
+        header, count=1,
+    )
+    cache[key] = new_id
+    return header, new_id
+
+
+def _op_restyle_text(xml: str, op: Mapping[str, Any], ctx: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    find = str(op["find"])
+    expected = int(op.get("count", 1))
+    from .oxml.color import normalize_color
+
+    text_color = normalize_color(op.get("text_color", op.get("textColor")))
+    drop_italic = bool(op.get("drop_italic", op.get("dropItalic", True)))
+    esc_find = html.escape(find, quote=False)
+    hits: list[int] = []
+    for t in _T_CONTENT_RE.finditer(xml):
+        a, b = t.start(1), t.end(1)
+        pos = xml.find(esc_find, a)
+        while pos != -1 and pos + len(esc_find) <= b:
+            hits.append(pos)
+            pos = xml.find(esc_find, pos + 1)
+            if pos >= b:
+                break
+    if len(hits) != expected:
+        raise ValueError(
+            f"restyle_text: {find!r} matched {len(hits)} time(s) inside <hp:t> (expected {expected})"
+        )
+    remapped = []
+    # 찾은 글을 **직접** 가진 run. 바로 앞의 여는 태그는 그 run이 품은 표·글상자 안
+    # run의 것일 수 있다(글이 표 뒤에 올 때).
+    owners = [(a, b, run) for run in _scan_runs(xml) for a, b in run.texts]
+    for pos in sorted(hits, reverse=True):
+        owner = next((run for a, b, run in owners if a <= pos < b), None)
+        if owner is None:
+            raise ValueError("restyle_text: enclosing <hp:run> not found")
+        run_open, tag_end = owner.open_start, owner.open_end - 1
+        open_tag = xml[run_open: tag_end + 1]
+        m = re.search(r'charPrIDRef="(\d+)"', open_tag)
+        if m is None:
+            raise ValueError("restyle_text: run has no charPrIDRef")
+        base = m.group(1)
+        ctx["header"], new_id = _materialize_restyled_charpr(
+            ctx["header"], base, text_color, drop_italic, ctx["charpr_cache"]
+        )
+        ctx["header_changed"] = True
+        new_tag = open_tag.replace(f'charPrIDRef="{base}"', f'charPrIDRef="{new_id}"', 1)
+        xml = xml[:run_open] + new_tag + xml[tag_end + 1:]
+        remapped.append(f"{base}→{new_id}")
+    return xml, {"find": _preview(find), "hits": expected, "charPr": remapped,
+                 "textColor": text_color, "dropItalic": drop_italic}
+
+
+def _op_set_paragraph_text(xml: str, op: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    spans = direct_paragraph_spans(xml)
+    index = int(op["index"])
+    if not 0 <= index < len(spans):
+        raise ValueError(f"set_paragraph_text: index {index} out of range (0..{len(spans) - 1})")
+    a, b = spans[index]
+    block = xml[a:b]
+    if _TBL_RE.search(block):
+        raise ValueError("set_paragraph_text: paragraph wraps a table — refuse")
+    if _holds_another_paragraph(block):
+        raise HwpxValueError(
+            "set_paragraph_text: paragraph holds another paragraph (text box, note) — refuse; "
+            "its inner text would be emptied",
+            code="body-op-nested-paragraph",
+        )
+    edited = _text_edit_for_paragraph(block.encode("utf-8"), str(op["text"]))
+    if edited is None:
+        raise ValueError("set_paragraph_text: paragraph has no text run to set")
+    new_block = _strip_paragraph_layout_cache(edited[2]).decode("utf-8")
+    old = "".join(m.group(1) for m in _T_CONTENT_RE.finditer(block))
+    return xml[:a] + new_block + xml[b:], {"index": index, "old": _preview(html.unescape(old)),
+                                           "new": _preview(str(op["text"]))}
+
+
+_OPS = {
+    "replace_text": _op_replace_text,
+    "delete_paragraph": _op_delete_paragraph,
+    "insert_paragraph_by_clone": _op_insert_paragraph_by_clone,
+    "reorder_paragraphs": _op_reorder_paragraphs,
+    "set_paragraph_text": _op_set_paragraph_text,
+    "restyle_text": _op_restyle_text,  # dispatch에서 ctx 전달로 특수 처리
+}
+
+
+def recolor_runs_by_color(
+    source: str | Path | bytes,
+    from_hexes: Sequence[str],
+    to_color: str,
+    *,
+    output_path: str | Path | None = None,
+    dry_run: bool = False,
+) -> BodyOpsResult:
+    """문서 전체(셀 포함)에서 지정 색(정확 hex)의 run을 to_color로 재색.
+
+    양식이 "이 색 글씨는 과목별로 수정"(평가계획 파랑)이라 선언한 슬롯을 채우면
+    슬롯 색을 상속하는데, 채운 내용은 사람 본문이므로 검정이어야 한다. from_hexes와
+    정확히 일치하는 charPr을 to_color 변형으로 복제(header)하고 해당 run의
+    charPrIDRef만 재매핑한다(글꼴·크기 등 나머지 서식 보존). 디자인색 오염 방지를
+    위해 계열이 아닌 **정확 hex** 매칭."""
+    source_bytes = _read_source_bytes(source)
+    from_set = {h.upper() for h in from_hexes}
+    import io, zipfile
+
+    with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        guard_zip_file(z)
+        names = z.namelist()
+        header_name = next((n for n in names if n.endswith("header.xml")), None)
+        header_xml = read_member(z, header_name).decode("utf-8") if header_name else ""
+        sections = {n: read_member(z, n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
+
+    ids = set()
+    for cm in re.finditer(r"<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?>", header_xml):
+        idm = re.search(r'\bid="(\d+)"', cm.group(0))
+        colm = re.search(r'\btextColor="([^"]+)"', cm.group(0))
+        if idm and colm and colm.group(1).upper() in from_set:
+            ids.add(idm.group(1))
+
+    cache: dict[tuple, str] = {}
+    idmap: dict[str, str] = {}
+    for rid in sorted(ids, key=int):
+        header_xml, new_id = _materialize_restyled_charpr(header_xml, rid, to_color, False, cache)
+        idmap[rid] = new_id
+
+    transcript: list[dict[str, Any]] = []
+    changed: set[str] = set()
+    for sp, xml in sections.items():
+        n = [0]
+
+        def _remap(m: "re.Match") -> str:
+            old = m.group(1)
+            if old not in idmap:
+                return m.group(0)
+            n[0] += 1
+            return m.group(0).replace(f'charPrIDRef="{old}"', f'charPrIDRef="{idmap[old]}"', 1)
+
+        new_xml = re.sub(r'<hp:run\b[^>]*\bcharPrIDRef="(\d+)"[^>]*>', _remap, xml)
+        if n[0] == 0:
+            continue
+        sections[sp] = new_xml
+        changed.add(sp)
+        transcript.append({"op": "recolor_runs_by_color", "sectionPath": sp,
+                          "runsRecolored": n[0], "toColor": to_color,
+                          "status": "would_apply" if dry_run else "applied"})
+
+    intermediate = source_bytes
+    if changed and header_name:
+        payload = {sp: sections[sp].encode("utf-8") for sp in changed}
+        payload[header_name] = header_xml.encode("utf-8")
+        try:
+            intermediate = _patch_zip_entries(source_bytes, payload)
+        except ValueError:
+            intermediate = _rewrite_zip_entries(source_bytes, payload)
+    open_safety, _ = _finalize(intermediate, None if dry_run else output_path, source=source)
+    return BodyOpsResult(intermediate, (), tuple(transcript), tuple(sorted(changed)),
+                         intermediate == source_bytes, open_safety)
+
+
+def strip_runs_by_color(
+    source: str | Path | bytes,
+    hex_colors: Sequence[str],
+    *,
+    output_path: str | Path | None = None,
+    dry_run: bool = False,
+) -> BodyOpsResult:
+    """문서 전체(셀 내부 포함)에서 지정 색의 run 텍스트를 비운다(런 구조 유지).
+
+    양식이 색 범례로 "이 색 글씨는 모두 삭제"를 선언한 경우(평가계획 빨강)의
+    일괄 청소 — 안내문·범례가 셀·헤딩 표에 흩어진 red run이라 문단 op가 못 닿는
+    문제를 해결한다. charPrIDRef가 header에서 target textColor를 가리키는 run의
+    ``<hp:t>`` 내용을 비우고, 그 run이 든 문단의 stale linesegarray를 제거한다.
+    미변경 부분은 byte-identical.
+
+    대상 run이 표·글상자·각주를 품고 있으면 그 run이 **직접** 가진 글만 비운다.
+    안쪽 run의 글은 안쪽 run의 색으로 따로 판정하고, 그런 run을 비운 수는
+    transcript의 ``runsHoldingNestedRuns``에 싣는다."""
+    source_bytes = _read_source_bytes(source)
+    import io, zipfile
+
+    targets = {h.upper() for h in hex_colors}
+    with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        guard_zip_file(z)
+        names = z.namelist()
+        header_name = next((n for n in names if n.endswith("header.xml")), None)
+        header_xml = read_member(z, header_name).decode("utf-8") if header_name else ""
+        sections = {n: read_member(z, n).decode("utf-8") for n in names if re.search(r"section\d+\.xml$", n)}
+
+    # 계열 매칭(잔존 게이트와 정렬): 대상 색의 _color_family에 드는 모든 charPr.
+    from .oxml.color import color_family
+    target_families = {color_family(h) for h in targets}
+    ids = set()
+    for cm in re.finditer(r"<(?:[A-Za-z_][\w.-]*:)?charPr\b[^>]*?>", header_xml):
+        tag = cm.group(0)
+        idm = re.search(r'\bid="(\d+)"', tag)
+        colm = re.search(r'\btextColor="([^"]+)"', tag)
+        if not (idm and colm):
+            continue
+        col = colm.group(1).upper()
+        if col in targets or color_family(col) in target_families:
+            ids.add(idm.group(1))
+    transcript: list[dict[str, Any]] = []
+    changed: set[str] = set()
+
+    for sp, xml in sections.items():
+        # 대상 색 run이 **직접** 가진 hp:t만 비운다. 표·글상자·각주를 품은 run은
+        # 그 안에 다른 run을 담고 있고, 안쪽 run의 글은 안쪽 run의 색을 따른다.
+        blanked: list[tuple[int, int]] = []
+        runs_blanked = 0
+        runs_holding_runs = 0
+        for run in _scan_runs(xml):
+            if run.char_pr not in ids:
+                continue
+            filled = [(a, b) for a, b in run.texts if b > a]
+            if not filled:
+                continue
+            blanked.extend(filled)
+            runs_blanked += 1
+            if run.holds_runs:
+                runs_holding_runs += 1
+        if not blanked:
+            continue
+        # 글이 바뀐 문단 자신의 줄 배치 캐시만 지운다(안쪽·바깥 문단의 캐시는 그대로).
+        para_spans = _all_paragraph_spans(xml)
+        touched = {span for span in (_innermost_span(a, para_spans) for a, _b in blanked) if span}
+        edits: list[tuple[int, int]] = list(blanked)
+        for span in touched:
+            edits.extend(_own_layout_cache_spans(xml, span, para_spans))
+        for a, b in sorted(set(edits), reverse=True):
+            xml = xml[:a] + xml[b:]
+        sections[sp] = xml
+        changed.add(sp)
+        entry: dict[str, Any] = {"op": "strip_runs_by_color", "sectionPath": sp,
+                                 "runsBlanked": runs_blanked,
+                                 "status": "would_apply" if dry_run else "applied"}
+        if runs_holding_runs:
+            # 표·글상자·각주를 품은 run: 그 run의 글만 비웠고 안쪽 글은 남겼다.
+            entry["runsHoldingNestedRuns"] = runs_holding_runs
+        transcript.append(entry)
+
+    intermediate = source_bytes
+    if changed:
+        payload = {sp: sections[sp].encode("utf-8") for sp in changed}
+        try:
+            intermediate = _patch_zip_entries(source_bytes, payload)
+        except ValueError:
+            intermediate = _rewrite_zip_entries(source_bytes, payload)
+    open_safety, _ = _finalize(intermediate, None if dry_run else output_path, source=source)
+    return BodyOpsResult(intermediate, (), tuple(transcript), tuple(sorted(changed)),
+                         intermediate == source_bytes, open_safety)
+
+
+def apply_body_ops(
+    source: str | Path | bytes,
+    ops: Sequence[Mapping[str, Any]],
+    *,
+    output_path: str | Path | None = None,
+    dry_run: bool = False,
+) -> BodyOpsResult:
+    """섹션 직속 문단 op들을 바이트보존으로 적용한다 (모듈 docstring 참조)."""
+    source_bytes = _read_source_bytes(source)
+    import io, zipfile
+
+    header_part: str | None = None
+    with zipfile.ZipFile(io.BytesIO(source_bytes)) as z:
+        guard_zip_file(z)
+        sections = {
+            n: read_member(z, n).decode("utf-8")
+            for n in z.namelist()
+            if re.search(r"section\d+\.xml$", n)
+        }
+        header_part = next((n for n in z.namelist() if n.endswith("header.xml")), None)
+        header_xml = read_member(z, header_part).decode("utf-8") if header_part else ""
+
+    ctx: dict[str, Any] = {"header": header_xml, "header_changed": False, "charpr_cache": {}}
+    skipped: list[dict[str, Any]] = []
+    transcript: list[dict[str, Any]] = []
+    changed: set[str] = set()
+
+    for op in ops:
+        name = str(op.get("op"))
+        sp = str(op.get("section_path") or op.get("sectionPath") or "Contents/section0.xml")
+        entry: dict[str, Any] = {"op": name, "sectionPath": sp}
+        handler = _OPS.get(name)
+        if handler is None:
+            entry["status"] = f"refused: unknown op {name!r}"
+            skipped.append(dict(entry))
+            transcript.append(entry)
+            continue
+        xml = sections.get(sp)
+        if xml is None:
+            entry["status"] = "refused: section part not found"
+            skipped.append(dict(entry))
+            transcript.append(entry)
+            continue
+        try:
+            if name == "restyle_text":
+                new_xml, detail = _op_restyle_text(xml, op, ctx)
+            else:
+                new_xml, detail = handler(xml, op)
+        except (ValueError, KeyError, TypeError) as exc:
+            entry["status"] = f"refused: {exc}"
+            skipped.append(dict(entry))
+            transcript.append(entry)
+            continue
+        sections[sp] = new_xml
+        changed.add(sp)
+        entry.update(detail)
+        entry["status"] = "would_apply" if dry_run else "applied"
+        transcript.append(entry)
+
+    intermediate = source_bytes
+    if changed or ctx["header_changed"]:
+        payload = {sp: sections[sp].encode("utf-8") for sp in changed}
+        if ctx["header_changed"] and header_part:
+            payload[header_part] = ctx["header"].encode("utf-8")
+        try:
+            intermediate = _patch_zip_entries(source_bytes, payload)
+        except ValueError:
+            intermediate = _rewrite_zip_entries(source_bytes, payload)
+
+    open_safety, _ = _finalize(intermediate, None if dry_run else output_path, source=source)
+    return BodyOpsResult(
+        intermediate,
+        tuple(skipped),
+        tuple(transcript),
+        tuple(sorted(changed)),
+        intermediate == source_bytes,
+        open_safety,
+    )
