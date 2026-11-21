@@ -26,9 +26,9 @@
     },
     {
       "source": "packaging/product-identity.json",
-      "sourceSha256": "da3fb54117ffe39902b346c73b9a861df72444835b7ec8dd151aa1b8e2b633f8",
+      "sourceSha256": "8411a264162589d4ac812abba3f4acc0454973176c96cdbdba8c343b8dbaa5fb",
       "dest": "plugins/openclaw/hwpx-plugin/skills/hwpx/packaging/product-identity.json",
-      "destSha256": "da3fb54117ffe39902b346c73b9a861df72444835b7ec8dd151aa1b8e2b633f8",
+      "destSha256": "8411a264162589d4ac812abba3f4acc0454973176c96cdbdba8c343b8dbaa5fb",
       "transformed": false
     },
     {

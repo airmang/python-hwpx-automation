@@ -57,8 +57,8 @@
       "importName": "hwpx",
       "currentVersion": "7.0.0",
       "minimumCompatibleVersion": "7.0.0",
-      "maturity": "alpha",
-      "maturityEvidence": "Development Status :: 3 - Alpha"
+      "maturity": "stable",
+      "maturityEvidence": "Development Status :: 5 - Production/Stable"
     },
     "automation": {
       "repository": "python-hwpx-automation",
