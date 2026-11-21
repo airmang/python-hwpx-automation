@@ -44,15 +44,16 @@ import·콘솔은 각각 `python-hwpx-automation` · `hwpx_automation` ·
 
 ```bash
 # Claude Code
-claude plugin marketplace add airmang/hwpx-plugins
+claude plugin marketplace add airmang/python-hwpx-automation
 claude plugin install hwpx-plugin@hwpx
 
 # Codex CLI
-codex plugin marketplace add airmang/hwpx-plugins
+codex plugin marketplace add airmang/python-hwpx-automation
 codex plugin add hwpx-plugin@hwpx
 ```
 
-**ChatGPT**에서는 플러그인 디렉터리(Customize → Plugins)에서 `python-hwpx`를 찾아 설치합니다. 플러그인 대신
+**ChatGPT**용 플러그인은 아직 플러그인 디렉터리에 없습니다. [GitHub Release](https://github.com/airmang/hwpx-plugins/releases?q=chatgpt-plugin)에서
+`python-hwpx-plugin-<판>.zip`을 내려받아 Plugins → Upload plugin으로 올리면 본인 계정에서 쓸 수 있습니다. 플러그인 대신
 스킬만 올리려면 Skills → Create → Upload from your computer에서 스킬 zip(`python-hwpx-skill-<판>.zip`, 저장소의
 `scripts/build_chatgpt_skill.py`가 만듭니다)을 올립니다. Enterprise·Edu 워크스페이스는 관리자가 스킬과 스킬 올리기를
 켜 두어야 합니다. 엔진은 묶음 안에 있어 인터넷 없이 설치되지만, ChatGPT 코드 실행 환경에 `lxml`이 있어야 하고
@@ -114,7 +115,7 @@ codex plugin marketplace upgrade
   탭에서 Update now를 눌러도 됩니다.
 - Codex 번들의 런처는 같은 큰 판 안에서만 런타임을 스스로 갱신합니다. 2.4.0 플러그인의 런처는
   `python-hwpx <7`·`python-hwpx-automation <8` 안에서만 움직이므로, **플러그인을 갱신해야** 엔진 7.0·8.0을 받습니다.
-- ChatGPT 플러그인은 디렉터리에 새 판이 게시되면 새 대화부터 쓰입니다. 스킬 zip을 직접 올렸다면 새 zip을 다시 올립니다.
+- ChatGPT 플러그인은 새 판 ZIP을 다시 올리면 새 대화부터 쓰입니다. 스킬 zip을 직접 올렸다면 새 스킬 zip을 다시 올립니다.
 
 ## 8.0에서 달라지는 것
 
