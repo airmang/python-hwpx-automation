@@ -246,10 +246,11 @@ def test_readme_python_example_runs_saves_and_reopens_from_base_wheel(
             "    raise AssertionError('base install unexpectedly contains mcp')",
             f"_code = {example!r}",
             "exec(compile(_code, 'README.md#python-1', 'exec'), {'__name__': '__main__'})",
-            "_output = Path('meeting-result.hwpx')",
+            "_output = Path('운영계획.hwpx')",
             "assert _output.is_file()",
             "with HwpxDocument.open(_output) as _reopened:",
-            "    assert '결정 사항' in _reopened.text.plain()",
+            "    _text = _reopened.text.plain()",
+            "    assert '추진 배경' in _text and '3월 ~ 6월' in _text",
             "assert 'mcp' not in sys.modules",
         )
     )
