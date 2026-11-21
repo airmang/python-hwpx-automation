@@ -39,12 +39,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: python-hwpx-automation
-      # Same core ref as tests.yml. TODO(core-7.0-release): install
-      # "python-hwpx>=7.0,<8" from PyPI and keep this checkout only for fixtures.
+      # Same core ref as tests.yml: the core release tag.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: airmang/python-hwpx
-          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || 'a7cd85d5c6e8ca7c1652503bbbb188848a754616' }}
+          ref: ${{ vars.PYTHON_HWPX_CANDIDATE_REF || 'v7.0.0' }}
           path: python-hwpx
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:

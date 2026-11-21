@@ -31,6 +31,13 @@ on:
         description: Automation release tag already published (e.g. v8.0.0)
         required: true
         type: string
+      source_ref:
+        description: >-
+          Ref to build plugins-src from (default: the tag). Use it when plugins-src landed on
+          main after the automation tag; the ref must contain the tag.
+        required: false
+        default: ""
+        type: string
       publish:
         description: Push plugins-dist and the hwpx-plugin--v tag (false = build and upload an artifact only)
         required: false
@@ -50,9 +57,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.source_ref || inputs.tag }}
           path: src-tree
           fetch-depth: 0
+      - name: The source contains the released tag
+        working-directory: src-tree
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          git fetch -q origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          git merge-base --is-ancestor "refs/tags/${TAG}" HEAD
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "${GITHUB_ENV}"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
@@ -109,7 +125,6 @@ jobs:
 
       - name: Assemble the dist tree
         env:
-          SOURCE_SHA: ${{ github.sha }}
           TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
