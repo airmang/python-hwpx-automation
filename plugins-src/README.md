@@ -62,7 +62,7 @@ codex plugin add hwpx-plugin@hwpx
 
 Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 잠긴 정확한 버전으로
 `uv run --frozen`으로 실행합니다. 잠긴 버전은 아래 표의 검증 좌표가 아니라 설치 제약 창 안에서 갱신 절차가 마지막으로 올린 조합이며,
-값은 번들의 `server/pyproject.toml`에 적혀 있습니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 새 엔진은 CI 봇이 검증해 PR로 올리고, 유지보수자가 승인한 뒤 플러그인 업데이트로 전달합니다.
+값은 번들의 `server/pyproject.toml`에 적혀 있습니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 엔진 판은 유지보수자가 python-hwpx-automation을 배포한 뒤 `plugins-dist` 작업(손으로 실행)에서 그 판에 맞춰 다시 잠그고 검증해 플러그인 업데이트로 전달합니다.
 Codex에서는 설치 뒤 번들 런처가 런타임을 하루 1회 같은 메이저 안의 최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
 `HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. Codex 번들의 MCP 서버는 `bash`로 런처를 실행하므로,
 **Windows에서는 `bash`(Git for Windows의 Git Bash 또는 WSL)가 `PATH`에 있어야** 시작됩니다. `bash`가 없으면 서버가 뜨지 않습니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
@@ -76,7 +76,7 @@ MCP 도구가 없으면 스킬이 `chat-engine.md` 절차로 이 엔진을 불�
 Claude Code·Cowork에서 MCP 서버가 뜨지 않을 때(`uv`가 없을 때 등)도 같은 경로를 씁니다. 환경의 Python 3.10 이상에
 `lxml`이 있어야 하며, 새 문서 만들기는 `pydantic`·`cryptography`도 있어야 합니다. 없으면 스킬이 사용자 동의를 받은 뒤
 같은 Python에 그 패키지만 설치합니다(네트워크가 막힌 환경에서는 알리고 멈춥니다). 엔진 사본은 손으로
-고치지 않습니다. 봇이 `server/uv.lock`을 올릴 때 같은 wheel에서 다시 풀고 파일마다 해시를 `engine/VENDOR.json`에 남기므로,
+고치지 않습니다. `plugins-dist` 작업이 `server/uv.lock`을 다시 잠글 때(`scripts/refresh_claude_runtime.py`) 같은 wheel에서 다시 풀고(`scripts/vendor_claude_engine.py`) 파일마다 해시를 `engine/VENDOR.json`에 남기므로,
 MCP 서버와 채팅 경로는 항상 같은 엔진 버전으로 함께 바뀝니다.
 
 환경마다 쓰는 경로가 다릅니다.
@@ -175,8 +175,9 @@ codex plugin marketplace upgrade
 ## 관리 런타임의 갱신 시점
 
 Codex는 관리 런처를 실행합니다. Claude Code는 관리 런처 대신 `server/uv.lock`으로 잠긴 런타임을
-플러그인 폴더의 `server/.venv`에 설치합니다. 창 안의 새 엔진은 저장소의 CI 봇이 매일 확인해 전체 테스트를
-통과한 조합을 PR로 올리고, 유지보수자가 검토·승인한 것만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 됩니다.
+플러그인 폴더의 `server/.venv`에 설치합니다. 창 안의 새 엔진을 매일 찾아 올리는 봇은 없습니다. 유지보수자가 python-hwpx-automation을 배포한 뒤 `plugins-dist`
+작업을 손으로 돌려 잠금을 새 판으로 올리고 검증한 것만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 그 판을 받습니다.
+그 사이에 나온 python-hwpx 패치 판은 다음 내보내기까지 Claude Code 번들에 들어가지 않습니다.
 Codex 런처는 시작할 때 마지막 점검에서
 24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
 다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나
