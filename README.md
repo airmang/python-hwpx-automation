@@ -11,11 +11,11 @@
     <a href="https://github.com/airmang/python-hwpx-automation/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License"></a>
   </p>
   <p align="center">
-    <a href="docs/use-cases.md">사용 사례</a>
-    · <a href="docs/tool-contract.md">MCP 도구 계약</a>
-    · <a href="docs/hardening_guide_ko.md">하드닝 가이드</a>
-    · <a href="docs/compatibility-6x.md">호환 표면</a>
-    · <a href="CHANGELOG.md">변경 기록</a>
+    <a href="https://github.com/airmang/python-hwpx-automation/blob/main/docs/use-cases.md">사용 사례</a>
+    · <a href="https://github.com/airmang/python-hwpx-automation/blob/main/docs/tool-contract.md">MCP 도구 계약</a>
+    · <a href="https://github.com/airmang/python-hwpx-automation/blob/main/docs/hardening_guide_ko.md">하드닝 가이드</a>
+    · <a href="https://github.com/airmang/python-hwpx-automation/blob/main/docs/compatibility-6x.md">호환 표면</a>
+    · <a href="https://github.com/airmang/python-hwpx-automation/blob/main/CHANGELOG.md">변경 기록</a>
   </p>
 </p>
 
@@ -140,7 +140,7 @@ Cursor·Windsurf는 각 에디터의 MCP 설정 파일입니다.
 > MarkItDown 어댑터를 함께 설치합니다. 요구 사항: Python 3.10 이상, python-hwpx 7.0 이상.
 
 예전 `hwpx-mcp-server` 배포판·import·명령·설정 키도 그대로 동작합니다. 전체 목록과 유지 규칙은
-[호환 표면](docs/compatibility-6x.md)에 있습니다.
+[호환 표면](https://github.com/airmang/python-hwpx-automation/blob/main/docs/compatibility-6x.md)에 있습니다.
 
 ### 작은 로컬 모델용 프로필
 
@@ -164,7 +164,7 @@ uvx --from "python-hwpx-automation[oracle]==8.0.0" \
   hwpx render-pdf in.hwpx out.pdf --png out/page --json
 ```
 
-JSON 결과·종료 코드·플랫폼 요구 사항: [render-pdf](docs/render-pdf.md)
+JSON 결과·종료 코드·플랫폼 요구 사항: [render-pdf](https://github.com/airmang/python-hwpx-automation/blob/main/docs/render-pdf.md)
 
 ## MCP 도구
 
@@ -177,11 +177,11 @@ JSON 결과·종료 코드·플랫폼 요구 사항: [render-pdf](docs/render-pd
 - **서식·그림·생성기** — `set_paragraph_format`·`set_page_setup`, `insert_picture`, 사진대지·명패·조직도
 - **프리뷰·추출·복구·진단** — `render_preview`(HTML/PNG 자기검증), `hwpx_to_markdown`, `repair_hwpx`, `mcp_server_health`
 
-자세한 내용: [사용 사례](docs/use-cases.md) · [스킬 우선 워크플로](docs/skill-first-workflows.md)
+자세한 내용: [사용 사례](https://github.com/airmang/python-hwpx-automation/blob/main/docs/use-cases.md) · [스킬 우선 워크플로](https://github.com/airmang/python-hwpx-automation/blob/main/docs/skill-first-workflows.md)
 
 ## 안전하게 쓰는 법
 
-처음부터 모든 도구를 외울 필요는 없습니다. 기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](docs/existing-edit-navigation.md)를,
+처음부터 모든 도구를 외울 필요는 없습니다. 기존 문서 수정은 [조회·대상 확정·보존 저장·검증 안내](https://github.com/airmang/python-hwpx-automation/blob/main/docs/existing-edit-navigation.md)를,
 새 문서는 document-plan을 먼저 봅니다. 보통 이렇게 흘러갑니다.
 
 1. **읽기** — `get_document_info` → `get_document_outline`/`get_document_text` → `find_text`, `get_table_map`으로 필요한 부분만 파악합니다. (저장하지 않음)
@@ -194,8 +194,8 @@ JSON 결과·종료 코드·플랫폼 요구 사항: [render-pdf](docs/render-pd
 경로는 python-hwpx의 단일 `SavePipeline` 게이트를 통과해 무결성·XML·OPC/ID·
 열림안전을 검사하고, 게이트가 실패하면 아무것도 쓰지 않습니다. capability
 handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단합니다.
-보안 상세: [하드닝 가이드](docs/hardening_guide_ko.md) · 옛 이름과의 호환
-식별자: [호환 표면](docs/compatibility-6x.md)
+보안 상세: [하드닝 가이드](https://github.com/airmang/python-hwpx-automation/blob/main/docs/hardening_guide_ko.md) · 옛 이름과의 호환
+식별자: [호환 표면](https://github.com/airmang/python-hwpx-automation/blob/main/docs/compatibility-6x.md)
 
 > **위치 계약** — `paragraph_index`는 본문 직속 문단의 0-based 인덱스입니다. 표 안 문단은 여기 섞지 않고
 > `{"kind":"table_cell_paragraph","table_index":0,"row":0,"col":1,"cell_paragraph_index":0}` 같은 `location`
@@ -222,10 +222,10 @@ handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단�
 동일 suffix의 기존 `HWPX_MCP_*` 키는 fallback으로 유지되며, 두 키가
 함께 있으면 `HWPX_AUTOMATION_*`이 우선합니다. render·workflow·oracle·plugin
 연동용 보존 키 전체 목록과 workflow DB 경로 규칙은
-[호환 표면](docs/compatibility-6x.md)에 있습니다.
+[호환 표면](https://github.com/airmang/python-hwpx-automation/blob/main/docs/compatibility-6x.md)에 있습니다.
 
 경로는 기본적으로 workspace 밖 traversal과 symlink escape를 거부하고, URL 입력은 HTTPS·공개 IP만
-허용합니다. 원자 rename을 제공하지 않는 호스트의 동시성 주의사항은 [하드닝 가이드](docs/hardening_guide_ko.md)를 보세요.
+허용합니다. 원자 rename을 제공하지 않는 호스트의 동시성 주의사항은 [하드닝 가이드](https://github.com/airmang/python-hwpx-automation/blob/main/docs/hardening_guide_ko.md)를 보세요.
 
 ## 릴리스 상태
 
@@ -234,18 +234,18 @@ handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단�
 > 8.0.0 공개 발행과 전체 트레인의 실제 marketplace 설치를 관찰했습니다.
 > 검증·공개 트레인: `python-hwpx 7.0.0 → python-hwpx-automation 8.0.0 → hwpx-plugin 8.0.0` (`c895883d5f4350ae`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`·`currentPublic`과 같아야 합니다(`tests/test_audit_identity_docs.py`).
 > 이전 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`. 계약 변경은 `docs/tool-contract-delta-8.0.0.json`에 있습니다.
-> [발행·설치 영수증](docs/releases/2026-11-21-engine-7-automation-8.md)
+> [발행·설치 영수증](https://github.com/airmang/python-hwpx-automation/blob/main/docs/releases/2026-11-21-engine-7-automation-8.md)
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
 > Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
-> [릴리스 runbook](docs/release-runbook.md)
+> [릴리스 runbook](https://github.com/airmang/python-hwpx-automation/blob/main/docs/release-runbook.md)
 
 ## 기여하기
 
 [good first issue](https://github.com/airmang/python-hwpx-automation/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) ·
 [마일스톤](https://github.com/airmang/python-hwpx-automation/milestones) ·
 [Discussions](https://github.com/airmang/python-hwpx-automation/discussions) ·
-[CONTRIBUTING](CONTRIBUTING.md) ·
-[CHANGELOG](CHANGELOG.md)
+[CONTRIBUTING](https://github.com/airmang/python-hwpx-automation/blob/main/CONTRIBUTING.md) ·
+[CHANGELOG](https://github.com/airmang/python-hwpx-automation/blob/main/CHANGELOG.md)
 
 ```bash
 python -m pip install -e ".[test]"   # 테스트 의존성
@@ -264,4 +264,4 @@ python scripts/run_conformance.py run \
 
 ## License · Maintainer
 
-Apache-2.0 ([LICENSE](LICENSE) · [NOTICE](NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)
+Apache-2.0 ([LICENSE](https://github.com/airmang/python-hwpx-automation/blob/main/LICENSE) · [NOTICE](https://github.com/airmang/python-hwpx-automation/blob/main/NOTICE)) — **Kohkyuhyun** [@airmang](https://github.com/airmang) · [kokyuhyun@hotmail.com](mailto:kokyuhyun@hotmail.com)

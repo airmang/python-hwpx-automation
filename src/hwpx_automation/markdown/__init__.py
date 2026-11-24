@@ -23,8 +23,11 @@ layer of python-hwpx-automation.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from importlib import import_module
-from typing import TYPE_CHECKING, Any
+from os import PathLike
+from typing import TYPE_CHECKING, Any, Union
 
 if TYPE_CHECKING:
     from hwpx import HwpxDocument
@@ -76,6 +79,34 @@ def __dir__() -> list[str]:
     return sorted(set(globals()) | set(__all__))
 
 
+#: 문서 대신 받는 입력: 파일 경로나 HWPX 바이트.
+Source = Union[str, "PathLike[str]", bytes, bytearray]
+
+
+@contextmanager
+def _opened(source: Any, caller: str) -> Iterator[Any]:
+    """*source* 가 문서면 그대로, 경로·바이트면 열어서 넘기고 끝나면 닫는다."""
+
+    from hwpx import HwpxDocument
+    from hwpx.errors import HwpxTypeError
+
+    if isinstance(source, HwpxDocument):
+        yield source
+        return
+    if isinstance(source, (str, PathLike, bytes, bytearray)):
+        document = HwpxDocument.open(bytes(source) if isinstance(source, bytearray) else source)
+        try:
+            yield document
+        finally:
+            document.close()
+        return
+    raise HwpxTypeError(
+        f"{caller}()는 HwpxDocument, 파일 경로, HWPX 바이트를 받습니다. 받은 것: {type(source).__name__}",
+        context={"type": type(source).__name__},
+        suggestion=f"{caller}(HwpxDocument.open(path)) 또는 {caller}(path)로 부르세요.",
+    )
+
+
 def _option_names(function: Any) -> set[str]:
     import inspect
 
@@ -114,7 +145,7 @@ def _check_markdown_options(rich: bool, options: dict[str, object]) -> None:
         )
 
 
-def to_markdown(document: HwpxDocument, *, rich: bool = False, **options: Any) -> str:
+def to_markdown(document: HwpxDocument | Source, *, rich: bool = False, **options: Any) -> str:
     """*document* 의 본문을 Markdown 으로 내보낸다 (6.x ``doc.text.markdown(...)``).
 
     ``rich=False``(기본)는 글과 표, 문서가 정한 제목(개요 문단·``개요 N`` 스타일)을 싣는
@@ -128,26 +159,33 @@ def to_markdown(document: HwpxDocument, *, rich: bool = False, **options: Any) -
     ``colors``.
 
     고른 쪽에 없는 옵션은 ``HwpxTypeError`` 다(어느 쪽 옵션인지 알려 준다).
+
+    *document* 는 열린 문서 말고 파일 경로(``str``·``Path``)나 HWPX 바이트도 받는다
+    (6.x ``hwpx.tools.exporter.export_markdown(bytes)``·``markdown_export.export_markdown(path)``
+    처럼). 그때는 여기서 열고 다 쓴 뒤 닫는다.
     """
 
     _check_markdown_options(rich, options)
-    if rich:
-        from ._export import export_markdown as rich_markdown
+    with _opened(document, "to_markdown") as opened:
+        if rich:
+            from ._export import export_markdown as rich_markdown
 
-        return rich_markdown(document, **options)
-    from ._plain_export import export_markdown
+            return rich_markdown(opened, **options)
+        from ._plain_export import export_markdown
 
-    return export_markdown(document, **options)
+        return export_markdown(opened, **options)
 
 
-def to_html(document: HwpxDocument, **options: Any) -> str:
+def to_html(document: HwpxDocument | Source, **options: Any) -> str:
     """*document* 의 본문을 HTML 로 내보낸다 (6.x ``doc.text.html(...)``).
 
     옵션: ``include_tables``, ``full_document``, ``title``, ``tab_token``,
     ``masking_policy``, ``list_labels``, ``notes``, ``headings``, ``nested_tables``.
+    *document* 는 :func:`to_markdown` 처럼 파일 경로나 HWPX 바이트도 받는다.
     """
 
     from ._plain_export import export_html
 
-    return export_html(document, **options)
+    with _opened(document, "to_html") as opened:
+        return export_html(opened, **options)
 
