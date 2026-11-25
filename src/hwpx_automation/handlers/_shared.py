@@ -29,7 +29,7 @@ from ..quality_generation import (
 )
 from ..storage import (
     build_hwpx_verification_report,
-    refuse_hwp_source_overwrite,
+    refuse_existing_hwp_overwrite,
 )
 from ..utils.helpers import resolve_path
 from ..workflow.render_queue import DurableRenderQueue
@@ -150,7 +150,7 @@ def _save_doc_verification(
 ) -> dict[str, Any]:
     target = Path(path)
     # Before the backup: a refused save leaves no .bak beside the original.
-    refuse_hwp_source_overwrite(doc, target)
+    refuse_existing_hwp_overwrite(target)
     backup = rotate_and_backup(target)
     verification = save_doc(doc, path, quality=quality)
     if not isinstance(verification, dict):

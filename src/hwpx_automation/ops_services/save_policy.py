@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from .. import quality as quality_contract
 from ..storage import LocalDocumentStorage, build_hwpx_verification_report
-from ..storage import refuse_hwp_source_overwrite
+from ..storage import refuse_existing_hwp_overwrite
 from ..errors import CORE_SAVE_REFUSALS, HwpDocumentError
 from ..workspace import (
     WorkspaceMissingParentGuard,
@@ -124,7 +124,7 @@ class SavePolicy:
         self, document: HwpxDocument, target: Path, *, quality: Any = None
     ) -> Dict[str, Any]:
         try:  # before the backup: a refused save leaves no .bak beside the original
-            refuse_hwp_source_overwrite(document, target)
+            refuse_existing_hwp_overwrite(target)
         except HwpDocumentError as exc:
             raise self._context._new_error(exc.code, exc.message, details=exc.details) from exc
         backup = rotate_and_backup(target)

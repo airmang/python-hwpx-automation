@@ -5,12 +5,13 @@
 ### Fixed
 
 - `.hwp`에서 연 문서를 편집 도구가 원본 `.hwp` 경로에 다시 만든 `.hwp`로 덮어쓰던 것을 고칩니다(8.0.0에서 `search_and_replace` 등이
-  원본을 바꾸고 `.bak`을 남겼습니다). 이미 있는 `.hwp` 경로에 쓰려 하면 `HWP_SOURCE_OVERWRITE`로 거부하고, `copy_document`로
-  `.hwpx` 사본을 만들어 고치도록 안내합니다. 미리 실행(`dry_run`)도 같게 거부하며, 거부하면 `.bak`도 남기지 않습니다.
-  python-hwpx가 거부한 `.hwp` 쓰기(`hwp5-write-lossy-source`, `hwp5-overwrite-source`)는 "읽을 수 없습니다"가 아니라
-  `HWP_WRITE_LOSSY_SOURCE`·`HWP_SOURCE_OVERWRITE`로 알립니다. `HWPX_PACKAGE_REQUIRED`·`READ_ONLY_HWP_DOCUMENT` 안내에서
-  `.hwp`를 그대로 편집한다는 문장을 빼고 ".hwp는 읽기만"에 맞췄습니다. `.hwp` 읽기, `.hwp`→`.hwpx` 복사,
-  `.hwpx`→새 `.hwp` 복사는 그대로입니다.
+  원본을 바꾸고 `.bak`을 남겼습니다). 이제 이미 있는 `.hwp` 파일은 어떤 문서로도 덮어쓰지 않습니다. 제자리 편집,
+  `copy_document(고친.hwpx, 원본.hwp)`, `.hwp`→이미 있는 `.hwp` 복사를 모두 `HWP_OVERWRITE_EXISTING`으로 거부하고, 새 `.hwp`
+  이름으로 쓰거나 `.hwpx`로 저장하라고(원본을 고치려면 `copy_document`로 `.hwpx` 사본을 만들라고) 안내합니다. 미리 실행(`dry_run`)도
+  같게 거부하며, 거부하면 `.bak`도 남기지 않습니다. 새 `.hwp` 파일로 쓰는 것(실험 기능)은 그대로입니다. python-hwpx가 거부한
+  `.hwp` 쓰기(`hwp5-write-lossy-source`, `hwp5-overwrite-source`)는 "읽을 수 없습니다"가 아니라 `HWP_WRITE_LOSSY_SOURCE`·
+  `HWP_OVERWRITE_EXISTING`으로 알립니다. `HWPX_PACKAGE_REQUIRED`·`READ_ONLY_HWP_DOCUMENT` 안내에서 `.hwp`를 그대로 편집한다는
+  문장을 빼고 ".hwp는 읽기만"에 맞췄습니다.
 
 ## [8.0.0] - 2026-11-21
 

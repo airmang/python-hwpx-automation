@@ -3,8 +3,8 @@
 
 The fixture is a file Hancom Office saved (see ``fixtures/hwp5/NOTICE.md``).
 ``.hwp`` is an input format: an ``.hwp`` is read, and edited through an ``.hwpx``
-copy. An edit is never saved back over the ``.hwp`` it was opened from
-(``HWP_SOURCE_OVERWRITE``); the output path's extension picks the format otherwise.
+copy. An ``.hwp`` already on disk is never written over, whatever document is
+written there (``HWP_OVERWRITE_EXISTING``); a new path's extension picks the format.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from hwpx_automation import server
+from hwpx_automation.core.transactions import save_dry_run
 from hwpx_automation.errors import HwpDocumentError, hwp5_error_payload
 from hwpx_automation.handlers import content_edit
 from hwpx_automation.hwpx_ops import HwpxOperationError, HwpxOps
@@ -99,7 +100,7 @@ def test_an_edit_tool_does_not_overwrite_the_hwp_it_opened(tmp_path: Path) -> No
         lambda: server.search_and_replace(str(source), "ALPHA", "GAMMA"),
     ):
         refused = _refusal(edit)
-        assert refused["code"] == "HWP_SOURCE_OVERWRITE"
+        assert refused["code"] == "HWP_OVERWRITE_EXISTING"
         assert "copy_document" in refused["suggestion"]
         assert ".hwpx" in refused["suggestion"]
         assert refused["details"]["hwpxCopy"].endswith("probe.hwpx")
@@ -115,7 +116,7 @@ def test_an_hwp_original_is_edited_through_an_hwpx_copy(hwp_path: Path, tmp_path
         lambda: server.search_and_replace(str(hwp_path), "ABC", "XYZ"),
         lambda: server.set_table_cell_text(str(hwp_path), 0, 0, 0, "채움"),
     ):
-        assert _refusal(edit)["code"] == "HWP_SOURCE_OVERWRITE"
+        assert _refusal(edit)["code"] == "HWP_OVERWRITE_EXISTING"
     assert hwp_path.read_bytes() == before
 
     copy = tmp_path / "form.hwpx"
@@ -133,7 +134,7 @@ def test_an_hwp_original_is_edited_through_an_hwpx_copy(hwp_path: Path, tmp_path
 
 
 @native
-def test_storage_save_refuses_the_hwp_source_in_place_but_not_a_new_hwp(tmp_path: Path) -> None:
+def test_storage_save_refuses_an_existing_hwp_but_not_a_new_hwp(tmp_path: Path) -> None:
     source = _synthetic_hwp(tmp_path / "probe.hwp")
     before = source.read_bytes()
     storage = storage_module.LocalDocumentStorage(base_directory=tmp_path, auto_backup=True)
@@ -141,11 +142,11 @@ def test_storage_save_refuses_the_hwp_source_in_place_but_not_a_new_hwp(tmp_path
     try:
         with pytest.raises(HwpDocumentError) as refused:
             storage.save_document(document, resolved)
-        assert refused.value.code == "HWP_SOURCE_OVERWRITE"
+        assert refused.value.code == "HWP_OVERWRITE_EXISTING"
         assert source.read_bytes() == before
         assert not source.with_suffix(".hwp.bak").exists()
 
-        # A new .hwp path is not the original (python-hwpx's own rule, too).
+        # A new .hwp path is written (experimental).
         written = tmp_path / "other.hwp"
         report = storage.save_document(document, written)
         assert report["format"] == "hwp"
@@ -155,6 +156,47 @@ def test_storage_save_refuses_the_hwp_source_in_place_but_not_a_new_hwp(tmp_path
             storage.save_document(document, written)
     finally:
         document.close()
+
+
+@native
+def test_an_hwpx_is_not_written_over_an_existing_hwp(tmp_path: Path) -> None:
+    # Owner decision 2026-11-25: no .hwp already on disk is overwritten, whatever is written.
+    original = _synthetic_hwp(tmp_path / "probe.hwp")
+    before = original.read_bytes()
+    edited = tmp_path / "edited.hwpx"
+    server.copy_document(str(original), str(edited))
+    server.search_and_replace(str(edited), "ALPHA", "GAMMA")
+    other = _synthetic_hwp(tmp_path / "other.hwp")
+
+    for copy in (
+        lambda: server.copy_document(str(edited), str(original)),  # the old route back
+        lambda: server.copy_document(str(other), str(original)),  # .hwp to .hwp byte copy
+    ):
+        refused = _refusal(copy)
+        assert refused["code"] == "HWP_OVERWRITE_EXISTING"
+        assert ".hwpx" in refused["suggestion"] and "새 .hwp" in refused["suggestion"]
+    assert original.read_bytes() == before
+
+    storage = storage_module.LocalDocumentStorage(base_directory=tmp_path, auto_backup=True)
+    document, _ = storage.open_document(str(edited))
+    try:
+        assert document.conversion_report is None  # opened from .hwpx
+        with pytest.raises(HwpDocumentError) as refused_save:
+            storage.save_document(document, original)
+        assert refused_save.value.code == "HWP_OVERWRITE_EXISTING"
+        with pytest.raises(HwpDocumentError) as refused_dry:
+            save_dry_run(document, original)
+        assert refused_dry.value.code == "HWP_OVERWRITE_EXISTING"
+        assert save_dry_run(document, tmp_path / "new.hwp")["wouldSave"] is True
+    finally:
+        document.close()
+    assert original.read_bytes() == before
+    assert not list(tmp_path.glob("*.hwp.bak"))
+
+    new = tmp_path / "new.hwp"  # a new .hwp path stays allowed
+    server.copy_document(str(edited), str(new))
+    assert new.read_bytes()[:8] == OLE2_MAGIC
+    assert any("GAMMA" in text for text in _reopen_texts(new))
 
 
 @native
@@ -174,7 +216,7 @@ def test_core_hwp_write_refusals_are_named(tmp_path: Path) -> None:
     assert ".hwpx" in lossy["suggestion"]
 
     overwrite = hwp5_error_payload(Hwp5Error("same", code="hwp5-overwrite-source"))
-    assert overwrite is not None and overwrite["code"] == "HWP_SOURCE_OVERWRITE"
+    assert overwrite is not None and overwrite["code"] == "HWP_OVERWRITE_EXISTING"
     assert "copy_document" in overwrite["suggestion"]
 
     # Through a tool: a document whose .hwp opened with content left out is not written
@@ -221,8 +263,8 @@ def test_operations_service_reads_and_edits_hwp(hwp_path: Path) -> None:
     before = hwp_path.read_bytes()
     with pytest.raises(HwpxOperationError) as refused:
         ops.replace_text_in_runs(hwp_path.name, "ABC", "XYZ")
-    assert refused.value.code == "HWP_SOURCE_OVERWRITE"
-    assert _classified_error_payload(refused.value)["code"] == "HWP_SOURCE_OVERWRITE"
+    assert refused.value.code == "HWP_OVERWRITE_EXISTING"
+    assert _classified_error_payload(refused.value)["code"] == "HWP_OVERWRITE_EXISTING"
     assert hwp_path.read_bytes() == before
     assert ops.find(hwp_path.name, "ABC")["matches"]
 

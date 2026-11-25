@@ -179,5 +179,5 @@ def test_http_storage_does_not_write_an_opened_hwp_back_as_hwp(tmp_path: Path) -
     with pytest.raises(HwpDocumentError) as refused:
         storage.save_document(document, resolved)
 
-    assert refused.value.code == "HWP_SOURCE_OVERWRITE"
+    assert refused.value.code == "HWP_OVERWRITE_EXISTING"
     assert client.upload_calls == []

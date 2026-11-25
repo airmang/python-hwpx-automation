@@ -85,7 +85,7 @@ DEFAULT_ERROR_SUGGESTIONS: dict[str, str] = {
     "HWP_DOCUMENT_UNREADABLE": "한/글에서 문서를 열어 다시 저장한 뒤 사용하세요. details.hwp5Code가 원인입니다.",
     "HWP_ENCRYPTED_DOCUMENT": "한/글에서 문서 암호·배포용 보호를 풀고 다시 저장한 뒤 사용하세요. DRM 문서는 열 수 없습니다.",
     "HWP_WRITE_UNSUPPORTED": "HWP 5.0으로 쓸 수 없는 내용이 있습니다. 출력 경로를 .hwpx로 지정해 저장하세요.",
-    "HWP_SOURCE_OVERWRITE": ".hwp는 읽기만 합니다. copy_document로 원본을 .hwpx 경로(예: 같은 이름의 .hwpx, details.hwpxCopy)에 복사하고 그 사본을 고치세요. 원본 .hwp는 그대로 둡니다. .hwp 파일이 꼭 필요하면 고친 .hwpx를 한/글에서 열어 .hwp로 저장하세요.",
+    "HWP_OVERWRITE_EXISTING": "이미 있는 .hwp 파일은 덮어쓰지 않습니다. 새 .hwp 파일 이름으로 쓰거나(실험 기능) .hwpx로 저장하세요. 원본 .hwp를 고치려면 copy_document로 .hwpx 사본(예: 같은 이름의 .hwpx, details.hwpxCopy)을 만들어 그 사본을 고치세요. .hwp는 읽기만 합니다.",
     "HWP_WRITE_LOSSY_SOURCE": "출력 경로를 .hwpx로 지정해 저장하세요. 원본 .hwp에서 옮기지 못한 내용(details.hwpConversion)은 원본에만 남아 있으니 한/글에서 원본과 비교해 확인하세요.",
     "READ_ONLY_HWP_DOCUMENT": "python-hwpx 6.6.0 이상을 설치하면 .hwp 문서를 열어 읽고, .hwpx 사본으로 고칠 수 있습니다.",
     "RENDER_PREVIEW_INVALID_MODE": "mode는 'pages' 또는 'long'으로 지정한 뒤 다시 실행하세요.",
@@ -258,8 +258,8 @@ def hwp5_error_payload(exc: BaseException) -> Optional[Dict[str, Any]]:
         )
     if hwp5_code == "hwp5-overwrite-source":
         return build_error_payload(
-            code="HWP_SOURCE_OVERWRITE",
-            message=".hwp 문서를 제자리에서 고쳐 .hwp로 덮어쓰지 않습니다. 원본 .hwp는 바뀌지 않았습니다.",
+            code="HWP_OVERWRITE_EXISTING",
+            message="이미 있는 .hwp 파일은 덮어쓰지 않습니다. 그 파일은 바뀌지 않았습니다.",
             details=details,
         )
     if hwp5_code == "hwp5-write-unsupported":

@@ -263,7 +263,7 @@ class LocalDocumentStorage:
         quality_contract.assert_write_capability()
         if is_hwp5_target(target):
             require_native_hwp5()
-            refuse_hwp_source_overwrite(document, target)
+            refuse_existing_hwp_overwrite(target)
         guard = self.capture_output_guard(target)
         self.maybe_backup(target)
         pre_save_snapshot = build_hwpx_presave_snapshot(target)
@@ -339,31 +339,32 @@ def require_native_hwp5() -> None:
         )
 
 
-def refuse_hwp_source_overwrite(
-    document: HwpxDocument, target: Path | str, *, target_exists: bool | None = None
+def refuse_existing_hwp_overwrite(
+    target: Path | str, *, target_exists: bool | None = None
 ) -> None:
-    """Refuse writing ``.hwp`` over an existing file from a document opened from ``.hwp``.
+    """Refuse writing ``.hwp`` over a file that is already there.
 
     ``.hwp`` is an input format here: it is read into the HWPX document model and
     edited through an ``.hwpx`` copy. The HWP 5.0 writer rebuilds a file from that
-    model, so saving an edited ``.hwp`` back over itself (or over another ``.hwp``
-    already on disk) would replace a file Hancom Office saved with a rebuilt one.
-    Core refuses ``doc.save(<source>.hwp)`` (``hwp5-overwrite-source``); the save
-    paths here serialize with ``to_bytes(format="hwp")``, which has no path to
-    compare, so they ask this first. A dry run asks it too. A new ``.hwp`` path,
-    and ``.hwp`` written from an ``.hwpx`` document, are not refused here.
+    model, so writing ``.hwp`` over an ``.hwp`` already on disk would replace a file
+    Hancom Office saved with a rebuilt one, whichever document is written: one
+    opened from that ``.hwp`` (edit in place) or an ``.hwpx`` copied back over it.
+    Core refuses only ``doc.save(<source>.hwp)`` (``hwp5-overwrite-source``); the
+    save paths here serialize with ``to_bytes(format="hwp")``, which has no path, so
+    they ask this first, before any backup. A dry run asks it too. Writing a new
+    ``.hwp`` path (experimental) is not refused.
 
     *target_exists* is for storages whose target is not a local path.
     """
 
-    if not is_hwp5_target(target) or hwp5_conversion_report(document) is None:
+    if not is_hwp5_target(target):
         return
-    exists = Path(target).exists() if target_exists is None else target_exists
+    exists = os.path.lexists(target) if target_exists is None else target_exists
     if not exists:
         return
     raise HwpDocumentError(
-        ".hwp 문서를 제자리에서 고쳐 .hwp로 덮어쓰지 않습니다. 원본 .hwp는 바뀌지 않았습니다.",
-        code="HWP_SOURCE_OVERWRITE",
+        "이미 있는 .hwp 파일은 덮어쓰지 않습니다. 그 파일은 바뀌지 않았습니다.",
+        code="HWP_OVERWRITE_EXISTING",
         details={
             "path": str(target),
             "hwpxCopy": str(Path(target).with_suffix(".hwpx")),
@@ -575,9 +576,7 @@ class HttpDocumentStorage:
             self._cache[remote_key] = cache_path
         if is_hwp5_target(target):
             # The remote file is known to exist when it was opened (cached) here.
-            refuse_hwp_source_overwrite(
-                document, target, target_exists=cache_path.exists()
-            )
+            refuse_existing_hwp_overwrite(target, target_exists=cache_path.exists())
 
         pre_save_snapshot = build_hwpx_presave_snapshot(cache_path if cache_path.exists() else None)
         tmp_fd, tmp_path_str = tempfile.mkstemp(
