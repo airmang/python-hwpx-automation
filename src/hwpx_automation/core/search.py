@@ -153,24 +153,11 @@ def replace_in_doc(doc: Any, find_text: str, replace_text: str) -> int:
 
     count = 0
     try:
-        for para in doc.paragraphs:
-            count += _replace_in_one_paragraph(doc, para, find_text, replace_text)
-
-        for para in doc.paragraphs:
-            for table in getattr(para, "tables", []):
-                for row in table.rows:
-                    for cell in row.cells:
-                        cell_paragraphs = list(getattr(cell, "paragraphs", []))
-                        if cell_paragraphs:
-                            for cell_para in cell_paragraphs:
-                                count += _replace_in_one_paragraph(doc, cell_para, find_text, replace_text)
-                            continue
-
-                        text = cell.text or ""
-                        if find_text in text:
-                            replaced = text.count(find_text)
-                            cell.text = text.replace(find_text, replace_text)
-                            count += replaced
+        # Visit exactly the paragraphs find_in_doc searches: the body paragraphs, then the
+        # paragraphs of every table cell, tables inside cells included, each one once.
+        # The places are listed first so a replacement cannot change what is visited.
+        for resolved in list(iter_paragraph_locations(doc)):
+            count += _replace_in_one_paragraph(doc, resolved.paragraph, find_text, replace_text)
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"텍스트 치환 중 오류: {e}") from e
     return count
