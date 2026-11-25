@@ -12,6 +12,20 @@
   `.hwp` 쓰기(`hwp5-write-lossy-source`, `hwp5-overwrite-source`)는 "읽을 수 없습니다"가 아니라 `HWP_WRITE_LOSSY_SOURCE`·
   `HWP_OVERWRITE_EXISTING`으로 알립니다. `HWPX_PACKAGE_REQUIRED`·`READ_ONLY_HWP_DOCUMENT` 안내에서 `.hwp`를 그대로 편집한다는
   문장을 빼고 ".hwp는 읽기만"에 맞췄습니다.
+- `hwpx_automation.markdown.to_markdown`·`to_html`이 열린 문서 말고 파일 경로(`str`·`Path`)와 HWPX 바이트도 받는다.
+  6.x `hwpx.tools.exporter.export_markdown(bytes)`·`markdown_export.export_markdown(path)`가 받던 입력인데 8.0.0은
+  문서만 받아, 같은 인자로 옮긴 코드가 `AttributeError: 'str' object has no attribute 'oxml'`을 만나고 표 없는 대체 경로로
+  넘어갔다(python-hwpx#821). 경로·바이트는 여기서 열고 다 쓴 뒤 닫는다. 그 밖의 값은 무엇을 받는지 알려 주는
+  `HwpxTypeError`다.
+- PyPI 패키지 설명(README)의 저장소 문서 링크가 PyPI 아래 상대 경로로 풀려 404가 나던 것을 GitHub 절대 주소로 바꿨다
+  (#232). 시험이 상대 링크가 다시 들어오지 않게 지킨다.
+
+### Docs
+
+- 호환 배포 `hwpx-mcp-server`의 README가 8.x 실제 모습(같은 판 번호로 `python-hwpx-automation[mcp]`를 정확히 요구,
+  남은 것은 옛 콘솔 명령과 `import hwpx_mcp_server` 두 가지)을 적고, 정하지 않은 제거 시점을 약속하지 않는다(#234).
+- `plugins-src/README.md`가 없어진 매일 갱신 봇 대신 실제 경로(배포 뒤 손으로 돌리는 `plugins-dist` 작업)를 적는다
+  (airmang/hwpx-plugins#66).
 
 ## [8.0.0] - 2026-11-21
 
