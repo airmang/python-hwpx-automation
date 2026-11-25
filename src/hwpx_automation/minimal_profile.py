@@ -78,7 +78,7 @@ def build_minimal_server(package_version: str) -> FastMCP:
     ) -> dict[str, Any]:
         return compact.read_outline(path, max_chars=max_chars, after=after)
 
-    @server.tool(description="Replace paragraph text by id ({id: new text}); formatting kept. Saves to output (default <name>.edited.hwpx). overflow lists cells the new text may not fit.")
+    @server.tool(description="Replace paragraph text by id ({id: new text}). Saves to output (default <name>.edited.hwpx). Formatting kept except ids in rewritten. overflow: cells the text may not fit.")
     def apply_text_changes(path: str, changes: dict[str, str], output: str | None = None) -> dict[str, Any]:
         return compact.apply_text_changes(path, changes, output=output)
 

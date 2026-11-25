@@ -147,7 +147,8 @@ Cursor·Windsurf는 각 에디터의 MCP 설정 파일입니다.
 Ollama·Open WebUI의 27B급 모델처럼 도구가 많으면 길을 잃는 환경에서는
 `hwpx-automation-mcp --profile minimal`(또는 `HWPX_AUTOMATION_PROFILE=minimal`)로
 굵은 도구 여섯 개만 띄웁니다: `read_outline`(id 붙은 짧은 목록) →
-`apply_text_changes`(`{id: 새 글}`, 서식 유지·칸 넘침 알림), `replace_text`,
+`apply_text_changes`(`{id: 새 글}`, 서식 유지 — 서식이 섞인 곳을 가로질러 첫 서식으로 다시 쓴 id는
+`rewritten`, 칸 넘침은 `overflow`, 볼 것이 있으면 `reviewRequired`), `replace_text`,
 `stage_text` → `create_from_markdown`, `validate_document`. 긴 본문은 도구 인수에
 한 번에 싣지 않고 `stage_text`로 1,000자 안팎씩 나눠 보낸 뒤 `draft_id`로 넘깁니다.
 `create_from_markdown`의 `byline`(200자까지)은 제목 아래 오른쪽에 쓰는 부서·날짜 줄입니다.

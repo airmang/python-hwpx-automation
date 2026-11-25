@@ -195,7 +195,22 @@ def read_outline(path: str, *, max_chars: int = 6000, after: str | None = None) 
 
 
 def apply_text_changes(path: str, changes: Mapping[str, str], *, output: str | None = None) -> dict[str, Any]:
-    """Replace each ``{id: text}`` and save to *output* (default ``<name>.edited.hwpx``)."""
+    """Replace each ``{id: text}`` and save to *output* (default ``<name>.edited.hwpx``).
+
+    The result keeps three questions apart:
+
+    * ``saved`` - whether *output* was written (only when some id changed). The
+      known ids are applied even when others are unknown, so ``ok`` false with
+      ``saved`` true is a partial edit that is already on disk.
+    * ``ok`` - every id was known and the saved file is open-safe. It is not a
+      quality verdict: a cell estimated to overflow does not make it false.
+    * ``reviewRequired`` - a person should look at the result: some id was
+      ``rewritten`` (the edit crossed differently formatted runs or added a tab or
+      line break, so the paragraph took its first run's formatting), some cell is
+      in ``overflow`` (an estimate; ``linesBefore`` and the measurer's
+      ``confidence`` come with it), or ``warnings`` says a cell's fit could not be
+      measured at all, which is not the same as "it fits".
+    """
 
     if not isinstance(changes, Mapping) or not all(isinstance(key, str) for key in changes):
         return _failure("CHANGES_INVALID", "changes must be an object of {id: new text}")
@@ -212,16 +227,30 @@ def apply_text_changes(path: str, changes: Mapping[str, str], *, output: str | N
         open_safe = _save(doc, target) if report.changed else None
     finally:
         doc.close()
+    rewritten = list(report.rewritten)
+    warnings = [str(warning) for warning in report.warnings]
+    overflow = [
+        {
+            "id": entry["id"],
+            "where": entry["where"],
+            "lines": entry["lines"],
+            "lineBudget": entry["lineBudget"],
+            "linesBefore": entry.get("linesBefore"),
+            "confidence": entry.get("confidence"),
+        }
+        for entry in report.overflow
+    ]
     return {
         "ok": not report.unknown_ids and open_safe is not False,
+        "saved": bool(report.changed),
         "output": str(target) if report.changed else None,
         "changed": len(report.changed),
         "unchanged": len(report.unchanged),
         "unknownIds": list(report.unknown_ids),
-        "overflow": [
-            {"id": entry["id"], "where": entry["where"], "lines": entry["lines"], "lineBudget": entry["lineBudget"]}
-            for entry in report.overflow
-        ],
+        "rewritten": rewritten,
+        "overflow": overflow,
+        "warnings": warnings,
+        "reviewRequired": bool(rewritten or overflow or warnings),
         "openSafe": open_safe,
     }
 
