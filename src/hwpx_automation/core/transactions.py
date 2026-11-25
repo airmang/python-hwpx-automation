@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from .. import quality as quality_contract
 from ..storage import (
     build_hwpx_verification_report,
+    refuse_existing_hwp_overwrite,
     require_hwpx_editor_open_safe,
     require_native_hwp5,
 )
@@ -348,6 +349,8 @@ def save_dry_run(
     hwp_target = is_hwp5_target(target_path)
     if hwp_target:
         require_native_hwp5()
+        # A dry run refuses what the real save would refuse.
+        refuse_existing_hwp_overwrite(target_path)
     # The gate checks HWPX parts, so an .hwp target is staged as HWPX.
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{target_path.stem}.dry-run.",
@@ -375,7 +378,7 @@ def save_dry_run(
                 + verification["openSafety"]["summary"]
             )
         if hwp_target:
-            # Raises Hwp5Error (hwp5-write-unsupported) as the real save would.
+            # Raises Hwp5Error (hwp5-write-unsupported, hwp5-write-lossy-source) as the real save would.
             hwp5_document_bytes(document)
             verification["format"] = "hwp"
         diff = semantic_diff(target_path, tmp_path) if target_path.exists() else None

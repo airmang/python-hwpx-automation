@@ -12,7 +12,11 @@ from typing import Any
 
 from .. import forms
 from ..compat import patch_python_hwpx
-from ..storage import build_hwpx_open_safety_report, open_local_document
+from ..storage import (
+    build_hwpx_open_safety_report,
+    open_local_document,
+    refuse_existing_hwp_overwrite,
+)
 from ..upstream import (
     HwpxDocument,
     border_width_mm,
@@ -661,6 +665,8 @@ def copy_document_file(source: str, destination: str = None) -> str:
         destination = f"{stem}_copy.{ext}"
     source_path = Path(source)
     destination_path = Path(destination)
+    # An .hwp already there is not replaced, by a rebuilt .hwp or by a byte copy.
+    refuse_existing_hwp_overwrite(destination_path)
     if is_hwp5_source(source_path) != is_hwp5_target(destination_path):
         # The destination extension picks the format, so a copy between .hwp
         # and .hwpx is written through the document model, not byte-copied.
