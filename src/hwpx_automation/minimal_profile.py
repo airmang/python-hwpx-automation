@@ -3,9 +3,11 @@
 
 ``hwpx-automation-mcp --profile minimal`` (or ``HWPX_AUTOMATION_PROFILE=minimal``)
 serves these instead of the canonical tool contract. Descriptions are short,
-results are compact JSON, no result carries the document body, and no tool
+results are compact JSON, no edit result carries the document body, and no tool
 needs a long argument: a long Markdown body is staged in chunks with
 ``stage_text`` and handed to ``create_from_markdown`` by its draft id.
+``read_outline`` does carry text: the first 200 characters of each paragraph
+and table cell, unmasked, so a short document comes back whole.
 
 This profile is a separate surface with its own frozen contract
 (:data:`MINIMAL_TOOL_NAMES`); it does not change the canonical tool contract

@@ -3,7 +3,7 @@
 **언제:** 문서를 **읽어서** 인라인 글자 서식(굵게·기울임·밑줄·취소선·색·크기·글꼴)과 **각주/미주 본문**까지 손실 없이 되살릴 때. 원문 인용·재작업·라운드트립 검증에서 서식/각주가 누락되면 안 될 때.
 
 **핵심:** 이전엔 모든 읽기 표면이 각주 본문을 드롭했고 크기·글꼴은 노출되지 않았다. 이제:
-- `hwpx_extract_json` 은 항상 `doc.notes[]` 를 방출 — 각주/미주의 `kind`·`instId`·`anchorParaIndex`·`bodyText`·`bodySpans`(본문 서식). PII 마스킹 기본 ON.
+- `hwpx_extract_json` 은 항상 `doc.notes[]` 를 방출 — 각주/미주의 `kind`·`instId`·`anchorParaIndex`·`bodyText`·`bodySpans`(본문 서식). 이 도구의 가림은 기본 ON(`mask=true`)이고, 런 글(`format.runs[].text`·`bodySpans[].text`)은 문단 글을 기준으로 가린다 — 가린 값은 그 값이 시작한 런에 실리고 이어지는 런에서는 그 부분이 빠진다. 가리는 도구와 원문을 주는 도구는 [workflows-pii](workflows-pii.md).
 - `hwpx_extract_json(format_detail=True)` 런 상세에 **명명 필드** `bold`·`italic`·`underline`·`strikeout`·`color`·`fontSize`·`fontName`·`superscript`·`subscript`. (`strikeout` 은 실제 취소선일 때만 true — 상시-true 버그 수정됨.)
 - `hwpx_to_markdown` 은 각주/미주 정의 부록(`[^fn1]: 본문`, `[^en1]: 본문`)을 본문 뒤에 덧붙인다.
 - `document_to_markdown(filename)` 은 로컬 파일 ingest 경로다. HWPX는 `python-hwpx` 엔진으로 처리하고,
