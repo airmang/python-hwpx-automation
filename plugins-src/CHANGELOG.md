@@ -9,6 +9,7 @@
   원문을 줍니다. `scan_personal_info`가 검사하는 자리와 검사하지 않는 자리(`scanned`·`notScanned`), 탐지하는 표기와 못 잡는
   표기(공백·점으로 나눈 번호, 유선 번호, 외국인등록번호, 이름표와 값이 다른 칸에 있는 표 양식), 서버에 로그 가림 장치가
   걸려 있지 않다는 것을 적습니다.
+
 - Claude Code 번들의 잠긴 런타임이 `python-hwpx-automation[mcp,preview]`를 설치합니다. python-hwpx 7.0에서 미리보기가
   python-hwpx-automation으로 옮겨져 core의 `preview` extra는 비었는데 번들은 그것만 고정해 `latex2mathml`이 없었고,
   `render_preview`의 수식이 늘 LaTeX 코드 블록으로 보였습니다. `server/uv.lock`에 `latex2mathml`을 해시와 함께 잠그고
