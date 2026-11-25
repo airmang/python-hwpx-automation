@@ -18,7 +18,7 @@ from ..core.content import (
     insert_paragraph_to_doc,
     set_cell_text,
 )
-from ..storage import LocalDocumentStorage, build_hwpx_verification_report
+from ..storage import LocalDocumentStorage, build_hwpx_verification_report, open_safety_admits_editing
 from ..workspace import (
     WorkspaceOutputGuard,
 )
@@ -278,12 +278,12 @@ class TransactionService:
             backup_before,
             file_path=backup_path,
         )
-        if not target_report["openSafety"]["ok"]:
+        if not open_safety_admits_editing(target_report["openSafety"]):
             raise self._context._new_error(
                 "UNDO_TARGET_OPEN_SAFETY_FAILED",
                 "current document failed open-safety verification",
             )
-        if not backup_report["openSafety"]["ok"]:
+        if not open_safety_admits_editing(backup_report["openSafety"]):
             raise self._context._new_error(
                 "UNDO_BACKUP_OPEN_SAFETY_FAILED",
                 "backup document failed open-safety verification",
@@ -326,7 +326,7 @@ class TransactionService:
                 backup_before,
                 file_path=resolved,
             )
-            if not verification["openSafety"]["ok"]:
+            if not open_safety_admits_editing(verification["openSafety"]):
                 raise RuntimeError("undo HWPX failed open-safety verification")
             diff = self._save._semantic_diff_bytes(target_before, backup_before)
             # Evidence was computed from immutable bytes; bind the success
