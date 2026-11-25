@@ -129,6 +129,7 @@ def fix_namespaces(
     """
 
     final_hwpx = os.path.abspath(out_hwpx)
+    refuse_existing_hwp_output(final_hwpx)
     temp_dir = os.path.dirname(final_hwpx) or os.getcwd()
     temp_hwpx = _make_temp_hwpx_path(temp_dir, "hwpx-ns-")
     try:
@@ -200,6 +201,19 @@ def validate_open_safety(hwpx_path: str) -> None:
         )
 
 
+def refuse_existing_hwp_output(path: str | os.PathLike[str]) -> None:
+    """Refuse an output naming an ``.hwp`` that is already there.
+
+    These scripts write an HWPX package. Written over an ``.hwp`` it would replace a file
+    Hancom Office saved with ZIP bytes under an ``.hwp`` name.
+    """
+
+    if str(path).lower().endswith(".hwp") and os.path.lexists(path):
+        raise FileExistsError(
+            f"이미 있는 .hwp 파일은 덮어쓰지 않습니다: {path} (.hwpx 이름으로 저장하세요)"
+        )
+
+
 def _make_temp_hwpx_path(directory: str, prefix: str) -> str:
     os.makedirs(directory, exist_ok=True)
     fd, temp_path = tempfile.mkstemp(prefix=prefix, suffix=".hwpx", dir=directory)
@@ -249,6 +263,11 @@ def main(argv: list[str]) -> int:
         return 3
 
     final_hwpx = in_hwpx if args.inplace else os.path.abspath(args.out or (in_hwpx + ".fixed.hwpx"))
+    try:
+        refuse_existing_hwp_output(final_hwpx)
+    except FileExistsError as exc:
+        print(f"[ERR] {exc}", file=sys.stderr)
+        return 2
     temp_dir = os.path.dirname(final_hwpx) or os.getcwd()
     out_hwpx = _make_temp_hwpx_path(temp_dir, "hwpx-ns-")
 

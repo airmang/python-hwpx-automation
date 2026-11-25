@@ -8,13 +8,15 @@ import hashlib
 import json
 import os
 import secrets
+import shutil
 import stat
 import sys
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path, PurePath, PureWindowsPath
-from typing import Iterable
+from typing import Any, Iterable, Iterator
 from urllib.parse import unquote, urlsplit
 
 from .configuration import canonical_env_name, legacy_env_name
@@ -1705,3 +1707,140 @@ class WorkspaceResolver:
             "relativePathRoot": str(self.primary_root),
             "failClosed": True,
         }
+
+
+@dataclass(frozen=True)
+class BackupReport:
+    """The ``backup`` block of a save result: the ``.bak`` made and the older ones moved up."""
+
+    backup_path: Path | None
+    rotated_paths: tuple[Path, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "created": self.backup_path is not None,
+            "path": str(self.backup_path) if self.backup_path else None,
+            "rotatedPaths": [str(path) for path in self.rotated_paths],
+        }
+
+
+def backup_path_for(path: Path) -> Path:
+    return path.with_suffix(path.suffix + ".bak")
+
+
+def rotated_backup_path(path: Path, index: int) -> Path:
+    if index < 1:
+        raise ValueError("backup rotation index must be >= 1")
+    return path.with_suffix(path.suffix + f".bak.{index}")
+
+
+def _same_existing_file(first: Path, second: Path) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
+def backup_replaced_output(
+    target: str | os.PathLike[str],
+    *,
+    preimage: bytes | None = None,
+    max_backups: int = 5,
+) -> BackupReport:
+    """Keep the file a write is about to replace as ``<name>.bak``, moving older backups up.
+
+    The backup rule of this package in one place: ``<name>.bak`` holds the bytes from just before
+    the last write and ``<name>.bak.1`` .. ``.bak.<max_backups>`` the ones before that. A writer
+    calls this just before it replaces an output that is already there, so a wrong output name
+    cannot erase another document. Nothing is done when no file is at *target*.
+
+    *preimage* is for a writer that has already published: the bytes *target* held before, written
+    to ``.bak`` in place of a copy of the file (which by then holds the new bytes).
+    """
+
+    path = Path(target)
+    if preimage is None and not path.is_file():
+        return BackupReport(None)
+
+    backup = backup_path_for(path)
+    rotated: list[Path] = []
+    if max_backups > 0:
+        oldest = rotated_backup_path(path, max_backups)
+        if oldest.exists():
+            oldest.unlink()
+        for index in range(max_backups - 1, 0, -1):
+            older = rotated_backup_path(path, index)
+            if older.exists():
+                moved = rotated_backup_path(path, index + 1)
+                os.replace(older, moved)
+                rotated.append(moved)
+        if backup.exists():
+            moved = rotated_backup_path(path, 1)
+            os.replace(backup, moved)
+            rotated.append(moved)
+
+    if preimage is None:
+        shutil.copy2(path, backup)
+    else:
+        descriptor, temporary = tempfile.mkstemp(prefix=f".{backup.name}.", dir=str(backup.parent))
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(preimage)
+            os.replace(temporary, backup)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
+    return BackupReport(backup, tuple(rotated))
+
+
+@contextmanager
+def keeping_replaced_output(
+    target: object,
+    *,
+    source: object = None,
+) -> Iterator[None]:
+    """Run a writer that publishes on its own; keep the document it replaced as ``.bak``.
+
+    For a writer this package cannot ask to back up first (python-hwpx writes the file itself).
+    The bytes *target* held are read before the block runs. If the file holds other bytes when
+    the block ends, by a return or by an error, the old bytes go to ``.bak`` through
+    :func:`backup_replaced_output`; if that backup cannot be made they go back to *target* and
+    the error is raised. A block that wrote nothing leaves no backup. *target* that is no path,
+    names no file, or is *source* itself makes this a no-op (both come from a caller's request
+    as they are, so neither has to be a path).
+    """
+
+    preimage: bytes | None = None
+    path: Path | None = None
+    if isinstance(target, (str, os.PathLike)) and os.fspath(target):
+        path = Path(target)
+        in_place = isinstance(source, (str, os.PathLike)) and _same_existing_file(path, Path(source))
+        if path.is_file() and not in_place:
+            preimage = path.read_bytes()
+    try:
+        yield
+    finally:
+        if path is not None and preimage is not None and _file_bytes(path) != preimage:
+            try:
+                backup_replaced_output(path, preimage=preimage)
+            except BaseException:
+                _restore_file_bytes(path, preimage)
+                raise
+
+
+def _file_bytes(path: Path) -> bytes | None:
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def _restore_file_bytes(path: Path, data: bytes) -> None:
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise

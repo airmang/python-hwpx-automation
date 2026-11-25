@@ -63,6 +63,8 @@ class PackageValidationService:
 
         source_path = self._context._resolve_path(source)
         output_path = self._context.storage.resolve_output_path(output)
+        # Core's repair writes HWPX bytes; with overwrite it would replace an .hwp already there.
+        self._context._refuse_existing_hwp_output(output_path)
         if recover:
             result = repair_from_recovered(
                 source_path,

@@ -4,18 +4,25 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from ..errors import HwpDocumentError, hwp5_error_payload
 from ..hwp_support import HwpBinaryError, extract_hwp_text
 from ..core.locator import RegisteredHandle
 from ..core.context import default_session_lifecycle_policy
-from ..storage import DocumentStorage, LocalDocumentStorage, require_hwpx_package
+from ..storage import (
+    DocumentStorage,
+    LocalDocumentStorage,
+    refuse_existing_hwp_overwrite,
+    require_hwpx_package,
+)
 from ..workspace import (
     WorkspacePathError,
+    keeping_replaced_output,
 )
 from ..upstream import (
     HwpxDocument,
@@ -200,6 +207,28 @@ class DocumentContext:
             require_hwpx_package(source, output=output)
         except HwpDocumentError as exc:
             raise self._new_error(exc.code, exc.message, details=exc.details) from exc
+
+    def _refuse_existing_hwp_output(self, output: Any) -> None:
+        """Refuse an output naming an ``.hwp`` already there, for writers outside the save gate."""
+
+        try:
+            if isinstance(output, (str, Path)):
+                refuse_existing_hwp_overwrite(output)
+        except HwpDocumentError as exc:
+            raise self._new_error(exc.code, exc.message, details=exc.details) from exc
+
+    @contextmanager
+    def _external_output(self, output: Any, source: Any = None, *, dry_run: bool = False) -> Iterator[None]:
+        """Run a python-hwpx writer that replaces *output* itself (the edit-plan executor).
+
+        It writes HWPX bytes whatever *output* is named and asks nothing about what is there.
+        So an ``.hwp`` already there is refused first, a dry run too; and another document
+        already there stays as ``.bak``. *output* that is *source* itself is an edit in place.
+        """
+
+        self._refuse_existing_hwp_output(output)
+        with keeping_replaced_output(None if dry_run else output, source=source):
+            yield
 
     def _open_document(self, path: str) -> Tuple[HwpxDocument, Path]:
         resolved = self._resolve_path(path)

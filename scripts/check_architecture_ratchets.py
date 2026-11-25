@@ -50,7 +50,10 @@ EXPECTED_SERVICE_LINES = {
     "content_layout.py": 542,
     # .hwp documents: python-hwpx opens and writes HWP 5.0 itself, so services
     # route .hwp through it and refuse it where they patch HWPX package bytes.
-    "context.py": 259,
+    # Writers that never reach the save gate (core's edit-plan executor and repair) refuse an
+    # .hwp already at their output and keep another document already there as .bak:
+    # _refuse_existing_hwp_output, _external_output (259 -> 288).
+    "context.py": 288,
     # Receipt-truthfulness repair: the publish decision now compares the
     # produced bytes against the source instead of trusting a field on the
     # domain payload. A payload describing only the structural step suppressed
@@ -58,7 +61,8 @@ EXPECTED_SERVICE_LINES = {
     # WP-F (core 6.0 namespace adaptation): add_form_field/fill_form_field now
     # rebuild the 5.x form-field dict shape from FormField/FieldFillResult
     # living views via a local _form_field_to_legacy_dict helper (design §2.3).
-    "form_fields.py": 745,
+    # run_edit_plan runs core's executor inside context._external_output (745 -> 746).
+    "form_fields.py": 746,
     # WP-F: insert_picture/replace_picture rebuild the picture-reference and
     # replacement payload shapes from PictureRef/PictureReplacement, whose own
     # to_dict() keys do not match this op's established contract.
@@ -76,7 +80,8 @@ EXPECTED_SERVICE_LINES = {
     # argument went away, set_memo_shape came in (367 -> 330).
     # 8.0: paragraph objects are dict keys and list.index targets (#762) (330 -> 327).
     "memo_style.py": 327,
-    "package_validation.py": 164,
+    # repair_hwpx refuses an .hwp already at its output, with overwrite too (164 -> 166).
+    "package_validation.py": 166,
     "planning.py": 201,
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
     # 8.0: the layout preview moved into this package (hwpx_automation.preview),

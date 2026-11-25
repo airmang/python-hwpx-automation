@@ -15,6 +15,9 @@
   `render_preview`의 수식이 늘 LaTeX 코드 블록으로 보였습니다. `server/uv.lock`에 `latex2mathml`을 해시와 함께 잠그고
   번들 검사(`validate_hwpx_plugin.py`)가 extra와 잠금을 확인합니다. README·`references/api.md`의 "최소 호환 버전" 줄은
   구성요소별 하한이며 함께 설치되는 조합이 아니라고 고쳐 적습니다(automation 7.2~7.5는 core 6.x를 요구합니다).
+- `scripts/zip_replace_all.py`와 `scripts/fix_namespaces.py`가 이미 있는 `.hwp` 파일을 출력으로 받으면 쓰지 않고 끝납니다
+  (종료 코드 2, 함수는 `FileExistsError`). 두 스크립트는 HWPX(ZIP) 바이트를 쓰므로, 지금까지는 `in.hwpx old.hwp`나
+  `--out old.hwp`가 한/글이 저장한 `old.hwp`를 ZIP 바이트로 바꾸고 종료 코드 0을 냈습니다.
 
 - ChatGPT 플러그인을 1.1.0으로 올립니다. 묶인 엔진이 python-hwpx 7.0.0·python-hwpx-automation 8.0.0이 됩니다
   (1.0.2는 6.6.0·7.3.1). python-hwpx-automation 8.0은 `cryptography`·`anyio`가 없어도 설치되고 돌아가므로, 묶음에서

@@ -24,6 +24,7 @@ from ..upstream import (
     is_hwp5_target,
     repair_pathological_text_spacing,
 )
+from ..workspace import BackupReport, backup_replaced_output
 from .document import save_doc
 from .formatting import resolve_style_id
 from .locations import resolve_paragraph_reference
@@ -660,6 +661,16 @@ def format_table_in_doc(
 
 def copy_document_file(source: str, destination: str = None) -> str:
     """문서를 복사한다. destination이 None이면 자동 이름 생성."""
+    return copy_document_with_backup(source, destination)[0]
+
+
+def copy_document_with_backup(
+    source: str, destination: str | None = None
+) -> tuple[str, BackupReport]:
+    """Copy like :func:`copy_document_file`; also returns the backup of a document it replaced.
+
+    A document already at the destination (the default ``<name>_copy`` too) stays as ``.bak``.
+    """
     if destination is None:
         stem, ext = source.rsplit(".", 1) if "." in source else (source, "hwpx")
         destination = f"{stem}_copy.{ext}"
@@ -672,13 +683,15 @@ def copy_document_file(source: str, destination: str = None) -> str:
         # and .hwpx is written through the document model, not byte-copied.
         document = open_local_document(source_path, role="copy source")
         try:
+            backup = backup_replaced_output(destination_path)
             save_doc(document, str(destination_path))
         finally:
             document.close()
-        return str(destination_path)
+        return str(destination_path), backup
     if source_path.suffix.lower() != ".hwpx" and destination_path.suffix.lower() != ".hwpx":
+        backup = backup_replaced_output(destination_path)
         shutil.copy2(source_path, destination_path)
-        return str(destination_path)
+        return str(destination_path), backup
 
     _require_open_safe_hwpx(source_path, "source")
     destination_path.parent.mkdir(parents=True, exist_ok=True)
@@ -691,11 +704,12 @@ def copy_document_file(source: str, destination: str = None) -> str:
         os.close(tmp_fd)
         shutil.copy2(source_path, tmp_path)
         _require_open_safe_hwpx(tmp_path, "copied")
+        backup = backup_replaced_output(destination_path)
         os.replace(tmp_path, destination_path)
     except Exception:
         tmp_path.unlink(missing_ok=True)
         raise
-    return str(destination_path)
+    return str(destination_path), backup
 
 
 def _require_open_safe_hwpx(path: Path, role: str) -> None:

@@ -50,9 +50,10 @@ from .core.content import (
 )
 from .core.document import open_doc
 from .core.formatting import list_styles_in_doc
-from .storage import build_hwpx_open_safety_report
+from .storage import build_hwpx_open_safety_report, refuse_existing_hwp_overwrite
 from .upstream import repair_pathological_text_spacing, validate_document_path
 from .utils.helpers import BoundedExpiringStore, resolve_path
+from .workspace import backup_replaced_output
 
 _FORM_FILL_SCHEMA_VERSION = "hwpx.formfill.v1"
 _DOCX_W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -278,6 +279,8 @@ def apply_form_fill_workflow(
     destination_path = _destination_path_from_plan(plan, destination_filename)
     if Path(source_path).resolve(strict=False) == Path(destination_path).resolve(strict=False):
         raise ValueError("apply_form_fill refuses source-in-place edits; destination_filename must differ from source")
+    # An .hwp already at the destination is never replaced; asked before anything is written.
+    refuse_existing_hwp_overwrite(destination_path)
 
     unresolved = list(plan.get("mappings", {}).get("unresolved", []))
     if unresolved:
@@ -380,6 +383,8 @@ def apply_form_fill_workflow(
             and validation["openSafety"]["ok"]
         )
         if ok:
+            # A document already at the destination stays as .bak before the filled copy replaces it.
+            backup_replaced_output(destination)
             os.replace(tmp_destination, destination)
 
         return {

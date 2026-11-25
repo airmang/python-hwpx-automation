@@ -49,6 +49,7 @@ from .workspace import (
     WorkspaceOutputGuard,
     WorkspacePathError,
     WorkspaceResolver,
+    backup_replaced_output,
 )
 
 
@@ -2974,6 +2975,22 @@ def _run_specialized_form_operation_locked(
     if dry_run:
         return attached
 
+    if (
+        not same_path
+        and publication is not None
+        and output_before.existed
+        and output_before.data is not None
+        and final_output.data != output_before.data
+    ):
+        # output= named another document that was already there. Its bytes stay as .bak, written
+        # while the recovery sidecar still holds them: if the backup cannot be made, the old
+        # document goes back to its name.
+        try:
+            backup_replaced_output(output_before.path, preimage=output_before.data)
+        except BaseException:
+            preserve_preimage()
+            restore_publication(publication if output_matches else None)
+            raise
     cleanup_ok = failure_preimage.cleanup_after_success()
     try:
         final_source, final_output = snapshots()
