@@ -246,10 +246,28 @@ def _validate_apply_commands_input(
             "input failed package/reopen/openSafety verification",
             target="batch.input.filename",
         )
+    _refuse_existing_hwp_output(output_path, target="batch.output.filename")
     if output_path.exists() and not normalized["output"]["overwrite"] and not normalized["dryRun"]:
         raise AgentContractError(
             "invariant_violation", "output exists and overwrite is false", target="batch.output.filename"
         )
+
+
+def _refuse_existing_hwp_output(output_path: Path, *, target: str) -> None:
+    """Refuse an output naming an ``.hwp`` already there, with or without overwrite, dry run too.
+
+    The executor writes an HWPX package whatever the output is named. The MCP tool refuses
+    ``.hwp`` before it gets here; the ``hwpx`` command line and a direct call reach this.
+    """
+
+    # Imported here: reading commands (view, get, query) do not load the storage layer.
+    from ...errors import HwpDocumentError
+    from ...storage import refuse_existing_hwp_overwrite
+
+    try:
+        refuse_existing_hwp_overwrite(output_path)
+    except HwpDocumentError as exc:
+        raise AgentContractError("invariant_violation", exc.message, target=target) from exc
 
 
 def _apply_commands_build_candidate_report(

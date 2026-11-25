@@ -256,8 +256,9 @@ class FormFieldService:
 
         from hwpx.plan import PlanValidationError, apply_edit_plan
 
-        try:
-            report = apply_edit_plan(plan, dry_run=dry_run)
+        try:  # core's executor writes over whatever plan.output names: see _external_output
+            with self._context._external_output(plan.get("output"), plan.get("source"), dry_run=dry_run):
+                report = apply_edit_plan(plan, dry_run=dry_run)
         except PlanValidationError as exc:
             raise self._context._new_error(
                 "EDIT_PLAN_INVALID",

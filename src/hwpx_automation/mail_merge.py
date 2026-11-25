@@ -21,6 +21,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from hwpx import HwpxDocument, validate_editor_open_safety
 
 from .upstream import open_seeded_input, stamp_save_dates
+from .workspace import backup_replaced_output
 
 MAIL_MERGE_REPORT_VERSION = "mail-merge-v1"
 
@@ -292,6 +293,7 @@ def merge_template_rows(
                         fit_fields.append(_fit_field_report(key, fit_result))
                 replaced_count += _replace_token(document, token, apply_value)
             stamp_save_dates(document)  # Hangul's save dates: ModifiedDate now, CreatedDate kept
+            backup_replaced_output(out_path)  # a document already at this name stays as .bak
             receipt = document.save(out_path)
         finally:
             document.close()
@@ -332,6 +334,7 @@ def merge_template_rows(
     if zip_path is not None:
         zip_file = Path(zip_path)
         zip_file.parent.mkdir(parents=True, exist_ok=True)
+        backup_replaced_output(zip_file)  # so does a file already at the archive's name
         with ZipFile(zip_file, "w", compression=ZIP_DEFLATED) as archive:
             for path in generated_paths:
                 archive.write(path, arcname=path.name)

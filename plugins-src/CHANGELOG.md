@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- `scripts/zip_replace_all.py`와 `scripts/fix_namespaces.py`가 이미 있는 `.hwp` 파일을 출력으로 받으면 쓰지 않고 끝납니다
+  (종료 코드 2, 함수는 `FileExistsError`). 두 스크립트는 HWPX(ZIP) 바이트를 쓰므로, 지금까지는 `in.hwpx old.hwp`나
+  `--out old.hwp`가 한/글이 저장한 `old.hwp`를 ZIP 바이트로 바꾸고 종료 코드 0을 냈습니다.
+
 - ChatGPT 플러그인을 1.1.0으로 올립니다. 묶인 엔진이 python-hwpx 7.0.0·python-hwpx-automation 8.0.0이 됩니다
   (1.0.2는 6.6.0·7.3.1). python-hwpx-automation 8.0은 `cryptography`·`anyio`가 없어도 설치되고 돌아가므로, 묶음에서
   `anyio`·`idna`·`typing_extensions` wheel을 빼고 표 라벨 칸 채우기·새 문서 만들기의 전제를 `pydantic`(2.11 이상)

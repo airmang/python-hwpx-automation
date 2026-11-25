@@ -11,13 +11,18 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 6,
-    "loc": 812,
-    "manifestSha256": "90c35e3a941f3010be87e6cccf19a3e6803422dd723e165e4084a1800f157d81",
+    "loc": 818,
+    "manifestSha256": "e620dad1018b4e1f74861268df4bb657f3c7db9bc73f44452f111b1ef5084a62",
     "refrozenNote": "WP-F (core 6.0 namespace adaptation): profile.py's doc.style(sid) call moved to doc.styles.get(sid) (design §2.4, id·이름 겸용 조회로 승격). Same line count, no behavior change.",
     "refrozenFrom": {
-      "loc": 810,
-      "manifestSha256": "799b31ac33a2fbccd56d5a4e8e469aa6b304d48bc55c50089273722c3d2bf2dc",
-      "reason": "23차 B: 저장 날짜(ModifiedDate 지금, CreatedDate 그대로) — exam compose·save_gate_report가 stamp_save_dates를 부름"
+      "loc": 812,
+      "manifestSha256": "90c35e3a941f3010be87e6cccf19a3e6803422dd723e165e4084a1800f157d81",
+      "reason": "8.0.1: compose_exam_into_form이 이미 있는 .hwp 출력을 쓰기 전에 거부하고(HWP_OVERWRITE_EXISTING), 출력 이름에 이미 있던 문서는 .bak으로 남긴다. 조판 결과는 같다.",
+      "previous": {
+        "loc": 810,
+        "manifestSha256": "799b31ac33a2fbccd56d5a4e8e469aa6b304d48bc55c50089273722c3d2bf2dc",
+        "reason": "23차 B: 저장 날짜(ModifiedDate 지금, CreatedDate 그대로) — exam compose·save_gate_report가 stamp_save_dates를 부름"
+      }
     }
   },
   "packageFiles": [

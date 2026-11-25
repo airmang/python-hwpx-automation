@@ -16,6 +16,7 @@ from ..storage import (
     build_hwpx_verification_report,
 )
 from ..utils.helpers import resolve_path
+from ..workspace import backup_replaced_output
 
 _REDLINE_RECEIPT_FIELDS = (
     "changeCount",
@@ -373,7 +374,10 @@ def _save_verified_redline_document(
         )
         if failures:
             raise _RedlineVerificationError(failures, redline_report)
+        # A document already at the destination stays as .bak: a wrong name does not erase it.
+        backup = backup_replaced_output(destination)
         os.replace(tmp_path, destination)
+        verification["backup"] = backup.to_dict()
         verification["filePath"] = str(destination)
         verification["visualComplete"] = quality_contract.visual_complete_block(
             save_report
@@ -588,6 +592,7 @@ def add_tracked_edit(
         "verification": verification,
         "openSafety": verification.get("openSafety"),
         "visualComplete": verification.get("visualComplete"),
+        "backup": verification.get("backup"),
         "written": True,
     }
 

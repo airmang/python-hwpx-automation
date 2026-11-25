@@ -12,6 +12,21 @@
   `.hwp` 쓰기(`hwp5-write-lossy-source`, `hwp5-overwrite-source`)는 "읽을 수 없습니다"가 아니라 `HWP_WRITE_LOSSY_SOURCE`·
   `HWP_OVERWRITE_EXISTING`으로 알립니다. `HWPX_PACKAGE_REQUIRED`·`READ_ONLY_HWP_DOCUMENT` 안내에서 `.hwp`를 그대로 편집한다는
   문장을 빼고 ".hwp는 읽기만"에 맞췄습니다.
+- 이미 있는 `.hwp`를 덮어쓰던 남은 길을 막습니다(#241). `create_comparison_table_document`·`create_proposal_document`
+  (제안서 도구는 오류를 돌려주면서 이미 바꿔 놓았습니다), `run_edit_plan`의 `plan.output`, `repair_hwpx(overwrite=true)`,
+  `compose_exam`의 `output`, `mail_merge`의 `zip_filename`, 명령줄 `hwpx set|add|remove|move|copy|batch|replay … old.hwp --overwrite`가
+  이미 있는 `.hwp`를 다시 만든 HWP나 HWPX(ZIP) 바이트로 바꿨습니다. 이제 모두 쓰기 전에 거부하고(`HWP_OVERWRITE_EXISTING`,
+  명령줄은 `invariant_violation`), 그 파일의 바이트는 그대로이며 옆에 아무것도 남기지 않습니다. 새 `.hwp` 이름으로 쓰는 것은
+  그대로입니다. `run_edit_plan`은 `dry_run`에서도 같게 거부합니다.
+- 출력 이름에 이미 다른 `.hwpx` 문서가 있으면 그 문서를 `.bak`으로 남기고 덮어씁니다(#241). 지금까지 `copy_document`
+  (대상을 생략했을 때의 `<이름>_copy.hwpx` 포함), `create_document_from_plan`·`create_government_report_document`·
+  `create_comparison_table_document`·`create_proposal_document`, `add_tracked_edit`, `apply_table_ops`·`apply_body_ops`·
+  `apply_evalplan_fill`의 `output=`, `run_edit_plan`의 `plan.output`, `apply_form_fill`(옛 인자), `compose_exam`, `mail_merge`
+  (문서와 `zip_filename`)는 백업 없이 바꿔, 출력 이름을 잘못 주면 다른 문서가 사라졌습니다. 이제 편집 도구와 같은 규칙으로
+  `<이름>.bak`에 직전 바이트를 두고 그 앞의 것은 `.bak.1`…`.bak.5`로 밉니다. 결과가 dict인 도구(`copy_document`, `create_*`,
+  `add_tracked_edit`)는 `backup`(`created`·`path`·`rotatedPaths`)을 싣습니다. 원본 자체를 출력으로 주는 제자리 편집과
+  `overwrite=true`를 직접 준 호출은 그대로입니다. 배포 스크립트 `zip_replace_all.py`·`fix_namespaces.py`도 이미 있는 `.hwp`
+  출력을 거부합니다(종료 코드 2).
 - `hwpx_automation.markdown.to_markdown`·`to_html`이 열린 문서 말고 파일 경로(`str`·`Path`)와 HWPX 바이트도 받는다.
   6.x `hwpx.tools.exporter.export_markdown(bytes)`·`markdown_export.export_markdown(path)`가 받던 입력인데 8.0.0은
   문서만 받아, 같은 인자로 옮긴 코드가 `AttributeError: 'str' object has no attribute 'oxml'`을 만나고 표 없는 대체 경로로

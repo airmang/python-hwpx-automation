@@ -16,7 +16,7 @@ from ..office.authoring.report_parser import (
 
 from .. import quality as quality_contract
 from ..core.content import (
-    copy_document_file,
+    copy_document_with_backup,
 )
 from ..core.document import create_blank
 from ..document_state import document_state_payload
@@ -62,8 +62,10 @@ from ..quality_generation import (
 from ..storage import (
     build_hwpx_open_safety_report,
     build_hwpx_verification_report,
+    refuse_existing_hwp_overwrite,
 )
 from ..utils.helpers import resolve_path
+from ..workspace import backup_replaced_output
 from ._shared import (
     _diff_sources,
     _inspect_authoring_quality,
@@ -164,6 +166,8 @@ def create_document(
 
 def _save_generated_document(doc: Any, path: str, *, quality: Any = None) -> dict:
     target = Path(path)
+    # An .hwp already there is never replaced. Asked first: nothing is written before the refusal.
+    refuse_existing_hwp_overwrite(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     # Phase F: generation also funnels through the one SavePipeline gate.
     quality_contract.assert_write_capability()
@@ -182,7 +186,10 @@ def _save_generated_document(doc: Any, path: str, *, quality: Any = None) -> dic
                 "generated HWPX failed open-safety verification: "
                 + verification["openSafety"]["summary"]
             )
+        # A document already at this name stays as .bak: a wrong name does not erase it.
+        backup = backup_replaced_output(target)
         os.replace(tmp_path, target)
+        verification["backup"] = backup.to_dict()
         verification["filePath"] = str(target)
         verification["visualComplete"] = quality_contract.visual_complete_block(report)
         return verification
@@ -457,6 +464,7 @@ def _create_document_from_plan_impl(
         "next_action": _next_action(report),
         "quality": report,
         "verification": verification,
+        "backup": verification.get("backup"),
     }
     if notices:
         # What was made differently from the plan (e.g. a plain table where the profile has none).
@@ -705,6 +713,7 @@ def create_comparison_table_document(
         "plan_validation": validation.to_dict(),
         "verification": verification,
         "openSafety": verification.get("openSafety"),
+        "backup": verification.get("backup"),
     }
     return _apply_write_verbosity(result, verbosity)
 
@@ -739,6 +748,7 @@ def create_proposal_document(
         "style_preset": style_preset,
         "quality": report,
         "verification": verification,
+        "backup": verification.get("backup"),
     }
     return _apply_write_verbosity(result, verbosity)
 
@@ -749,12 +759,13 @@ def copy_document(source_filename: str, destination_filename: str = None) -> dic
     destination = destination_filename
     if destination_filename is not None:
         destination = resolve_path(destination_filename)
-    dest = copy_document_file(source, destination)
+    dest, backup = copy_document_with_backup(source, destination)
     open_safety = build_hwpx_open_safety_report(Path(dest))
     return {
         "source": source_filename,
         "destination": os.path.basename(dest),
         "openSafety": open_safety,
+        "backup": backup.to_dict(),
     }
 
 
