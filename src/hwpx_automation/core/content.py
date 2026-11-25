@@ -13,9 +13,9 @@ from typing import Any
 from .. import forms
 from ..compat import patch_python_hwpx
 from ..storage import (
-    build_hwpx_open_safety_report,
     open_local_document,
     refuse_existing_hwp_overwrite,
+    require_hwpx_editor_open_safe,
 )
 from ..upstream import (
     HwpxDocument,
@@ -693,7 +693,9 @@ def copy_document_with_backup(
         shutil.copy2(source_path, destination_path)
         return str(destination_path), backup
 
-    _require_open_safe_hwpx(source_path, "source")
+    # A byte copy is held to the gate that opens a document: what a tool may read and
+    # edit, it may copy. The copy is the same bytes, so it is no better and no worse.
+    require_hwpx_editor_open_safe(source_path, role="copy source")
     destination_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_fd, tmp_name = tempfile.mkstemp(
         suffix=destination_path.suffix or ".hwpx",
@@ -703,19 +705,13 @@ def copy_document_with_backup(
     try:
         os.close(tmp_fd)
         shutil.copy2(source_path, tmp_path)
-        _require_open_safe_hwpx(tmp_path, "copied")
+        require_hwpx_editor_open_safe(tmp_path, role="copied document")
         backup = backup_replaced_output(destination_path)
         os.replace(tmp_path, destination_path)
     except Exception:
         tmp_path.unlink(missing_ok=True)
         raise
     return str(destination_path), backup
-
-
-def _require_open_safe_hwpx(path: Path, role: str) -> None:
-    report = build_hwpx_open_safety_report(path)
-    if not report["ok"]:
-        raise ValueError(f"{role} HWPX failed open-safety verification: {report['summary']}")
 
 
 # ── 메모 ──────────────────────────────────────────────

@@ -10,6 +10,7 @@ import hwpx_automation.server as server_module
 import hwpx_automation.workspace as workspace_module
 import hwpx.patch as hwpx_patch_module
 from hwpx_automation.core.document import open_doc, save_doc
+from hwpx_automation.errors import HwpDocumentError
 from hwpx_automation.server import (
     add_heading,
     add_memo,
@@ -1564,10 +1565,13 @@ def test_copy_document_rejects_unsafe_hwpx_source_and_preserves_destination(
     ).encode("utf-8")
     _replace_zip_part(source, "Contents/section0.xml", stale_section)
 
-    with pytest.raises(ValueError, match="source HWPX failed open-safety verification"):
+    # refused by the gate that opens a document, with its error code (was a bare ValueError)
+    with pytest.raises(HwpDocumentError, match="copy source failed open-safety verification") as refused:
         copy_document(str(source), str(destination))
 
+    assert refused.value.code == "DOCUMENT_OPEN_FAILED"
     assert destination.read_bytes() == original_destination
+    assert sorted(p.name for p in tmp_path.iterdir()) == [destination.name, source.name]
 
 
 def test_fill_by_path_applies_multiple_mappings_correctly(tmp_path: Path):
