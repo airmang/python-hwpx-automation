@@ -175,12 +175,35 @@ GOLDEN = json.loads((_FIXTURES / "evalplan.golden.json").read_text(encoding="utf
 # ``09e642d2…``/``8272e38f…`` for the clean phase, the golden's for "structural:synthetic"); the
 # same files give these digests. Change one only for such a reviewed core change, never to quiet a
 # regression.
+#
+# The clean phase also moved on purpose in this repository (automation #205): it now drops the
+# form's ``(**) : …`` legend line and its ``ex) …`` example lines from the AI box of 평가 유의사항,
+# and fills the ``(**)`` slot when §10 says what AI may not be used for. The two clean digests are
+# that output (before: ``65c33a7a…`` synthetic, ``54ddbb65…`` detailed); its three new finalize
+# report keys are checked in ``_check_finalize_205`` and left out of the frozen comparison.
 CORE_PARTS_SHA256 = {
     "structural:synthetic": "2fd5242eefa6dfec4b1e084770b41c7a13ba5482406ac89765fe4462746235ee",
     "all:synthetic": "545dca10fe143f090b53baae2318203fae783b5799b4abf31e53af362d61f25d",
-    "clean:synthetic": "65c33a7a2300c47e5b4587d17f9cae310e01028455bf55eaddd1531d077402ef",
-    "clean:detailed": "54ddbb655122452b7d524141906d5b4669d966ff24b545da80ff59346e45d467",
+    "clean:synthetic": "a23eceafe4e0e4e10ed7f1f86ada2bdda0a38ba3288e181b37ea71d3abae1892",
+    "clean:detailed": "0507b5ba098e4c7352cd5cf713bb0e65f6e52c4862280747b97681475687170f",
 }
+
+FINALIZE_KEYS_205 = ("ai_slot_filled", "placeholder_lines_deleted", "placeholders_left")
+
+
+def _check_finalize_205(result: dict) -> dict:
+    """The clean phase's #205 report keys, checked and then removed so the rest still
+    compares with the frozen result. Neither synthetic MD's §10 names what AI may not be
+    used for, so the slot stays and is reported; the legend and two example lines go."""
+    finalize = result.get("content_report", {}).get("finalize")
+    if finalize is None:
+        return result
+    assert finalize["ai_slot_filled"] is False
+    assert finalize["placeholder_lines_deleted"] == 3
+    assert len(finalize["placeholders_left"]) == 1
+    assert "(**)" in finalize["placeholders_left"][0]
+    report = {k: v for k, v in finalize.items() if k not in FINALIZE_KEYS_205}
+    return {**result, "content_report": {**result["content_report"], "finalize": report}}
 
 
 def _parts_sha256(data: bytes) -> str:
@@ -285,6 +308,7 @@ def test_plan_fill_and_cleanup_byte_matches_frozen_core(
         phase=phase,
     )
     data = canonical_result.pop("_data")
+    canonical_result = _check_finalize_205(canonical_result)
     assert _without_core_711_warning(_jsonify(canonical_result)) == _without_core_711_warning(
         expected["fillResult"]
     )
