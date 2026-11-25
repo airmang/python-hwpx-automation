@@ -259,7 +259,7 @@ MCP 설정 예시:
       "command": "uvx",
       "args": [
         "--from",
-        "python-hwpx-automation[mcp]==6.1.3",
+        "python-hwpx-automation[mcp]==8.0.0",
         "hwpx-automation-mcp"
       ]
     }
