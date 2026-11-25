@@ -89,7 +89,9 @@ EXPECTED_SERVICE_LINES = {
     # refuses the impossible combination rather than forwarding it.
     # 8.0: a save python-hwpx 7.0 refuses carries its code as details.coreCode
     # (619 -> 624).
-    "save_policy.py": 621,
+    # An .hwp opened for editing is not written back over itself: the transaction
+    # save refuses (HWP_SOURCE_OVERWRITE) before it makes the .bak (621 -> 626).
+    "save_policy.py": 626,
     # core 6.1.0 removed HwpxOxmlHeader._update_border_fills_item_count; the
     # hasattr fallback (equivalent direct itemCnt computation) is now the only
     # branch, so the dead private call went away.

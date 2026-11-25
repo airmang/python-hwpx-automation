@@ -156,3 +156,28 @@ def test_http_storage_upload_failure_preserves_cache(sample_payload: bytes) -> N
 
     assert cached_path.read_bytes() == cached_before
     assert list(cached_path.parent.glob(f"*{cached_path.suffix}")) == [cached_path]
+
+
+def test_http_storage_does_not_write_an_opened_hwp_back_as_hwp(tmp_path: Path) -> None:
+    import warnings
+
+    from hwpx_automation.errors import HwpDocumentError
+    from hwpx_automation.upstream import native_hwp5_supported
+
+    if not native_hwp5_supported():
+        pytest.skip("python-hwpx < 6.6.0 cannot open .hwp")
+    source = tmp_path / "made.hwp"
+    made = HwpxDocument.new()
+    made.add_paragraph("ALPHA synthetic line")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # .hwp writing is experimental in core
+        made.save(str(source))
+    client = FakeClient({"remote.hwp": source.read_bytes()})
+    storage = HttpDocumentStorage(base_url="https://example.com", client=client)
+    document, resolved = storage.open_document("remote.hwp")
+
+    with pytest.raises(HwpDocumentError) as refused:
+        storage.save_document(document, resolved)
+
+    assert refused.value.code == "HWP_SOURCE_OVERWRITE"
+    assert client.upload_calls == []

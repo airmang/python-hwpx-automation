@@ -2,7 +2,9 @@
 """HWP 5.0 (``.hwp``) documents go through python-hwpx's own reader and writer.
 
 The fixture is a file Hancom Office saved (see ``fixtures/hwp5/NOTICE.md``).
-Saving keeps the input format unless the output path picks another extension.
+``.hwp`` is an input format: an ``.hwp`` is read, and edited through an ``.hwpx``
+copy. An edit is never saved back over the ``.hwp`` it was opened from
+(``HWP_SOURCE_OVERWRITE``); the output path's extension picks the format otherwise.
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ from pathlib import Path
 import pytest
 
 from hwpx_automation import server
+from hwpx_automation.errors import HwpDocumentError, hwp5_error_payload
+from hwpx_automation.handlers import content_edit
 from hwpx_automation.hwpx_ops import HwpxOperationError, HwpxOps
 from hwpx_automation.ops_services import context as context_module
 from hwpx_automation.runtime import _classified_error_payload
@@ -71,29 +75,124 @@ def test_mcp_tools_read_hwp_text_tables_and_conversion_report(hwp_path: Path) ->
     assert (table["rows"], table["cols"]) == (1, 1)
 
 
-@native
-def test_hwp_edits_are_saved_back_as_hwp(hwp_path: Path) -> None:
-    replaced = server.search_and_replace(str(hwp_path), "ABC", "XYZ")
-    assert replaced["replaced_count"] == 1
-    assert replaced["verificationReport"]["format"] == "hwp"
-    assert replaced["openSafety"]["ok"] is True
+def _synthetic_hwp(path: Path) -> Path:
+    """An ``.hwp`` python-hwpx writes from a new document (no sample text)."""
 
-    filled = server.set_table_cell_text(str(hwp_path), 0, 0, 0, "채움")
+    document = HwpxDocument.new()
+    document.add_paragraph("ALPHA synthetic line one")
+    document.add_paragraph("BETA synthetic line two")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        document.save(str(path))
+    return path
+
+
+@native
+def test_an_edit_tool_does_not_overwrite_the_hwp_it_opened(tmp_path: Path) -> None:
+    # automation 8.0.0 wrote the rebuilt .hwp over the original and left a .bak.
+    source = _synthetic_hwp(tmp_path / "probe.hwp")
+    before = source.read_bytes()
+
+    for edit in (
+        lambda: content_edit.search_and_replace(str(source), "ALPHA", "GAMMA", dry_run=True),
+        lambda: content_edit.search_and_replace(str(source), "ALPHA", "GAMMA"),
+        lambda: server.search_and_replace(str(source), "ALPHA", "GAMMA"),
+    ):
+        refused = _refusal(edit)
+        assert refused["code"] == "HWP_SOURCE_OVERWRITE"
+        assert "copy_document" in refused["suggestion"]
+        assert ".hwpx" in refused["suggestion"]
+        assert refused["details"]["hwpxCopy"].endswith("probe.hwpx")
+
+    assert source.read_bytes() == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["probe.hwp"]  # no .bak either
+
+
+@native
+def test_an_hwp_original_is_edited_through_an_hwpx_copy(hwp_path: Path, tmp_path: Path) -> None:
+    before = hwp_path.read_bytes()
+    for edit in (
+        lambda: server.search_and_replace(str(hwp_path), "ABC", "XYZ"),
+        lambda: server.set_table_cell_text(str(hwp_path), 0, 0, 0, "채움"),
+    ):
+        assert _refusal(edit)["code"] == "HWP_SOURCE_OVERWRITE"
+    assert hwp_path.read_bytes() == before
+
+    copy = tmp_path / "form.hwpx"
+    server.copy_document(str(hwp_path), str(copy))
+    replaced = server.search_and_replace(str(copy), "ABC", "XYZ")
+    assert replaced["replaced_count"] == 1
+    assert replaced["openSafety"]["ok"] is True
+    filled = server.set_table_cell_text(str(copy), 0, 0, 0, "채움")
     assert filled["verificationReport"]["ok"] is True
 
-    assert hwp_path.read_bytes()[:8] == OLE2_MAGIC
-    texts = _reopen_texts(hwp_path)
+    texts = _reopen_texts(copy)
     assert any("가나다라 XYZ abc" in text for text in texts)
     assert "채움" in texts
+    assert hwp_path.read_bytes() == before
 
 
 @native
-def test_hwp_dry_run_writes_nothing(hwp_path: Path) -> None:
-    before = hwp_path.read_bytes()
-    result = server.search_and_replace(str(hwp_path), "ABC", "XYZ", dry_run=True)
-    assert result["wouldSave"] is True
-    assert result["verificationReport"]["format"] == "hwp"
-    assert hwp_path.read_bytes() == before
+def test_storage_save_refuses_the_hwp_source_in_place_but_not_a_new_hwp(tmp_path: Path) -> None:
+    source = _synthetic_hwp(tmp_path / "probe.hwp")
+    before = source.read_bytes()
+    storage = storage_module.LocalDocumentStorage(base_directory=tmp_path, auto_backup=True)
+    document, resolved = storage.open_document(str(source))
+    try:
+        with pytest.raises(HwpDocumentError) as refused:
+            storage.save_document(document, resolved)
+        assert refused.value.code == "HWP_SOURCE_OVERWRITE"
+        assert source.read_bytes() == before
+        assert not source.with_suffix(".hwp.bak").exists()
+
+        # A new .hwp path is not the original (python-hwpx's own rule, too).
+        written = tmp_path / "other.hwp"
+        report = storage.save_document(document, written)
+        assert report["format"] == "hwp"
+        assert written.read_bytes()[:8] == OLE2_MAGIC
+        # Writing over that file again is refused like the original.
+        with pytest.raises(HwpDocumentError):
+            storage.save_document(document, written)
+    finally:
+        document.close()
+
+
+@native
+def test_core_hwp_write_refusals_are_named(tmp_path: Path) -> None:
+    from hwpx import Hwp5Error
+    from hwpx.hwp5.errors import Hwp5ConversionReport
+
+    lossy = hwp5_error_payload(
+        Hwp5Error(
+            "lossy",
+            code="hwp5-write-lossy-source",
+            context={"unconverted": {"control-gso": 1}, "dropped": {}},
+        )
+    )
+    assert lossy is not None and lossy["code"] == "HWP_WRITE_LOSSY_SOURCE"
+    assert lossy["details"]["hwpConversion"] == {"unconverted": {"control-gso": 1}, "dropped": {}}
+    assert ".hwpx" in lossy["suggestion"]
+
+    overwrite = hwp5_error_payload(Hwp5Error("same", code="hwp5-overwrite-source"))
+    assert overwrite is not None and overwrite["code"] == "HWP_SOURCE_OVERWRITE"
+    assert "copy_document" in overwrite["suggestion"]
+
+    # Through a tool: a document whose .hwp opened with content left out is not written
+    # as .hwp, even to a new path; python-hwpx refuses it and the refusal is named.
+    source = _synthetic_hwp(tmp_path / "probe.hwp")
+    storage = storage_module.LocalDocumentStorage(base_directory=tmp_path, auto_backup=False)
+    document, _ = storage.open_document(str(source))
+    try:
+        document._hwp5_report = Hwp5ConversionReport.of({"control-gso": 1}, {})  # as if opening left one out
+        target = tmp_path / "new.hwp"
+        with pytest.raises(Exception) as raised:
+            storage.save_document(document, target)
+        payload = _classified_error_payload(raised.value)
+        assert payload["code"] == "HWP_WRITE_LOSSY_SOURCE"
+        assert payload["details"]["hwpConversion"]["unconverted"] == {"control-gso": 1}
+        assert not target.exists()
+    finally:
+        document.close()
 
 
 @native
@@ -119,9 +218,13 @@ def test_operations_service_reads_and_edits_hwp(hwp_path: Path) -> None:
     assert TEXT in ops.read_text(hwp_path.name)["textChunk"]
     assert ops.find(hwp_path.name, "ABC")["matches"][0]["paragraphIndex"] == 1
 
-    assert ops.replace_text_in_runs(hwp_path.name, "ABC", "XYZ")["replacedCount"] == 1
-    assert hwp_path.read_bytes()[:8] == OLE2_MAGIC
-    assert ops.find(hwp_path.name, "XYZ")["matches"]
+    before = hwp_path.read_bytes()
+    with pytest.raises(HwpxOperationError) as refused:
+        ops.replace_text_in_runs(hwp_path.name, "ABC", "XYZ")
+    assert refused.value.code == "HWP_SOURCE_OVERWRITE"
+    assert _classified_error_payload(refused.value)["code"] == "HWP_SOURCE_OVERWRITE"
+    assert hwp_path.read_bytes() == before
+    assert ops.find(hwp_path.name, "ABC")["matches"]
 
 
 @native
