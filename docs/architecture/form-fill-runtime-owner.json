@@ -10,8 +10,8 @@
   },
   "canonical": {
     "pythonFiles": 15,
-    "loc": 5258,
-    "manifestSha256": "954d0af29a46ca312b4adc570ddc2b7f265992cdf08ad240f9fc71f389cefb4d",
+    "loc": 5290,
+    "manifestSha256": "271bdadccc18f363d5c14b5d2dd17312aa0f7b861722e67e60f9d0701121b385",
     "nomenclatureRefrozenFrom": {
       "loc": 5060,
       "manifestSha256": "9da1c81298ca242f05b81f17cfac3dbe3fc5235a1a74b14f0d00be726dda70f5",
@@ -20,8 +20,8 @@
     "refrozenNote": "WP-F (core 6.0 namespace adaptation): seal.py's document.add_image(...) call and template_formfit.py's doc.export_text() call moved to document.media.add_image(...)/doc.text.plain() (design §2.6). Same line counts, no behavior change.",
     "refrozenFrom": {
       "loc": 5258,
-      "manifestSha256": "01196d8c33ca7c36c06e7eaafc807d6958d2c070bb12f779632a6ece7f3873b8",
-      "reason": "27차: fill_section_bytes가 고친 문단의 줄 캐시만 지움(편집 대상 밖 칸 캐시를 두게); 디자인 조립·수확은 본체 공개 길로"
+      "manifestSha256": "954d0af29a46ca312b4adc570ddc2b7f265992cdf08ad240f9fc71f389cefb4d",
+      "reason": "#202: 채점기 E축의 정기시험 규칙이 검토 MD를 받아, MD에 정기시험이 있으면 열 유지를 본다(score_form_fill이 MD를 넘긴다)."
     },
     "boundaryRefrozenFrom": {
       "loc": 5085,

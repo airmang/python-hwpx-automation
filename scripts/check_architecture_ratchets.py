@@ -230,7 +230,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/evalplan/runtime.py", "_prune_header_empty_bullets", 11),
     ("src/hwpx_automation/office/evalplan/runtime.py", "_ratio_row_source", 14),
     ("src/hwpx_automation/office/evalplan/runtime.py", "fill_achievement", 13),
-    ("src/hwpx_automation/office/evalplan/runtime.py", "fill_ratio", 15),
+    ("src/hwpx_automation/office/evalplan/runtime.py", "fill_ratio", 14),
     ("src/hwpx_automation/office/evalplan/runtime.py", "fill_sections", 11),
     ("src/hwpx_automation/office/evalplan/runtime.py", "finalize_evalplan", 19),
     ("src/hwpx_automation/office/evalplan/runtime.py", "plan_structural_ops", 12),

@@ -811,27 +811,59 @@ def score_content(
 # --------------------------------------------------------------------------- #
 
 
-def score_compliance(produced: str | Path) -> AxisScore:
+def _md_has_regular_exam(content: str | Path | None) -> bool:
+    """Whether the review MD's §6 반영비율 header has a 정기시험 column."""
+    if content is None:
+        return False
+    try:
+        md_text = (
+            Path(content).read_text(encoding="utf-8")
+            if _looks_like_path(content)
+            else str(content)
+        )
+        from ..evalplan import parse_review_md
+
+        header = parse_review_md(md_text).ratio_header
+    except (OSError, UnicodeDecodeError):
+        return False
+    return any("정기시험" in cell for cell in header[1:])
+
+
+def score_compliance(produced: str | Path, *, content: str | Path | None = None) -> AxisScore:
     """E axis. Computable 평가계획 lint rules; manual-only rules -> needs_review.
 
     Rules are *gold-calibrated*: gold (the accepted submission) passes every one.
     (Notably gold uses ``~`` in the 성취율 band notation, so a blanket 물결표 ban
-    is a false positive and is deferred to manual review, not scored.)
+    is a false positive and is deferred to manual review, not scored.) When the
+    review ``content`` gives the subject a 정기시험 share, the 정기시험 column must
+    stay instead of being removed.
     """
     key, name, weight = "E", "compliance", 10
     tabs = _tables(produced)
     checks: list[tuple[str, bool, str]] = []
 
-    # (1) 정기시험 column removed (100% 수행 for this subject family)
+    # (1) 정기시험 column removed (100% 수행 for this subject family) -- or kept,
+    # when the review MD's §6 has a 정기시험 share
     ratio_tabs = [t for t in tabs if _classify(t) == "ratio"]
     has_regular = any("정기시험" in " | ".join(t.first_row) for t in ratio_tabs)
-    checks.append(
-        (
-            "정기시험 열 부재",
-            not has_regular,
-            "" if not has_regular else "반영비율 table still has 정기시험 column",
+    if _md_has_regular_exam(content):
+        kept = has_regular or not ratio_tabs
+        checks.append(
+            (
+                "정기시험 열 유지",
+                kept,
+                "" if kept
+                else "the review MD has a 정기시험 share but the 반영비율 table has no 정기시험 column",
+            )
         )
-    )
+    else:
+        checks.append(
+            (
+                "정기시험 열 부재",
+                not has_regular,
+                "" if not has_regular else "반영비율 table still has 정기시험 column",
+            )
+        )
 
     # (2) 반영비율 왼쪽 우선(첫 영역이 최대) -- gold 30/20/20/30 passes
     left_ok = None
@@ -938,7 +970,7 @@ def score_form_fill(
     b = score_format_fidelity(produced, blank)
     c = score_structure(produced, gold, expected=expected_skeleton)
     d = score_content(produced, content=content, blank=blank)
-    e = score_compliance(produced)
+    e = score_compliance(produced, content=content)
     axes = [a, b, c, d, e]
     total = sum(ax.score for ax in axes)
     render_checked = a.status == MEASURED
