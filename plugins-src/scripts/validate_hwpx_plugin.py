@@ -928,6 +928,10 @@ def validate_skill_files_match(host: dict, skill_dir: Path, recorded: set[Path])
 
 
 CLAUDE_LOCK_MAX_BYTES = 256 * 1024
+# What the Claude locked runtime installs beyond the launcher's install extras, and the
+# distribution that must then be in server/uv.lock (python-hwpx-automation's ``preview`` extra).
+CLAUDE_RUNTIME_ADDED_EXTRAS = ("preview",)
+CLAUDE_EQUATION_RENDERER = "latex2mathml"
 
 
 def validate_vendored_engine() -> None:
@@ -972,12 +976,18 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
     )
     # The imaging stack behind the ``oracle`` extra only reads PDFs rendered by Hancom Office,
     # so the Claude runtime installs the other extras by default and locks ``oracle`` in the
-    # ``render`` dependency group, which a user adds on demand.
-    default_extras = [extra for extra in automation["pluginInstallExtras"] if extra != "oracle"]
+    # ``render`` dependency group, which a user adds on demand. It also installs automation's
+    # ``preview`` extra (latex2mathml): the preview moved from python-hwpx to
+    # python-hwpx-automation in 8.0, so the core ``preview`` extra brings nothing and
+    # render_preview showed every equation as a LaTeX code block.
+    default_extras = [
+        extra for extra in automation["pluginInstallExtras"] if extra != "oracle"
+    ] + list(CLAUDE_RUNTIME_ADDED_EXTRAS)
     require(
         pins[automation["distribution"]][0] == ",".join(default_extras)
         and pins[core["distribution"]][0] == "preview",
-        "claude: server/pyproject.toml extras differ from the plugin install extras without oracle",
+        "claude: server/pyproject.toml extras differ from the plugin install extras without oracle, "
+        "plus " + ",".join(CLAUDE_RUNTIME_ADDED_EXTRAS),
     )
     groups = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get("dependency-groups", {})
     require(
@@ -1005,6 +1015,11 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
         versions.get(automation["distribution"]) == automation_version
         and versions.get(core["distribution"]) == core_version,
         "claude: server/uv.lock does not lock the pinned pair; run scripts/refresh_claude_runtime.py",
+    )
+    require(
+        CLAUDE_EQUATION_RENDERER in versions,
+        f"claude: server/uv.lock does not lock {CLAUDE_EQUATION_RENDERER} "
+        "(the automation preview extra); run uv lock",
     )
     root = next((pkg for pkg in lock.get("package", []) if pkg.get("source", {}).get("virtual") == "."), None)
     require(root is not None, "claude: server/uv.lock has no root project entry")

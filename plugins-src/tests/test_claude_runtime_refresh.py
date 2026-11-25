@@ -118,3 +118,53 @@ def test_dependabot_watches_the_locked_runtime_but_not_the_engine_pins() -> None
     assert "directory: /packaging/templates/claude-runtime" in block
     for pinned in ("python-hwpx", "python-hwpx-automation", "tomli"):
         assert f"- dependency-name: {pinned}\n" in block
+
+
+def test_the_locked_runtime_installs_the_equation_renderer() -> None:
+    """The preview moved from python-hwpx to python-hwpx-automation in 8.0, so the core
+    ``preview`` extra brings nothing. The runtime pinned only that one, the bundle had no
+    latex2mathml, and render_preview showed every equation as a LaTeX code block
+    (reliability audit CS-11)."""
+
+    import tomllib
+
+    runtime = ROOT / "packaging" / "templates" / "claude-runtime"
+    project = tomllib.loads((runtime / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    extras = {
+        spec.split("[")[0]: spec.split("[")[1].split("]")[0].split(",")
+        for spec in project["dependencies"]
+    }
+    assert extras["python-hwpx-automation"] == ["mcp", *validator.CLAUDE_RUNTIME_ADDED_EXTRAS]
+    assert "preview" in extras["python-hwpx-automation"]
+
+    # the extra is one python-hwpx-automation declares, and it is the one with the renderer
+    automation = tomllib.loads((ROOT.parent / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    declared = automation["optional-dependencies"]
+    assert all(extra in declared for extra in extras["python-hwpx-automation"])
+    assert any(spec.startswith(validator.CLAUDE_EQUATION_RENDERER) for spec in declared["preview"])
+
+    lock = tomllib.loads((runtime / "uv.lock").read_text(encoding="utf-8"))
+    packages = {package["name"]: package for package in lock["package"]}
+    assert validator.CLAUDE_EQUATION_RENDERER in packages
+    root = next(p for p in lock["package"] if p.get("source", {}).get("virtual") == ".")
+    default = [d for d in root["dependencies"] if d["name"] == "python-hwpx-automation"]
+    assert default == [{"name": "python-hwpx-automation", "extra": ["mcp", "preview"]}]
+    locked_extra = packages["python-hwpx-automation"]["optional-dependencies"]["preview"]
+    assert {"name": validator.CLAUDE_EQUATION_RENDERER} in locked_extra
+    for artifact in [packages[validator.CLAUDE_EQUATION_RENDERER].get("sdist"),
+                     *packages[validator.CLAUDE_EQUATION_RENDERER].get("wheels", [])]:
+        assert artifact is None or artifact["hash"].startswith("sha256:")
+
+
+def test_validator_rejects_a_runtime_without_the_preview_extra(tmp_path: Path) -> None:
+    bundle = tmp_path / "hwpx-plugin"
+    shutil.copytree(ROOT / "plugins" / "claude" / "hwpx-plugin", bundle)
+    pyproject = bundle / "server" / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+    assert '"python-hwpx-automation[mcp,preview]==' in text
+    pyproject.write_text(
+        text.replace('"python-hwpx-automation[mcp,preview]==', '"python-hwpx-automation[mcp]=='),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit, match="plus preview"):
+        validator.validate_claude_locked_runtime(bundle, IDENTITY)

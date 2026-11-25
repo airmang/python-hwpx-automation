@@ -184,7 +184,8 @@ def build_error_payload(
 
 
 class HwpDocumentError(RuntimeError):
-    """An ``.hwp`` request the installed engine cannot carry out."""
+    """A document request refused with an error code: an ``.hwp`` request the installed
+    engine cannot carry out, or a file the open gate does not admit."""
 
     def __init__(
         self, message: str, *, code: str, details: Optional[Dict[str, Any]] = None
@@ -206,6 +207,8 @@ CORE_SAVE_REFUSALS: Dict[str, str] = {
     "note-memo-unanchored": "문단에 걸지 않은 메모가 있어 저장하지 않았습니다. 한/글은 메모를 문단의 메모 누름틀 안에만 둡니다.",
     "master-page-unlinked": "어느 구역에도 잇지 않은 새 바탕쪽이 있어 저장하지 않았습니다. 한/글은 그런 바탕쪽을 버립니다.",
     "open-safety-failed": "만든 문서가 한/글 열기 안전성 검사를 통과하지 못해 저장하지 않았습니다.",
+    # python-hwpx 7.0.0 and 7.0.1 refuse this save; 7.0.2 moves the settings and saves.
+    "section-properties-not-first": "구역 설정(hp:secPr)이 구역 첫 문단이 아닌 뒤 문단에 있어 저장하지 않았습니다. 한/글은 구역 설정을 첫 문단에서만 읽습니다. python-hwpx 7.0.2부터는 저장할 때 첫 문단으로 옮깁니다. repair_hwpx로 고친 사본을 만들어 그 사본으로 작업할 수도 있습니다.",
     # The file itself cannot be written back (python-hwpx #794, #799): the document save and every
     # byte patch refuse it before writing. Reading it stays allowed.
     "save-duplicate-entry-names": "파일(ZIP) 안에 이름이 같은 항목이 둘 이상 있어 저장하지 않았습니다. 그대로 쓰면 그 가운데 하나의 내용만 남습니다. 한/글에서 열어 다시 저장한 파일로 작업하세요.",
