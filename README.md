@@ -232,10 +232,10 @@ handshake는 core/automation/plugin 버전+해시 skew를 fail-closed로 차단�
 
 ## 릴리스 상태
 
-<!-- release-state: released -->
+<!-- release-state: release-approved -->
 > [!NOTE]
-> 8.0.0 공개 발행과 전체 트레인의 실제 marketplace 설치를 관찰했습니다.
-> 검증·공개 트레인: `python-hwpx 7.0.0 → python-hwpx-automation 8.0.0 → hwpx-plugin 8.0.0` (`c895883d5f4350ae`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`·`currentPublic`과 같아야 합니다(`tests/test_audit_identity_docs.py`).
+> 발행이 승인된 8.0.1 후보 (release-approved; 원격 발행 대기): `python-hwpx 7.0.2 → python-hwpx-automation 8.0.1 → hwpx-plugin 8.0.0` (`c895883d5f4350ae`). 이 좌표는 `src/hwpx_automation/identity.json`의 `releaseState.candidate`와 같아야 합니다(`tests/test_audit_identity_docs.py`).
+> 공개 트레인: `python-hwpx 7.0.0 → python-hwpx-automation 8.0.0 → hwpx-plugin 8.0.0`. 공개 좌표는 core·automation PyPI와 plugin GitHub Release·marketplace·실제 marketplace 설치 관찰 후에만 승격합니다.
 > 이전 공개 트레인: `python-hwpx 6.6.0 → python-hwpx-automation 7.3.1 → hwpx-plugin 2.4.0`. 계약 변경은 `docs/tool-contract-delta-8.0.0.json`에 있습니다.
 > [발행·설치 영수증](https://github.com/airmang/python-hwpx-automation/blob/main/docs/releases/2026-11-21-engine-7-automation-8.md)
 > 공개 좌표는 core·automation PyPI와 plugin GitHub
