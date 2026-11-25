@@ -298,7 +298,11 @@ def _block_markdown(block: Mapping[str, Any]) -> list[str] | None:
         # A line break inside the paragraph: a trailing backslash.
         return [text.replace("\n", "\\\n"), ""] if text.strip() else []
     if kind == "bullets":
-        return [f"- {_escape(str(item), line_start=False)}" for item in block.get("items") or []] + [""]
+        items = block.get("items") or []
+        if isinstance(items, list) and all(isinstance(item, (str, int, float)) for item in items):
+            return [f"- {_escape(str(item), line_start=False)}" for item in items] + [""]
+        nested = _nested_bullet_lines(items, 0) if isinstance(items, list) else None
+        return None if nested is None else nested + [""]
     if kind == "table":
         columns = [column for column in block.get("columns") or [] if isinstance(column, Mapping)]
         if block.get("cellStyles") or not columns:
@@ -317,6 +321,37 @@ def _block_markdown(block: Mapping[str, Any]) -> list[str] | None:
             lines.append("| " + " | ".join(cell(values.get(c.get("key"))) for c in columns) + " |")
         return lines + [""]
     return None
+
+
+#: How deep a plan's bullet items may nest: the depth the plan validator allows.
+_MAX_BULLET_DEPTH = 10
+
+
+def _nested_bullet_lines(items: list[Any], depth: int) -> list[str] | None:
+    """Bullet items that nest (``{"text": ..., "children": [...]}``) as a Markdown list inside the
+    list, two spaces in a depth; ``None`` for an item the plan validator refuses (it names what is
+    wrong when the plan goes the general way)."""
+
+    if depth >= _MAX_BULLET_DEPTH and items:
+        return None
+    lines: list[str] = []
+    for item in items:
+        if isinstance(item, (str, int, float)) and not isinstance(item, bool):
+            text, children = str(item).strip(), None
+        elif isinstance(item, Mapping) and type(item.get("text")) in (str, int, float):
+            text, children = str(item["text"]).strip(), item.get("children")
+            if not text or not isinstance(children, (list, type(None))):
+                return None
+        else:
+            return None
+        if text:
+            lines.append(f"{'  ' * depth}- {_escape(text, line_start=False)}")
+        if children:
+            below = _nested_bullet_lines(children, depth + 1)
+            if below is None:
+                return None
+            lines += below
+    return lines
 
 
 def _escape(text: str, *, line_start: bool = True) -> str:
