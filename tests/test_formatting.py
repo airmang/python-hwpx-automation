@@ -5,6 +5,7 @@ from xml.etree import ElementTree as ET
 import pytest
 
 from hwpx_automation.core.document import open_doc, save_doc
+from hwpx_automation.errors import HwpDocumentError
 from hwpx_automation.server import (
     add_paragraph,
     add_table,
@@ -304,7 +305,8 @@ def test_copy_document_rejects_unsafe_hwpx_and_preserves_destination(tmp_path: P
     destination_before = destination.read_bytes()
     _inject_stale_lineseg(source)
 
-    with pytest.raises(ValueError, match="open-safety"):
+    with pytest.raises(HwpDocumentError, match="open-safety") as refused:
         copy_document(str(source), str(destination))
 
+    assert refused.value.code == "DOCUMENT_OPEN_FAILED"
     assert destination.read_bytes() == destination_before
