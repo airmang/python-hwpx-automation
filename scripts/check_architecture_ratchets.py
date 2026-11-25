@@ -207,7 +207,7 @@ EXPECTED_C901 = (
     ("src/hwpx_automation/office/agent/path.py", "parse_path", 15),
     ("src/hwpx_automation/office/agent/query.py", "_split_steps", 15),
     ("src/hwpx_automation/office/authoring/__init__.py", "_bridge_to_design_plan", 14),
-    ("src/hwpx_automation/office/authoring/__init__.py", "_normalize_block", 13),
+    ("src/hwpx_automation/office/authoring/__init__.py", "_normalize_block", 12),
     ("src/hwpx_automation/office/authoring/__init__.py", "_normalize_v2_block", 15),
     ("src/hwpx_automation/office/authoring/__init__.py", "_recovery_summary", 12),
     ("src/hwpx_automation/office/authoring/__init__.py", "_validate_block", 19),
