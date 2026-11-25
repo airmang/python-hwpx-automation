@@ -728,7 +728,8 @@ def export_html(
     if note_labels is not None and note_labels.deferred:
         body_parts.append('<section class="notes">')
         for name, text in note_labels.deferred:
-            body_parts.append(f'<p id="{name}">{name}: {_escape_html(text)}</p>')
+            # A note's text goes through the caller's sanitizer too, as the body does.
+            body_parts.append(f'<p id="{name}">{name}: {_escape_html(_mask_text(text, masking_policy))}</p>')
         body_parts.append("</section>")
     body = "\n".join(body_parts)
     if full_document:
@@ -837,8 +838,10 @@ def export_markdown(
         section_parts.append("\n".join(lines).rstrip())
     body = section_separator.join(section_parts)
     if note_labels is not None and note_labels.deferred:
+        # A note's text goes through the caller's sanitizer too, as the body does.
         definitions = "\n".join(
-            f"[^{name}]: {escape_markdown(text)}" for name, text in note_labels.deferred
+            f"[^{name}]: {escape_markdown(_mask_text(text, masking_policy))}"
+            for name, text in note_labels.deferred
         )
         body = f"{body}\n\n{definitions}" if body else definitions
     return body

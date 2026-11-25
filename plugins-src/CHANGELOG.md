@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- 개인정보 안내를 지금 도구가 하는 것에 맞춥니다(`SKILL.md`, `references/workflows-pii.md`, `workflows-reading.md`).
+  "읽기·추출 도구의 `mask`는 기본 ON", "기계세트=항상 마스킹"은 사실이 아니었습니다. 가리는 도구는 `get_document_text`·
+  `hwpx_to_markdown`·`hwpx_extract_json`·`document_to_markdown`·`document_extract_json` 다섯이고, 그 밖의 읽기 도구
+  (`find_text`·`get_document_map`·`get_table_map`·`hwpx_to_html` 등)와 `search_and_replace`·`apply_edits`의 `semanticDiff`는
+  원문을 줍니다. `scan_personal_info`가 검사하는 자리와 검사하지 않는 자리(`scanned`·`notScanned`), 탐지하는 표기와 못 잡는
+  표기(공백·점으로 나눈 번호, 유선 번호, 외국인등록번호, 이름표와 값이 다른 칸에 있는 표 양식), 서버에 로그 가림 장치가
+  걸려 있지 않다는 것을 적습니다.
+
 - ChatGPT 플러그인을 1.1.0으로 올립니다. 묶인 엔진이 python-hwpx 7.0.0·python-hwpx-automation 8.0.0이 됩니다
   (1.0.2는 6.6.0·7.3.1). python-hwpx-automation 8.0은 `cryptography`·`anyio`가 없어도 설치되고 돌아가므로, 묶음에서
   `anyio`·`idna`·`typing_extensions` wheel을 빼고 표 라벨 칸 채우기·새 문서 만들기의 전제를 `pydantic`(2.11 이상)

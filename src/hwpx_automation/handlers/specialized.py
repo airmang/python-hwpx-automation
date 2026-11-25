@@ -9,9 +9,6 @@ import tempfile
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from ..core.content import (
-    collect_full_text,
-)
 from ..core.document import open_doc
 from ..office.authoring.advanced_generators import (
     build_image_grid as build_hwpx_image_grid,
@@ -58,6 +55,7 @@ from ..office.rendering import resolve_hancom_oracle as resolve_oracle
 from ..storage import (
     build_hwpx_open_safety_report,
 )
+from ..upstream import hwp5_conversion_report
 from ..utils.helpers import resolve_path
 from ._shared import (
     _decode_image_base64,
@@ -352,35 +350,196 @@ def scan_personal_info(filename: str | None = None, text: str | None = None) -> 
     라벨 게이트 low-confidence. 반환은 유형별 건수 + **마스킹된 예시만** — 원본 PII는 절대 반환하지 않습니다.
     마스킹은 따로 하지 않고 이 도구는 탐지/감사만 합니다(마스킹은 fill/merge/extract 도구의 `mask` 기본 ON).
     """
+    not_scanned: list[dict[str, str]] = []
     if text is None:
         if not filename:
             return {"error": "filename 또는 text 중 하나가 필요합니다."}
-        text = collect_full_text(open_doc(resolve_path(filename)))
-    spans = detect_pii(text or "", DEFAULT_POLICY)
+        places, not_scanned = _pii_scan_places(open_doc(resolve_path(filename)))
+    else:
+        places = {"text": text}
     by_type: dict[str, dict] = {}
-    for span in spans:
-        kind = span["type"]
-        bucket = by_type.setdefault(
-            kind,
-            {
-                "type": kind,
-                "confidence": span["confidence"],
-                "count": 0,
-                "maskedExamples": [],
-            },
-        )
-        bucket["count"] += 1
-        if len(bucket["maskedExamples"]) < 3:
-            bucket["maskedExamples"].append(
-                mask_value(span["value"], kind, DEFAULT_POLICY)
+    by_place: list[dict[str, Any]] = []
+    total = 0
+    for place, place_text in places.items():
+        spans = detect_pii(place_text or "", DEFAULT_POLICY)
+        if spans:
+            by_place.append({"place": place, "count": len(spans)})
+        total += len(spans)
+        for span in spans:
+            kind = span["type"]
+            bucket = by_type.setdefault(
+                kind,
+                {
+                    "type": kind,
+                    "confidence": span["confidence"],
+                    "count": 0,
+                    "maskedExamples": [],
+                },
             )
+            bucket["count"] += 1
+            if len(bucket["maskedExamples"]) < 3:
+                bucket["maskedExamples"].append(
+                    mask_value(span["value"], kind, DEFAULT_POLICY)
+                )
     return {
         "report_version": "pii-scan-v1",
-        "total": len(spans),
+        "total": total,
         "byType": list(by_type.values()),
+        "byPlace": by_place,
+        "scanned": list(places),
+        "notScanned": not_scanned,
         "machineSet": ["rrn", "phone", "email", "card"],
-        "note": "기계세트=high-confidence 항상 탐지; 맥락형(account/address/name)=라벨게이트 low-confidence. 원본값 미반환(마스킹 예시만).",
+        "note": (
+            "기계세트(rrn/phone/email/card)=high-confidence, 정해진 표기만 탐지(예: 010-0000-0000·"
+            "000000-0000000처럼 붙임표로 잇거나 붙여 쓴 꼴. 공백·점으로 나눈 번호, 유선 번호, "
+            "외국인등록번호는 놓침); 맥락형(account/address/name)=이름표가 같은 글 안에 있을 때만 "
+            "low-confidence. total·byType은 scanned 자리만 센 값이고 notScanned 자리는 보지 않았다. "
+            "원본값 미반환(마스킹 예시만)."
+        ),
     }
+
+
+#: 문단이 있는 자리 — core ``doc.text.iter_paragraphs()`` 의 ``where`` 값. 문서에 그 자리가
+#: 없어도 "검사했다"에 든다(있었다면 읽었을 자리).
+_PII_PARAGRAPH_PLACES = (
+    "body",
+    "cell",
+    "text_box",
+    "caption",
+    "header",
+    "footer",
+    "footnote",
+    "endnote",
+    "memo",
+    "master_page",
+    "hidden_comment",
+)
+
+#: 문서 정보에서 글이 드는 칸 (``doc.parts.metadata``).
+_PII_DOCUMENT_INFO_FIELDS = ("title", "creator", "subject", "description", "keyword", "lastsaveby")
+
+_PII_PREVIEW_TEXT_PART = "Preview/PrvText.txt"
+
+#: ``scan_personal_info`` 가 어느 문서에서도 읽지 않는 자리.
+_PII_NEVER_SCANNED = (
+    ("image_text", "그림·스캔 이미지 속 글자는 읽지 않는다(글자 인식 없음)."),
+    (
+        "embedded_object",
+        "글맵시, 차트, OLE로 넣은 개체 안의 글은 읽지 않는다.",
+    ),
+    (
+        "link_and_name",
+        "하이퍼링크 주소, 책갈피·누름틀·셀 필드의 이름, 개체 설명 글은 읽지 않는다.",
+    ),
+    (
+        "author_and_history",
+        "변경 추적·메모의 작성자 이름, 문서 이력, 스크립트는 읽지 않는다.",
+    ),
+)
+
+
+def _pii_scan_places(doc: Any) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """The text ``scan_personal_info`` reads in *doc*, by place, and the places it did not read.
+
+    Paragraphs come from core's own walk of every place (``doc.text.iter_paragraphs()``): the
+    body, table cells and the tables in them, text boxes, captions, headers, footers, foot and
+    end notes, memos, master pages and hidden comments. A filled form field keeps its 안내문 and
+    its 도움말 in the field, not in a paragraph, so those are read from the fields; form objects,
+    equation scripts, the document information and the preview text are not paragraphs either
+    (``_PII_OTHER_PLACES``). A place that cannot be read is named in the second value with the
+    reason, never left out silently.
+    """
+
+    places: dict[str, list[str]] = {place: [] for place in _PII_PARAGRAPH_PLACES}
+    for paragraph_place in doc.text.iter_paragraphs():
+        paragraph = paragraph_place.paragraph
+        texts = places.setdefault(paragraph_place.where, [])
+        texts.append(paragraph.text or "")
+        # 덧말을 단 글(본말·덧말)과 겹쳐 쓴 글자는 문단 글에 들지 않는다.
+        for ruby in paragraph.rubies:
+            texts.extend((ruby.text or "", ruby.ruby_text or ""))
+        texts.extend(mark.text or "" for mark in paragraph.composed_characters)
+    not_scanned: list[dict[str, str]] = []
+    for place, label, read in _PII_OTHER_PLACES:
+        try:
+            places[place] = read(doc)
+        except Exception as exc:  # named in notScanned with the reason, not swallowed
+            not_scanned.append(
+                {"place": place, "reason": f"{label}: 읽지 못했다 ({type(exc).__name__})."}
+            )
+    conversion = hwp5_conversion_report(doc)
+    if conversion is not None:
+        left_out = sorted({*conversion["unconverted"], *conversion["dropped"]})
+        if left_out:
+            not_scanned.append(
+                {
+                    "place": "hwp_unconverted",
+                    "reason": ".hwp에서 문서 모델로 옮기지 못한 내용은 읽지 않았다: "
+                    + ", ".join(left_out),
+                }
+            )
+    not_scanned.extend({"place": place, "reason": reason} for place, reason in _PII_NEVER_SCANNED)
+    return {place: "\n".join(texts) for place, texts in places.items()}, not_scanned
+
+
+def _pii_field_guidance(doc: Any) -> list[str]:
+    """Each form field's 안내문 and 도움말. An empty field shows its 안내문 as paragraph text,
+    so that one is already read with the paragraphs."""
+
+    guidance: list[str] = []
+    for field in doc.fields.all:
+        if not field.is_placeholder:
+            guidance.append(field.prompt or "")
+        guidance.append(field.memo or "")
+    return guidance
+
+
+def _pii_form_object_texts(doc: Any) -> list[str]:
+    """What the form objects hold: an edit box's text, a combo box's text and items, the caption
+    of a check box, a radio button and a command button."""
+
+    fields = doc.fields
+    texts = [box.text or "" for box in fields.edit_boxes]
+    for box in fields.combo_boxes:
+        shown = [box.text or ""]
+        for item in box.items:
+            shown.extend([item] if isinstance(item, str) else [str(part) for part in item])
+        texts.extend(dict.fromkeys(shown))  # the chosen text is one of the items: read it once
+    for group in (fields.check_boxes, fields.radio_buttons, fields.buttons):
+        texts.extend(form_object.caption or "" for form_object in group)
+    return texts
+
+
+def _pii_equation_scripts(doc: Any) -> list[str]:
+    return [equation.script or "" for equation in doc.shapes.equations]
+
+
+def _pii_document_info(doc: Any) -> list[str]:
+    metadata = doc.parts.metadata
+    return [str(getattr(metadata, name, None) or "") for name in _PII_DOCUMENT_INFO_FIELDS]
+
+
+def _pii_preview_text(doc: Any) -> list[str]:
+    """The preview text part: UTF-8, or UTF-16 as an ``.hwp`` keeps it."""
+
+    if not doc.package.has_part(_PII_PREVIEW_TEXT_PART):
+        return []
+    data = doc.package.read(_PII_PREVIEW_TEXT_PART)
+    try:
+        return [data.decode("utf-8-sig")]
+    except UnicodeDecodeError:
+        has_bom = data[:2] in (b"\xff\xfe", b"\xfe\xff")
+        return [data.decode("utf-16" if has_bom else "utf-16-le")]
+
+
+#: 문단이 아닌 자리: (자리 이름, 읽지 못했을 때 적을 이름, 읽는 함수).
+_PII_OTHER_PLACES = (
+    ("field_prompt", "누름틀 안내문·도움말", _pii_field_guidance),
+    ("form_object", "양식 개체(입력 상자·콤보 상자·선택 상자·라디오 단추·명령 단추)", _pii_form_object_texts),
+    ("equation", "수식", _pii_equation_scripts),
+    ("document_info", "문서 정보", _pii_document_info),
+    ("preview_text", f"미리 보기 글({_PII_PREVIEW_TEXT_PART})", _pii_preview_text),
+)
 
 
 def _nearest_rect(rects: list, center: tuple[float, float]):

@@ -5,7 +5,8 @@ A 27B-class local model loses its way among a hundred tools, overflows its
 context when it reads a document's structure, and breaks a tool call whose
 argument carries a long body. These operations are shaped for it:
 
-* reads return a short id-tagged list, never the document body;
+* reads return a short id-tagged list: the first 200 characters of each
+  paragraph and table cell as written (unmasked), not the document's structure;
 * edits take ``{id: new text}`` and return counts and ids, never the result;
 * a long body is staged in short chunks (:class:`DraftStore`) and passed on
   by its ``draft_id``, so no single tool argument is long.
