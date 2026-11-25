@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Codex·OpenClaw·Hermes도 `python-hwpx-automation`의 `preview` extra를 설치합니다. 앞서 Claude Code 번들의 잠긴 런타임만
+  `[mcp,preview]`로 고쳤고, 번들 런처(Codex)와 OpenClaw·Hermes 설치 안내는 `[mcp,oracle]`만 설치해 `latex2mathml`이 없었으며
+  `render_preview`의 수식이 LaTeX 코드 블록으로 보였습니다. 설치 좌표를 `python-hwpx-automation[mcp,oracle,preview]`로 고칩니다
+  (`product-identity.json`의 `pluginInstallExtras`·`installConstraint`, 런처의 검증 좌표·설치 창·editable 경로, 두 설치 안내).
+  번들 검사(`validate_hwpx_plugin.py`)가 설치 extra에 `preview`가 있는지 확인하고, Claude 런타임은 같은 목록에서 `oracle`만 뺀
+  것이어야 합니다. 판 번호와 Claude `uv.lock`은 그대로입니다. 이미 설치한 OpenClaw·Hermes 환경은 안내의 `uv tool install`
+  줄을 다시 실행해야 `latex2mathml`이 들어옵니다(`uv tool upgrade`는 설치할 때 준 extra를 그대로 씁니다).
+
 - 개인정보 안내를 지금 도구가 하는 것에 맞춥니다(`SKILL.md`, `references/workflows-pii.md`, `workflows-reading.md`).
   "읽기·추출 도구의 `mask`는 기본 ON", "기계세트=항상 마스킹"은 사실이 아니었습니다. 가리는 도구는 `get_document_text`·
   `hwpx_to_markdown`·`hwpx_extract_json`·`document_to_markdown`·`document_extract_json` 다섯이고, 그 밖의 읽기 도구

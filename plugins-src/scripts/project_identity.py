@@ -194,8 +194,10 @@ LAUNCHER = "hwpx-automation-mcp"
 
 
 def _launcher_lines(c: dict[str, Any], pi: dict[str, Any]) -> dict[str, str]:
+    # The same extras as installConstraint: the two channels install the same set.
+    extras = ",".join(pi["components"]["automation"]["pluginInstallExtras"])
     return {
-        "VERIFIED_SERVER_PACKAGE": f"python-hwpx-automation[mcp,oracle]=={c['automation']}",
+        "VERIFIED_SERVER_PACKAGE": f"python-hwpx-automation[{extras}]=={c['automation']}",
         "VERIFIED_CORE_PACKAGE": f"python-hwpx[preview]=={c['core']}",
         "CONSTRAINT_SERVER_PACKAGE": pi["installConstraint"]["automation"],
         "CONSTRAINT_CORE_PACKAGE": pi["installConstraint"]["core"],

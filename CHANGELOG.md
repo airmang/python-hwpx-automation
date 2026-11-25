@@ -19,6 +19,11 @@
   같은 내용의 판으로 돌아갔습니다). 이제 지운 메모가 없으면 문서의 바이트도, `.bak`도, 폴더의 다른 파일도 호출 전과 같고,
   결과에는 `verificationReport`·`backup` 없이 `document_revision`만 실립니다. `dry_run=True`도 같은 값을 돌려줍니다.
   지운 메모의 수를 `removed_count`로 함께 돌려줍니다. 메모를 지운 호출은 전과 같습니다.
+- Codex·OpenClaw·Hermes 플러그인도 `python-hwpx-automation`의 `preview` extra를 설치합니다. Claude 번들의 잠긴 런타임만
+  `[mcp,preview]`로 고쳤고, 번들 런처(Codex)와 OpenClaw·Hermes 설치 안내는 `[mcp,oracle]`만 설치해 `latex2mathml`이 없었으며
+  `render_preview`의 수식이 LaTeX 코드 블록으로 보였습니다. 플러그인의 설치 좌표를
+  `python-hwpx-automation[mcp,oracle,preview]`로 고치고(`plugins-src/packaging/product-identity.json`, 런처 틀, 두 설치 안내),
+  번들 검사가 설치 extra에 `preview`가 있는지 확인합니다. 판 번호와 Claude `uv.lock`은 그대로입니다.
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를
   열기부터 거부하던 것을 고칩니다(#247). 지금까지는 읽기 도구도 편집 도구도 코드 없는 `package validation failed`로 끝났습니다.
   열기 관문이 이 한 가지 모양(`section-properties-not-first`)만 통과시켜 읽기 도구가 그대로 읽고, 편집 도구가 저장하면

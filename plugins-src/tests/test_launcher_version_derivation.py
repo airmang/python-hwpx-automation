@@ -80,7 +80,7 @@ def test_verified_and_constraint_literals_derive_from_product_identity() -> None
     automation = identity["components"]["automation"]["currentVersion"]
     text = TEMPLATE.read_text(encoding="utf-8")
     assert _default("VERIFIED_CORE_PACKAGE", text) == f"python-hwpx[preview]=={core}"
-    assert _default("VERIFIED_SERVER_PACKAGE", text) == f"python-hwpx-automation[mcp,oracle]=={automation}"
+    assert _default("VERIFIED_SERVER_PACKAGE", text) == f"python-hwpx-automation[mcp,oracle,preview]=={automation}"
     assert _default("CONSTRAINT_CORE_PACKAGE", text) == identity["installConstraint"]["core"]
     assert _default("CONSTRAINT_SERVER_PACKAGE", text) == identity["installConstraint"]["automation"]
     assert identity["installConstraint"]["core"] == f"python-hwpx[preview]>={core},<{int(core.split('.')[0]) + 1}"

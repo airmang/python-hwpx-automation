@@ -77,9 +77,10 @@
       "mcpExtra": "mcp",
       "pluginInstallExtras": [
         "mcp",
-        "oracle"
+        "oracle",
+        "preview"
       ],
-      "distributionNote": "배포명은 python-hwpx-automation이다. MCP는 [mcp] extra이며 플러그인은 렌더·PDF word-box 검증을 위해 [oracle]도 함께 설치한다."
+      "distributionNote": "배포명은 python-hwpx-automation이다. MCP는 [mcp] extra이며 플러그인은 렌더·PDF word-box 검증을 위해 [oracle]도, 미리보기 수식을 MathML로 그리기 위해 [preview](latex2mathml)도 함께 설치한다."
     },
     "plugin": {
       "repository": "hwpx-plugins",
@@ -119,6 +120,6 @@
   },
   "installConstraint": {
     "core": "python-hwpx[preview]>=7.0.0,<8",
-    "automation": "python-hwpx-automation[mcp,oracle]>=8.0.0,<9"
+    "automation": "python-hwpx-automation[mcp,oracle,preview]>=8.0.0,<9"
   }
 }
