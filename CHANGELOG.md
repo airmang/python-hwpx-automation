@@ -4,6 +4,16 @@
 
 ### Fixed
 
+- `mail_merge`가 같은 파일 이름으로 풀리는 행이 있는 실행을 쓰기 전에 거부합니다. `filename_pattern="{name}.hwpx"`에 이름이 같은
+  행이 둘이면 뒤 행의 문서가 앞 행의 문서를 덮어썼는데, 보고는 모든 행을 만들었다고 했습니다(`createdCount`가 행 수, 파일은
+  하나 적음). 이제 아무것도 쓰기 전에 이번 실행의 출력 이름을 모두 풀어 보고, 같은 파일로 가는 이름이 둘 이상이면
+  `MAIL_MERGE_FILENAME_COLLISION`으로 거부합니다. 대소문자만 다른 이름(`Kim.hwpx`·`kim.hwpx`), `.hwpx`를 붙이거나 경로·금지
+  문자를 정리한 뒤 같아지는 이름, `zip_filename`이 행 문서와 같은 파일인 경우도 충돌입니다(Windows에서 같은 파일이면 충돌).
+  오류의 `details.collisions`에 파일 이름과 행 번호(`rowIndexes`)가 실리고, 이름 패턴에 행마다 다른 값(예: `{index:03d}_{name}.hwpx`)을
+  넣으라는 안내가 붙습니다. 거부한 호출은 출력 폴더를 만들지도, 그 안의 파일을 바꾸지도, ZIP을 쓰지도 않습니다.
+  `strict=True`로 건너뛰는 행은 쓰지 않으므로 충돌로 세지 않습니다. 출력 폴더에 이미 있던 같은 이름 파일은 전처럼 `.bak`으로
+  남기고 덮어씁니다. 파이썬에서 `hwpx_automation.mail_merge.merge_template_rows`를 직접 부르면
+  `MailMergeFilenameCollisionError`(`ValueError`)입니다.
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를
   열기부터 거부하던 것을 고칩니다(#247). 지금까지는 읽기 도구도 편집 도구도 코드 없는 `package validation failed`로 끝났습니다.
   열기 관문이 이 한 가지 모양(`section-properties-not-first`)만 통과시켜 읽기 도구가 그대로 읽고, 편집 도구가 저장하면

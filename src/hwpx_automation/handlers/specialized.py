@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from ..core.document import open_doc
+from ..errors import HwpDocumentError
+from ..mail_merge import MailMergeFilenameCollisionError
 from ..office.authoring.advanced_generators import (
     build_image_grid as build_hwpx_image_grid,
 )
@@ -135,17 +137,25 @@ def mail_merge(
     if build_hwpx_mail_merge is None:
         raise RuntimeError("installed python-hwpx does not provide mail merge tools")
     data_source = _mail_merge_data_source(data_rows, data_filename)
-    report = build_hwpx_mail_merge(
-        resolve_path(template_filename),
-        data_source,
-        output_dir=resolve_path(output_dir) if output_dir else None,
-        filename_pattern=filename_pattern,
-        zip_path=resolve_path(zip_filename) if zip_filename else None,
-        strict=strict,
-        split_newlines=split_newlines,
-        fit_mode=fit_mode,
-        max_lines=max_lines,
-    )
+    try:
+        report = build_hwpx_mail_merge(
+            resolve_path(template_filename),
+            data_source,
+            output_dir=resolve_path(output_dir) if output_dir else None,
+            filename_pattern=filename_pattern,
+            zip_path=resolve_path(zip_filename) if zip_filename else None,
+            strict=strict,
+            split_newlines=split_newlines,
+            fit_mode=fit_mode,
+            max_lines=max_lines,
+        )
+    except MailMergeFilenameCollisionError as exc:
+        # Refused before anything was written: the client gets the code, the names and the rows.
+        raise HwpDocumentError(
+            "같은 파일 이름으로 풀리는 행이 있어 아무것도 만들지 않았습니다. 그대로 만들면 뒤 행의 문서가 앞 행의 문서를 덮어씁니다.",
+            code=exc.code,
+            details=exc.details,
+        ) from exc
     open_safety = _mail_merge_open_safety_summary(report)
     report["openSafety"] = open_safety
     report["verification"] = {
