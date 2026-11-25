@@ -152,7 +152,9 @@ Ollama·Open WebUI의 27B급 모델처럼 도구가 많으면 길을 잃는 환�
 `stage_text` → `create_from_markdown`, `validate_document`. 긴 본문은 도구 인수에
 한 번에 싣지 않고 `stage_text`로 1,000자 안팎씩 나눠 보낸 뒤 `draft_id`로 넘깁니다.
 `create_from_markdown`의 `byline`(200자까지)은 제목 아래 오른쪽에 쓰는 부서·날짜 줄입니다.
-결과에는 문서 본문을 싣지 않고, 수정본은 기본으로 `<이름>.edited.hwpx`에 저장합니다.
+수정 도구의 결과에는 문서 본문을 싣지 않고(건수와 id만), 수정본은 기본으로 `<이름>.edited.hwpx`에
+저장합니다. `read_outline`은 문단·표 칸마다 앞 200자까지 원문을 싣습니다(개인정보를 가리지 않습니다) —
+문단이 짧은 문서는 본문 전체가 결과에 실립니다.
 
 ## 한컴으로 PDF 렌더하기
 
