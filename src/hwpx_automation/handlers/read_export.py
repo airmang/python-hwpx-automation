@@ -31,7 +31,7 @@ from ..core.formatting import (
 from ..core.search import find_in_doc
 from ..ingest import DocumentIngestError, DocumentIngestor
 from ..network_policy import NetworkPolicy, NetworkPolicyError, open_url
-from ..office.compliance import DEFAULT_POLICY, mask_pii
+from ..office.compliance import DEFAULT_POLICY, detect_pii, mask_pii, mask_value
 from ..runtime_services import RUNTIME_SERVICES
 from ..upstream import (
     HP_NS,
@@ -71,11 +71,68 @@ def _mask_pii_text(value: str, mask: bool = True) -> str:
     return mask_pii(value, DEFAULT_POLICY)
 
 
+#: Keys whose value is the runs of one paragraph, each a dict with its ``text``
+#: (``format.runs`` of ``format_detail``, a note's ``bodySpans``).
+_RUN_LIST_KEYS = frozenset({"runs", "bodySpans"})
+
+
+def _mask_texts_as_one(texts: list[str]) -> list[str]:
+    """Mask *texts*, the runs of one paragraph in order, as the one string they make.
+
+    A value written over several runs (part of a phone number in bold) is a value in
+    the paragraph and no value in any one run, so masking run by run leaves it readable
+    in pieces. The masked value is written in the run it starts in and the runs it runs
+    over lose their part of it: joined, the result is the masked paragraph text.
+    """
+    joined = "".join(texts)
+    spans = detect_pii(joined, DEFAULT_POLICY)
+    if not spans:
+        return list(texts)
+    masked: list[str] = []
+    offset = 0
+    for text in texts:
+        start, end = offset, offset + len(text)
+        offset = end
+        pieces: list[str] = []
+        cursor = start
+        for span in spans:  # in order, none overlapping
+            if span["end"] <= start or span["start"] >= end:
+                continue
+            pieces.append(joined[cursor : max(cursor, span["start"])])
+            if span["start"] >= start:
+                pieces.append(mask_value(span["value"], span["type"], DEFAULT_POLICY))
+            cursor = min(end, span["end"])
+        pieces.append(joined[cursor:end])
+        masked.append("".join(pieces))
+    return masked
+
+
+def _is_run_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(run, dict) and isinstance(run.get("text"), str) for run in value)
+    )
+
+
+def _mask_run_list(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    texts = _mask_texts_as_one([run["text"] for run in runs])
+    return [
+        {
+            key: text if key == "text" else _deep_mask_pii(val, True)
+            for key, val in run.items()
+        }
+        for run, text in zip(runs, texts)
+    ]
+
+
 def _deep_mask_pii(obj: Any, mask: bool = True) -> Any:
     """Recursively mask PII in string VALUES of a nested JSON-able structure.
 
     Dict keys are left untouched; only string values are masked (``mask_pii`` only
     rewrites machine-set PII + label-gated contextual, so normal text is unchanged).
+    The runs of a paragraph (``_RUN_LIST_KEYS``) are masked as the paragraph's text,
+    not one by one: see :func:`_mask_texts_as_one`.
     """
     if not mask:
         return obj
@@ -84,7 +141,12 @@ def _deep_mask_pii(obj: Any, mask: bool = True) -> Any:
     if isinstance(obj, list):
         return [_deep_mask_pii(item, True) for item in obj]
     if isinstance(obj, dict):
-        return {key: _deep_mask_pii(val, True) for key, val in obj.items()}
+        return {
+            key: _mask_run_list(val)
+            if key in _RUN_LIST_KEYS and _is_run_list(val)
+            else _deep_mask_pii(val, True)
+            for key, val in obj.items()
+        }
     return obj
 
 

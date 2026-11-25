@@ -72,6 +72,22 @@
   clean 단계는 `(**) : …` 안내 줄과 파란 `ex) …` 예시 줄(이어지는 줄 포함)을 지우고, §10에 "AI를 활용하여 … 하는 행위" 문장이
   있으면 그 구절로 `(**)` 자리를 채운다. 문장이 없으면 자리를 그대로 두고 `content_report["finalize"]["placeholders_left"]`에
   알린다(#205).
+- 개인정보 검사의 범위와, 가림을 준 경로에서 새던 두 곳을 고칩니다(#245, #248, python-hwpx#834).
+  `scan_personal_info(filename)`는 본문과 표 칸만 보고 `total: 0`을 범위 없이 돌려주었습니다. 이제 python-hwpx의 모든 자리
+  순회(`doc.text.iter_paragraphs()`)로 표 칸 안의 표·글상자·캡션·머리말·꼬리말·각주·미주·메모·바탕쪽·숨은 설명까지 보고,
+  덧말을 단 글·겹쳐 쓴 글자, 누름틀 안내문·도움말, 양식 개체(입력 상자 등)의 글, 수식, 문서 정보(제목·만든 사람 등),
+  미리 보기 글(`Preview/PrvText.txt`)도 검사합니다. 결과에 검사한 자리(`scanned`), 자리별 건수(`byPlace`), 검사하지 않은
+  자리와 까닭(`notScanned`: 그림 속 글자, 글맵시·차트·OLE, 하이퍼링크 주소, 작성자 이름·문서 이력, 읽지 못한 자리)을
+  싣습니다. `total`·`byType`은 이 모든 자리를 센 값이라, 같은
+  번호가 본문과 미리 보기 글에 있으면 2건입니다. 원본값을 돌려주지 않는 것은 그대로입니다.
+  `hwpx_automation.markdown.to_markdown`·`to_html`은 `masking_policy`를 주어도 `notes=True`(각주·미주 글을 끝에 싣는 기본 꼴)의
+  각주·미주 글을 가리지 않았는데, 이제 본문처럼 가립니다. `hwpx_extract_json(format_detail=True)`는 기본 가림에서 문단
+  `text`만 가리고 `format.runs[].text`와 각주의 `bodySpans[].text`는 런마다 따로 보아, 서식이 달라 런이 나뉜 번호가 조각으로
+  나왔습니다. 이제 런 글을 문단 글 기준으로 가립니다(가린 값은 그 값이 시작한 런에 실리고, 이어 붙이면 가린 문단 글과
+  같습니다. `mask=False`는 그대로 원문). 문서도 지금 동작에 맞췄습니다: 가리는 도구는 `get_document_text`·`hwpx_to_markdown`·
+  `hwpx_extract_json`·`document_to_markdown`·`document_extract_json` 다섯이고 그 밖의 읽기 도구는 원문을 준다는 것, 탐지하는
+  표기와 못 잡는 표기, minimal 프로필의 `read_outline`은 문단마다 앞 200자까지 원문을 싣는다는 것(`plugins-src`의
+  `SKILL.md`·`references/workflows-pii.md`·`workflows-reading.md`, README). 도구 설명과 인자는 바꾸지 않았습니다.
 
 ### Docs
 
