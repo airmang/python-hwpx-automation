@@ -14,6 +14,11 @@
   `strict=True`로 건너뛰는 행은 쓰지 않으므로 충돌로 세지 않습니다. 출력 폴더에 이미 있던 같은 이름 파일은 전처럼 `.bak`으로
   남기고 덮어씁니다. 파이썬에서 `hwpx_automation.mail_merge.merge_template_rows`를 직접 부르면
   `MailMergeFilenameCollisionError`(`ValueError`)입니다.
+- `remove_memo`가 메모가 없는 문단에 불렸을 때 `memo_removed: false`를 돌려주고 파일을 쓰지 않습니다. 지금까지는 지운 메모가
+  없어도 `memo_removed: true`를 돌려주고 문서를 다시 써서 백업을 한 칸 밀었습니다(그 뒤의 `undo_last_edit`는 직전 편집이 아니라
+  같은 내용의 판으로 돌아갔습니다). 이제 지운 메모가 없으면 문서의 바이트도, `.bak`도, 폴더의 다른 파일도 호출 전과 같고,
+  결과에는 `verificationReport`·`backup` 없이 `document_revision`만 실립니다. `dry_run=True`도 같은 값을 돌려줍니다.
+  지운 메모의 수를 `removed_count`로 함께 돌려줍니다. 메모를 지운 호출은 전과 같습니다.
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를
   열기부터 거부하던 것을 고칩니다(#247). 지금까지는 읽기 도구도 편집 도구도 코드 없는 `package validation failed`로 끝났습니다.
   열기 관문이 이 한 가지 모양(`section-properties-not-first`)만 통과시켜 읽기 도구가 그대로 읽고, 편집 도구가 저장하면
