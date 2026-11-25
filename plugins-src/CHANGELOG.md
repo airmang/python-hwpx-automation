@@ -9,6 +9,7 @@
   원문을 줍니다. `scan_personal_info`가 검사하는 자리와 검사하지 않는 자리(`scanned`·`notScanned`), 탐지하는 표기와 못 잡는
   표기(공백·점으로 나눈 번호, 유선 번호, 외국인등록번호, 이름표와 값이 다른 칸에 있는 표 양식), 서버에 로그 가림 장치가
   걸려 있지 않다는 것을 적습니다.
+
 - `scripts/zip_replace_all.py`와 `scripts/fix_namespaces.py`가 이미 있는 `.hwp` 파일을 출력으로 받으면 쓰지 않고 끝납니다
   (종료 코드 2, 함수는 `FileExistsError`). 두 스크립트는 HWPX(ZIP) 바이트를 쓰므로, 지금까지는 `in.hwpx old.hwp`나
   `--out old.hwp`가 한/글이 저장한 `old.hwp`를 ZIP 바이트로 바꾸고 종료 코드 0을 냈습니다.
