@@ -9,6 +9,8 @@
   번들 검사(`validate_hwpx_plugin.py`)가 설치 extra에 `preview`가 있는지 확인하고, Claude 런타임은 같은 목록에서 `oracle`만 뺀
   것이어야 합니다. 판 번호와 Claude `uv.lock`은 그대로입니다. 이미 설치한 OpenClaw·Hermes 환경은 안내의 `uv tool install`
   줄을 다시 실행해야 `latex2mathml`이 들어옵니다(`uv tool upgrade`는 설치할 때 준 extra를 그대로 씁니다).
+- `references/workflows-bulk-compare.md`에 `mail_merge`가 같은 파일 이름으로 풀리는 행을 `MAIL_MERGE_FILENAME_COLLISION`으로
+  거부한다는 것과 고치는 법(패턴에 `{index}`)을 적습니다.
 
 - 개인정보 안내를 지금 도구가 하는 것에 맞춥니다(`SKILL.md`, `references/workflows-pii.md`, `workflows-reading.md`).
   "읽기·추출 도구의 `mask`는 기본 ON", "기계세트=항상 마스킹"은 사실이 아니었습니다. 가리는 도구는 `get_document_text`·
