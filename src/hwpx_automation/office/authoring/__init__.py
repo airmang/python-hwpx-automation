@@ -7,6 +7,7 @@ import hashlib
 import re
 from ast import literal_eval as _literal
 from dataclasses import dataclass, field
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, Mapping, Sequence, cast, overload
 
@@ -97,6 +98,10 @@ _SUPPORTED_BLOCK_TYPES = frozenset(
 _SUPPORTED_STYLE_TOKENS = frozenset(
     {"body", "title", "subtitle", "heading", "bullet", "table_header", "table_cell"}
 )
+#: Table profiles a plan's table may name (``tableProfile``). Every table of a new document takes the
+#: one table look (the report look's, 8.0), which is the government report table (a bold, centred,
+#: shaded header row repeated on each page): ``"government"`` names that look and draws the same table
+#: as no profile. It is kept so the plans that name it stay valid.
 _SUPPORTED_TABLE_PROFILES = frozenset({"government"})
 _DEFAULT_PAGE_MARGIN_MM = 25
 _TABLE_BORDER_COLOR = "#BFBFBF"
@@ -717,22 +722,67 @@ def normalize_document_plan(plan: Mapping[str, Any] | DocumentPlan) -> DocumentP
     )
 
 
-def _validate_document_plan_v2(
-    plan: Mapping[str, Any],
-    *,
-    schema_version: str,
-) -> PlanValidationReport:
-    issues: list[PlanValidationIssue] = []
+def _v2_top_level_blocks(plan: Mapping[str, Any]) -> list[Any] | None:
+    """A v2 plan's top-level ``blocks`` when it gives its body that way (no ``sections``): the
+    blocks of a one-section document, the plan shape :func:`get_document_plan_schema` describes.
+    ``None``: the plan gives ``sections`` (or nothing)."""
+
+    blocks = plan.get("blocks")
+    if isinstance(blocks, list) and blocks and not plan.get("sections"):
+        return blocks
+    return None
+
+
+def _v2_sections_to_validate(plan: Mapping[str, Any], issues: list[PlanValidationIssue]) -> list[Any] | None:
+    """The sections of a v2 plan still to validate, adding to *issues* what is wrong with how the plan
+    gives its body. Top-level ``blocks`` are validated here (none left: ``[]``); ``None``: the plan
+    gives no body, and validation stops."""
+
     sections = plan.get("sections")
+    top_blocks = plan.get("blocks")
+    one_section = _v2_top_level_blocks(plan)
+    if one_section is not None:
+        # The plan shape get_document_plan_schema() describes: the blocks of a one-section document.
+        for block_index, raw_block in enumerate(one_section):
+            issues.extend(_validate_v2_block(raw_block, path=f"blocks[{block_index}]"))
+        return []
+    if isinstance(top_blocks, list) and top_blocks:
+        issues.append(
+            _plan_issue(
+                "conflicting_plan_body",
+                "blocks",
+                "blocks and sections are both given; a plan gives its blocks one way",
+                suggestion=(
+                    "Move the top-level blocks into a section's blocks, or drop sections "
+                    "and give a one-section document's blocks at the top level."
+                ),
+            )
+        )
+        return sections if isinstance(sections, list) else []
     if not isinstance(sections, list) or not sections:
         issues.append(
             _plan_issue(
                 "missing_sections",
                 "sections",
                 "sections must be a non-empty list",
-                suggestion="Add at least one section with a blocks array.",
+                suggestion=(
+                    "Add at least one section with a blocks array, or give a one-section "
+                    "document's blocks at the top level (blocks)."
+                ),
             )
         )
+        return None
+    return sections
+
+
+def _validate_document_plan_v2(
+    plan: Mapping[str, Any],
+    *,
+    schema_version: str,
+) -> PlanValidationReport:
+    issues: list[PlanValidationIssue] = []
+    sections = _v2_sections_to_validate(plan, issues)
+    if sections is None:
         return _plan_validation_report(issues, schema_version=schema_version)
 
     for section_index, raw_section in enumerate(sections):
@@ -796,6 +846,162 @@ _V2_SUPPORTED_BLOCK_TYPES = {
     "approval_box",
     "approvalBox",
 }
+_V2_BULLET_TYPES = frozenset({"bullets", "bullet"})
+
+#: How deep the items of a bullets block may nest (``children``): Hancom's ten list levels.
+_MAX_BULLET_DEPTH = 10
+#: The left margin each depth of a nested bullet item adds, in HWPUNIT (about 5.3 mm: one and a
+#: half characters of 10 pt text, as a Markdown look indents a list inside a list).
+_NESTED_BULLET_STEP = 1500
+#: The bullet of each depth of a bullets block in the v1 general layout; the first is the one a list
+#: without nested items has always had.
+_PLAN_BULLET_CHARS = ("•", "-", "·")
+
+
+def _is_text_item(item: Any) -> bool:
+    """Whether a list item is text the document can hold as it is: a string or a number."""
+
+    return isinstance(item, str) or (isinstance(item, (int, float)) and not isinstance(item, bool))
+
+
+def _bullet_entries(
+    items: Any, *, path: str
+) -> tuple[list[tuple[str, int, str]], list[PlanValidationIssue]]:
+    """The items of a bullets block as ``(text, depth, path)`` in reading order, and what is wrong
+    with them.
+
+    An item is text (a string or a number) at depth 0, or an object ``{"text": ..., "children":
+    [...]}`` whose ``children`` are items one depth further in. Empty text items are left out, as
+    they always were. An item the document cannot hold as list text (an object without text, a
+    list, ``null``) is an error, never written as its Python form.
+    """
+
+    entries: list[tuple[str, int, str]] = []
+    issues: list[PlanValidationIssue] = []
+    if isinstance(items, str):
+        if items.strip():
+            entries.append((items.strip(), 0, path))
+    elif isinstance(items, list):
+        _walk_bullet_items(items, 0, path, entries, issues)
+    return entries, issues
+
+
+def _walk_bullet_items(
+    values: list[Any],
+    depth: int,
+    base: str,
+    entries: list[tuple[str, int, str]],
+    issues: list[PlanValidationIssue],
+) -> None:
+    """Add the items *values* (at *depth*, under path *base*) and their children to *entries*."""
+
+    if depth >= _MAX_BULLET_DEPTH and values:
+        issues.append(
+            _plan_issue(
+                "bullet_too_deep",
+                base,
+                f"{base} is nested {depth + 1} deep; bullets nest at most {_MAX_BULLET_DEPTH} deep",
+                suggestion="Move the deepest items up a level.",
+            )
+        )
+        return
+    for index, item in enumerate(values):
+        item_path = f"{base}[{index}]"
+        if _is_text_item(item):
+            if str(item).strip():
+                entries.append((str(item).strip(), depth, item_path))
+            continue
+        children = _bullet_object_item(item, depth, item_path, entries, issues)
+        if children is not None:
+            _walk_bullet_items(children, depth + 1, f"{item_path}.children", entries, issues)
+
+
+def _bullet_object_item(
+    item: Any,
+    depth: int,
+    item_path: str,
+    entries: list[tuple[str, int, str]],
+    issues: list[PlanValidationIssue],
+) -> list[Any] | None:
+    """Add a bullet item that is not text (``{"text": ..., "children": [...]}``) to *entries*, or
+    what is wrong with it to *issues*; its children, if it has a list of them."""
+
+    if not isinstance(item, Mapping):
+        issues.append(
+            _plan_issue(
+                "unsupported_bullet_item",
+                item_path,
+                f"{item_path} must be text or an object with text and children, not {type(item).__name__}",
+                suggestion='Write the item as text, or as {"text": "...", "children": ["..."]}.',
+            )
+        )
+        return None
+    text = item.get("text")
+    if not _is_text_item(text) or not str(text).strip():
+        issues.append(
+            _plan_issue(
+                "unsupported_bullet_item",
+                f"{item_path}.text",
+                f"{item_path}.text must be non-empty text",
+                suggestion="Give the item its own text in text; the items under it go in children.",
+            )
+        )
+        return None
+    entries.append((str(text).strip(), depth, item_path))
+    ignored = sorted(str(key) for key in item if key not in ("text", "children"))
+    if ignored:
+        issues.append(
+            _plan_issue(
+                "ignored_bullet_item_fields",
+                item_path,
+                f"{item_path} fields are not written: {', '.join(ignored)}",
+                severity="warning",
+                suggestion="A bullet item holds only text and children; drop the other fields.",
+            )
+        )
+    children = item.get("children")
+    if children is None or isinstance(children, list):
+        return children
+    issues.append(
+        _plan_issue(
+            "unsupported_bullet_item",
+            f"{item_path}.children",
+            f"{item_path}.children must be a list of items",
+            suggestion='Write children as a list, e.g. ["...", "..."].',
+        )
+    )
+    return None
+
+
+def _bullet_texts_and_depths(items: Any, *, path: str) -> tuple[list[str], list[int]]:
+    """The texts of a bullets block's items and the depth of each; an item the document cannot hold
+    raises ``ValueError`` (a validated plan has none)."""
+
+    entries, issues = _bullet_entries(items, path=path)
+    errors = [issue.message for issue in issues if issue.severity == "error"]
+    if errors:
+        raise ValueError("; ".join(errors))
+    return [text for text, _depth, _path in entries], [depth for _text, depth, _path in entries]
+
+
+def _unwritable_list_item_issues(items: Any, *, path: str) -> list[PlanValidationIssue]:
+    """Errors for the items of a numbered list that are not text: a numbered list does not nest."""
+
+    if not isinstance(items, list):
+        return []
+    return [
+        _plan_issue(
+            "unsupported_list_item",
+            f"{path}[{index}]",
+            f"{path}[{index}] must be text, not {type(item).__name__}",
+            suggestion=(
+                "Write each numbered item as text; to nest items, use a bullets block, whose items "
+                'may be {"text": "...", "children": [...]}.'
+            ),
+        )
+        for index, item in enumerate(items)
+        if not _is_text_item(item)
+    ]
 
 
 def _validate_v2_block(raw_block: Any, *, path: str) -> list[PlanValidationIssue]:
@@ -834,7 +1040,7 @@ def _validate_v2_block_required_fields(
     if block_type in {"image_grid", "imageGrid"}:
         return _require_v2_image_grid_images(raw_block, path=path)
     if block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
-        return _require_v2_list_items(raw_block, path=path)
+        return _require_v2_list_items(raw_block, block_type, path=path)
     if block_type == "table":
         return _require_v2_table_content(raw_block, path=path)
     return None
@@ -883,9 +1089,21 @@ def _require_v2_image_grid_images(
 
 
 def _require_v2_list_items(
-    raw_block: Mapping[str, Any], *, path: str
+    raw_block: Mapping[str, Any], block_type: str, *, path: str
 ) -> list[PlanValidationIssue] | None:
-    if not _string_list(raw_block.get("items")):
+    items = raw_block.get("items")
+    if block_type in _V2_BULLET_TYPES:
+        entries, item_issues = _bullet_entries(items, path=f"{path}.items")
+        errors = [issue for issue in item_issues if issue.severity == "error"]
+        if errors:
+            return errors
+        if entries:
+            return None
+    else:
+        unwritable = _unwritable_list_item_issues(items, path=f"{path}.items")
+        if unwritable:
+            return unwritable
+    if not _string_list(items):
         return [
             _plan_issue(
                 "missing_list_items",
@@ -922,7 +1140,7 @@ def _v2_block_computed_field_issues(
     if block_type == "paragraph":
         return _v2_paragraph_computed_field_issues(raw_block, path=path)
     if block_type in {"bullets", "bullet", "numbered_list", "numberedList"}:
-        return _v2_list_computed_field_issues(raw_block, path=path)
+        return _v2_list_computed_field_issues(raw_block, block_type, path=path)
     if block_type == "table":
         return _v2_table_computed_field_issues(raw_block, path=path)
     if block_type in {"image_grid", "imageGrid"}:
@@ -953,9 +1171,15 @@ def _v2_paragraph_computed_field_issues(
 
 
 def _v2_list_computed_field_issues(
-    raw_block: Mapping[str, Any], *, path: str
+    raw_block: Mapping[str, Any], block_type: str, *, path: str
 ) -> list[PlanValidationIssue]:
     issues: list[PlanValidationIssue] = []
+    if block_type in _V2_BULLET_TYPES:
+        entries, item_issues = _bullet_entries(raw_block.get("items"), path=f"{path}.items")
+        issues.extend(issue for issue in item_issues if issue.severity != "error")
+        for text, _depth, item_path in entries:
+            issues.extend(_computed_field_issues(text, path=item_path))
+        return issues
     for item_index, item in enumerate(_string_list(raw_block.get("items"))):
         issues.extend(_computed_field_issues(item, path=f"{path}.items[{item_index}]"))
     return issues
@@ -965,6 +1189,17 @@ def _v2_table_computed_field_issues(
     raw_block: Mapping[str, Any], *, path: str
 ) -> list[PlanValidationIssue]:
     issues: list[PlanValidationIssue] = []
+    table_profile = str(raw_block.get("tableProfile") or "").strip()
+    if table_profile and table_profile not in _SUPPORTED_TABLE_PROFILES:
+        issues.append(
+            _plan_issue(
+                "unknown_table_profile",
+                f"{path}.tableProfile",
+                f"{path}.tableProfile is unknown: {table_profile!r}",
+                severity="warning",
+                suggestion="Use tableProfile='government' or omit tableProfile.",
+            )
+        )
     for header_index, header_value in enumerate(raw_block.get("header") or []):
         issues.extend(_computed_field_issues(header_value, path=f"{path}.header[{header_index}]"))
     for row_index, row in enumerate(raw_block.get("rows") or []):
@@ -1142,8 +1377,11 @@ def _bridge_to_design_plan(plan: Mapping[str, Any], profile_id: str):
         elif block_type == "paragraph":
             emit(_Block(type="paragraph", role="body", text=str(raw.get("text") or "")))
         elif block_type == "bullets":
-            for item in raw.get("items") or []:
-                emit(_Block(type="paragraph", role="body", text=str(item)))
+            # A profile writes list items as body paragraphs; nested items (children) follow their
+            # parent in reading order.
+            texts, _depths = _bullet_texts_and_depths(raw.get("items") or [], path=f"blocks[{index}].items")
+            for text in texts:
+                emit(_Block(type="paragraph", role="body", text=text))
         elif block_type == "table":
             emit(_bridge_table_block(raw, _Block))
         elif block_type == "page_break":
@@ -1764,8 +2002,11 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
                     )
                 )
     elif block_type == "bullets":
-        items = _string_list(raw_block.get("items") or raw_block.get("bullets"))
-        if not items:
+        entries, item_issues = _bullet_entries(
+            raw_block.get("items") or raw_block.get("bullets"), path=f"{path}.items"
+        )
+        issues.extend(item_issues)
+        if not entries and not any(issue.severity == "error" for issue in item_issues):
             issues.append(
                 _plan_issue(
                     "missing_bullet_items",
@@ -1774,8 +2015,8 @@ def _validate_block(raw_block: Any, *, index: int) -> list[PlanValidationIssue]:
                     suggestion="Add a non-empty items array, or use a paragraph block instead.",
                 )
             )
-        for item_index, item in enumerate(items):
-            issues.extend(_computed_field_issues(item, path=f"{path}.items[{item_index}]"))
+        for text, _depth, item_path in entries:
+            issues.extend(_computed_field_issues(text, path=item_path))
     elif block_type == "table":
         column_keys, column_issues = _validate_table_columns(raw_block.get("columns"), path=path)
         issues.extend(column_issues)
@@ -2257,13 +2498,7 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
         )
 
     if block_type == "bullets":
-        items = _string_list(raw_block.get("items") or raw_block.get("bullets"))
-        if not items:
-            raise ValueError(f"blocks[{index}].items must be a non-empty list")
-        return DocumentBlock(
-            "bullets",
-            {"items": [replace_computed_fields(item) for item in items]},
-        )
+        return _normalize_bullets_block(raw_block, index=index)
 
     if block_type == "table":
         columns = _normalize_columns(raw_block.get("columns"), index=index)
@@ -2303,6 +2538,19 @@ def _normalize_block(raw_block: Any, *, index: int) -> DocumentBlock:
     return DocumentBlock("page_break", {})
 
 
+def _normalize_bullets_block(raw_block: Mapping[str, Any], *, index: int) -> DocumentBlock:
+    items, depths = _bullet_texts_and_depths(
+        raw_block.get("items") or raw_block.get("bullets"), path=f"blocks[{index}].items"
+    )
+    if not items:
+        raise ValueError(f"blocks[{index}].items must be a non-empty list")
+    data: dict[str, Any] = {"items": [replace_computed_fields(item) for item in items]}
+    if any(depths):
+        # Nested items (children): the depth of each item, which a list without them leaves out.
+        data["levels"] = depths
+    return DocumentBlock("bullets", data)
+
+
 def _normalize_paragraph_runs(value: Any, *, index: int) -> list[dict[str, Any]]:
     if value is None:
         return []
@@ -2339,10 +2587,12 @@ def _normalize_v2_builder_document(plan: Mapping[str, Any]) -> BuilderDocument:
                 author=author,
                 organization=organization,
             )
+    top_blocks = _v2_top_level_blocks(plan)
+    raw_sections = [{"blocks": top_blocks}] if top_blocks is not None else plan.get("sections") or []
     return BuilderDocument(
         sections=tuple(
             _normalize_v2_section(raw_section, index=index)
-            for index, raw_section in enumerate(plan.get("sections") or [])
+            for index, raw_section in enumerate(raw_sections)
         ),
         metadata=builder_metadata,
         visual_review_required=_optional_bool(plan.get("visualReviewRequired")),
@@ -2486,18 +2736,14 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
             style=_optional_str(raw_block.get("style")),
         )
     if block_type in {"bullets", "bullet"}:
-        return BuilderBullet(
-            items=tuple(replace_computed_fields(item) for item in _string_list(raw_block.get("items"))),
-            level=_int_value(raw_block.get("level", 0), default=0),
-            style=_optional_str(raw_block.get("style")),
-        )
+        return _normalize_v2_bullets(raw_block, path=path)
     if block_type in {"numbered_list", "numberedList"}:
         return BuilderNumberedList(
             items=tuple(replace_computed_fields(item) for item in _string_list(raw_block.get("items"))),
             level=_int_value(raw_block.get("level", 0), default=0),
         )
     if block_type == "table":
-        return BuilderTable(
+        return _PlanBuilderTable(
             header=tuple(replace_computed_fields(str(item)) for item in raw_block.get("header") or ()),
             rows=tuple(
                 tuple(replace_computed_fields(str(cell)) for cell in row)
@@ -2567,6 +2813,16 @@ def _normalize_v2_block(raw_block: Any, *, path: str) -> Any:
     if block_type in {"page_break", "pageBreak"}:
         return BuilderPageBreak()
     raise ValueError(f"{path}.type is unsupported: {block_type!r}")
+
+
+def _normalize_v2_bullets(raw_block: Mapping[str, Any], *, path: str) -> BuilderBullet:
+    texts, depths = _bullet_texts_and_depths(raw_block.get("items"), path=f"{path}.items")
+    level = _int_value(raw_block.get("level", 0), default=0)
+    items = tuple(replace_computed_fields(item) for item in texts)
+    style = _optional_str(raw_block.get("style"))
+    if any(depths):
+        return _NestedBullet(items=items, level=level, style=style, levels=tuple(level + depth for depth in depths))
+    return BuilderBullet(items=items, level=level, style=style)
 
 
 def _image_grid_builder_nodes(raw_block: Mapping[str, Any]) -> tuple[Any, ...]:
@@ -2649,6 +2905,82 @@ class _PlanTable(BuilderTable):
     given_widths: bool = False
 
 
+@dataclass(frozen=True, repr=False)
+class _PlanBuilderTable(BuilderTable):
+    """A v2 plan's table. One that gives a look of its own (header shading, column widths, merged
+    cells) is drawn as given, and its header row still takes the table look's: bold, centred,
+    shaded (its own shading, else the look's), repeated on each page. Without widths of its own its
+    columns are as wide as their text needs, as the table look's are."""
+
+    def __repr__(self) -> str:
+        # The public Table's: a builder document seeds its ids from its repr, so a plan's table
+        # keeps the ids (and the bytes) it had.
+        return repr(BuilderTable(**{item.name: getattr(self, item.name) for item in dataclass_fields(BuilderTable)}))
+
+    def _finish_given_look(self, document: HwpxDocument, table: Any, rows: list[list[str]]) -> None:
+        from ...markdown._import import fit_column_widths, header_row_look
+
+        cols = table.column_count
+        if not self.column_widths:
+            fit_column_widths(table, rows)
+        if self.header:
+            header_row_look(document, table, cols, shading=self.header_shading)
+
+
+@dataclass(frozen=True)
+class _NestedBullet(BuilderBullet):
+    """A bullets block whose items nest (``children``): ``levels`` gives each item's list level.
+
+    Each level has its own bullet (the preset's for that level) and stands one step
+    (``_NESTED_BULLET_STEP``) further right than the block's own level, as a Markdown look draws a
+    list inside a list."""
+
+    levels: tuple[int, ...] = ()
+
+    def lower(
+        self,
+        document: HwpxDocument,
+        *,
+        section_index: int = 0,
+        preset: Any = None,
+    ) -> None:
+        from .builder.core import _BuilderPreset, _computed_text
+
+        style_preset = preset or _BuilderPreset()
+        deepest = max((*self.levels, self.level))
+        refs = document.styles.ensure_numbering(
+            kind="bullet",
+            levels=[
+                {"char": style_preset.bullet_char(level=index, style=self.style if index == self.level else None)}
+                for index in range(deepest + 1)
+            ],
+        )
+        shapes = _nested_list_shapes(document, refs, base_level=self.level)
+        for item, level in zip(self.items, self.levels):
+            document.add_paragraph(
+                _computed_text(item),
+                section=section_index,
+                para_pr_id_ref=shapes[level],
+                inherit_style=False,
+            )
+
+
+def _nested_list_shapes(document: HwpxDocument, refs: Sequence[str], *, base_level: int) -> dict[int, str]:
+    """The paragraph shape of each list level of *refs* (a level's bullet, from
+    ``ensure_numbering``): a level below *base_level* stands ``_NESTED_BULLET_STEP`` further right
+    for each level it is below."""
+
+    shapes: dict[int, str] = {}
+    for level, ref in enumerate(refs):
+        indent = (level - base_level) * _NESTED_BULLET_STEP
+        shapes[level] = (
+            document.styles.ensure_paragraph_format(base_para_pr_id_ref=ref, margins={"left": indent})
+            if indent > 0
+            else ref
+        )
+    return shapes
+
+
 def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
     if block.type == "heading":
         return (
@@ -2674,7 +3006,7 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
             ),
         )
     if block.type == "bullets":
-        return (BuilderBullet(items=tuple(str(item) for item in block.data["items"])),)
+        return (_plan_bullet_node(block),)
     if block.type == "table":
         columns = list(block.data["columns"])
         rows = list(block.data["rows"])
@@ -2718,6 +3050,13 @@ def _block_to_builder_nodes(block: DocumentBlock) -> tuple[Any, ...]:
     if block.type == "page_break":
         return (BuilderPageBreak(),)
     raise ValueError(f"unsupported block type: {block.type!r}")
+
+
+def _plan_bullet_node(block: DocumentBlock) -> BuilderBullet:
+    items = tuple(str(item) for item in block.data["items"])
+    if block.data.get("levels"):
+        return _NestedBullet(items=items, levels=tuple(int(level) for level in block.data["levels"]))
+    return BuilderBullet(items=items)
 
 
 def _builder_run_from_plan(run: Mapping[str, Any]) -> BuilderRun:
@@ -2964,11 +3303,23 @@ def _render_block(
         return
     if isinstance(block, BuilderBullet):
         bullet_shape = bullet_paragraph_shape(document)
-        for item in block.items:
+        levels: Sequence[int] = block.levels if isinstance(block, _NestedBullet) else ()
+        shapes: dict[int, str] = {}
+        if levels:
+            # Nested items: a bullet of its own for each depth, each depth one step further right.
+            refs = document.styles.ensure_numbering(
+                kind="bullet",
+                levels=[
+                    {"char": _PLAN_BULLET_CHARS[depth % len(_PLAN_BULLET_CHARS)]}
+                    for depth in range(max(levels) + 1)
+                ],
+            )
+            shapes = _nested_list_shapes(document, refs, base_level=0)
+        for item_index, item in enumerate(block.items):
             paragraph = document.add_paragraph(
                 str(item),
                 char_pr_id_ref=tokens["bullet"],
-                para_pr_id_ref=bullet_shape,
+                para_pr_id_ref=shapes[levels[item_index]] if levels else bullet_shape,
                 inherit_style=False,
             )
             _format_para(document, paragraph, line_spacing=150, after_pt=2)
@@ -3115,12 +3466,17 @@ def _add_given_look_table(
                 str(value),
                 char_pr_id_ref=tokens["table_cell"],
             )
+    _given_look_table_rules(table_node, table, rows)
     _style_plan_table(
         document,
         table,
         header_fill=table_node.header_shading or _TABLE_HEADER_FILL,
         header_rows=1 if table_node.header else 0,
     )
+    if table_node.header and len(rows) > 1:
+        from ...markdown._import import repeat_header_row
+
+        repeat_header_row(table, column_count)  # the header row again on each page, as the look's
     if isinstance(table_node, _PlanTable) and table_node.cell_styles:
         _apply_plan_cell_styles(
             document,
@@ -3130,6 +3486,16 @@ def _add_given_look_table(
             base_char_pr_id=tokens["table_cell"],
         )
     _flow_oversized_authored_table(table)
+
+
+def _given_look_table_rules(table_node: BuilderTable, table: Any, rows: list[list[Any]]) -> None:
+    """Widths a v1 plan table with a look of its own did not give: as wide as the text needs, as the
+    table look's columns are."""
+
+    if isinstance(table_node, _PlanTable) and not table_node.given_widths:
+        from ...markdown._import import fit_column_widths
+
+        fit_column_widths(table, [[str(value) for value in row] for row in rows])
 
 
 def _takes_table_look(table_node: Any) -> bool:

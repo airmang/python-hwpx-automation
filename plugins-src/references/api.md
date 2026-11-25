@@ -736,10 +736,18 @@ assert validate_editor_open_safety("agent-plan.hwpx").ok is True
 
 - `heading`: `level` 1-3, `text`
 - `paragraph`: `text`
-- `bullets`: `items`
+- `bullets`: `items`. 항목은 글이거나 `{"text": "...", "children": [...]}`이고, `children`은 한 수준 아래 항목이다(10수준까지).
+  글로 쓸 수 없는 항목(글 없는 객체, 목록, null)은 `unsupported_bullet_item`으로 거부한다.
 - `table`: `caption`, `columns`, `rows`
 - `page_break`
 - `memo`
+
+계획 꼴: v1은 최상위 `blocks`다. v2(`hwpx.document_plan.v2`)는 `sections[].blocks[]`이고, `get_document_plan_schema()`의
+꼴대로 최상위 `blocks`를 주면 한 구역 문서로 받는다(둘을 함께 주면 `conflicting_plan_body`).
+
+표: 새 문서의 표는 모두 한 표 모양이다(머리 행은 굵게·가운데·음영, 쪽마다 반복, 열 너비는 글 길이대로). 표가 제 모양을
+주면(v2 `headerShading`·`columnWidths`·`merges`, v1 `widthWeight`·`cellStyles`) 선과 너비는 준 대로 그리고 머리 행 규칙은
+그대로 지킨다(준 음영은 그 위에). `tableProfile="government"`는 이 모양의 이름이라 기본 표와 같은 표를 그린다.
 
 검증 리포트에서 반드시 확인할 필드:
 

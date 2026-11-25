@@ -583,6 +583,16 @@ class Table:
                 table.set_cell_shading(0, col_index, self.header_shading)
         if self.column_widths:
             table.set_column_widths(self.column_widths)
+        self._finish_given_look(
+            document,
+            table,
+            [[_computed_text(str(value)) for value in row] for row in table_rows],
+        )
+
+    def _finish_given_look(self, document: HwpxDocument, table: Any, rows: list[list[str]]) -> None:
+        """What a table with a look of its own (header shading, column widths or merged cells) gets
+        once drawn as given: nothing more here. A document plan's table also takes the table look's
+        header row and, without widths of its own, its column widths (``create_document_from_plan``)."""
 
 
 def approval_box(
