@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 import pytest
 
 from hwpx_automation.office.agent import cli as hwpx_cli
-from hwpx_automation.office.rendering import mac_session, oracle
+from hwpx_automation.office.rendering import oracle
 
 pymupdf = pytest.importorskip("pymupdf")
 
@@ -101,7 +101,7 @@ def _oracle_reachable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setattr(oracle.MacHancomOracle, name, _no_real_hancom)
     monkeypatch.setattr(oracle.WindowsComOracle, "render_many", _no_real_hancom)
     # Never contend with a real render on this desktop for the shared lock.
-    monkeypatch.setattr(mac_session, "_gui_lock_path", lambda: tmp_path / "gui.lock")
+    monkeypatch.setattr(oracle, "_gui_lock_path", lambda: tmp_path / "gui.lock")
 
 
 @pytest.fixture
@@ -322,14 +322,13 @@ def test_unreadable_pdf_exits_1(
     assert _last_json(stdout)["error"] == "render-failed"
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="the desktop lock is POSIX flock")
 def test_unexpected_errors_still_end_with_the_json_line(
     tmp_path: Path, source: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def _broken() -> Path:
         raise PermissionError("lock directory is read-only")
 
-    monkeypatch.setattr(mac_session, "_gui_lock_path", _broken)
+    monkeypatch.setattr(oracle, "_gui_lock_path", _broken)
 
     code, stdout, _ = _run([str(source), str(tmp_path / "o.pdf"), "--json"])
 
@@ -472,6 +471,85 @@ def test_busy_desktop_is_waited_for_then_reported(tmp_path: Path, source: Path) 
     assert _FakeMac.calls == []
 
 
+def _desktop_probe(lock: Path) -> str:
+    """Try the shared lock from another process: 'busy' while a render holds it."""
+
+    source = (
+        "import sys\nfrom pathlib import Path\n"
+        "from hwpx_automation.office.rendering import HancomBusy, hancom_desktop_lock, oracle\n"
+        "oracle._gui_lock_path = lambda: Path(sys.argv[1])\n"
+        "try:\n    with hancom_desktop_lock(wait=0):\n        print('acquired')\n"
+        "except HancomBusy:\n    print('busy')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", source, str(lock)],
+        check=False, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def test_windows_render_holds_the_shared_desktop_lock(
+    tmp_path: Path, source: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A COM client can attach to the automation Hancom another one started
+    # and close it with Quit(), so a Windows render takes its turn too.
+    held: list[str] = []
+    original = _FakeWindows.render_pdf
+
+    def _probe(self: Any, hwpx_path: str, out_pdf: str | None = None) -> str | None:
+        held.append(_desktop_probe(tmp_path / "gui.lock"))
+        return original(self, hwpx_path, out_pdf)
+
+    monkeypatch.setattr(_FakeWindows, "render_pdf", _probe)
+    monkeypatch.setattr(oracle, "WindowsComOracle", _FakeWindows)
+
+    code, _, _ = _run(
+        [str(source), str(tmp_path / "o.pdf"), "--backend", "windows", "--json"]
+    )
+
+    assert code == 0
+    assert held == ["busy"]
+    assert _desktop_probe(tmp_path / "gui.lock") == "acquired"
+
+
+def test_busy_windows_desktop_is_waited_for_then_reported(
+    tmp_path: Path, source: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    from hwpx_automation.office.rendering import hancom_desktop_lock
+
+    def _no_render(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("rendered while another render held the desktop")
+
+    monkeypatch.setattr(_FakeWindows, "render_pdf", _no_render)
+    monkeypatch.setattr(oracle, "WindowsComOracle", _FakeWindows)
+    held, release = threading.Event(), threading.Event()
+
+    def _hold() -> None:
+        with hancom_desktop_lock(wait=5):
+            held.set()
+            release.wait(30)
+
+    holder = threading.Thread(target=_hold, daemon=True)
+    holder.start()
+    assert held.wait(10)
+    try:
+        code, stdout, _ = _run(
+            [str(source), str(tmp_path / "o.pdf"), "--backend", "windows",
+             "--timeout", "0.3", "--json"]
+        )
+    finally:
+        release.set()
+        holder.join(10)
+
+    assert code == 1
+    payload = _last_json(stdout)
+    assert payload["error"] == "hancom-busy"
+    assert payload["backend"] == "windows"
+
+
 def test_json_is_the_last_stdout_line_even_when_the_backend_prints(
     tmp_path: Path, source: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -598,7 +676,6 @@ def test_non_finite_timeout_is_a_usage_error(tmp_path: Path, source: Path, value
 def test_sigterm_during_a_render_unwinds_and_frees_the_desktop(
     tmp_path: Path, source: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import fcntl
     import signal
 
     before = signal.getsignal(signal.SIGTERM)
@@ -615,9 +692,7 @@ def test_sigterm_during_a_render_unwinds_and_frees_the_desktop(
     assert code == 1
     assert json.loads(stdout.splitlines()[-1])["error"] == "terminated"
     assert signal.getsignal(signal.SIGTERM) is before
-    with (tmp_path / "gui.lock").open("a") as handle:  # the desktop lock is free again
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(handle, fcntl.LOCK_UN)
+    assert _desktop_probe(tmp_path / "gui.lock") == "acquired"  # the desktop lock is free again
 
 
 def test_an_interrupted_mac_render_closes_its_document_and_staging(

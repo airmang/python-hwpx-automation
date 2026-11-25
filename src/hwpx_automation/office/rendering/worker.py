@@ -105,13 +105,20 @@ class PowerShellHancomSession:
                 self.powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                 "-File", str(ps1), "-Jobs", str(jobs), "-ResultPath", str(result),
             ]
-            with self._guard:
-                self._process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            try:
-                return_code = self._process.wait()
-            finally:
+            from .oracle import hancom_desktop_lock
+
+            # A COM client can attach to the automation Hancom another one
+            # started, and the backend ends with Quit(): hold the per-user
+            # desktop lock the CLI and the COM oracle hold, as the Mac session
+            # does. Busy now is HANCOM_DESKTOP_BUSY, not a wait.
+            with hancom_desktop_lock(wait=0):
                 with self._guard:
-                    self._process = None
+                    self._process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    return_code = self._process.wait()
+                finally:
+                    with self._guard:
+                        self._process = None
         if return_code != 0 or not target.is_file():
             return None
         return target

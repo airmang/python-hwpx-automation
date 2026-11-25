@@ -9,6 +9,18 @@
   문서만 받아, 같은 인자로 옮긴 코드가 `AttributeError: 'str' object has no attribute 'oxml'`을 만나고 표 없는 대체 경로로
   넘어갔다(python-hwpx#821). 경로·바이트는 여기서 열고 다 쓴 뒤 닫는다. 그 밖의 값은 무엇을 받는지 알려 주는
   `HwpxTypeError`다.
+- 공개 `hwpx_automation.office.rendering.hancom_desktop_lock(wait=)`이 Windows에서도 실제로 잠근다(지금까지는 일부러
+  아무것도 하지 않았다). Windows COM 클라이언트는 다른 클라이언트가 띄운 자동화 한/글에 붙을 수 있고 렌더는 끝에 `Quit()`로
+  한/글을 닫아, 동시에 돈 두 렌더가 서로를 깨뜨릴 수 있었다(airmang/hwpx-school#19). 잠금 파일은
+  `%LOCALAPPDATA%\hwpx-automation\hwpx-hancom-gui-<사용자 이름>.lock`(없으면 사용자 임시 폴더)의 첫 바이트 `msvcrt`
+  잠금이고, macOS와 같은 뜻(같은 스레드 중첩, 다른 스레드·프로세스는 `wait`초까지 기다림, 넘기면 `HancomBusy`)이다.
+  Windows의 `HancomBusy`는 메시지와 `worker_reason`이 `HANCOM_DESKTOP_BUSY`이고, macOS는 경로·`MAC_GUI_BUSY` 모두 그대로다.
+  `render-pdf --backend windows`, 렌더 워커의 Windows 세션, `WindowsComOracle`의 렌더·`refresh_document`·`open_check_many`
+  (MCP 도구가 부르는 길)가 PowerShell을 띄우는 동안 이 잠금을 쥔다. 차례가 끝내 안 오면 PowerShell을 띄우지 않고
+  `render-pdf`는 `hancom-busy`, 워커는 `HANCOM_DESKTOP_BUSY`, 오라클은 렌더 실패(`open_check_many`는 `unverified`)로 끝난다.
+  Windows에서 `_gui_lock_path()`가 `os.getuid()` 때문에 실패하던 것도 함께 고쳤다. 잠금 구현은 COM 백엔드 옆
+  `office.rendering.oracle`로 옮겼고(`mac_session`이 오라클을 가져오므로 거기 두면 import 순환), `mac_session`은
+  `HancomBusy`·`hancom_desktop_lock`·`_gui_lock_path`를 같은 객체로 다시 내보낸다.
 - PyPI 패키지 설명(README)의 저장소 문서 링크가 PyPI 아래 상대 경로로 풀려 404가 나던 것을 GitHub 절대 주소로 바꿨다
   (#232). 시험이 상대 링크가 다시 들어오지 않게 지킨다.
 

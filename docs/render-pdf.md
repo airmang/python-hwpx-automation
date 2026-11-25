@@ -65,7 +65,7 @@ stdout에 결과를, stderr에 오류를 씁니다. 종료 코드는 같습니�
 | 1 | `render-failed` | 한컴에는 닿았지만 PDF가 나오지 않았거나 읽을 수 없음 |
 | 1 | `hancom-refused` | 한컴이 문서를 열지 않고 오류 창("파일이 손상되었습니다" 등)을 띄움. 이 렌더가 띄운 창만 닫고 바로 끝냄. PDF로 저장하다 손상된 표를 복원할지 물으면 `취소`로 답하고(`복원`은 누르지 않음) 이어서 뜨는 저장 오류 창까지 닫은 뒤 이 코드로 끝냄 |
 | 1 | `hancom-hung` | PDF가 나오지 않았고 한컴이 몇 초 동안 CPU를 계속 80% 이상 쓰며 응답하지 않음(macOS). 한컴을 종료하고 다시 실행한 뒤 렌더하세요. 다시 실행할 때까지 이후 렌더도 모두 실패합니다. `render-pdf`는 한컴을 강제로 끝내지 않음 |
-| 1 | `hancom-busy` | 다른 렌더가 macOS 데스크톱을 쓰는 중이라 시간 안에 차례가 오지 않음 |
+| 1 | `hancom-busy` | 다른 렌더가 한컴(macOS 데스크톱, Windows 자동화 한글)을 쓰는 중이라 시간 안에 차례가 오지 않음 |
 | 1 | `internal-error` | 예상하지 못한 오류 |
 | 2 | `usage` | 인자 오류 |
 | 2 | `input-missing` | `IN` 파일이 없음 |
@@ -88,6 +88,9 @@ stdout에 결과를, stderr에 오류를 씁니다. 종료 코드는 같습니�
   모듈 종류 `FilePathCheckDLL`로 등록해 씁니다. 등록할 값 이름은
   `HWPX_HANCOM_SECURITY_MODULE`로 정할 수 있고, 없으면 `FilePathCheckerModuleExample`,
   그다음 등록된 다른 이름을 차례로 씁니다.
+  COM 클라이언트는 다른 클라이언트가 띄운 자동화 한글에 붙을 수 있고 렌더는
+  끝에 `Quit()`로 한글을 닫으므로, Windows 렌더도 렌더 worker·MCP 도구와 같은
+  사용자별 데스크톱 잠금을 잡고 `--timeout` 안에서 차례를 기다립니다.
 - `HWPX_ORACLE_STRUCTURAL_ONLY=1`이면 한컴을 찾지도 실행하지도 않고 종료 코드
   3으로 끝납니다.
 - `--timeout`을 주지 않으면 `HWPX_ORACLE_BUDGET_SECONDS`가 시간 예산이 됩니다.
@@ -100,8 +103,11 @@ stdout에 결과를, stderr에 오류를 씁니다. 종료 코드는 같습니�
 
 ## Python에서 같은 데스크톱 잠금 사용하기
 
-하류 도구가 Mac 한/글의 공유 데스크톱을 조작할 때는 공개 컨텍스트 관리자를
-사용합니다. CLI와 렌더 워커도 같은 사용자별 파일에 POSIX `flock`을 겁니다.
+하류 도구가 한/글(Mac 공유 데스크톱, Windows 자동화 한글)을 조작할 때는 공개
+컨텍스트 관리자를 사용합니다. CLI·렌더 워커·Windows COM 백엔드도 같은 사용자별
+파일에 잠금을 겁니다. macOS는 `$TMPDIR/hwpx-hancom-gui-<uid>.lock`에 POSIX `flock`,
+Windows는 `%LOCALAPPDATA%\hwpx-automation\hwpx-hancom-gui-<사용자 이름>.lock`의
+첫 바이트에 `msvcrt` 잠금입니다(`LOCALAPPDATA`가 없으면 사용자 임시 폴더).
 
 ```python
 from hwpx_automation.office.rendering import HancomBusy, hancom_desktop_lock
@@ -117,9 +123,12 @@ except HancomBusy:
 
 `wait`는 유한한 0 이상의 초이며 기본값 0은 즉시 획득을 시도합니다.
 같은 스레드에서는 중첩할 수 있고, 예외로 구간을 나가도 잠금은 해제됩니다.
-Windows에서는 COM 렌더마다 별도 한/글 프로세스를 사용하므로 이 컨텍스트는
-아무 잠금 파일도 열지 않는 no-op입니다. 잠금은 문서를 열거나 한/글을 실행하지
-않습니다. 공개 모듈 원장의 기존 `office.rendering` 및 `.mac_session` 항목을
+잠금을 쥔 스레드가 이 패키지의 렌더(`WindowsComOracle`, `MacHancomOracle` 등)를
+같은 프로세스에서 부르면 그대로 들어갑니다. 잠금을 쥔 채 `render-pdf`나 렌더
+worker를 **하위 프로세스**로 부르면 그 프로세스는 차례를 기다리다 `hancom-busy`로
+끝나니 그렇게 하지 마세요. 기한을 넘기면 `HancomBusy`이고, 메시지와
+`worker_reason`은 macOS가 `MAC_GUI_BUSY`(이전과 같음), Windows가
+`HANCOM_DESKTOP_BUSY`입니다. 잠금은 문서를 열거나 한/글을 실행하지 않습니다. 공개 모듈 원장의 기존 `office.rendering` 및 `.mac_session` 항목을
 통해 제공하며 MCP extra가 필요하지 않습니다.
 
 Mac `MacHancomOracle.refresh_document(path)`도 같은 공유 경고창 정책을 사용합니다.

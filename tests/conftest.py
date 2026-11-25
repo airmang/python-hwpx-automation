@@ -131,6 +131,15 @@ def _clear_path_sandbox_for_inprocess_tests(
     from hwpx_automation.storage import LocalDocumentStorage, clear_open_safety_memo
     from hwpx_automation.workspace import WorkspaceResolver
 
+    # Fake renders still take the per-user Hancom desktop lock (on Windows
+    # too); give each test its own file so none waits for, or blocks, a real
+    # render on this desktop. The real-Hancom smokes keep the shared file.
+    if not (os.environ.get("HWPX_MAC_ORACLE_SMOKE") or os.environ.get("HWPX_WINDOWS_ORACLE_SMOKE")):
+        from hwpx_automation.office.rendering import oracle as rendering_oracle
+
+        private_lock = tmp_path / "hancom-desktop.lock"
+        monkeypatch.setattr(rendering_oracle, "_gui_lock_path", lambda: private_lock)
+
     # Passing open-safety verdicts are remembered per content (EFF-15). Tests
     # replace validators and engine internals freely, so each test starts with
     # an empty memo instead of inheriting another test's verdict.

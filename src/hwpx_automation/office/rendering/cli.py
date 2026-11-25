@@ -202,13 +202,16 @@ def _rasterize(document: Any, prefix: str, dpi: int, backend: str | None) -> lis
 
 @contextlib.contextmanager
 def _shared_desktop(backend: str | None, wait_seconds: float) -> Iterator[None]:
-    """Hold the lock the render worker holds for the one shared Mac desktop.
+    """Hold the lock the render worker holds for the one shared Hancom desktop.
 
     Two GUI renders at once drive the same menus and save panel, so a render
     from here must not start while the worker's is running, or the reverse.
+    On Windows a COM client can attach to the automation Hancom another one
+    started and close it with ``Quit()``, so the COM backend waits its turn
+    the same way (and reports ``hancom-busy`` when the wait runs out).
     """
 
-    if backend != "mac" or sys.platform == "win32":
+    if backend not in ("mac", "windows"):
         yield
         return
     from . import HancomBusy, hancom_desktop_lock

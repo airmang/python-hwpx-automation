@@ -34,17 +34,21 @@ CLI::
 """
 from __future__ import annotations
 
+import errno
+import getpass
 import json
+import math
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import zipfile
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from importlib import resources
 from pathlib import Path
 
@@ -301,6 +305,204 @@ def _busy_mac_hancom(
     )
 
 
+# --- the per-user Hancom desktop lock (re-exported by mac_session) ---------
+
+
+def _windows_user() -> str:
+    """The signed-in user's name, made safe for a file name."""
+
+    name = os.environ.get("USERNAME", "")
+    if not name:
+        try:
+            name = getpass.getuser()
+        except Exception:  # noqa: BLE001 - no user name is not an error here
+            name = ""
+    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(" .")
+    return safe or "user"
+
+
+def _gui_lock_path() -> Path:
+    """The per-user lock serializing the shared Hancom desktop across processes.
+
+    macOS: ``$TMPDIR/hwpx-hancom-gui-<uid>.lock``. Windows:
+    ``%LOCALAPPDATA%\\hwpx-automation\\hwpx-hancom-gui-<user>.lock`` (the user
+    temporary folder when ``LOCALAPPDATA`` is not an existing folder), so a
+    process with its own ``TEMP`` still meets the others on the same file.
+    """
+
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA", "")
+        if base and os.path.isabs(base) and os.path.isdir(base):
+            folder = Path(base) / "hwpx-automation"
+        else:
+            folder = Path(tempfile.gettempdir())
+        return folder / f"hwpx-hancom-gui-{_windows_user()}.lock"
+    return Path(tempfile.gettempdir()) / f"hwpx-hancom-gui-{os.getuid()}.lock"
+
+
+class HancomBusy(TimeoutError):
+    """The shared Hancom desktop was not available within the requested wait.
+
+    ``worker_reason`` is ``MAC_GUI_BUSY`` on macOS (unchanged) and
+    ``HANCOM_DESKTOP_BUSY`` on Windows; the message starts with the same code.
+    """
+
+    worker_reason = "MAC_GUI_BUSY"
+
+
+def _busy(wait: float) -> HancomBusy:
+    if sys.platform == "win32":
+        error = HancomBusy(f"HANCOM_DESKTOP_BUSY: Hancom desktop remained busy for {wait:g}s")
+        error.worker_reason = "HANCOM_DESKTOP_BUSY"
+        return error
+    return HancomBusy(f"MAC_GUI_BUSY: Hancom desktop remained busy for {wait:g}s")
+
+
+# msvcrt.locking reports a byte another handle holds as EACCES (EDEADLOCK
+# after LK_LOCK's own retries, which this module does not use).
+_WINDOWS_CONTENDED = {errno.EACCES, getattr(errno, "EDEADLOCK", errno.EDEADLK)}
+
+
+@contextmanager
+def _windows_file_lock(wait: float, deadline: float) -> Iterator[None]:
+    """Hold the first byte of the per-user lock file, as the POSIX flock does.
+
+    The handle is not inherited by child processes (PEP 446), so a PowerShell
+    or Hancom started under the lock never keeps it after this exits.
+    """
+
+    if sys.platform != "win32":  # pragma: no cover - the caller checks first
+        raise RuntimeError("the msvcrt desktop lock exists on Windows only")
+    import msvcrt
+
+    path = _gui_lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | getattr(os, "O_BINARY", 0), 0o600)
+    try:
+        while True:
+            os.lseek(fd, 0, os.SEEK_SET)
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                break
+            except OSError as exc:
+                if exc.errno not in _WINDOWS_CONTENDED:
+                    raise
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise _busy(wait) from None
+                time.sleep(min(0.05, remaining))
+        try:
+            yield
+        finally:
+            try:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass  # closing the handle below releases it as well
+    finally:
+        os.close(fd)
+
+
+_DESKTOP_PID = os.getpid()
+_DESKTOP_THREADS = threading.RLock()
+_DESKTOP_LOCAL = threading.local()
+
+
+def _desktop_thread_state() -> tuple[threading.RLock, threading.local]:
+    # A fork must not inherit the parent's recursion depth or locked mutex.
+    global _DESKTOP_PID, _DESKTOP_THREADS, _DESKTOP_LOCAL
+    if _DESKTOP_PID != os.getpid():
+        _DESKTOP_PID = os.getpid()
+        _DESKTOP_THREADS = threading.RLock()
+        _DESKTOP_LOCAL = threading.local()
+    return _DESKTOP_THREADS, _DESKTOP_LOCAL
+
+
+@contextmanager
+def hancom_desktop_lock(wait: float = 0.0) -> Iterator[None]:
+    """Serialize use of the shared Hancom desktop, reentrantly in one thread.
+
+    ``wait`` is a finite, non-negative number of seconds, including both
+    thread and cross-process contention. Timeout raises :class:`HancomBusy`.
+    The worker, the CLI and the Windows COM backend use this same per-user
+    lock file: a POSIX flock on macOS, a ``msvcrt`` byte lock on Windows,
+    where a COM client can attach to the automation Hancom another one
+    started and close it with ``Quit()``.
+    """
+    if not math.isfinite(wait) or wait < 0:
+        raise ValueError("wait must be finite and non-negative")
+
+    deadline = time.monotonic() + wait
+    owner_pid = os.getpid()
+    mutex, local = _desktop_thread_state()
+    if not mutex.acquire(timeout=min(wait, threading.TIMEOUT_MAX)):
+        raise _busy(wait)
+    try:
+        if getattr(local, "held", False):
+            yield
+            return
+        if sys.platform == "win32":
+            with _windows_file_lock(wait, deadline):
+                local.held = True
+                try:
+                    yield
+                finally:
+                    local.held = False
+            return
+        import fcntl
+
+        with _gui_lock_path().open("a") as handle:
+            while True:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise _busy(wait) from None
+                    time.sleep(min(0.05, remaining))
+            local.held = True
+            try:
+                yield
+            finally:
+                # A fork shares this open-file description. Explicit unlock
+                # in its child would release the parent's still-owned flock.
+                if os.getpid() == owner_pid:
+                    local.held = False
+                    fcntl.flock(handle, fcntl.LOCK_UN)
+    finally:
+        if os.getpid() == owner_pid:
+            mutex.release()
+
+
+_DESKTOP_BUSY_ERROR = "HANCOM_DESKTOP_BUSY: another Hancom run kept the desktop"
+
+
+@contextmanager
+def _desktop_turn(run_timeout: float) -> Iterator[float | None]:
+    """Hold the per-user Hancom desktop lock for one Windows COM backend run.
+
+    A COM client can attach to the automation Hancom another client started,
+    and the backend ends with ``Quit()``, so two runs at once break each
+    other. Yields the seconds of ``run_timeout`` left after waiting for the
+    lock, or ``None`` when another holder kept it for all of them. The lock
+    is reentrant in one thread, so a caller that already holds it (the
+    ``render-pdf`` command, the render worker) passes straight through.
+    """
+
+    started = time.monotonic()
+    left: float | None = None
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(hancom_desktop_lock(wait=run_timeout))
+        except HancomBusy:
+            pass
+        else:
+            remaining = run_timeout - (time.monotonic() - started)
+            left = remaining if remaining > 0 else None
+        yield left
+
+
 class RenderBackend:
     """Common render-oracle interface.
 
@@ -451,7 +653,8 @@ class WindowsComOracle(RenderBackend):
         """Run the COM backend over ``jobs`` in one Hancom session.
 
         Returns the per-job result entries in job order, or ``None`` when the
-        backend timed out, could not start, or left no parseable result.
+        backend timed out, could not start, or left no parseable result, or
+        another render kept the Hancom desktop for the whole ``run_timeout``.
         """
 
         jobs_path = os.path.join(tmp, "jobs.json")
@@ -460,11 +663,13 @@ class WindowsComOracle(RenderBackend):
         with open(jobs_path, "w", encoding="utf-8") as handle:
             json.dump(jobs, handle, ensure_ascii=False)
 
-        with resources.as_file(
+        with _desktop_turn(run_timeout) as left, resources.as_file(
             resources.files("hwpx_automation.office.rendering").joinpath(
                 _BACKEND_SCRIPT
             )
         ) as ps1:
+            if left is None:
+                return None
             cmd = [
                 self._powershell, "-NoProfile", "-NonInteractive",
                 "-ExecutionPolicy", "Bypass", "-File", str(ps1),
@@ -472,7 +677,7 @@ class WindowsComOracle(RenderBackend):
             ]
             try:
                 subprocess.run(
-                    cmd, capture_output=True, timeout=run_timeout,
+                    cmd, capture_output=True, timeout=left,
                     check=False,
                 )
             except subprocess.TimeoutExpired:
@@ -660,11 +865,18 @@ class WindowsComOracle(RenderBackend):
         try:
             jsonl_path = os.path.join(tmp, "checkpoint.jsonl")
             res_path = os.path.join(tmp, "result.json")
-            with resources.as_file(
+            with _desktop_turn(run_timeout) as left, resources.as_file(
                 resources.files("hwpx_automation.office.rendering").joinpath(
                     _OPEN_RATE_SCRIPT
                 )
             ) as ps1:
+                if left is None:
+                    # Never tried, so never False: another Hancom run kept
+                    # the desktop for the whole budget.
+                    return [
+                        {**self._unverified_entry(p), "error": _DESKTOP_BUSY_ERROR}
+                        for p in paths
+                    ]
                 cmd = [
                     self._powershell, "-NoProfile", "-NonInteractive",
                     "-ExecutionPolicy", "Bypass", "-File", str(ps1),
@@ -674,7 +886,7 @@ class WindowsComOracle(RenderBackend):
                 try:
                     subprocess.run(
                         cmd, capture_output=True,
-                        timeout=run_timeout, check=False,
+                        timeout=left, check=False,
                     )
                 except (subprocess.TimeoutExpired, OSError):
                     # Subprocess never finished: prefer the crash-safe checkpoint

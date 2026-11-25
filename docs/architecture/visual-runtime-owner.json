@@ -12,8 +12,8 @@
   "canonical": {
     "status": "canonical",
     "pythonFiles": 13,
-    "loc": 3750,
-    "manifestSha256": "5e7a3c193b6b1ccb7e5a1fe7b6b7f2234d70235175de0affdaab812a32da3919",
+    "loc": 3897,
+    "manifestSha256": "6b285ab5ed1fe0c7948c4a0734a8bdcc8bdca67936c5609cbdb275f09735b68a",
     "nomenclatureRefrozenFrom": {
       "loc": 2704,
       "manifestSha256": "9587ff0e479f7d221e5202a51ee3635293794a16272e1e89a68b9a3dfd1e7676",
@@ -25,7 +25,7 @@
       "manifestSha256": "f5a15541e258e0e2255aad5f864ddbdeb8a43b926c5593b5e95c306390cc5520",
       "reason": "Owned Mac session adapter; cancellation and hash-bound immutable artifacts; complete PDF and exact owned-document cleanup. See docs/architecture/owned-render-recovery.md. Historical core source receipts unchanged."
     },
-    "refrozenFrom": {
+    "saveDatesRefrozenFrom": {
       "loc": 3747,
       "manifestSha256": "998b7c93900049a88e36ebd847963783f21e26292c646b88dc38bfb6ed5aabd2",
       "reason": "23차 B: 저장 날짜(ModifiedDate 지금, CreatedDate 그대로) — exam compose·save_gate_report가 stamp_save_dates를 부름"
@@ -79,6 +79,11 @@
       "loc": 3700,
       "manifestSha256": "d8a35d5bf936607d372bc1e29045f78ce49f358cc78248c46d362b5435fb2322",
       "reason": "Inherited child context cleanup must not unlock the parent shared open-file description or release its inherited thread mutex. Acquisition PID guards both cleanup paths; actual fork regressions cover child unwind and child reentry. Historical core source receipt unchanged."
+    },
+    "refrozenFrom": {
+      "loc": 3750,
+      "manifestSha256": "5e7a3c193b6b1ccb7e5a1fe7b6b7f2234d70235175de0affdaab812a32da3919",
+      "reason": "Windows Hancom desktop lock: hancom_desktop_lock is a real per-user msvcrt byte lock on Windows (LOCALAPPDATA), HANCOM_DESKTOP_BUSY there and MAC_GUI_BUSY unchanged on macOS; render-pdf --backend windows, the Windows worker session and WindowsComOracle runs (render, refresh, open-check) hold it (airmang/hwpx-school#19). The lock now lives in oracle.py (mac_session imports the oracle, so a lock there would be an import cycle) and mac_session re-exports HancomBusy, hancom_desktop_lock and _gui_lock_path. Historical core source receipt unchanged."
     }
   },
   "packageFiles": [

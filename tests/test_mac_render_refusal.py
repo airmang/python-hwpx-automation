@@ -100,7 +100,7 @@ def test_render_pdf_reports_hancom_refused(
 
     monkeypatch.delenv("HWPX_ORACLE_STRUCTURAL_ONLY", raising=False)
     monkeypatch.setattr(oracle, "resolve_oracle", lambda **kwargs: _Refusing(**kwargs))
-    monkeypatch.setattr(mac_session, "_gui_lock_path", lambda: tmp_path / "gui.lock")
+    monkeypatch.setattr(oracle, "_gui_lock_path", lambda: tmp_path / "gui.lock")
 
     stdout, stderr = io.StringIO(), io.StringIO()
     code = render_cli.main(
@@ -134,7 +134,7 @@ def test_mac_session_raises_a_refusal(tmp_path: Path, monkeypatch: pytest.Monkey
 
     session = object.__new__(mac_session.MacHancomSession)
     session.oracle = _Oracle()  # type: ignore[assignment]
-    monkeypatch.setattr(mac_session, "_gui_lock_path", lambda: tmp_path / "gui.lock")
+    monkeypatch.setattr(oracle, "_gui_lock_path", lambda: tmp_path / "gui.lock")
 
     with pytest.raises(mac_session.HancomRefusedError) as caught:
         session.render_pdf(source, tmp_path / "out.pdf")
