@@ -233,7 +233,7 @@ def _render_pdf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[int, d
             return subprocess.CompletedProcess(cmd, 0, "ERR: document window did not open: x\n", "")
 
     monkeypatch.setattr(oracle, "resolve_oracle", lambda **kwargs: _Stuck(**kwargs))
-    monkeypatch.setattr(mac_session, "_gui_lock_path", lambda: tmp_path / "gui.lock")
+    monkeypatch.setattr(oracle, "_gui_lock_path", lambda: tmp_path / "gui.lock")
     stdout, stderr = io.StringIO(), io.StringIO()
     code = render_cli.main(
         ["render-pdf", str(source), str(tmp_path / "out.pdf"), "--json"],
@@ -285,7 +285,7 @@ def test_mac_session_raises_a_hang(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
     session = object.__new__(mac_session.MacHancomSession)
     session.oracle = _Oracle()  # type: ignore[assignment]
-    monkeypatch.setattr(mac_session, "_gui_lock_path", lambda: tmp_path / "gui.lock")
+    monkeypatch.setattr(oracle, "_gui_lock_path", lambda: tmp_path / "gui.lock")
 
     with pytest.raises(mac_session.HancomHungError) as caught:
         session.render_pdf(source, tmp_path / "out.pdf")
