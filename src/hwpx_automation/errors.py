@@ -259,7 +259,9 @@ def hwp5_error_payload(exc: BaseException) -> Optional[Dict[str, Any]]:
             message="원본 .hwp를 열 때 옮기지 못한 내용이 있어 .hwp로 저장하지 않았습니다. 그대로 쓰면 그 내용이 빠진 .hwp가 됩니다.",
             details=details,
         )
-    if hwp5_code == "hwp5-overwrite-source":
+    if hwp5_code in ("hwp5-overwrite-source", "hwp5-overwrite-existing"):
+        # -source: the .hwp the document was opened from. -existing (python-hwpx 7.0.2):
+        # any .hwp already at the target, on every write path of the engine.
         return build_error_payload(
             code="HWP_OVERWRITE_EXISTING",
             message="이미 있는 .hwp 파일은 덮어쓰지 않습니다. 그 파일은 바뀌지 않았습니다.",

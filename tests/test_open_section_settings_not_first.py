@@ -257,6 +257,31 @@ def test_other_open_safety_errors_are_refused_with_a_code_and_the_repair_tool(tm
     assert sorted(p.name for p in tmp_path.iterdir()) == [broken.name]
 
 
+def test_copy_document_copies_the_shape_byte_for_byte(tmp_path: Path) -> None:
+    """A copy is the first step of editing safely; the copy is the same bytes, no better and no worse."""
+
+    source = _made_by_6x(tmp_path / "made-by-6x.hwpx")
+    before = source.read_bytes()
+
+    copied = tmp_path / "copy.hwpx"
+    server.copy_document(str(source), str(copied))
+
+    assert copied.read_bytes() == before
+    assert source.read_bytes() == before
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["copy.hwpx", source.name]
+
+
+def test_copy_document_still_refuses_other_open_safety_errors(tmp_path: Path) -> None:
+    broken = tmp_path / "stale.hwpx"
+    broken.write_bytes(_rewrite_section(_good_bytes(), _stale_line_cache))
+
+    payload = _refusal(lambda: server.copy_document(str(broken), str(tmp_path / "copy.hwpx")))
+
+    assert payload["code"] == "DOCUMENT_OPEN_FAILED"
+    assert "repair_hwpx" in payload["suggestion"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == [broken.name]
+
+
 def test_the_shape_beside_another_error_is_still_refused(tmp_path: Path) -> None:
     def both(root) -> None:
         _settings_to_second_paragraph(root)

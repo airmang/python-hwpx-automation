@@ -12,7 +12,11 @@
   되돌립니다. 그 밖의 열기 안전 오류는 전처럼 거부하되, 이제 `DOCUMENT_OPEN_FAILED` 코드와 `repair_hwpx` 안내, 실패한 검사 이름
   (`details.failedChecks`)이 함께 갑니다. python-hwpx 7.0.0·7.0.1은 이 모양의 저장을 거부하는데, 그 거부도 "도구 인자 오류"가 아니라
   `DOCUMENT_SAVE_FAILED`(`coreCode: section-properties-not-first`)로 알립니다. 바이트를 직접 고치는 도구(`apply_table_ops`,
-  `apply_body_ops`, `byte_preserving_patch`)와 `copy_document`의 `.hwpx`→`.hwpx` 복사는 이 모양을 전처럼 거부합니다.
+  `apply_body_ops`, `byte_preserving_patch`)는 이 모양을 전처럼 거부합니다. `copy_document`의 `.hwpx`→`.hwpx` 복사는 열기와 같은
+  관문을 써서 이 모양을 그대로(같은 바이트로) 복사하고, 그 밖의 열기 안전 오류는 `DOCUMENT_OPEN_FAILED`로 거부합니다
+  (지금까지는 코드 없는 `INVALID_ARGUMENT`였습니다).
+- python-hwpx 7.0.2가 이미 있는 `.hwp`를 덮어쓰지 않겠다고 거부할 때 내는 코드(`hwp5-overwrite-existing`)를
+  `HWP_OVERWRITE_EXISTING`으로 알립니다. 지금까지는 "HWP 문서를 읽을 수 없습니다"(`HWP_DOCUMENT_UNREADABLE`)로 잘못 옮겨졌습니다.
 - `docs/use-cases.md`의 MCP 설정 예시가 옛 판(`python-hwpx-automation[mcp]==6.1.3`, 공개 보안 권고문의 영향 범위)을 고정하던 것을
   지금 공개 판으로 고칩니다. 공개 문서(`README.md`, `docs/*.md`, `plugins-src/**/*.md`; 발행 기록 제외)의
   `python-hwpx(-automation)[…]==X.Y.Z`가 `identity.json`의 공개 좌표와 같은지 시험이 지킵니다.

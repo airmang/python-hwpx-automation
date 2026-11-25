@@ -218,6 +218,10 @@ def test_core_hwp_write_refusals_are_named(tmp_path: Path) -> None:
     overwrite = hwp5_error_payload(Hwp5Error("same", code="hwp5-overwrite-source"))
     assert overwrite is not None and overwrite["code"] == "HWP_OVERWRITE_EXISTING"
     assert "copy_document" in overwrite["suggestion"]
+    # python-hwpx 7.0.2 refuses every existing .hwp target under its own code; same answer here.
+    existing = hwp5_error_payload(Hwp5Error("there", code="hwp5-overwrite-existing"))
+    assert existing is not None and existing["code"] == "HWP_OVERWRITE_EXISTING"
+    assert existing["details"]["hwp5Code"] == "hwp5-overwrite-existing"
 
     # Through a tool: a document whose .hwp opened with content left out is not written
     # as .hwp, even to a new path; python-hwpx refuses it and the refusal is named.
