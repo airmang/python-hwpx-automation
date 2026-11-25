@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- `hwpx_automation.markdown.to_markdown`·`to_html`이 열린 문서 말고 파일 경로(`str`·`Path`)와 HWPX 바이트도 받는다.
+  6.x `hwpx.tools.exporter.export_markdown(bytes)`·`markdown_export.export_markdown(path)`가 받던 입력인데 8.0.0은
+  문서만 받아, 같은 인자로 옮긴 코드가 `AttributeError: 'str' object has no attribute 'oxml'`을 만나고 표 없는 대체 경로로
+  넘어갔다(python-hwpx#821). 경로·바이트는 여기서 열고 다 쓴 뒤 닫는다. 그 밖의 값은 무엇을 받는지 알려 주는
+  `HwpxTypeError`다.
+- PyPI 패키지 설명(README)의 저장소 문서 링크가 PyPI 아래 상대 경로로 풀려 404가 나던 것을 GitHub 절대 주소로 바꿨다
+  (#232). 시험이 상대 링크가 다시 들어오지 않게 지킨다.
 - 문서 계획(document plan)의 목록과 표를 바로잡습니다(#215, #214). bullets 항목 `{"text": ..., "children": [...]}`가
   `{'text': ...}` 꼴의 글로 찍히던 것을, 깊이마다 제 글머리표와 들여쓰기를 가진 목록 수준으로 씁니다(v1·v2·보고서 모양.
   양식 프로필은 읽는 차례대로 본문 문단). 글로 쓸 수 없는 항목(글 없는 객체, 목록, null)과 번호 목록의 객체 항목은
@@ -12,6 +19,13 @@
   `headerShading`·`columnWidths`·`merges`를 주어도 머리 행은 새 문서 표의 머리 행 규칙(굵게·가운데·음영·쪽마다 반복)을
   따르고, 준 값은 그 위에 얹으며, 열 너비를 주지 않았으면 글 길이대로 나눕니다. v1 표도 열 너비를 주면 머리 행을 쪽마다
   반복합니다. `tableProfile="government"`는 기본 표와 같은 표를 그린다고 적고, v2에서도 모르는 이름을 경고합니다.
+
+### Docs
+
+- 호환 배포 `hwpx-mcp-server`의 README가 8.x 실제 모습(같은 판 번호로 `python-hwpx-automation[mcp]`를 정확히 요구,
+  남은 것은 옛 콘솔 명령과 `import hwpx_mcp_server` 두 가지)을 적고, 정하지 않은 제거 시점을 약속하지 않는다(#234).
+- `plugins-src/README.md`가 없어진 매일 갱신 봇 대신 실제 경로(배포 뒤 손으로 돌리는 `plugins-dist` 작업)를 적는다
+  (airmang/hwpx-plugins#66).
 
 ## [8.0.0] - 2026-11-21
 
