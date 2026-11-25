@@ -315,3 +315,93 @@ def test_cross_run_replace_does_not_replace_its_own_output(sample_file: Path):
 
     assert result["replaced_count"] == 1
     assert doc.paragraphs[1].text == "홍길동(인) 귀하"
+
+
+# #212: the global replace visits the same paragraphs find_text searches, tables inside
+# table cells included.
+
+
+def _nested_table_doc(depth: int):
+    from hwpx import HwpxDocument
+
+    doc = HwpxDocument.new()
+    table = doc.add_table(rows=1, cols=1)
+    for _ in range(depth):
+        table = table.cell(0, 0).add_table(rows=1, cols=1)
+    table.cell(0, 0).text = "NESTED_TARGET"
+    return doc
+
+
+@pytest.mark.parametrize("depth", [1, 2, 3])
+def test_replace_in_doc_reaches_a_table_inside_a_cell(depth: int):
+    from hwpx_automation.core.search import find_in_doc, replace_in_doc
+
+    doc = _nested_table_doc(depth)
+
+    before = find_in_doc(doc, "NESTED_TARGET", max_results=100)["total_matches"]
+    replaced = replace_in_doc(doc, "NESTED_TARGET", "REPLACED")
+    after = find_in_doc(doc, "NESTED_TARGET", max_results=100)["total_matches"]
+
+    assert (before, replaced, after) == (1, 1, 0)
+    assert find_in_doc(doc, "REPLACED")["total_matches"] == 1
+
+
+_MARKERS = ("MARK body", "MARK top", "MARK one", "MARK two", "MARK merged", "MARK second")
+
+
+def _write_nested_table_file(path: Path) -> None:
+    doc = open_doc(str(path))
+    doc.add_paragraph("MARK body")
+    outer = doc.add_table(rows=2, cols=3)
+    outer.cell(0, 0).text = "MARK top"
+    outer.merge_cells(1, 0, 1, 1).text = "MARK merged"
+    inner = outer.cell(0, 1).add_table(rows=1, cols=1)
+    inner.cell(0, 0).text = "MARK one"
+    deep = inner.cell(0, 0).add_table(rows=1, cols=2)
+    deep.cell(0, 0).text = "MARK two"
+    doc.add_section()
+    doc.add_paragraph("MARK second", section=1)
+    save_doc(doc, str(path))
+
+
+def _nested_table_count(path: Path) -> int:
+    from hwpx_automation.core.locations import iter_indexed_tables
+
+    return sum(1 for _ in iter_indexed_tables(open_doc(str(path))))
+
+
+def test_search_and_replace_changes_every_place_find_text_finds(sample_file: Path):
+    _write_nested_table_file(sample_file)
+    tables_before = _nested_table_count(sample_file)
+    for marker in _MARKERS:
+        assert find_text(str(sample_file), marker)["total_matches"] == 1, marker
+    found = find_text(str(sample_file), "MARK", max_results=100)["total_matches"]
+
+    # replace_text holds find_text: each place is replaced once (#164).
+    result = search_and_replace(str(sample_file), "MARK", "MARK(done)")
+
+    assert found == len(_MARKERS)
+    assert result["replaced_count"] == found
+    for marker in _MARKERS:
+        assert find_text(str(sample_file), marker)["total_matches"] == 0, marker
+        done = marker.replace("MARK", "MARK(done)")
+        assert find_text(str(sample_file), done)["total_matches"] == 1, done
+    assert find_text(str(sample_file), "(done)(done)")["total_matches"] == 0
+    assert _nested_table_count(sample_file) == tables_before == 3
+
+
+def test_batch_replace_dry_run_and_save_count_the_nested_tables(sample_file: Path):
+    _write_nested_table_file(sample_file)
+    original = sample_file.read_bytes()
+    rules = [{"find": "MARK two", "replace": "deep"}, {"find": "MARK", "replace": "M"}]
+
+    dry = batch_replace(str(sample_file), rules, dry_run=True)
+    assert sample_file.read_bytes() == original
+    saved = batch_replace(str(sample_file), rules)
+
+    expected = [1, len(_MARKERS) - 1]
+    assert [item["replaced_count"] for item in dry["results"]] == expected
+    assert [item["replaced_count"] for item in saved["results"]] == expected
+    assert saved["total_replaced"] == dry["total_replaced"] == len(_MARKERS)
+    assert find_text(str(sample_file), "MARK", max_results=100)["total_matches"] == 0
+    assert find_text(str(sample_file), "deep")["total_matches"] == 1

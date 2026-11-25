@@ -298,3 +298,93 @@ def test_an_older_core_gets_a_dependency_error(tmp_path: Path, monkeypatch: pyte
     monkeypatch.delattr(TextNamespace, "outline")
     assert compact.read_outline(str(source))["error"]["code"] == "DEPENDENCY_MISSING"
     assert compact.apply_text_changes(str(source), {"s0p1": "x"})["error"]["code"] == "DEPENDENCY_MISSING"
+
+
+# --------------------------------------------------------------------------- what an edit did (#209)
+
+
+def _mixed(path: Path) -> tuple[Path, str, str, str]:
+    """A body paragraph of two differently formatted runs, a plain one and a one-line cell."""
+
+    doc = HwpxDocument.new()
+    mixed = doc.add_paragraph("plain head ")
+    mixed.add_run("bold tail", bold=True)
+    doc.add_paragraph("single run")
+    table = doc.add_table(1, 1)
+    table.set_cell_text(0, 0, "cell")
+    doc.save(path)
+    outline = compact.read_outline(str(path))["outline"]
+    return path, _id_of(outline, "plain head bold tail"), _id_of(outline, "single run"), _id_of(outline, "cell")
+
+
+def test_an_edit_inside_one_run_needs_no_review(tmp_path: Path) -> None:
+    source, _mixed_id, plain, _cell = _mixed(tmp_path / "m.hwpx")
+    result = compact.apply_text_changes(str(source), {plain: "single run, edited"})
+    assert result["ok"] is True and result["saved"] is True
+    assert result["rewritten"] == [] and result["overflow"] == [] and result["warnings"] == []
+    assert result["reviewRequired"] is False
+
+
+def test_crossing_formatted_runs_or_adding_a_line_break_is_reported_as_rewritten(tmp_path: Path) -> None:
+    source, mixed, plain, _cell = _mixed(tmp_path / "m.hwpx")
+    result = compact.apply_text_changes(str(source), {mixed: "all new words", plain: "two\nlines"})
+    assert result["ok"] is True and result["saved"] is True and result["changed"] == 2
+    assert sorted(result["rewritten"]) == sorted([mixed, plain])
+    assert result["reviewRequired"] is True
+
+
+def test_overflow_keeps_the_lines_before_and_the_measurers_confidence(tmp_path: Path) -> None:
+    source, _mixed_id, _plain, cell = _mixed(tmp_path / "m.hwpx")
+    result = compact.apply_text_changes(str(source), {cell: "first line\nsecond line\nthird line"})
+    (entry,) = result["overflow"]
+    assert entry["id"] == cell and entry["lines"] > entry["lineBudget"]
+    assert entry["linesBefore"] == 1 and entry["confidence"] in {"high", "low"}
+    # ok stays "every id known, saved file open-safe"; the overflow asks for review.
+    assert result["ok"] is True and result["saved"] is True and result["reviewRequired"] is True
+
+
+def test_an_unmeasured_cell_is_a_warning_not_a_fit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from hwpx._document import text_blocks
+
+    source, _mixed_id, _plain, cell = _mixed(tmp_path / "m.hwpx")
+
+    def broken(*_args: object, **_kwargs: object) -> None:
+        raise ValueError("synthetic measuring failure")
+
+    monkeypatch.setattr(text_blocks, "_cell_lines", broken)
+    result = compact.apply_text_changes(str(source), {cell: "first line\nsecond line\nthird line"})
+    assert result["overflow"] == []
+    assert len(result["warnings"]) == 1 and result["warnings"][0].startswith(f"{cell}: ")
+    assert result["ok"] is True and result["saved"] is True and result["reviewRequired"] is True
+
+
+def test_a_partial_edit_says_it_was_saved(tmp_path: Path) -> None:
+    source, _mixed_id, plain, _cell = _mixed(tmp_path / "m.hwpx")
+    partial = compact.apply_text_changes(str(source), {plain: "edited", "s9p9": "x"})
+    assert partial["ok"] is False and partial["saved"] is True and partial["unknownIds"] == ["s9p9"]
+    assert Path(partial["output"]).exists()
+    nothing = compact.apply_text_changes(str(source), {plain: "single run", "s9p9": "x"}, output=str(tmp_path / "n.hwpx"))
+    assert nothing["saved"] is False and nothing["output"] is None and nothing["unchanged"] == 1
+    assert nothing["reviewRequired"] is False and not (tmp_path / "n.hwpx").exists()
+
+
+def test_the_profile_result_carries_rewritten_and_review_in_both_forms(tmp_path: Path) -> None:
+    source, mixed, _plain, cell = _mixed(tmp_path / "m.hwpx")
+
+    async def probe(client):
+        tools = (await client.list_tools()).tools
+        edited = await client.call_tool(
+            "apply_text_changes", {"path": str(source), "changes": {mixed: "all new words", cell: "a\nb\nc"}}
+        )
+        partial = await client.call_tool("apply_text_changes", {"path": str(source), "changes": {mixed: "x", "s9p9": "y"}})
+        return tools, edited, partial
+
+    tools, edited, partial = _session_run(probe)
+    description = next(tool for tool in tools if tool.name == "apply_text_changes").description or ""
+    assert "rewritten" in description and "formatting kept;" not in description
+    for payload in (json.loads(edited.content[0].text), edited.structuredContent):
+        assert sorted(payload["rewritten"]) == sorted([mixed, cell])
+        assert payload["overflow"][0]["linesBefore"] == 1 and "confidence" in payload["overflow"][0]
+        assert payload["warnings"] == [] and payload["reviewRequired"] is True and payload["saved"] is True
+    assert edited.isError is False
+    assert partial.isError is True and partial.structuredContent["saved"] is True

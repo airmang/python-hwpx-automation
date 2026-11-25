@@ -19,6 +19,15 @@
   `HwpxTypeError`다.
 - PyPI 패키지 설명(README)의 저장소 문서 링크가 PyPI 아래 상대 경로로 풀려 404가 나던 것을 GitHub 절대 주소로 바꿨다
   (#232). 시험이 상대 링크가 다시 들어오지 않게 지킨다.
+- `search_and_replace`·`batch_replace`(와 `apply_edits`의 `replace_text`·`batch_replace`)가 `find_text`와 같은 범위를
+  돈다. 지금까지는 본문 표의 칸까지만 바꿔서 칸 안에 놓인 표(2단·3단 중첩 포함)의 글은 `find_text`가 찾아도 0건
+  바뀌었다(#212). 이제 본문 문단과 모든 표 칸(칸 안의 표 포함)의 문단을 한 번씩 돌아, 찾은 수와 바꾼 수가 같다.
+  `dry_run`도 같은 수를 보고한다.
+- minimal 프로필의 `apply_text_changes` 결과가 python-hwpx가 알려 준 것을 버리지 않는다(#209). 서식이 섞인 run을
+  가로지르거나 탭·줄바꿈을 넣어 첫 run 서식으로 다시 쓴 id(`rewritten`), 칸 넘침을 재지 못한 경고(`warnings`),
+  넘침 항목의 `linesBefore`·`confidence`를 싣는다. 저장 여부(`saved`)와 사람이 볼 것이 있는지(`reviewRequired`)를
+  따로 알려, 알 수 없는 id가 섞여 `ok`가 false여도 아는 id는 이미 저장됐음을 구분한다. `ok`의 뜻(모든 id를 알고
+  저장본이 열기 안전)은 그대로다. 도구 설명의 "formatting kept"는 "rewritten에 든 id 말고는 서식 유지"로 고쳤다.
 
 ### Docs
 
