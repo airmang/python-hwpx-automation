@@ -20,6 +20,14 @@
   넘침 항목의 `linesBefore`·`confidence`를 싣는다. 저장 여부(`saved`)와 사람이 볼 것이 있는지(`reviewRequired`)를
   따로 알려, 알 수 없는 id가 섞여 `ok`가 false여도 아는 id는 이미 저장됐음을 구분한다. `ok`의 뜻(모든 id를 알고
   저장본이 열기 안전)은 그대로다. 도구 설명의 "formatting kept"는 "rewritten에 든 id 말고는 서식 유지"로 고쳤다.
+- 문서 계획(document plan)의 목록과 표를 바로잡습니다(#215, #214). bullets 항목 `{"text": ..., "children": [...]}`가
+  `{'text': ...}` 꼴의 글로 찍히던 것을, 깊이마다 제 글머리표와 들여쓰기를 가진 목록 수준으로 씁니다(v1·v2·보고서 모양.
+  양식 프로필은 읽는 차례대로 본문 문단). 글로 쓸 수 없는 항목(글 없는 객체, 목록, null)과 번호 목록의 객체 항목은
+  검증이 `unsupported_bullet_item`·`unsupported_list_item`으로 거부합니다. `get_document_plan_schema()`가 그리는 꼴대로
+  v2 계획이 최상위 `blocks`를 주면 한 구역 문서로 받습니다(`sections`와 함께 주면 `conflicting_plan_body`). v2 표가
+  `headerShading`·`columnWidths`·`merges`를 주어도 머리 행은 새 문서 표의 머리 행 규칙(굵게·가운데·음영·쪽마다 반복)을
+  따르고, 준 값은 그 위에 얹으며, 열 너비를 주지 않았으면 글 길이대로 나눕니다. v1 표도 열 너비를 주면 머리 행을 쪽마다
+  반복합니다. `tableProfile="government"`는 기본 표와 같은 표를 그린다고 적고, v2에서도 모르는 이름을 경고합니다.
 - 평가계획 채우기(`fill_evalplan`)가 정기시험이 있는 과목의 반영비율 표를 망가뜨리지 않고, `phase="clean"`이 AI 활용 상자의
   양식 안내를 남기지 않는다. 검토 MD §6에 정기시험 열이 있으면 양식의 정기시험 열을 모두 지우던 것을, 시기/영역 이름(2차·선택형)이
   맞는 열은 남기고 MD에 없는 열만 지운 뒤 정기시험 비율·시기·성취기준을 채운다(반영 비율이 100%/100%로 나오던 것, #202). 수행평가만
