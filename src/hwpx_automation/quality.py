@@ -240,12 +240,25 @@ def save_through_pipeline(document: Any, output_path: Any, *, quality: Any = Non
     else:
         policy = quality
     from .office.rendering import hancom_save_pipeline, save_gate_report
+    from .upstream import sections_with_settings_not_first
 
+    settings_not_first = sections_with_settings_not_first(document)
     report = save_gate_report(
         document, output_path, quality=policy, pipeline=hancom_save_pipeline()
     )
     if not report.ok:
         raise QualityGateError(report)
+    if settings_not_first:
+        # python-hwpx 7.0.2 moves them while saving and says so in a UserWarning only;
+        # the result of the save says it too (reliability audit M13).
+        still_there = sections_with_settings_not_first(document)
+        report.warnings.extend(
+            f"section {index}: its settings (hp:secPr) were in a later paragraph, where Hancom "
+            "does not read them; this save moved them to the section's first paragraph and "
+            "dropped the section's line layout caches (section-properties-not-first)"
+            for index in settings_not_first
+            if index not in still_there
+        )
     return report
 
 

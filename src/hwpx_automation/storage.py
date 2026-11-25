@@ -302,15 +302,49 @@ class RemoteDocumentClient(Protocol):
         """Persist *data* to *path* on the remote service."""
 
 
+#: The one package error the open gate admits. python-hwpx reports a section whose
+#: ``hp:secPr`` sits in a later paragraph than its first one with this code in the
+#: message (6.x's ``section.insert_paragraphs(0, ...)`` left files that way). Such a
+#: file opens and reads as it is, and python-hwpx 7.0.2 moves the settings back to
+#: the first paragraph when the document is saved.
+_SECTION_SETTINGS_NOT_FIRST_MARKER = "(section-properties-not-first)"
+
+
+def _only_section_settings_not_first(package: Mapping[str, Any]) -> bool:
+    """Whether every blocking package error is the section-settings shape a save repairs."""
+
+    errors = package.get("errors")
+    return bool(
+        isinstance(errors, list)
+        and errors
+        and all(
+            isinstance(error, str) and _SECTION_SETTINGS_NOT_FIRST_MARKER in error
+            for error in errors
+        )
+    )
+
+
+def open_safety_admits_editing(report: Mapping[str, Any]) -> bool:
+    """Whether a document with this open-safety report may be opened, backed up and restored.
+
+    True for a passing report and for one whose only package error is
+    ``section-properties-not-first`` (see :func:`require_hwpx_editor_open_safe`).
+    A file about to be written is held to ``report["ok"]`` instead.
+    """
+
+    return _report_allows_editor_open(report)
+
+
 def _report_allows_editor_open(report: Mapping[str, Any]) -> bool:
     package = report.get("validatePackage", {})
     reopen = report.get("reopen", {})
-    return bool(
+    if not (
         isinstance(package, Mapping)
         and isinstance(reopen, Mapping)
-        and package.get("ok")
         and reopen.get("ok")
-    )
+    ):
+        return False
+    return bool(package.get("ok")) or _only_section_settings_not_first(package)
 
 
 def require_hwpx_editor_open_safe(
@@ -318,13 +352,27 @@ def require_hwpx_editor_open_safe(
     *,
     role: str,
 ) -> Dict[str, Any]:
-    """Fail only on conditions expected to stop an editor from opening HWPX."""
+    """Fail only on conditions expected to stop an editor from opening HWPX.
+
+    A file whose only package error is ``section-properties-not-first`` is admitted
+    (the returned report still says ``ok: False``): read tools read it, and a save
+    through python-hwpx 7.0.2 moves the settings to the first paragraph. Any other
+    failure is refused as ``DOCUMENT_OPEN_FAILED``, whose suggestion names
+    ``repair_hwpx``; the error carries no path and none of the validators' text.
+    """
 
     open_safety = build_hwpx_open_safety_report(source)
     if not _report_allows_editor_open(open_safety):
-        raise RuntimeError(
+        failed_checks = [
+            name
+            for name in ("validatePackage", "reopen")
+            if not open_safety[name].get("ok")
+        ]
+        raise HwpDocumentError(
             f"{role} failed open-safety verification: "
-            + open_safety["summary"]
+            + open_safety["summary"],
+            code="DOCUMENT_OPEN_FAILED",
+            details={"failedChecks": failed_checks},
         )
     return open_safety
 

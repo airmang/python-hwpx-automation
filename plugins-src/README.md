@@ -161,9 +161,9 @@ codex plugin marketplace upgrade
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
-| 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 7.0.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
+| 최소 호환 버전 | 도구 계약이 구성요소마다 따로 선언한 하한. 함께 설치되는 조합이 아님 — `python-hwpx` 7.x와 함께 설치되는 `python-hwpx-automation`은 8.x이고, 7.2~7.5는 `python-hwpx<7`을 요구 | `python-hwpx >= 7.0.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
-| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 이 창 안의 한 조합을 `uv.lock`으로 고정(검증 좌표와 다를 수 있음. 값은 번들 `server/pyproject.toml`) | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle]>=8.0.0,<9` |
+| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 이 창 안의 한 조합을 `uv.lock`으로 고정(검증 좌표와 다를 수 있음. 값은 번들 `server/pyproject.toml`)하고 `python-hwpx-automation[mcp,preview]`로 설치 — `preview`는 미리보기 수식을 MathML로 그리는 `latex2mathml`, `oracle`은 번들의 `render` 그룹 | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle]>=8.0.0,<9` |
 
 - 코어 성숙도: 현재 공개 코어의 패키지 분류는 `Development Status :: 5 - Production/Stable`, 이전 공개 트레인의
   코어는 `Development Status :: 3 - Alpha`였습니다. Python 기준은 3.10 이상입니다.

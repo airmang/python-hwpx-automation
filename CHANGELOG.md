@@ -4,6 +4,23 @@
 
 ### Fixed
 
+- 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를
+  열기부터 거부하던 것을 고칩니다(#247). 지금까지는 읽기 도구도 편집 도구도 코드 없는 `package validation failed`로 끝났습니다.
+  열기 관문이 이 한 가지 모양(`section-properties-not-first`)만 통과시켜 읽기 도구가 그대로 읽고, 편집 도구가 저장하면
+  python-hwpx 7.0.2가 구역 설정을 첫 문단으로 옮깁니다(용지·여백 값 유지). 옮긴 사실은 저장 결과의
+  `verificationReport.visualComplete.warnings`에 구역 번호와 함께 실립니다. 원본은 `.bak`으로 남고 `undo_last_edit`이 그대로
+  되돌립니다. 그 밖의 열기 안전 오류는 전처럼 거부하되, 이제 `DOCUMENT_OPEN_FAILED` 코드와 `repair_hwpx` 안내, 실패한 검사 이름
+  (`details.failedChecks`)이 함께 갑니다. python-hwpx 7.0.0·7.0.1은 이 모양의 저장을 거부하는데, 그 거부도 "도구 인자 오류"가 아니라
+  `DOCUMENT_SAVE_FAILED`(`coreCode: section-properties-not-first`)로 알립니다. 바이트를 직접 고치는 도구(`apply_table_ops`,
+  `apply_body_ops`, `byte_preserving_patch`)와 `copy_document`의 `.hwpx`→`.hwpx` 복사는 이 모양을 전처럼 거부합니다.
+- `docs/use-cases.md`의 MCP 설정 예시가 옛 판(`python-hwpx-automation[mcp]==6.1.3`, 공개 보안 권고문의 영향 범위)을 고정하던 것을
+  지금 공개 판으로 고칩니다. 공개 문서(`README.md`, `docs/*.md`, `plugins-src/**/*.md`; 발행 기록 제외)의
+  `python-hwpx(-automation)[…]==X.Y.Z`가 `identity.json`의 공개 좌표와 같은지 시험이 지킵니다.
+- Claude 번들의 잠긴 런타임이 `python-hwpx-automation[mcp,preview]`를 설치합니다. 7.0에서 미리보기가 automation으로 옮겨져 core의
+  `preview` extra가 비었는데 번들은 그것만 고정해 `latex2mathml`이 없었고, `render_preview`의 수식이 늘 LaTeX 코드 블록으로
+  보였습니다. `uv.lock`에 `latex2mathml`을 해시와 함께 잠그고, 번들 검사가 그 extra와 잠금을 확인합니다. 플러그인 README·
+  `references/api.md`의 "최소 호환 버전" 줄이 성립하지 않는 조합(core 7.x + automation 7.2)처럼 읽히던 것도 구성요소별
+  하한이라고 고쳐 적습니다.
 - `.hwp`에서 연 문서를 편집 도구가 원본 `.hwp` 경로에 다시 만든 `.hwp`로 덮어쓰던 것을 고칩니다(8.0.0에서 `search_and_replace` 등이
   원본을 바꾸고 `.bak`을 남겼습니다). 이제 이미 있는 `.hwp` 파일은 어떤 문서로도 덮어쓰지 않습니다. 제자리 편집,
   `copy_document(고친.hwpx, 원본.hwp)`, `.hwp`→이미 있는 `.hwp` 복사를 모두 `HWP_OVERWRITE_EXISTING`으로 거부하고, 새 `.hwp`

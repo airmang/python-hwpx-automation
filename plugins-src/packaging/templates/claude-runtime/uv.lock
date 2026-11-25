@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 
 [[package]]
@@ -184,7 +184,7 @@ version = "0"
 source = { virtual = "." }
 dependencies = [
     { name = "python-hwpx" },
-    { name = "python-hwpx-automation", extra = ["mcp"] },
+    { name = "python-hwpx-automation", extra = ["mcp", "preview"] },
 ]
 
 [package.dev-dependencies]
@@ -198,7 +198,7 @@ render = [
 [package.metadata]
 requires-dist = [
     { name = "python-hwpx", extras = ["preview"], specifier = "==7.0.0" },
-    { name = "python-hwpx-automation", extras = ["mcp"], specifier = "==8.0.0" },
+    { name = "python-hwpx-automation", extras = ["mcp", "preview"], specifier = "==8.0.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -239,6 +239,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d", size = 32855, upload-time = "2025-09-08T01:34:59.186Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe", size = 18437, upload-time = "2025-09-08T01:34:57.871Z" },
+]
+
+[[package]]
+name = "latex2mathml"
+version = "3.81.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/db/336c38300e44582752b95842b15a4be8fe656914cf5b02ad1bec53cebceb/latex2mathml-3.81.1.tar.gz", hash = "sha256:c95add0c0fcdecad2d70567e0643050d5ea1149fb2e98a5d5792fb1c8eea2ed5", size = 77475, upload-time = "2026-09-07T19:55:11.037Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/30/b8bcfb01a2514cb7554a048ed52883de276e66d757c3cc535a3c29eb9e98/latex2mathml-3.81.1-py3-none-any.whl", hash = "sha256:c337668441b71c819b6733905a8058ba9a9d767bae11a0c5fdacb3aff31361bd", size = 79159, upload-time = "2026-09-07T19:55:09.611Z" },
 ]
 
 [[package]]
@@ -572,6 +581,9 @@ oracle = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "pymupdf" },
+]
+preview = [
+    { name = "latex2mathml" },
 ]
 
 [[package]]

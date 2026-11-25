@@ -9,6 +9,7 @@ literals. Every number checked here is read from ``tool_contract`` or
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -86,3 +87,76 @@ def test_hardening_guide_states_the_current_contract() -> None:
     assert f"skill `{MIN_SKILL_VERSION}`" in flat
     label = "공개 릴리스" if STATUS == "released" else "후보"
     assert f"{CANDIDATE['canonicalAutomation']} {label}" in flat
+
+
+# Reliability audit CS-03: docs/use-cases.md told readers to install a release
+# two majors old (inside the range of a published security advisory) while
+# README, guarded by a test, named the current one. An exact install pin in a
+# public document is a release coordinate like any other, so it is read from
+# identity.json too.
+_EXACT_PIN = re.compile(
+    r"(?<![\w.-])(python-hwpx(?:-automation)?)(?:\[[^\]\n]*\])?==([0-9][0-9A-Za-z.+!-]*)"
+)
+#: Records of a past release name the versions of their own day.
+_PAST_RELEASE_RECORDS = ("docs/releases/", "docs/product-boundary-migration-3.0.0.md")
+#: Built or cached copies under plugins-src (not committed; see plugins-src/.gitignore).
+_GENERATED = ("plugins-src/plugins/", "plugins-src/dist/", "plugins-src/.cache/")
+
+
+def _public_documents() -> list[Path]:
+    documents = [
+        ROOT / "README.md",
+        *sorted((ROOT / "docs").glob("*.md")),
+        *sorted((ROOT / "plugins-src").rglob("*.md")),
+    ]
+    kept = []
+    for path in documents:
+        relative = path.relative_to(ROOT).as_posix()
+        if path.name == "CHANGELOG.md" or relative.startswith(_PAST_RELEASE_RECORDS + _GENERATED):
+            continue
+        if "/examples/out/" in relative:
+            continue
+        kept.append(path)
+    return kept
+
+
+def _exact_pins(path: Path) -> list[tuple[str, str, str]]:
+    """``(where, distribution, version)`` for every ``python-hwpx(-automation)[...]==X.Y.Z``."""
+
+    relative = path.relative_to(ROOT).as_posix()
+    return [
+        (f"{relative}:{number}", match.group(1), match.group(2))
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        for match in _EXACT_PIN.finditer(line)
+    ]
+
+
+def test_public_documents_pin_only_the_public_coordinates() -> None:
+    # The same rule as the README host config (test_readme_mcp_config): an
+    # installable pin follows what is observed public; promotion advances it.
+    public = IDENTITY["releaseState"]["currentPublic"]
+    expected = {
+        "python-hwpx": public["pythonHwpx"],
+        "python-hwpx-automation": public["primaryApplication"],
+    }
+    pins = [pin for path in _public_documents() for pin in _exact_pins(path)]
+
+    assert any(where.startswith("README.md:") for where, _, _ in pins)  # the pattern still finds pins
+    assert any(where.startswith("docs/use-cases.md:") for where, _, _ in pins)
+    stale = [
+        f"{where}: {distribution}=={version} (public is {expected[distribution]})"
+        for where, distribution, version in pins
+        if version != expected[distribution]
+    ]
+    assert not stale, "\n".join(stale)
+
+
+def test_the_pin_pattern_reads_extras_and_skips_other_distributions() -> None:
+    line = (
+        'uvx --from "python-hwpx-automation[mcp,oracle]==1.2.3" x; pip install python-hwpx==4.5.6 '
+        "my-python-hwpx==9.9.9 python-hwpx-live==8.8.8 python-hwpx>=7.0.0"
+    )
+    assert [(m.group(1), m.group(2)) for m in _EXACT_PIN.finditer(line)] == [
+        ("python-hwpx-automation", "1.2.3"),
+        ("python-hwpx", "4.5.6"),
+    ]

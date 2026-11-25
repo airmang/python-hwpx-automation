@@ -7,8 +7,12 @@
 name = "hwpx-plugin-claude-runtime"
 version = "0"
 requires-python = "==3.12.*"
+# The automation `preview` extra brings latex2mathml: render_preview shows equations as
+# MathML with it and falls back to a LaTeX code block without it. Since python-hwpx 7.0
+# moved the preview to python-hwpx-automation (8.0) the core `preview` extra is empty; it
+# stays in the core pin because every host's install constraint spells the core that way.
 dependencies = [
-    "python-hwpx-automation[mcp]==8.0.0",
+    "python-hwpx-automation[mcp,preview]==8.0.0",
     "python-hwpx[preview]==7.0.0",
 ]
 

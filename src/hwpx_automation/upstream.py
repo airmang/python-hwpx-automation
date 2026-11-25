@@ -265,6 +265,27 @@ def section_index_of(document: HwpxDocument, item: Any) -> int | None:
     return None if section is None else document.sections.index(section)
 
 
+def sections_with_settings_not_first(document: Any) -> list[int]:
+    """Indexes of the sections whose ``hp:secPr`` sits in a later paragraph than the first.
+
+    Hancom reads a section's settings only from its first paragraph. python-hwpx
+    reports this shape (``section-properties-not-first``; 6.x's
+    ``section.insert_paragraphs(0, ...)`` left files that way) and, from 7.0.2, moves
+    the settings to the first paragraph when the document is saved.
+    """
+
+    settings = f"{HP_NS}run/{HP_NS}secPr"
+    found: list[int] = []
+    sections = getattr(getattr(document, "oxml", None), "sections", None) or ()
+    for index, section in enumerate(sections):
+        paragraphs = section.element.findall(f"{HP_NS}p")
+        if not paragraphs or paragraphs[0].find(settings) is not None:
+            continue
+        if any(paragraph.find(settings) is not None for paragraph in paragraphs[1:]):
+            found.append(index)
+    return found
+
+
 def _hwpunit_or_none(value: str | None) -> int | None:
     if value is None:
         return None
@@ -721,6 +742,7 @@ __all__ = [
     "run_style_height",
     "same_but_save_dates",
     "save_time",
+    "sections_with_settings_not_first",
     "stamp_save_dates",
     "style_identifier",
     "validate_document_path",
