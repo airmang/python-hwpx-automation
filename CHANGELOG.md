@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 문서 계획(document plan)의 목록과 표를 바로잡습니다(#215, #214). bullets 항목 `{"text": ..., "children": [...]}`가
+  `{'text': ...}` 꼴의 글로 찍히던 것을, 깊이마다 제 글머리표와 들여쓰기를 가진 목록 수준으로 씁니다(v1·v2·보고서 모양.
+  양식 프로필은 읽는 차례대로 본문 문단). 글로 쓸 수 없는 항목(글 없는 객체, 목록, null)과 번호 목록의 객체 항목은
+  검증이 `unsupported_bullet_item`·`unsupported_list_item`으로 거부합니다. `get_document_plan_schema()`가 그리는 꼴대로
+  v2 계획이 최상위 `blocks`를 주면 한 구역 문서로 받습니다(`sections`와 함께 주면 `conflicting_plan_body`). v2 표가
+  `headerShading`·`columnWidths`·`merges`를 주어도 머리 행은 새 문서 표의 머리 행 규칙(굵게·가운데·음영·쪽마다 반복)을
+  따르고, 준 값은 그 위에 얹으며, 열 너비를 주지 않았으면 글 길이대로 나눕니다. v1 표도 열 너비를 주면 머리 행을 쪽마다
+  반복합니다. `tableProfile="government"`는 기본 표와 같은 표를 그린다고 적고, v2에서도 모르는 이름을 경고합니다.
+
 ## [8.0.0] - 2026-11-21
 
 python-hwpx 7.0이 "파일에 적힌 대로 읽고 쓰는" 엔진만 남기면서 내보낸 기능(Markdown·HTML 변환, 색인용 변환, 이름표로

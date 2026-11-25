@@ -1814,13 +1814,70 @@ def draw_table(
     if resolved.table_row_height_mm:
         table.set_row_heights([round(resolved.table_row_height_mm * _HWPUNIT_PER_MM)] * len(grid))
     if header and len(grid) > 1:
-        # Hancom draws the header row again at the top of each page a long table runs onto.
-        # table.set_header_rows(1) would also write header="0" on every other cell, so the
-        # title cells and the repeat are set one by one.
-        table.repeat_header = True
-        for col_index in range(cols):
-            table.cell(0, col_index).is_header = True
-        table.mark_dirty()
+        repeat_header_row(table, cols)
+
+
+def repeat_header_row(table: Any, cols: int) -> None:
+    """Make the first row of *table* (*cols* columns wide) its header row, which Hancom draws again
+    at the top of each page a long table runs onto, as the table look's header row is
+    (:func:`draw_table`)."""
+
+    # table.set_header_rows(1) would also write header="0" on every other cell, so the
+    # title cells and the repeat are set one by one.
+    table.repeat_header = True
+    for col_index in range(cols):
+        table.cell(0, col_index).is_header = True
+    table.mark_dirty()
+
+
+def header_row_look(
+    doc: HwpxDocument,
+    table: Any,
+    cols: int,
+    *,
+    shading: str | None = None,
+    style: MarkdownStyle | str | None = "report",
+) -> None:
+    """Give the first row of *table* (filled, *cols* columns wide) the header row of *style*'s table
+    look (:func:`draw_table`): bold, centred, shaded (*shading*, else the look's) and drawn again on
+    each page the table runs onto. For a table drawn with a look of its own (its lines, widths or
+    merged cells as given) whose header row still reads as the table look's does."""
+
+    resolved = _resolve_style(style, "report")
+    fill = shading or resolved.table_header_shading
+    seen: set[int] = set()
+    paragraphs: list[Any] = []
+    for col_index in range(cols):
+        if fill:
+            table.set_cell_shading(0, col_index, fill)
+        cell = table.cell(0, col_index)  # a merged cell's anchor, for each column it covers
+        if id(cell.element) in seen:
+            continue
+        seen.add(id(cell.element))
+        for paragraph in cell.paragraphs:
+            if resolved.table_header_bold:
+                for run in paragraph.runs:
+                    run.char_pr_id_ref = doc.styles.ensure_run(base_char_pr_id_ref=run.char_pr_id_ref, bold=True)
+            paragraphs.append(paragraph)
+    if resolved.table_header_align and paragraphs:
+        doc.styles.apply_paragraph_format(paragraphs=paragraphs, alignment=resolved.table_header_align)
+    if len(table.rows) > 1:
+        repeat_header_row(table, cols)
+
+
+def fit_column_widths(
+    table: Any, rows: Sequence[Sequence[str]], *, style: MarkdownStyle | str | None = "report"
+) -> None:
+    """Make the columns of *table* as wide as the text of *rows* needs, within the table's width, as
+    the table look's columns are (:func:`draw_table`)."""
+
+    resolved = _resolve_style(style, "report")
+    grid = [[str(value) for value in row] for row in rows]
+    cols = max((len(row) for row in grid), default=0)
+    if cols < 2 or cols != table.column_count:
+        return
+    size = resolved.table_size or resolved.body_size or _BASE_SIZE_PT
+    table.set_column_widths(_column_weights(grid, cols, size, sum(table.column_widths)))
 
 
 #: The top and bottom margin of the cells of a row whose text wraps, in HWPUNIT: the room a one-line
