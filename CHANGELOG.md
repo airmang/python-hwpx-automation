@@ -35,6 +35,11 @@
   `render_preview`의 수식이 LaTeX 코드 블록으로 보였습니다. 플러그인의 설치 좌표를
   `python-hwpx-automation[mcp,oracle,preview]`로 고치고(`plugins-src/packaging/product-identity.json`, 런처 틀, 두 설치 안내),
   번들 검사가 설치 extra에 `preview`가 있는지 확인합니다. 판 번호와 Claude `uv.lock`은 그대로입니다.
+- `apply_form_fill(plan=…)`의 실제 적용이, 문서가 작업 폴더 루트 바로 아래가 아니라 **하위 폴더**에 있으면 늘
+  `verification_failed`로 끝나고 되돌려지던 것을 고칩니다(8.0.0도 같습니다). 계획의 게시자는 환경 작업 폴더를 기준으로 쓰는데,
+  쓴 파일을 다시 읽어 확인하는 쪽은 문서가 든 폴더를 기준으로 삼아 "출력의 부모 폴더가 바뀌었다"로 읽었습니다. 게시 영수증은
+  그것이 허가된 기준 폴더로 읽고, 실패 뒤 되돌리기도 같은 기준으로 합니다(같은 신원 확인: 기준·부모 폴더의 장치·inode, 대상의
+  해시). 루트 바로 아래의 문서는 전과 같습니다.
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를
   열기부터 거부하던 것을 고칩니다(#247). 지금까지는 읽기 도구도 편집 도구도 코드 없는 `package validation failed`로 끝났습니다.
   열기 관문이 이 한 가지 모양(`section-properties-not-first`)만 통과시켜 읽기 도구가 그대로 읽고, 편집 도구가 저장하면
