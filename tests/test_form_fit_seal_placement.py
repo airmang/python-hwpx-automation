@@ -260,9 +260,13 @@ def test_place_seal_records_page_and_clamp():
     assert placement.clamped is True  # the realized center != requested anchor
 
 
-def test_add_picture_pos_overrides_clamps_negative_and_float_offsets():
-    # the low-level floating primitive must never emit a schema-invalid offset
+def test_add_picture_pos_overrides_writes_whole_unsigned_offsets():
+    # the low-level floating primitive must never emit a fractional or signed offset
     # (xs:nonNegativeInteger) even if a caller passes a negative or fractional value.
+    # python-hwpx up to 7.0.2 clamped a negative offset to 0; from 7.0.3 it writes it
+    # in the unsigned 32-bit form Hangul itself saves (-5 -> 4294967291), which Hangul
+    # draws left of/above the frame. place_seal clamps on its own side, so seals are
+    # unaffected either way.
     document = HwpxDocument.new()
     ref = document.media.add_image(PNG_1X1, "png")
     document.paragraphs[0].add_picture(
@@ -273,7 +277,7 @@ def test_add_picture_pos_overrides_clamps_negative_and_float_offsets():
         pos_overrides={"horzOffset": -5, "vertOffset": 3.5},
     )
     pos = _seal_pic_elements(document)[0].find(f"{HP}pos")
-    assert pos.get("horzOffset") == "0"   # -5 clamped to 0
+    assert pos.get("horzOffset") in ("0", str(2**32 - 5))  # clamped (<=7.0.2) or unsigned form
     assert pos.get("vertOffset") == "4"   # 3.5 rounded to a non-negative int
 
 
