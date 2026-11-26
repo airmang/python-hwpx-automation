@@ -17,7 +17,7 @@ import io
 import re
 from collections import Counter
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -82,6 +82,21 @@ class _AnchorMarkup:
     page: int
     html: str
     flow: bool = True
+    #: Placed as a character (``hp:pos@treatAsChar``): it stands inside its paragraph's line.
+    inline: bool = False
+    #: Drawn over or under the text at engine coordinates: it takes no room in a flow page.
+    overlay: bool = False
+    #: What a flow page shows instead of *html* (area lines at the engine's pitch).
+    flow_html: str | None = None
+
+
+@dataclass
+class _PlacedLine:
+    """A body line waiting for its page: a flow page gives it the engine's advance to the next line."""
+
+    line: Any
+    paragraph: ET.Element
+    hosted: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -840,6 +855,13 @@ def _base_css(mode: str) -> str:
         ".hwpx-engine-flow :is(.hwpx-engine-line, .hwpx-engine-area-line) "
         "{ margin-left: var(--hwpx-line-offset, 0mm); "
         "min-height: var(--hwpx-line-height); }\n"
+        # A flow line takes the engine's distance to the next line's top, not its glyph height.
+        ".hwpx-engine-flow [data-engine-advance] "
+        "{ height: var(--hwpx-line-advance); min-height: 0; }\n"
+        # An empty line holding objects placed as characters grows with them; the line is their room.
+        ".hwpx-engine-flow [data-engine-host] { height: auto; white-space: normal; "
+        "min-height: var(--hwpx-line-advance, var(--hwpx-line-height)); }\n"
+        ".hwpx-engine-flow [data-engine-host] > .hwpx-table { margin: 0 !important; }\n"
         ".hwpx-engine-flow-page { position: relative; isolation: isolate; }\n"
         ".hwpx-placed-object { display: block; box-sizing: border-box; margin: 0; }\n"
         ".hwpx-placed-object[data-overlay] { position: absolute; }\n"
@@ -947,9 +969,8 @@ def _styled_line_text(line: Any, styles: Mapping[str, Any]) -> str:
     return "".join(spans)
 
 
-def _engine_line(
-    line: Any, paragraph: Any, styles: Mapping[str, Any], page: Any, *, area_line: bool = False,
-) -> tuple[str, bool]:
+def _line_frame(line: Any, page: Any) -> tuple[float, float | None, float, bool]:
+    """Paper x, column-area offset and width of a line, and whether its horizontal placement is incomplete."""
     left, _, body_width, _ = page.body
     area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
     column = line.position.column
@@ -961,25 +982,49 @@ def _engine_line(
     width = line.width if line.width is not None else (
         area.widths[column] if area is not None and column < len(area.widths) else body_width
     )
+    return left + (column_x or 0) + (line.x or 0), offset, width, approximate
+
+
+def _line_advance(line: Any, following: Any) -> int | None:
+    """The engine's distance from this line's top to the next line's, in the same page and column."""
+    if following is None or following.position.page != line.position.page:
+        return None
+    if following.position.column != line.position.column or following.top <= line.top:
+        return None
+    return following.top - line.top
+
+
+def _engine_line(
+    line: Any, paragraph: Any, styles: Mapping[str, Any], page: Any, *, area_line: bool = False,
+    advance: int | None = None, hosted: str = "",
+) -> tuple[str, bool]:
+    """One engine line. In a flow page it takes *advance*, and *hosted* is drawn inside it."""
+    paper_x, offset, width, approximate = _line_frame(line, page)
+    column = line.position.column
     run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
     char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
     para_style = styles["para"].get(paragraph.get("paraPrIDRef", "0"), {})
     css = _style_attr({
-        "left": _fmt_mm(_hwp_to_mm(left + (column_x or 0) + (line.x or 0))),
+        "left": _fmt_mm(_hwp_to_mm(paper_x)),
         "--hwpx-line-offset": _fmt_mm(_hwp_to_mm(offset)) if offset is not None else None,
         "top": _fmt_mm(_hwp_to_mm(line.top)),
         "width": _fmt_mm(_hwp_to_mm(width)),
         "--hwpx-line-height": _fmt_mm(_hwp_to_mm(line.height)),
-        "line-height": "var(--hwpx-line-height)",
-        "font-size": _fmt_pt(char.get("font_size_pt", 10.0)),
-        "color": char.get("color", "#000000"),
-        "text-align": para_style.get("align", "left"),
+        "--hwpx-line-advance": _fmt_mm(_hwp_to_mm(advance)) if advance is not None else None,
+        # The objects a host line holds keep their own text metrics.
+        "line-height": None if hosted else "var(--hwpx-line-height)",
+        "font-size": None if hosted else _fmt_pt(char.get("font_size_pt", 10.0)),
+        "color": None if hosted else char.get("color", "#000000"),
+        "text-align": None if hosted else para_style.get("align", "left"),
     })
     text = _styled_line_text(line, styles)
     css_class = "hwpx-engine-area-line" if area_line else "hwpx-engine-line"
+    attrs = f' data-engine-advance="{advance}"' if advance is not None else ""
+    if hosted:
+        attrs += ' data-engine-host="1"'
     markup = (
         f'<div class="{css_class}" data-column="{column}" data-text-start="{line.text_start}" '
-        f'data-text-end="{line.text_end}" style="{css}">{text}</div>'
+        f'data-text-end="{line.text_end}"{attrs} style="{css}">{text}{hosted}</div>'
     )
     return markup, approximate
 
@@ -1043,16 +1088,24 @@ def _flow_anchors(
     return anchors
 
 
+def _placed_as_character(element: ET.Element) -> bool:
+    position = element.find(f"{_HP}pos")
+    return position is not None and position.get("treatAsChar") == "1"
+
+
 def _table_anchors(
     table: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, issues: Counter[tuple[str, str]],
     home: int, placements: Mapping[Any, Any], table_counts: Counter[int],
 ) -> list[_AnchorMarkup]:
     placed = placements.get(table)
+    inline = _placed_as_character(table)
     if placed is None or not placed.rows:
         count = sum(1 for _ in table.iter(f"{_HP}tbl"))
         issues[("table", "row and cell placement is unavailable")] += count
         table_counts[home] += count
-        return [_AnchorMarkup(home, _render_table(table, styles, counter, flow=True, show_approx_caption=True))]
+        return [_AnchorMarkup(
+            home, _render_table(table, styles, counter, flow=True, show_approx_caption=True), inline=inline,
+        )]
     issues[("table", "table content uses approximate flow within engine row pages")] += 1
     for nested in table.iter(f"{_HP}tbl"):
         found = placements.get(nested)
@@ -1080,7 +1133,7 @@ def _table_anchors(
             table, styles, counter, flow=True, row_parts=tuple(rows), table_index=placed.table,
             table_placements=placements, continued_rows=frozenset(seen), captions=captions,
             show_approx_caption=fallback_caption and page == min(rows_by_page),
-        )))
+        ), inline=inline))
         seen.update(row.row for row in rows if not row.repeated)
     return anchors
 
@@ -1154,7 +1207,7 @@ def _object_anchor(
         ) if value is not None
     })
     return _AnchorMarkup(page, f'<div class="{classes}" data-object-kind="{kind}"{overlay} style="{css}">{content}</div>',
-                         flow=not positioned)
+                         flow=not positioned, inline=_placed_as_character(element), overlay=bool(overlay))
 
 
 def _area_anchors(area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...],
@@ -1175,7 +1228,15 @@ def _area_anchors(area: ET.Element, home: int, placements: list[Any], pages: tup
                 issues[(kind, "area coordinates are incomplete")] += 1
             prefix = "" if exact else _render_object_marker(label)
             content = prefix + "".join(markup for markup, _ in rendered)
-            result.append(_AnchorMarkup(page, f'<div data-area-kind="{kind}">{content}</div>', flow=not exact))
+            paced = prefix + "".join(
+                _engine_line(line, paragraphs[0], styles, pages[page], area_line=True,
+                             advance=_line_advance(line, following))[0]
+                for line, following in zip(lines, (*lines[1:], None))
+            )
+            result.append(_AnchorMarkup(
+                page, f'<div data-area-kind="{kind}">{content}</div>', flow=not exact,
+                flow_html=f'<div data-area-kind="{kind}">{paced}</div>',
+            ))
         else:
             for reason in (placed.unavailable if placed is not None and placed.unavailable else
                            ("area placement is unavailable",)):
@@ -1185,6 +1246,37 @@ def _area_anchors(area: ET.Element, home: int, placements: list[Any], pages: tup
                 page, f'<p class="hwpx-paragraph" data-area-kind="{kind}">{_render_object_marker(label)} {html.escape(text)}</p>',
             ))
     return result
+
+
+def _page_content(
+    items: list[str | _PlacedLine | _AnchorMarkup], page: Any, styles: Mapping[str, Any], *, flow: bool,
+) -> str:
+    """The markup of one page. A flow page stacks its lines at the engine's line advance.
+
+    The advance is the distance between the tops of two lines that follow each other in the
+    same column with nothing between them taking room. A line without such a successor keeps
+    its own height: the page stays marked as an approximate vertical placement.
+    """
+    advances: dict[int, int | None] = {}
+    below: Any = None
+    for index in range(len(items) - 1, -1, -1):
+        item = items[index]
+        if isinstance(item, _PlacedLine):
+            advances[index] = _line_advance(item.line, below) if flow else None
+            below = item.line
+        elif not (isinstance(item, _AnchorMarkup) and item.overlay):
+            below = None
+    parts = []
+    for index, item in enumerate(items):
+        if isinstance(item, str):
+            parts.append(item)
+        elif isinstance(item, _AnchorMarkup):
+            parts.append(item.flow_html if flow and item.flow_html is not None else item.html)
+        else:
+            parts.append(_engine_line(
+                item.line, item.paragraph, styles, page, advance=advances[index], hosted="".join(item.hosted),
+            )[0])
+    return "".join(parts)
 
 
 def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool) -> str:
@@ -1218,7 +1310,7 @@ def _render_engine_preview(
 ) -> LayoutPreview:
     sections = [section.element for section in document.sections]
     body_paragraphs = [section.findall(f"{_HP}p") for section in sections]
-    content: list[list[str]] = [[] for _ in layout.pages]
+    content: list[list[str | _PlacedLine | _AnchorMarkup]] = [[] for _ in layout.pages]
     flow_pages: set[int] = set()
     paragraphs_by_page: list[set[tuple[int, int]]] = [set() for _ in layout.pages]
     table_counts = Counter()
@@ -1262,6 +1354,7 @@ def _render_engine_preview(
         missing_pages = {line.position.page for line in without_text_range}
         flow_pages.update(missing_pages)
         fallback = (without_text_range or not placed.lines) and _paragraph_text(paragraph)
+        shown: list[_PlacedLine] = []
         if fallback:
             issues[("paragraph", "engine text ranges are unavailable")] += 1
             flow_pages.add(home)
@@ -1281,18 +1374,27 @@ def _render_engine_preview(
                 page = line.position.page
                 paragraphs_by_page[page].add(key)
                 if line.text is not None:
-                    markup, partial = _engine_line(line, paragraph, styles, layout.pages[page])
-                    content[page].append(markup)
-                    if partial:
+                    shown.append(_PlacedLine(line, paragraph))
+                    content[page].append(shown[-1])
+                    if _line_frame(line, layout.pages[page])[3]:
                         flow_pages.add(page)
                         issues[("line", "horizontal placement is incomplete")] += 1
                     if line.text and hasattr(line, "runs") and not line.runs:
                         issues[("line", "original character run could not be matched")] += 1
+        # A paragraph's only line, when empty, is the line its objects placed as characters stand in.
+        # They go into that line until something else of the paragraph is drawn on its page,
+        # so the page keeps the document's order.
+        host = shown[0] if len(visible) == 1 and shown and shown[0].line.text == "" else None
         for anchor in _flow_anchors(paragraph, styles, counter, issues, home, sources, table_counts, layout.pages):
             if anchor.flow:
                 flow_pages.add(anchor.page)
             paragraphs_by_page[anchor.page].add(key)
-            content[anchor.page].append(anchor.html)
+            if host is not None and anchor.flow and anchor.inline and anchor.page == host.line.position.page:
+                host.hosted.append(anchor.html)
+                continue
+            if host is not None and anchor.page == host.line.position.page:
+                host = None
+            content[anchor.page].append(anchor)
 
     fragments, pages = [], []
     for page in layout.pages:
@@ -1300,7 +1402,10 @@ def _render_engine_preview(
         width, height = map(_hwp_to_mm, (page.paper_width, page.paper_height))
         _, _, margins = _page_spec(sections[page.section])
         page_id = f"hwpx-preview-page-{index + 1}"
-        fragments.append(_engine_page_fragment(page, page_id, "".join(content[index]), flow=index in flow_pages))
+        flow = index in flow_pages
+        fragments.append(_engine_page_fragment(
+            page, page_id, _page_content(content[index], page, styles, flow=flow), flow=flow,
+        ))
         pages.append(PreviewPage(index, page.section, page_id, width, height, margins,
                                  len(paragraphs_by_page[index]), table_counts[index]))
     if flow_pages:

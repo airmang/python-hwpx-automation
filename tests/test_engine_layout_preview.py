@@ -94,7 +94,10 @@ def test_only_the_page_with_an_unplaced_table_flows_in_document_order(mode: str)
     assert not flow.xpath(".//aside")
     body = flow.find("div[@class='hwpx-engine-flow']")
     assert body is not None
-    table_markup, = body.findall("table")
+    table_markup, = body.xpath(".//table")
+    # The table is placed as a character: it stands in its paragraph's own (empty) line.
+    assert table_markup.getparent().get("data-engine-host") == "1"
+    assert table_markup.getparent().getparent() is body
     assert "표 내용" in table_markup.text_content()
     text = body.text_content()
     assert text.index("표 앞 문단") < text.index("표 내용") < text.index("표 뒤 문단")
@@ -109,6 +112,83 @@ def test_only_the_page_with_an_unplaced_table_flows_in_document_order(mode: str)
     assert actual_ranges == expected_ranges
     assert any(item["kind"] == "table" for item in preview.as_dict()["limitations"])
     assert any(item["kind"] == "page-flow" and item["count"] == 1 for item in preview.as_dict()["limitations"])
+
+
+def _same_text_on_two_pages(document: HwpxDocument) -> None:
+    """The same paragraphs twice, the second time from a new page."""
+
+    def body() -> object:
+        made = [
+            document.add_paragraph("두 쪽에 똑같이 놓이는 여러 줄 문단 " * 12),
+            document.add_paragraph("한 줄 문단"),
+            document.add_paragraph("줄 간격과 문단 위 간격을 바꾼 문단 " * 8),
+            document.add_paragraph("끝 문단"),
+        ]
+        for paragraph, (line_spacing, before) in zip(made, ((160, 0), (160, 0), (220, 14), (130, 6))):
+            paragraph.line_spacing = line_spacing
+            paragraph.spacing_before_pt = before
+        return made[0]
+
+    body()
+    body().element.set("pageBreak", "1")
+
+
+def test_flow_lines_take_the_engine_advance_of_a_positioned_page() -> None:
+    estimate_layout = getattr(experimental, "estimate_layout", None)
+    if estimate_layout is None:
+        pytest.skip("needs the core placement API")
+    document = HwpxDocument.new()
+    _same_text_on_two_pages(document)
+    document.add_paragraph("").add_table(2, 2)  # no engine coordinates: the second page flows
+    payload = document.to_bytes()
+
+    preview = render_layout_preview(payload)
+
+    positioned, flow = map(html.fromstring, preview.page_fragments)
+    assert (positioned.get("data-layout-mode"), flow.get("data-layout-mode")) == ("positioned", "flow")
+    first_page = positioned.xpath(".//div[@class='hwpx-engine-line']")
+    second_page = flow.xpath("./div[@class='hwpx-engine-flow']/div[@class='hwpx-engine-line']")
+    *text_lines, host = second_page
+    assert [line.text_content() for line in text_lines] == [line.text_content() for line in first_page]
+    engine_tops = [
+        line.top for paragraph in estimate_layout(payload).paragraphs for line in paragraph.lines
+        if line.position.page == 0
+    ]
+    pitch = [below - above for above, below in zip(engine_tops, engine_tops[1:])]
+    assert len(set(pitch)) > 1  # line spacing and paragraph spacing are in it
+    # Every line but the page's last stands the engine's distance above the next one ...
+    assert [int(line.get("data-engine-advance")) for line in text_lines[:-1]] == pitch
+    assert text_lines[-1].get("data-engine-advance") is not None  # ... the table's line included
+    # ... and that is the pitch the positioned page draws the same paragraphs at.
+    tops_mm = [float(re.search(r"(?<![\w-])top: ([\d.]+)mm", line.get("style")).group(1)) for line in first_page]
+    advances_mm = [
+        float(re.search(r"--hwpx-line-advance: ([\d.]+)mm", line.get("style")).group(1)) for line in text_lines[:-1]
+    ]
+    assert advances_mm == pytest.approx([below - above for above, below in zip(tops_mm, tops_mm[1:])], abs=0.011)
+    assert ".hwpx-engine-flow [data-engine-advance] { height: var(--hwpx-line-advance);" in preview.html
+    # The page's last line has no next line: it keeps its own height.
+    assert host.get("data-engine-advance") is None and host.get("data-engine-host") == "1"
+    assert not positioned.xpath(".//*[@data-engine-advance]")
+
+
+def test_a_flow_line_before_a_floating_table_keeps_its_own_height() -> None:
+    if not hasattr(experimental, "estimate_layout"):
+        pytest.skip("needs the core placement API")
+    document = HwpxDocument.new()
+    document.add_paragraph("표 앞 문단")
+    table = document.add_paragraph("").add_table(2, 2)
+    table.element.find("{*}pos").set("treatAsChar", "0")
+    document.add_paragraph("표 뒤 문단")
+
+    page = html.fromstring(render_layout_preview(document.to_bytes()).page_fragments[0])
+
+    body, = page.xpath("./div[@class='hwpx-engine-flow']")
+    before, anchor, table_markup, after = body
+    assert (before.get("class"), anchor.get("class"), table_markup.tag) == ("hwpx-engine-line",) * 2 + ("table",)
+    assert before.get("data-engine-advance") is not None  # the next line follows it
+    # The table takes room the engine's line tops do not describe: no advance is made up.
+    assert anchor.get("data-engine-advance") is None and anchor.get("data-engine-host") is None
+    assert after.get("data-engine-advance") is None  # the page's last line
 
 
 def test_table_rows_follow_the_engine_across_pages_and_repeat_headers() -> None:
