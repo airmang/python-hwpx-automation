@@ -47,7 +47,9 @@ EXPECTED_SERVICE_LINES = {
     # living views before this op's dict-mutation contract (result.update()).
     # 8.0: the paragraph index uses paragraph objects being equal (#762) (547 -> 544).
     # 8.0 sync-core 8: header/footer page numbers counted from run.content (544 -> 542).
-    "content_layout.py": 542,
+    # 8.0.2: the count moved to core.content.page_number_count, which also counts Hancom's
+    # autoNum-only page number (542 -> 537).
+    "content_layout.py": 537,
     # .hwp documents: python-hwpx opens and writes HWP 5.0 itself, so services
     # route .hwp through it and refuse it where they patch HWPX package bytes.
     # Writers that never reach the save gate (core's edit-plan executor and repair) refuse an
