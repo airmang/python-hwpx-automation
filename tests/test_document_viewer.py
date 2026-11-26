@@ -47,7 +47,8 @@ def test_viewer_has_top_bar_page_indicator_and_honest_badge() -> None:
     assert "<title>수식 프리뷰</title>" in html
     assert "hwpx-viewer-bar" in html
     assert 'id="hwpx-viewer-page"' in html
-    assert FIDELITY_BADGE in html
+    assert viewer.preview.badge in html
+    assert "추정" in viewer.preview.badge
     # honest, non-truth framing (Constitution IX)
     assert "근사" in FIDELITY_BADGE and "MathML" in FIDELITY_BADGE
 

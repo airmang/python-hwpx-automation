@@ -12,7 +12,7 @@
   export는 기존 소비자를 위한 호환 표면이다. 새 기능과 MCP 실행 경로는 그
   호환 복사본을 직접 호출하지 않는다.
 - 이 소유권 이동은 도구 이름·입력·출력·분류를 바꾸지 않는다.
-  `render_preview`의 텍스트 근사 경로와 아래 실제 한컴 렌더 라우팅도 그대로다.
+  `render_preview`는 코어가 답한 쪽과 줄을 사용한다. 거절된 경우 텍스트 근사 경로를 사용한다.
 - 오라클이 없거나 시간 예산이 끝나면 결과는 `renderChecked=false` /
   `unverified`다. 이를 성공한 실제 렌더로 표현하지 않는다.
 - 4.x 호환 표면의 물리적 제거는 python-hwpx 5.0에서 완료됐다.
@@ -25,7 +25,12 @@
 **도구:** `render_preview(filename, viewer=true, screenshot="off")`. `viewer`는 래스터화와
 독립이므로, 페이지 PNG가 필요 없는 가벼운 텍스트 통독 경로에서는 `screenshot="off"`로 무거운
 headless 캡처를 끈다. `mode="pages"`(기본, 페이지별 박스 + 인디케이터 추적) 또는 `"long"`
-(연속 한 페이지).
+(연속 스크롤). 엔진이 답한 문서는 두 모드에서 엔진 쪽 수를 쓴다.
+
+`viewer.fidelityTier`의 첫 값은 전체 근사(`text-approx-pagination`), 엔진 쪽·줄 추정
+(`engine-estimated-pagination`), 일부 근사(`partial-engine-estimated-pagination`)를 가리킨다.
+`warnings`에는 엔진 거절 사유와 근사로 남긴 항목의 종류·사유·건수가 들어간다.
+아직 행이나 개체 위치가 제공되지 않는 경우에는 해당 쪽에 근사 내용 또는 자리 표시를 보여 준다.
 
 **`structuredContent.viewer` 필드:**
 - `viewerPath` — 워크스페이스 안에 쓰인 `viewer.html`의 상대 경로. HTML 크기와 무관하게 항상
@@ -33,8 +38,8 @@ headless 캡처를 끈다. `mode="pages"`(기본, 페이지별 박스 + 인디�
 - `html` — 인라인 HTML 본문. `byteSize`가 cap(`max_viewer_bytes`, 기본 2MB)을 넘으면 빠지고
   `htmlOmitted: "exceeds_max_viewer_bytes"`만 남는다 — 이때도 `viewerPath`의 파일은 온전하니
   그걸 연다.
-- `pageCount`, `warnings` — 근사 페이지네이션과 프리뷰 경고.
-- `fidelityTier` — 예: `"text-approx-pagination; equations=mathml"`. **에이전트는 이 값을
+- `pageCount`, `warnings` — 미리보기 쪽 수와 근사·거절 사유.
+- `fidelityTier` — 예: `"engine-estimated-pagination; equations=mathml"`. **에이전트는 이 값을
   사용자에게 있는 그대로 보고한다** — "픽셀 정확"이나 "한컴과 동일"로 번역하지 않는다. 텍스트
   레이아웃·페이지네이션은 항상 근사이고, 한컴 렌더만이 truth다(헌법 IV).
 - `equationLibrary` — `"latex2mathml"`(설치됨) 또는 `"absent"`.
@@ -62,16 +67,14 @@ fallback이 보이면 `equationRendering`에서 어느 단계 카운트가 올�
      스크롤 통독한다.
    - **Codex/기타 로컬 환경**: `open <viewerPath>`(macOS) 또는 대응 명령으로 로컬에서 연다.
      Artifact 발행 경로가 없다.
-4. 뷰어 상단 배지("텍스트 근사 프리뷰 · 페이지네이션은 한컴과 다를 수 있음 · 수식 MathML 렌더")가
-   항상 표시된다 — 그대로 사용자에게 전달해도 된다.
+4. 뷰어 상단의 추정 배지를 사용자에게 전달한다.
 5. **제출 전 최종 검수**처럼 픽셀 단위 truth가 필요하면 이 뷰어로 대체하지 말고
    [`workflows-real-hancom-render.md`](workflows-real-hancom-render.md)(`render_health` →
    `render_submit` → `render_status`) 경로로 실제 한컴 렌더를 받는다.
 
 ## 정직 라벨
 
-- 뷰어는 **텍스트 근사 프리뷰**다. 페이지 경계·줄바꿈·비함초롬 폰트 픽셀은 한컴과 다를 수 있다
-  (헌법 IX) — 조판 엔진 재구현이 아니다.
+- 뷰어는 엔진이 생성한 쪽·줄 추정과 배치가 없는 요소의 근사를 보여 준다. 글자 폭과 화면 모양은 사용 중인 브라우저와 글꼴에 따라 다를 수 있다.
 - **수식만 렌더 검증**됐다(P0에서 한컴 대조로 구조 일치 확인,
   `specs/012-document-preview-viewer/evidence/p2v-receipt.md`). 나머지 레이아웃(페이지 수 등)은
   근사이지 truth가 아니다.

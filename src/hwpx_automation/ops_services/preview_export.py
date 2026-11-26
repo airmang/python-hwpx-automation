@@ -348,7 +348,7 @@ class PreviewExportService:
             "pageCount": viewer.page_count,
             "warnings": list(viewer.preview.warnings),
             "fidelityTier": (
-                "text-approx-pagination; "
+                f"{viewer.preview.fidelity_tier}; "
                 f"equations={_equation_tier(equation_rendering)}"
             ),
             "equationLibrary": "latex2mathml" if library_available else "absent",

@@ -11,6 +11,7 @@ the package through python-hwpx's public input guards.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 import html
 import re
@@ -20,6 +21,8 @@ from typing import Any, Mapping
 from xml.etree import ElementTree as ET
 from zipfile import BadZipFile, ZipFile
 
+from hwpx import HwpxDocument, experimental
+from hwpx.errors import HwpxError
 from hwpx.opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from hwpx.oxml.section_format import PAGE_PORTRAIT
 from hwpx.oxml.table_sizes import cell_margins_of
@@ -56,6 +59,15 @@ _SHAPE_TAGS = frozenset(
         "textart",
     )
 )
+
+_OTHER_OBJECT_LABELS = {
+    f"{_HP}{kind}": label for kind, label in {
+        "chart": "차트", "video": "동영상", "checkBtn": "체크 상자", "radioBtn": "선택 단추",
+        "btn": "단추", "button": "단추", "comboBox": "콤보 상자", "edit": "편집 상자",
+        "listBox": "목록 상자", "scrollBar": "스크롤 막대",
+    }.items()
+}
+
 
 _DEFAULT_PAGE_WIDTH_MM = 210.0
 _DEFAULT_PAGE_HEIGHT_MM = 297.0
@@ -117,6 +129,26 @@ class PreviewPage:
         }
 
 
+_APPROX = "text-approx-pagination"
+_ENGINE = "engine-estimated-pagination"
+_PARTIAL = "partial-engine-estimated-pagination"
+_BADGES = {
+    _APPROX: "텍스트 근사 프리뷰 · 쪽·줄 추정 · 수식 MathML 렌더",
+    _ENGINE: "쪽·줄 나눔은 엔진 추정",
+    _PARTIAL: "쪽·줄 나눔은 엔진 추정 · 일부 요소 근사",
+}
+
+
+@dataclass(frozen=True)
+class _Limitation:
+    kind: str
+    reason: str
+    count: int
+
+    def as_dict(self) -> dict[str, str | int]:
+        return {"kind": self.kind, "reason": self.reason, "count": self.count}
+
+
 @dataclass(frozen=True)
 class LayoutPreview:
     """Rendered layout preview HTML plus machine-readable page metadata."""
@@ -126,6 +158,12 @@ class LayoutPreview:
     warnings: tuple[str, ...]
     mode: str
     page_fragments: tuple[str, ...] = ()
+    fidelity_tier: str = _APPROX
+    limitations: tuple[_Limitation, ...] = ()
+
+    @property
+    def badge(self) -> str:
+        return _BADGES[self.fidelity_tier]
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -134,6 +172,8 @@ class LayoutPreview:
             "pages": [page.as_dict() for page in self.pages],
             "pageCount": len(self.pages),
             "warnings": list(self.warnings),
+            "fidelityTier": self.fidelity_tier,
+            "limitations": [item.as_dict() for item in self.limitations],
         }
 
     def page_html_documents(self, *, title: str = "HWPX Layout Preview") -> list[str]:
@@ -145,6 +185,7 @@ class LayoutPreview:
                 mode=self.mode,
                 body=fragment,
                 screenshot=True,
+                fidelity_tier=self.fidelity_tier,
             )
             for index, fragment in enumerate(self.page_fragments)
         ]
@@ -445,11 +486,13 @@ def _render_inline_runs(
     paragraph: ET.Element,
     styles: Mapping[str, Any],
     counter: _ObjectCounter,
+    *,
+    include_text: bool = True,
 ) -> str:
     spans: list[str] = []
     char_styles = styles["char"]
     for run in paragraph.findall(f"{_HP}run"):
-        text = _find_text_in_run(run)
+        text = _find_text_in_run(run) if include_text else ""
         if text:
             char_style = char_styles.get(run.get("charPrIDRef") or "0", {})
             style = _style_attr(
@@ -646,6 +689,12 @@ def _base_css(mode: str) -> str:
         ".hwpx-preview-page { box-sizing: border-box; background: #fff; "
         "margin: 0 auto 10mm; box-shadow: 0 0 0 1px #cfd4dc, "
         "0 6px 18px rgba(15, 23, 42, 0.16); overflow: hidden; }\n"
+        ".hwpx-engine-page { height: auto; overflow: visible; }\n"
+        ".hwpx-engine-canvas { position: relative; }\n"
+        ".hwpx-engine-line { position: absolute; margin: 0; white-space: pre; "
+        "overflow: visible; overflow-wrap: normal; word-break: normal; }\n"
+        ".hwpx-engine-approx { padding: 2mm; border-top: 1px dashed #9aa2ad; }\n"
+        ".hwpx-engine-approx p:first-child { margin-top: 0; }\n"
         ".hwpx-paragraph { white-space: pre-wrap; word-break: break-word; }\n"
         ".hwpx-empty-paragraph { min-height: 1em; }\n"
         ".hwpx-table { font-size: 10pt; }\n"
@@ -675,6 +724,7 @@ def _document_html(
     mode: str,
     body: str,
     screenshot: bool = False,
+    fidelity_tier: str = _APPROX,
 ) -> str:
     extra_css = ""
     if screenshot:
@@ -683,12 +733,18 @@ def _document_html(
             "body { padding: 0; }\n"
             ".hwpx-preview-page { margin: 0; box-shadow: none; }\n"
         )
+    else:
+        extra_css = (
+            'body::before { display: block; margin: 0 auto 3mm; text-align: center; '
+            f'font-size: 9pt; color: #4b5563; content: "{_BADGES[fidelity_tier]}"; }}'
+        )
     return (
         "<!DOCTYPE html>\n"
         '<html lang="ko">\n'
         "<head>\n"
         '  <meta charset="utf-8" />\n'
         f"  <title>{html.escape(title)}</title>\n"
+        f'  <meta name="hwpx-preview-fidelity" content="{fidelity_tier}" />\n'
         f"  <style>{_base_css(mode)}{extra_css}</style>\n"
         "</head>\n"
         f'<body data-hwpx-preview-mode="{html.escape(mode)}">\n'
@@ -696,6 +752,156 @@ def _document_html(
         "</body>\n"
         "</html>\n"
     )
+
+
+def _engine_line(
+    line: Any, paragraph: Any, styles: Mapping[str, Any], page: Any,
+) -> tuple[str, bool]:
+    left, _, body_width, _ = page.body
+    area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
+    column = line.position.column
+    column_x = None if area is None or (column and area.gap is None) else (
+        sum(area.widths[:column]) + column * (area.gap or 0)
+    )
+    approximate = column_x is None or line.x is None or line.width is None
+    width = line.width if line.width is not None else (
+        area.widths[column] if area is not None and column < len(area.widths) else body_width
+    )
+    run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
+    char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
+    para_style = styles["para"].get(paragraph.get("paraPrIDRef", "0"), {})
+    css = _style_attr({
+        "left": _fmt_mm(_hwp_to_mm(left + (column_x or 0) + (line.x or 0))),
+        "top": _fmt_mm(_hwp_to_mm(line.top)),
+        "width": _fmt_mm(_hwp_to_mm(width)),
+        "line-height": _fmt_mm(_hwp_to_mm(line.height)),
+        "font-size": _fmt_pt(char.get("font_size_pt", 10.0)),
+        "color": char.get("color", "#000000"),
+        "text-align": para_style.get("align", "left"),
+    })
+    text = html.escape(line.text.removesuffix("\n"))
+    return (
+        f'<div class="hwpx-engine-line" data-column="{column}" data-text-start="{line.text_start}" '
+        f'data-text-end="{line.text_end}" style="{css}">{text}</div>',
+        approximate,
+    )
+
+
+def _engine_preview(
+    source: str | Path | bytes, mode: str, title: str,
+    styles: Mapping[str, Any], warnings: list[str],
+) -> LayoutPreview | None:
+    estimate_layout = getattr(experimental, "estimate_layout", None)
+    if estimate_layout is None:
+        warnings.append("layout estimate unavailable in the installed python-hwpx")
+        return None
+    try:
+        document = HwpxDocument.open(io.BytesIO(source) if isinstance(source, bytes) else str(source))
+        layout = estimate_layout(document)
+    except (HwpxError, ValueError, OSError) as exc:
+        warnings.append(f"layout estimate unavailable: {type(exc).__name__}")
+        return None
+    if layout.estimate.pages is None:
+        warnings.extend(f"layout estimate declined: {reason}" for reason in layout.estimate.unsupported)
+        return None
+    return _render_engine_preview(document, layout, mode, title, styles, warnings)
+
+
+def _render_engine_preview(
+    document: HwpxDocument, layout: Any, mode: str, title: str,
+    styles: Mapping[str, Any], warnings: list[str],
+) -> LayoutPreview:
+    sections = [section.element for section in document.sections]
+    body_paragraphs = [section.findall(f"{_HP}p") for section in sections]
+    lines: list[list[str]] = [[] for _ in layout.pages]
+    approximate: list[list[str]] = [[] for _ in layout.pages]
+    paragraphs_by_page: list[set[tuple[int, int]]] = [set() for _ in layout.pages]
+    table_counts = Counter()
+    issues: Counter[tuple[str, str]] = Counter()
+    counter = _ObjectCounter()
+    section_starts: dict[int, int] = {}
+    for page in layout.pages:
+        section_starts.setdefault(page.section, page.page)
+    object_kinds = {_PICTURE_TAG: "picture", _OLE_TAG: "embedded-object", _EQUATION_TAG: "equation"}
+    for placed in layout.paragraphs:
+        key = placed.section, placed.paragraph
+        paragraph = body_paragraphs[key[0]][key[1]]
+        visible = [line for line in placed.lines if not line.hidden]
+        home = placed.lines[0].position.page if placed.lines else section_starts[key[0]]
+        tables = paragraph.findall(f".//{_HP}tbl")
+        table_counts[home] += len(tables)
+        if tables:
+            issues[("table", "row and cell placement is unavailable")] += len(tables)
+        for run in paragraph.findall(f"{_HP}run"):
+            for child in run:
+                kind = object_kinds.get(child.tag, "shape" if child.tag in _SHAPE_TAGS else None)
+                if kind is not None:
+                    issues[(kind, "object placement is unavailable")] += 1
+                label = _OTHER_OBJECT_LABELS.get(child.tag)
+                if child.tag == f"{_HP}switch" and label is None:
+                    label = next((_OTHER_OBJECT_LABELS[node.tag] for node in child.iter()
+                                  if node.tag in _OTHER_OBJECT_LABELS), None)
+                if label is not None:
+                    issues[(label, "object is shown as a placeholder")] += 1
+                    approximate[home].append(f'<p class="hwpx-paragraph">{_render_object_marker(label)}</p>')
+        without_text_range = [line for line in visible if line.text is None]
+        if without_text_range or (not placed.lines and _paragraph_text(paragraph)):
+            if _paragraph_text(paragraph):
+                issues[("paragraph", "engine text ranges are unavailable")] += 1
+                approximate[home].append(_render_paragraph(paragraph, styles, counter))
+                paragraphs_by_page[home].add(key)
+                continue
+            if without_text_range:
+                issues[("line", "engine text ranges are unavailable")] += len(without_text_range)
+        for line in visible:
+            if line.text is None:
+                continue
+            page = line.position.page
+            paragraphs_by_page[page].add(key)
+            markup, partial = _engine_line(line, paragraph, styles, layout.pages[page])
+            lines[page].append(markup)
+            if partial:
+                issues[("line", "horizontal placement is incomplete")] += 1
+        objects = _render_inline_runs(paragraph, styles, counter, include_text=False)
+        if objects:
+            approximate[home].append(f'<p class="hwpx-paragraph">{objects}</p>')
+        approximate[home].extend(_render_table(table, styles, counter) for table in tables)
+
+    for kind, label in (("header", "머리말"), ("footer", "꼬리말"),
+                        ("footNote", "각주"), ("endNote", "미주")):
+        for index, section in enumerate(sections):
+            for area in section.iter(f"{_HP}{kind}"):
+                issues[(kind, "area placement is unavailable")] += 1
+                text = " ".join(_paragraph_text(p) for p in area.iter(f"{_HP}p"))
+                approximate[section_starts[index]].append(
+                    f'<p class="hwpx-paragraph">{_render_object_marker(label)} {html.escape(text)}</p>'
+                )
+
+    fragments, pages = [], []
+    for page in layout.pages:
+        index = page.page
+        width, height = map(_hwp_to_mm, (page.paper_width, page.paper_height))
+        _, _, margins = _page_spec(sections[page.section])
+        page_id = f"hwpx-preview-page-{index + 1}"
+        canvas = f'<div class="hwpx-engine-canvas" style="height:{_fmt_mm(height)}">{"".join(lines[index])}</div>'
+        extra = ""
+        if approximate[index]:
+            extra = (
+                '<aside class="hwpx-engine-approx"><p>이 쪽의 배치 미확인 요소</p>'
+                f'{"".join(approximate[index])}</aside>'
+            )
+        fragments.append(
+            f'<section id="{page_id}" class="hwpx-preview-page hwpx-engine-page" '
+            f'data-page-index="{index}" data-section-index="{page.section}" '
+            f'style="width:{_fmt_mm(width)};padding:0">{canvas}{extra}</section>'
+        )
+        pages.append(PreviewPage(index, page.section, page_id, width, height, margins,
+                                 len(paragraphs_by_page[index]), table_counts[index]))
+    limitations = tuple(_Limitation(kind, reason, count) for (kind, reason), count in sorted(issues.items()))
+    warnings.extend(f"{item.kind}: {item.reason} ({item.count})" for item in limitations)
+    tier = _PARTIAL if limitations else _ENGINE
+    document_html = _document_html(title=title, mode=mode, body="".join(fragments), fidelity_tier=tier)
+    return LayoutPreview(document_html, tuple(pages), tuple(warnings), mode, tuple(fragments), tier, limitations)
 
 
 def render_layout_preview(
@@ -708,8 +914,7 @@ def render_layout_preview(
 
     Args:
         source: HWPX file path or raw HWPX bytes.
-        mode: ``"pages"`` for page boxes or ``"long"`` for a scroll-friendly
-            continuous page view.
+        mode: ``"pages"`` for page boxes or ``"long"`` for continuous scrolling.
         title: HTML document title.
     """
 
@@ -719,6 +924,12 @@ def render_layout_preview(
     parts, warnings = _read_package_parts(source)
     header = _parse_xml(parts, "Contents/header.xml", warnings)
     styles = _collect_style_maps(header)
+    pre_estimate_warnings = len(warnings)
+    engine_preview = _engine_preview(source, mode, title, styles, warnings)
+    if engine_preview is not None:
+        return engine_preview
+
+    approximation = tuple(_Limitation("document", reason, 1) for reason in warnings[pre_estimate_warnings:])
     counter = _ObjectCounter()
     pages_html: list[str] = []
     pages: list[PreviewPage] = []
@@ -751,6 +962,7 @@ def render_layout_preview(
         warnings=tuple(warnings),
         mode=mode,
         page_fragments=tuple(pages_html),
+        limitations=approximation,
     )
 
 

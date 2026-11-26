@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- HTML 미리보기는 지원되는 문서의 쪽과 줄을 python-hwpx의 배치 추정으로 나눈다.
+  근사로 표시한 요소는 경고에 사유와 건수를 넣고, 추정을 거절한 문서는 사유와 함께 기존 방식으로 보여 준다.
+  `render_preview`의 기존 결과 스키마와 도구 계약 해시는 그대로다.
+
 ### Fixed
 
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를

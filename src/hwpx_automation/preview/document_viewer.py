@@ -20,10 +20,10 @@ import html
 from pathlib import Path
 from typing import Any
 
-from .layout_preview import LayoutPreview, _base_css, render_layout_preview
+from .layout_preview import LayoutPreview, _APPROX, _BADGES, _base_css, render_layout_preview
 
 # Honest fidelity statement shown in the top bar (Constitution IX).
-FIDELITY_BADGE = "텍스트 근사 프리뷰 · 페이지네이션은 한컴과 다를 수 있음 · 수식 MathML 렌더"
+FIDELITY_BADGE = _BADGES[_APPROX]
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,8 @@ class DocumentViewer:
             "title": self.title,
             "pageCount": self.page_count,
             "warnings": list(self.preview.warnings),
+            "fidelityTier": self.preview.fidelity_tier,
+            "limitations": [item.as_dict() for item in self.preview.limitations],
             "byteSize": len(self.html.encode("utf-8")),
         }
 
@@ -128,7 +130,7 @@ def _viewer_script() -> str:
     )
 
 
-def _viewer_html(title: str, mode: str, pages_html: str, page_count: int) -> str:
+def _viewer_html(title: str, mode: str, pages_html: str, page_count: int, badge: str) -> str:
     safe_title = html.escape(title)
     count = max(page_count, 1)
     return (
@@ -145,7 +147,7 @@ def _viewer_html(title: str, mode: str, pages_html: str, page_count: int) -> str
         '  <header class="hwpx-viewer-bar">\n'
         f'    <div class="hwpx-viewer-title">{safe_title}</div>\n'
         f'    <div class="hwpx-viewer-page" id="hwpx-viewer-page">1 / {count}</div>\n'
-        f'    <div class="hwpx-viewer-badge">{html.escape(FIDELITY_BADGE)}</div>\n'
+        f'    <div class="hwpx-viewer-badge">{html.escape(badge)}</div>\n'
         "  </header>\n"
         '  <main class="hwpx-viewer-scroll">\n'
         f"{pages_html}\n"
@@ -168,7 +170,7 @@ def render_document_viewer(
         source: HWPX file path or raw HWPX bytes.
         title: document title shown in the top bar.
         mode: ``"pages"`` for discrete page boxes (each tracked by the page
-            indicator) or ``"long"`` for one continuous page.
+            indicator) or ``"long"`` for continuous scrolling.
 
     Returns:
         A :class:`DocumentViewer` whose ``html`` is a standalone HTML
@@ -177,7 +179,7 @@ def render_document_viewer(
 
     preview = render_layout_preview(source, mode=mode, title=title)
     pages_html = "".join(preview.page_fragments)
-    document = _viewer_html(title, mode, pages_html, len(preview.pages))
+    document = _viewer_html(title, mode, pages_html, len(preview.pages), preview.badge)
     return DocumentViewer(html=document, preview=preview, title=title)
 
 

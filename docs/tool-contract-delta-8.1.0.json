@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "hwpx.tool-contract-delta/v1",
+  "release": "8.1.0",
+  "releaseStatus": "unreleased-source",
+  "baseline": {
+    "release": "8.0.0",
+    "contractHash": "c895883d5f4350ae",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136
+  },
+  "target": {
+    "release": "8.1.0",
+    "contractHash": "c895883d5f4350ae",
+    "defaultToolCount": 128,
+    "advancedToolCount": 136,
+    "skillRequiredToolCount": 29
+  },
+  "delta": {
+    "addedTools": [],
+    "removedTools": [],
+    "changedInputSchemas": [],
+    "changedOutputSchemas": [],
+    "changedDescriptions": [],
+    "changedOutputSemantics": [
+      "render_preview"
+    ]
+  },
+  "changedTools": [
+    "render_preview"
+  ],
+  "outputSemantics": {
+    "render_preview": {
+      "viewer.fidelityTier.pagination": [
+        "text-approx-pagination",
+        "engine-estimated-pagination",
+        "partial-engine-estimated-pagination"
+      ],
+      "warnings": "Reports a declined estimate or the kind, reason, and count of approximated elements.",
+      "mode=long": "Scrolls across engine pages when the core returns an estimate."
+    }
+  }
+}
