@@ -7,7 +7,6 @@ import json
 import logging
 import math
 import re
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -17,6 +16,7 @@ from ..hwp_converter import HwpConversionError, convert_hwp_to_hwpx
 from ..preview import latex2mathml_available as _latex2mathml_available
 from ..preview import render_document_viewer as render_hwpx_document_viewer
 from ..preview import render_layout_preview as render_hwpx_layout_preview
+from ..preview._chrome import capture_page as capture_chrome_page
 from ..upstream import (
     export_document,
 )
@@ -185,6 +185,7 @@ class PreviewExportService:
         *,
         page_html_paths: Sequence[Path],
         pages: Sequence[Dict[str, Any]],
+        flow_pages: set[int],
         output_dir: Path,
         max_pages: int | None,
         embed_images: bool = False,
@@ -212,6 +213,10 @@ class PreviewExportService:
                             device_scale_factor=1,
                         )
                         browser_page.goto(html_path.as_uri(), wait_until="load")
+                        height = (
+                            browser_page.evaluate("document.documentElement.scrollHeight")
+                            if index in flow_pages else height
+                        )
                         browser_page.screenshot(path=str(output_path), full_page=True)
                         browser_page.close()
                         item = {
@@ -257,34 +262,15 @@ class PreviewExportService:
             page_info = pages[index]
             width, height = _page_viewport(page_info)
             output_path = output_dir / f"page-{index + 1:03d}.png"
-            command = [
-                chrome,
-                "--headless=new",
-                "--disable-gpu",
-                "--hide-scrollbars",
-                "--no-first-run",
-                "--no-default-browser-check",
-                f"--window-size={width},{height}",
-                f"--screenshot={output_path}",
-                html_path.as_uri(),
-            ]
             try:
-                completed = subprocess.run(
-                    command,
-                    check=False,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    timeout=60,
+                height, error = capture_chrome_page(
+                    chrome, html_path, output_path, width, height, flow=index in flow_pages,
                 )
             except Exception as exc:  # pragma: no cover - environment specific
                 failures.append(f"page {index + 1}: {exc}")
                 continue
-            if completed.returncode != 0 or not output_path.exists():
-                detail = (
-                    completed.stderr or completed.stdout or "unknown error"
-                ).strip()
-                failures.append(f"page {index + 1}: {detail}")
+            if error is not None:
+                failures.append(f"page {index + 1}: {error}")
                 continue
             item = {
                 "pageIndex": index,
@@ -439,6 +425,10 @@ class PreviewExportService:
             screenshots, screenshot_engine = self._capture_preview_pages(
                 page_html_paths=page_html_paths,
                 pages=pages,
+                flow_pages={
+                    index for index, fragment in enumerate(preview.page_fragments)
+                    if 'data-layout-mode="flow"' in fragment
+                },
                 output_dir=output_path,
                 max_pages=max_pages,
                 embed_images=embed_images,

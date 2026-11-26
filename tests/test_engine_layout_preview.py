@@ -5,9 +5,9 @@ import re
 from zipfile import ZipFile
 
 import pytest
-from lxml import etree
-
 from hwpx import HwpxDocument, experimental
+from lxml import etree, html
+
 from hwpx_automation.preview import render_layout_preview
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -70,20 +70,42 @@ def test_declined_estimate_keeps_legacy_page_fragments(mode: str, monkeypatch) -
     assert any("MS Word" in warning for warning in preview.warnings)
 
 
-def test_table_without_row_placement_is_reported() -> None:
+@pytest.mark.parametrize("mode", ["pages", "long"])
+def test_only_the_page_with_an_unplaced_table_flows_in_document_order(mode: str) -> None:
     estimate_layout = getattr(experimental, "estimate_layout", None)
     if estimate_layout is None:
         pytest.skip("needs the core placement API")
     document = HwpxDocument.new()
+    document.add_paragraph("표 앞 문단")
     table = document.add_paragraph("").add_table(3, 2)
     table.cell(0, 0).text = "표 내용"
+    document.add_paragraph("표 뒤 문단")
+    document.add_paragraph("다음 쪽 문단").element.set("pageBreak", "1")
     payload = document.to_bytes()
 
-    preview = render_layout_preview(payload)
+    preview = render_layout_preview(payload, mode=mode)
 
-    assert len(preview.pages) == estimate_layout(payload).estimate.pages
+    assert len(preview.pages) == estimate_layout(payload).estimate.pages == 2
     assert preview.fidelity_tier == "partial-engine-estimated-pagination"
-    assert "표 내용" in preview.html
+    flow, positioned = map(html.fromstring, preview.page_fragments)
+    assert flow.get("data-layout-mode") == "flow"
+    assert positioned.get("data-layout-mode") == "positioned"
+    assert not flow.xpath(".//aside")
+    body = flow.find("div[@class='hwpx-engine-flow']")
+    assert body is not None
+    table_markup, = body.findall("table")
+    assert "표 내용" in table_markup.text_content()
+    text = body.text_content()
+    assert text.index("표 앞 문단") < text.index("표 내용") < text.index("표 뒤 문단")
+    assert positioned.find("div[@class='hwpx-engine-canvas']") is not None
+    actual_ranges = re.findall(r'data-text-start="(\d+)" data-text-end="(\d+)"', preview.page_fragments[0])
+    expected_ranges = [
+        (str(line.text_start), str(line.text_end))
+        for paragraph in estimate_layout(payload).paragraphs for line in paragraph.lines
+        if line.position.page == 0 and not line.hidden and line.text is not None
+    ]
+    assert actual_ranges == expected_ranges
     assert {"kind": "table", "reason": "row and cell placement is unavailable", "count": 1} in (
         preview.as_dict()["limitations"]
     )
+    assert any(item["kind"] == "page-flow" and item["count"] == 1 for item in preview.as_dict()["limitations"])

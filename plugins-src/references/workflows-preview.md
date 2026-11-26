@@ -30,7 +30,9 @@ headless 캡처를 끈다. `mode="pages"`(기본, 페이지별 박스 + 인디�
 `viewer.fidelityTier`의 첫 값은 전체 근사(`text-approx-pagination`), 엔진 쪽·줄 추정
 (`engine-estimated-pagination`), 일부 근사(`partial-engine-estimated-pagination`)를 가리킨다.
 `warnings`에는 엔진 거절 사유와 근사로 남긴 항목의 종류·사유·건수가 들어간다.
-아직 행이나 개체 위치가 제공되지 않는 경우에는 해당 쪽에 근사 내용 또는 자리 표시를 보여 준다.
+표의 행이나 개체 위치가 없으면 해당 쪽 상자 안에서 본문과 표·개체를 문서 순서대로 보여 준다.
+엔진이 제공한 줄바꿈은 그대로 쓰고 세로 배치는 근사로 표시한다. 근사 흐름이 엔진의 본문 높이를 넘으면
+내용을 계속 보여 주고 해당 쪽에 넘침 표시를 붙인다.
 
 **`structuredContent.viewer` 필드:**
 - `viewerPath` — 워크스페이스 안에 쓰인 `viewer.html`의 상대 경로. HTML 크기와 무관하게 항상

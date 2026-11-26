@@ -15,12 +15,20 @@ inlined and equations render as native MathML.  Pagination is approximate
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import html
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .layout_preview import LayoutPreview, _APPROX, _BADGES, _base_css, render_layout_preview
+from .layout_preview import (
+    _APPROX,
+    _BADGES,
+    _PARTIAL,
+    LayoutPreview,
+    _base_css,
+    _flow_overflow_script,
+    render_layout_preview,
+)
 
 # Honest fidelity statement shown in the top bar (Constitution IX).
 FIDELITY_BADGE = _BADGES[_APPROX]
@@ -130,7 +138,7 @@ def _viewer_script() -> str:
     )
 
 
-def _viewer_html(title: str, mode: str, pages_html: str, page_count: int, badge: str) -> str:
+def _viewer_html(title: str, mode: str, pages_html: str, page_count: int, badge: str, *, has_flow: bool) -> str:
     safe_title = html.escape(title)
     count = max(page_count, 1)
     return (
@@ -152,6 +160,7 @@ def _viewer_html(title: str, mode: str, pages_html: str, page_count: int, badge:
         '  <main class="hwpx-viewer-scroll">\n'
         f"{pages_html}\n"
         "  </main>\n"
+        f"{_flow_overflow_script() if has_flow else ''}"
         f"  <script>{_viewer_script()}</script>\n"
         "</body>\n"
         "</html>\n"
@@ -174,12 +183,15 @@ def render_document_viewer(
 
     Returns:
         A :class:`DocumentViewer` whose ``html`` is a standalone HTML
-        document (no external resources, one inline script; equations render as native MathML).
+        document (no external resources; equations render as native MathML).
     """
 
     preview = render_layout_preview(source, mode=mode, title=title)
     pages_html = "".join(preview.page_fragments)
-    document = _viewer_html(title, mode, pages_html, len(preview.pages), preview.badge)
+    document = _viewer_html(
+        title, mode, pages_html, len(preview.pages), preview.badge,
+        has_flow=preview.fidelity_tier == _PARTIAL,
+    )
     return DocumentViewer(html=document, preview=preview, title=title)
 
 

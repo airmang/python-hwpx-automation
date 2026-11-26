@@ -35,7 +35,8 @@
         "engine-estimated-pagination",
         "partial-engine-estimated-pagination"
       ],
-      "warnings": "Reports a declined estimate or the kind, reason, and count of approximated elements.",
+      "warnings": "Reports a declined estimate or the kind, reason, and count of approximated elements, including pages that use approximate vertical flow.",
+      "preview.html": "Pages with incomplete placement show their paragraphs and anchored objects in document order inside the engine page box and flag flow overflow when rendered.",
       "mode=long": "Scrolls across engine pages when the core returns an estimate."
     }
   }
