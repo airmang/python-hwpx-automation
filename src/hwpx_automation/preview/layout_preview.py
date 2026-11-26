@@ -748,22 +748,22 @@ def _render_table(
             if rowspan > 1:
                 attrs.append(f'rowspan="{rowspan}"')
             cells.append(f"<td {' '.join(attrs)}>{''.join(body_parts)}</td>")
-        attrs = ""
+        row_attrs = ""
         if part is not None:
-            attrs = f' data-engine-row="{part.row}" data-engine-repeated="{int(part.repeated)}"'
+            row_attrs = f' data-engine-row="{part.row}" data-engine-repeated="{int(part.repeated)}"'
             if part.top is not None:
-                attrs += f' data-engine-top="{part.top}"'
+                row_attrs += f' data-engine-top="{part.top}"'
             if part.height is not None:
-                attrs += f' style="height:{_fmt_mm(_hwp_to_mm(part.height))}"'
+                row_attrs += f' style="height:{_fmt_mm(_hwp_to_mm(part.height))}"'
         elif flow and (authored := _authored_row_height(source_cells)) > 0:
             # No engine row: the height written in the file is the least the row takes.
-            attrs = f' data-row-height="authored" style="height:{_fmt_mm(_hwp_to_mm(authored))}"'
+            row_attrs = f' data-row-height="authored" style="height:{_fmt_mm(_hwp_to_mm(authored))}"'
             if issues is not None:
                 issues[_AUTHORED_ROW_HEIGHT] += 1
-        rows.append(f"<tr{attrs}>{''.join(cells)}</tr>")
-    attrs = f' data-engine-table="{table_index}"' if table_index is not None else ""
+        rows.append(f"<tr{row_attrs}>{''.join(cells)}</tr>")
+    table_attrs = f' data-engine-table="{table_index}"' if table_index is not None else ""
     caption_html = _table_caption_markup(table, captions, styles, counter, approximate=show_approx_caption)
-    return f'<table class="hwpx-table"{attrs} style="{table_style}">{caption_html}<tbody>{"".join(rows)}</tbody></table>'
+    return f'<table class="hwpx-table"{table_attrs} style="{table_style}">{caption_html}<tbody>{"".join(rows)}</tbody></table>'
 
 
 def _table_cell_body(
@@ -788,7 +788,7 @@ def _table_cell_body(
                 rows = tuple(row for row in found.rows if row.page == page) if found is not None else ()
                 body.append(_render_table(
                     nested, styles, counter, flow=True, row_parts=rows, table_placements=table_placements,
-                    table_index=found.table if rows else None,
+                    table_index=found.table if found is not None and rows else None,
                     captions=tuple(caption for caption in found.captions if caption.page == page) if found else (),
                     show_approx_caption=found is None or not found.captions, issues=issues,
                 ))
@@ -1276,7 +1276,7 @@ def _object_anchor(
     classes = "hwpx-placed-object"
     overlay = ""
     if positioned:
-        layer = {"IN_FRONT_OF_TEXT": "front", "BEHIND_TEXT": "behind"}.get(placed.wrap)
+        layer = {"IN_FRONT_OF_TEXT": "front", "BEHIND_TEXT": "behind"}.get(placed.wrap if placed is not None else "")
         if layer:
             overlay = f' data-overlay="{layer}"'
     if element.tag == _PICTURE_TAG:
@@ -1325,7 +1325,8 @@ def _area_anchors(area: ET.Element, home: int, placements: list[Any], pages: tup
         lines = placed.lines if placed is not None else ()
         if lines and all(line.text is not None for line in lines) and paragraphs:
             rendered = [_engine_line(line, paragraphs[0], styles, pages[page], area_line=True) for line in lines]
-            exact = placed.top is not None and placed.x is not None and not any(partial for _, partial in rendered)
+            exact = (placed is not None and placed.top is not None and placed.x is not None
+                     and not any(partial for _, partial in rendered))
             if not exact:
                 issues[(kind, "area coordinates are incomplete")] += 1
             prefix = "" if exact else _render_object_marker(label)
@@ -1504,7 +1505,7 @@ def _render_engine_preview(
     content: list[list[str | _PlacedLine | _AnchorMarkup]] = [[] for _ in layout.pages]
     flow_pages: set[int] = set()
     paragraphs_by_page: list[set[tuple[int, int]]] = [set() for _ in layout.pages]
-    table_counts = Counter()
+    table_counts: Counter[int] = Counter()
     issues: Counter[tuple[str, str]] = Counter()
     for reason, count in _conversion_notes(document):
         issues[("hwp-conversion", reason)] += count
