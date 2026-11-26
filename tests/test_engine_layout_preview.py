@@ -2,6 +2,7 @@
 
 import io
 import re
+from base64 import b64decode
 from zipfile import ZipFile
 
 import pytest
@@ -98,14 +99,80 @@ def test_only_the_page_with_an_unplaced_table_flows_in_document_order(mode: str)
     text = body.text_content()
     assert text.index("표 앞 문단") < text.index("표 내용") < text.index("표 뒤 문단")
     assert positioned.find("div[@class='hwpx-engine-canvas']") is not None
-    actual_ranges = re.findall(r'data-text-start="(\d+)" data-text-end="(\d+)"', preview.page_fragments[0])
+    actual_ranges = [(line.get("data-text-start"), line.get("data-text-end"))
+                     for line in body.findall("div[@class='hwpx-engine-line']")]
     expected_ranges = [
         (str(line.text_start), str(line.text_end))
         for paragraph in estimate_layout(payload).paragraphs for line in paragraph.lines
         if line.position.page == 0 and not line.hidden and line.text is not None
     ]
     assert actual_ranges == expected_ranges
-    assert {"kind": "table", "reason": "row and cell placement is unavailable", "count": 1} in (
-        preview.as_dict()["limitations"]
-    )
+    assert any(item["kind"] == "table" for item in preview.as_dict()["limitations"])
     assert any(item["kind"] == "page-flow" and item["count"] == 1 for item in preview.as_dict()["limitations"])
+
+
+def test_table_rows_follow_the_engine_across_pages_and_repeat_headers() -> None:
+    if "TablePlacement" not in experimental.__all__:
+        pytest.skip("needs the core table placement API")
+    document = HwpxDocument.new()
+    table = document.add_paragraph("").add_table(52, 2)
+    table.element.find("{*}pos").set("treatAsChar", "0")
+    table.element.attrib.update({"pageBreak": "TABLE", "repeatHeader": "1"})
+    for row in range(52):
+        table.cell(row, 0).text = f"확인 {row + 1}"
+    table.cell(0, 0).element.set("header", "1")
+    table.cell(0, 1).element.set("header", "1")
+    payload = document.to_bytes()
+
+    preview = render_layout_preview(payload)
+    table_placement, = experimental.estimate_layout(payload).tables
+
+    for page, fragment in enumerate(preview.page_fragments):
+        elements = html.fromstring(fragment).xpath(".//tr[@data-engine-row]")
+        observed = [(int(row.get("data-engine-row")), row.get("data-engine-repeated") == "1") for row in elements]
+        expected = [(row.row, row.repeated) for row in table_placement.rows if row.page == page]
+        assert observed == expected and observed
+
+
+def test_engine_line_renders_each_original_run_style() -> None:
+    if "TablePlacement" not in experimental.__all__:
+        pytest.skip("needs the core run placement API")
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("기본 🙂")
+    paragraph.add_run("강조", bold=True, italic=True, underline=True, color="#CC0000", size=18)
+    paragraph.add_run("마침")
+
+    preview = render_layout_preview(doc.to_bytes())
+    page = html.fromstring(preview.page_fragments[0])
+    line, = [item for item in page.xpath(".//div[@class='hwpx-engine-line']") if item.text_content()]
+    plain, styled, tail = line.findall("span")
+    assert [plain.text, styled.text, tail.text] == ["기본 🙂", "강조", "마침"]
+    assert all(piece in styled.get("style") for piece in (
+        "font-size: 18.00pt", "color: #CC0000", "font-weight: bold",
+        "font-style: italic", "text-decoration-line: underline",
+    ))
+
+
+def test_supported_embedded_picture_and_shape_overlap_the_engine_page() -> None:
+    if "ObjectPlacement" not in experimental.__all__:
+        pytest.skip("needs the core object placement API")
+    doc = HwpxDocument.new()
+    paragraph = doc.add_paragraph("그림과 도형이 겹치는 글")
+    png = b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/qFUAAAAASUVORK5CYII=")
+    picture = paragraph.add_picture(doc.media.add_image(png, "png"), width=6000, height=4000)
+    shape = doc.shapes.add_rectangle(6000, 4000, paragraph=paragraph, treat_as_char=False)
+    for element, wrap in ((picture.element, "BEHIND_TEXT"), (shape.element, "IN_FRONT_OF_TEXT")):
+        element.set("textWrap", wrap)
+        element.find("{*}pos").attrib.update({
+            "treatAsChar": "0", "flowWithText": "0", "horzRelTo": "PAPER", "vertRelTo": "PAPER",
+            "horzAlign": "LEFT", "vertAlign": "TOP", "horzOffset": "8504", "vertOffset": "10000",
+        })
+
+    preview = render_layout_preview(doc.to_bytes())
+    page = html.fromstring(preview.page_fragments[0])
+    behind, = page.xpath(".//*[@data-overlay='behind']")
+    front, = page.xpath(".//*[@data-overlay='front']")
+    assert behind.find("img").get("src").startswith("data:image/png;base64,")
+    assert "hwpx-shape-outline" in front.get("class")
+    assert "left: 30.00mm" in behind.get("style")
+    assert "top: 35.28mm" in front.get("style")

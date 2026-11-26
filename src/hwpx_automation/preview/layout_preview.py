@@ -11,6 +11,7 @@ the package through python-hwpx's public input guards.
 
 from __future__ import annotations
 
+import base64
 import html
 import io
 import re
@@ -73,6 +74,22 @@ _AREA_LABELS = {
     f"{_HP}{kind}": label
     for kind, label in (("header", "머리말"), ("footer", "꼬리말"), ("footNote", "각주"), ("endNote", "미주"))
 }
+_OBJECT_TAGS = frozenset(_OBJECT_KINDS) | _SHAPE_TAGS | frozenset(_OTHER_OBJECT_LABELS)
+
+
+@dataclass(frozen=True)
+class _AnchorMarkup:
+    page: int
+    html: str
+    flow: bool = True
+
+
+@dataclass(frozen=True)
+class _ParagraphSources:
+    tables: Mapping[Any, Any]
+    objects: Mapping[Any, Any]
+    areas: Mapping[Any, list[Any]]
+    images: Mapping[str, tuple[str, bytes]]
 
 
 _DEFAULT_PAGE_WIDTH_MM = 210.0
@@ -354,9 +371,14 @@ def _collect_style_maps(header: ET.Element | None) -> dict[str, dict[str, Any]]:
     for node in header.findall(f".//{_HH}paraPr"):
         para[node.get("id", "")] = _parse_para_style(node)
     for node in header.findall(f".//{_HH}charPr"):
+        underline = node.find(f"{_HH}underline")
         chars[node.get("id", "")] = {
             "font_size_pt": _char_height_to_pt(node.get("height")),
             "color": _css_color(node.get("textColor")),
+            "bold": node.find(f"{_HH}bold") is not None,
+            "italic": node.find(f"{_HH}italic") is not None,
+            "underline": underline is not None and underline.get("type", "NONE") != "NONE",
+            "underline_color": _css_color(underline.get("color")) if underline is not None else None,
         }
     for node in header.findall(f".//{_HH}borderFill"):
         borders[node.get("id", "")] = _parse_border_fill(node)
@@ -507,6 +529,7 @@ def _render_inline_runs(
     counter: _ObjectCounter,
     *,
     include_objects: bool = True,
+    extended_styles: bool = False,
 ) -> str:
     spans: list[str] = []
     char_styles = styles["char"]
@@ -514,18 +537,24 @@ def _render_inline_runs(
         text = _find_text_in_run(run)
         if text:
             char_style = char_styles.get(run.get("charPrIDRef") or "0", {})
-            style = _style_attr(
-                {
-                    "font-size": _fmt_pt(char_style.get("font_size_pt", 10.0)),
-                    "color": char_style.get("color", "#000000"),
-                }
-            )
+            style = _character_css(char_style, extended=extended_styles)
             spans.append(f'<span style="{style}">{html.escape(text)}</span>')
         # Inline objects that carry no text are rendered as real content or an
         # honest marker -- never dropped to a blank (Constitution VI).
         if include_objects:
             spans.extend(_render_inline_object(child, counter) for child in run)
     return "".join(spans)
+
+
+def _character_css(char: Mapping[str, Any], *, extended: bool) -> str:
+    return _style_attr({
+        "font-size": _fmt_pt(char.get("font_size_pt", 10.0)),
+        "color": char.get("color", "#000000"),
+        "font-weight": "bold" if extended and char.get("bold") else None,
+        "font-style": "italic" if extended and char.get("italic") else None,
+        "text-decoration-line": "underline" if extended and char.get("underline") else None,
+        "text-decoration-color": char.get("underline_color") if extended and char.get("underline") else None,
+    })
 
 
 def _paragraph_style(paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
@@ -563,6 +592,12 @@ def _render_table(
     counter: _ObjectCounter,
     *,
     flow: bool = False,
+    row_parts: tuple[Any, ...] = (),
+    table_placements: Mapping[Any, Any] | None = None,
+    table_index: int | None = None,
+    continued_rows: frozenset[int] = frozenset(),
+    captions: tuple[Any, ...] = (),
+    show_approx_caption: bool = False,
 ) -> str:
     size = table.find(f"{_HP}sz")
     table_width = _hwp_to_mm(size.get("width") if size is not None else None)
@@ -575,15 +610,30 @@ def _render_table(
         }
     )
     rows: list[str] = []
-    for tr in table.findall(f"{_HP}tr"):
+    sources = table.findall(f"{_HP}tr")
+    if row_parts:
+        source_cells = table.findall(f"{_HP}tr/{_HP}tc")
+        selected = [([source_cells[cell.source_index] for cell in part.cells if cell.source_index is not None], part)
+                    for part in row_parts]
+    else:
+        selected = [(row.findall(f"{_HP}tc"), None) for row in sources]
+    for source_cells, part in selected:
         cells: list[str] = []
-        for tc in tr.findall(f"{_HP}tc"):
+        measured = {cell.column: cell for cell in part.cells} if part is not None else {}
+        for tc in source_cells:
+            cell_address = tc.find(f"{_HP}cellAddr")
+            column = _safe_int(cell_address.get("colAddr") if cell_address is not None else None, 0)
+            placement = measured.get(column)
             cell_size = tc.find(f"{_HP}cellSz")
             # The cell's effective margins (``cell.margins``): the table's
             # hp:inMargin unless the cell's hasMargin is on.
             cell_margins = cell_margins_of(tc, table)
             width = _hwp_to_mm(cell_size.get("width") if cell_size is not None else None)
             height = _hwp_to_mm(cell_size.get("height") if cell_size is not None else None)
+            if placement is not None and placement.width is not None:
+                width = _hwp_to_mm(placement.width)
+            if part is not None:
+                height = _hwp_to_mm(placement.height if placement is not None else None)
             padding = {
                 key: _hwp_to_mm(getattr(cell_margins, key)) if cell_margins is not None else 0.5
                 for key in ("top", "right", "bottom", "left")
@@ -600,20 +650,21 @@ def _render_table(
                     "vertical-align": "middle",
                 }
             )
-            body_parts = []
-            for para in _cell_paragraphs(tc):
-                body_parts.append(
-                    _render_paragraph(para, styles, counter, include_tables=False)
-                )
-                if flow:
-                    body_parts.extend(
-                        _render_table(nested, styles, counter, flow=True) for nested in _anchored_tables(para)
-                    )
+            body_parts = _table_cell_body(
+                tc, styles, counter, flow=flow, placement=placement, table_placements=table_placements,
+                continued=part is not None and part.row in continued_rows and not part.repeated,
+                page=part.page if part is not None else None,
+            )
             if not body_parts:
                 body_parts.append("&nbsp;")
             span = tc.find(f"{_HP}cellSpan")
             colspan = _safe_int(span.get("colSpan") if span is not None else None, 1)
             rowspan = _safe_int(span.get("rowSpan") if span is not None else None, 1)
+            if placement is not None:
+                rowspan = placement.row_span
+            if part is not None and rowspan > 1:
+                rowspan = sum(part.row <= other.row < part.row + rowspan and other.repeated == part.repeated
+                              for other in row_parts)
             attrs = [
                 f'style="{_style_attr(css)}"',
                 f'data-border-fill-id="{html.escape(tc.get("borderFillIDRef") or "")}"',
@@ -623,8 +674,76 @@ def _render_table(
             if rowspan > 1:
                 attrs.append(f'rowspan="{rowspan}"')
             cells.append(f"<td {' '.join(attrs)}>{''.join(body_parts)}</td>")
-        rows.append(f"<tr>{''.join(cells)}</tr>")
-    return f'<table class="hwpx-table" style="{table_style}"><tbody>{"".join(rows)}</tbody></table>'
+        attrs = ""
+        if part is not None:
+            attrs = f' data-engine-row="{part.row}" data-engine-repeated="{int(part.repeated)}"'
+            if part.top is not None:
+                attrs += f' data-engine-top="{part.top}"'
+            if part.height is not None:
+                attrs += f' style="height:{_fmt_mm(_hwp_to_mm(part.height))}"'
+        rows.append(f"<tr{attrs}>{''.join(cells)}</tr>")
+    attrs = f' data-engine-table="{table_index}"' if table_index is not None else ""
+    caption_html = _table_caption_markup(table, captions, styles, counter, approximate=show_approx_caption)
+    return f'<table class="hwpx-table"{attrs} style="{table_style}">{caption_html}<tbody>{"".join(rows)}</tbody></table>'
+
+
+def _table_cell_body(
+    cell: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, *, flow: bool,
+    placement: Any, continued: bool, page: int | None, table_placements: Mapping[Any, Any] | None,
+) -> list[str]:
+    paragraphs = _cell_paragraphs(cell)
+    measured = placement.lines if placement is not None else ()
+    if measured and all(line.text is not None for line in measured):
+        return [_cell_line_markup(line, paragraphs[line.paragraph], styles) for line in measured]
+    if placement is not None and placement.line_start is not None and placement.line_start == placement.line_end:
+        return []
+    if continued or (placement is not None and placement.line_start):
+        return [_render_object_marker("이어지는 칸의 줄 위치 미확인")]
+    body = []
+    for paragraph in paragraphs:
+        body.append(_render_paragraph(paragraph, styles, counter, include_tables=False, extended_styles=flow))
+        if flow:
+            for nested in _anchored_tables(paragraph):
+                found = table_placements.get(nested) if table_placements is not None else None
+                rows = tuple(row for row in found.rows if row.page == page) if found is not None else ()
+                body.append(_render_table(
+                    nested, styles, counter, flow=True, row_parts=rows, table_placements=table_placements,
+                    table_index=found.table if rows else None,
+                    captions=tuple(caption for caption in found.captions if caption.page == page) if found else (),
+                    show_approx_caption=found is None or not found.captions,
+                ))
+    return body
+
+
+def _cell_line_markup(line: Any, paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
+    run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
+    char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
+    css = _style_attr({
+        "line-height": _fmt_mm(_hwp_to_mm(line.height)),
+        "font-size": _fmt_pt(char.get("font_size_pt", 10.0)),
+        "color": char.get("color", "#000000"),
+        "white-space": "pre",
+    })
+    text = _styled_line_text(line, styles)
+    return (
+        f'<div class="hwpx-engine-cell-line" data-text-start="{line.text_start}" '
+        f'data-text-end="{line.text_end}" style="{css}">{text}</div>'
+    )
+
+
+def _table_caption_markup(
+    table: ET.Element, captions: tuple[Any, ...], styles: Mapping[str, Any], counter: _ObjectCounter,
+    *, approximate: bool,
+) -> str:
+    if not captions and not approximate:
+        return ""
+    caption = table.find(f"{_HP}caption")
+    if caption is None:
+        return ""
+    paragraphs = caption.findall(f"{_HP}subList/{_HP}p")
+    text = "".join(_render_paragraph(para, styles, counter, include_tables=False) for para in paragraphs)
+    side = captions[0].side if captions else "top" if caption.get("side") == "TOP" else "bottom"
+    return f'<caption style="caption-side:{side}">{text}</caption>'
 
 
 def _render_paragraph(
@@ -634,8 +753,11 @@ def _render_paragraph(
     *,
     include_tables: bool = True,
     include_objects: bool = True,
+    extended_styles: bool = False,
 ) -> str:
-    text_html = _render_inline_runs(paragraph, styles, counter, include_objects=include_objects)
+    text_html = _render_inline_runs(
+        paragraph, styles, counter, include_objects=include_objects, extended_styles=extended_styles,
+    )
     css = _paragraph_style(paragraph, styles)
     classes = ["hwpx-paragraph"]
     if not text_html:
@@ -709,14 +831,22 @@ def _base_css(mode: str) -> str:
         "margin: 0 auto 10mm; box-shadow: 0 0 0 1px #cfd4dc, "
         "0 6px 18px rgba(15, 23, 42, 0.16); overflow: hidden; }\n"
         ".hwpx-engine-page { height: auto; overflow: visible; }\n"
-        ".hwpx-engine-canvas { position: relative; }\n"
-        ".hwpx-engine-canvas .hwpx-engine-line { position: absolute; }\n"
-        ".hwpx-engine-line { margin: 0; white-space: pre; "
+        ".hwpx-engine-canvas { position: relative; isolation: isolate; }\n"
+        ".hwpx-engine-canvas :is(.hwpx-engine-line, .hwpx-engine-area-line, .hwpx-placed-object) "
+        "{ position: absolute; }\n"
+        ".hwpx-engine-line, .hwpx-engine-area-line { margin: 0; white-space: pre; "
         "overflow: visible; overflow-wrap: normal; word-break: normal; }\n"
         ".hwpx-engine-flow { display: flow-root; }\n"
-        ".hwpx-engine-flow .hwpx-engine-line { margin-left: var(--hwpx-line-offset, 0mm); "
+        ".hwpx-engine-flow :is(.hwpx-engine-line, .hwpx-engine-area-line) "
+        "{ margin-left: var(--hwpx-line-offset, 0mm); "
         "min-height: var(--hwpx-line-height); }\n"
-        ".hwpx-engine-flow-page { position: relative; }\n"
+        ".hwpx-engine-flow-page { position: relative; isolation: isolate; }\n"
+        ".hwpx-placed-object { display: block; box-sizing: border-box; margin: 0; }\n"
+        ".hwpx-placed-object[data-overlay] { position: absolute; }\n"
+        ".hwpx-placed-object[data-overlay=behind] { z-index: -1; }\n"
+        ".hwpx-placed-object[data-overlay=front] { z-index: 2; }\n"
+        ".hwpx-placed-object img { display: block; width: 100%; height: 100%; }\n"
+        ".hwpx-placed-object.hwpx-shape-outline { border: 1px solid #646e79; }\n"
         ".hwpx-engine-page-status { position: absolute; top: 1mm; inset-inline: 2mm; "
         "margin: 0; color: #6b4a1a; font-size: 8pt; text-align: right; }\n"
         ".hwpx-paragraph { white-space: pre-wrap; word-break: break-word; }\n"
@@ -801,8 +931,24 @@ def _document_html(
     )
 
 
+def _styled_line_text(line: Any, styles: Mapping[str, Any]) -> str:
+    runs = getattr(line, "runs", ())
+    if not runs:
+        return html.escape(line.text.removesuffix("\n"))
+    spans = []
+    for index, (reference, text) in enumerate(runs):
+        if index == len(runs) - 1:
+            text = text.removesuffix("\n")
+        if not text:
+            continue
+        char = styles["char"].get(reference, {})
+        css = _character_css(char, extended=True)
+        spans.append(f'<span style="{css}">{html.escape(text)}</span>')
+    return "".join(spans)
+
+
 def _engine_line(
-    line: Any, paragraph: Any, styles: Mapping[str, Any], page: Any,
+    line: Any, paragraph: Any, styles: Mapping[str, Any], page: Any, *, area_line: bool = False,
 ) -> tuple[str, bool]:
     left, _, body_width, _ = page.body
     area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
@@ -811,7 +957,7 @@ def _engine_line(
         sum(area.widths[:column]) + column * (area.gap or 0)
     )
     offset = column_x + line.x if column_x is not None and line.x is not None else None
-    approximate = offset is None or line.width is None
+    approximate = bool(line.text) and (offset is None or line.width is None)
     width = line.width if line.width is not None else (
         area.widths[column] if area is not None and column < len(area.widths) else body_width
     )
@@ -829,9 +975,10 @@ def _engine_line(
         "color": char.get("color", "#000000"),
         "text-align": para_style.get("align", "left"),
     })
-    text = html.escape(line.text.removesuffix("\n"))
+    text = _styled_line_text(line, styles)
+    css_class = "hwpx-engine-area-line" if area_line else "hwpx-engine-line"
     markup = (
-        f'<div class="hwpx-engine-line" data-column="{column}" data-text-start="{line.text_start}" '
+        f'<div class="{css_class}" data-column="{column}" data-text-start="{line.text_start}" '
         f'data-text-end="{line.text_end}" style="{css}">{text}</div>'
     )
     return markup, approximate
@@ -839,7 +986,7 @@ def _engine_line(
 
 def _engine_preview(
     source: str | Path | bytes, mode: str, title: str,
-    styles: Mapping[str, Any], warnings: list[str],
+    styles: Mapping[str, Any], warnings: list[str], parts: Mapping[str, bytes],
 ) -> LayoutPreview | None:
     estimate_layout = getattr(experimental, "estimate_layout", None)
     if estimate_layout is None:
@@ -854,7 +1001,7 @@ def _engine_preview(
     if layout.estimate.pages is None:
         warnings.extend(f"layout estimate declined: {reason}" for reason in layout.estimate.unsupported)
         return None
-    return _render_engine_preview(document, layout, mode, title, styles, warnings)
+    return _render_engine_preview(document, layout, mode, title, styles, warnings, parts)
 
 
 def _outer_tables(element: ET.Element) -> Iterator[ET.Element]:
@@ -873,39 +1020,171 @@ def _anchored_tables(paragraph: ET.Element) -> Iterator[ET.Element]:
 
 def _flow_anchors(
     paragraph: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter,
-    issues: Counter[tuple[str, str]],
-) -> list[str]:
+    issues: Counter[tuple[str, str]], home: int, sources: _ParagraphSources, table_counts: Counter[int],
+    pages: tuple[Any, ...],
+) -> list[_AnchorMarkup]:
     anchors = []
     for run in paragraph.findall(f"{_HP}run"):
         for child in run:
             if child.tag == f"{_HP}t":
                 continue
-            kind = _OBJECT_KINDS.get(child.tag, "shape" if child.tag in _SHAPE_TAGS else None)
-            if kind is not None:
-                issues[(kind, "object placement is unavailable")] += 1
-                marker = _render_inline_object(child, counter)
-                anchors.append(f'<p class="hwpx-paragraph">{marker}</p>')
-            label = _OTHER_OBJECT_LABELS.get(child.tag)
+            obj = child if child.tag in _OBJECT_TAGS else None
             if child.tag == f"{_HP}switch":
-                label = next((_OTHER_OBJECT_LABELS[node.tag] for node in child.iter()
-                              if node.tag in _OTHER_OBJECT_LABELS), None)
-            if label is not None:
-                issues[(label, "object is shown as a placeholder")] += 1
-                anchors.append(f'<p class="hwpx-paragraph">{_render_object_marker(label)}</p>')
+                options = [node for node in child.iter() if node.tag in _OBJECT_TAGS]
+                obj = next((node for node in options if node in sources.objects and sources.objects[node].page is not None),
+                           options[0] if options else None)
+            if obj is not None:
+                anchors.append(_object_anchor(obj, home, sources.objects.get(obj), sources.images, issues, counter))
             for table in _outer_tables(child):
-                issues[("table", "row and cell placement is unavailable")] += sum(
-                    1 for _ in table.iter(f"{_HP}tbl")
-                )
-                anchors.append(_render_table(table, styles, counter, flow=True))
+                anchors.extend(_table_anchors(table, styles, counter, issues, home, sources.tables, table_counts))
             for area in child.iter():
                 if area.tag in _AREA_LABELS:
-                    issues[(area.tag.removeprefix(_HP), "area placement is unavailable")] += 1
-                    text = " ".join(_paragraph_text(p) for p in area.iter(f"{_HP}p"))
-                    anchors.append(
-                        f'<p class="hwpx-paragraph">{_render_object_marker(_AREA_LABELS[area.tag])} '
-                        f'{html.escape(text)}</p>'
-                    )
+                    anchors.extend(_area_anchors(area, home, sources.areas.get(area, []), pages, styles, issues))
     return anchors
+
+
+def _table_anchors(
+    table: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, issues: Counter[tuple[str, str]],
+    home: int, placements: Mapping[Any, Any], table_counts: Counter[int],
+) -> list[_AnchorMarkup]:
+    placed = placements.get(table)
+    if placed is None or not placed.rows:
+        count = sum(1 for _ in table.iter(f"{_HP}tbl"))
+        issues[("table", "row and cell placement is unavailable")] += count
+        table_counts[home] += count
+        return [_AnchorMarkup(home, _render_table(table, styles, counter, flow=True, show_approx_caption=True))]
+    issues[("table", "table content uses approximate flow within engine row pages")] += 1
+    for nested in table.iter(f"{_HP}tbl"):
+        found = placements.get(nested)
+        if found is None or not found.rows:
+            issues[("table", "nested row placement is unavailable")] += 1
+        else:
+            for reason in found.unavailable:
+                issues[("table", reason)] += 1
+            for row in found.rows:
+                for cell in row.cells:
+                    for reason in cell.unavailable:
+                        issues[("table-cell", reason)] += 1
+    rows_by_page: dict[int, list[Any]] = {}
+    for row in placed.rows:
+        rows_by_page.setdefault(row.page, []).append(row)
+    fallback_caption = table.find(f"{_HP}caption") is not None and not placed.captions
+    if fallback_caption:
+        issues[("table", "caption placement is unavailable")] += 1
+    anchors = []
+    seen: set[int] = set()
+    for page, rows in sorted(rows_by_page.items()):
+        table_counts[page] += 1
+        captions = tuple(caption for caption in placed.captions if caption.page == page)
+        anchors.append(_AnchorMarkup(page, _render_table(
+            table, styles, counter, flow=True, row_parts=tuple(rows), table_index=placed.table,
+            table_placements=placements, continued_rows=frozenset(seen), captions=captions,
+            show_approx_caption=fallback_caption and page == min(rows_by_page),
+        )))
+        seen.update(row.row for row in rows if not row.repeated)
+    return anchors
+
+
+def _picture_sources(document: HwpxDocument, parts: Mapping[str, bytes]) -> dict[str, tuple[str, bytes]]:
+    supported = {
+        "png": ("image/png", (b"\x89PNG\r\n\x1a\n",)),
+        "jpg": ("image/jpeg", (b"\xff\xd8\xff",)),
+        "jpeg": ("image/jpeg", (b"\xff\xd8\xff",)),
+        "gif": ("image/gif", (b"GIF87a", b"GIF89a")),
+        "bmp": ("image/bmp", (b"BM",)),
+        "webp": ("image/webp", (b"RIFF",)),
+    }
+    result = {}
+    for item in document.media.images:
+        data = parts.get(item.href)
+        found = supported.get(item.format.lower())
+        if data is not None and found is not None and data.startswith(found[1]):
+            if found[0] != "image/webp" or data[8:12] == b"WEBP":
+                result[item.item_id] = (found[0], data)
+    return result
+
+
+def _object_anchor(
+    element: ET.Element, home: int, placed: Any, images: Mapping[str, tuple[str, bytes]],
+    issues: Counter[tuple[str, str]], counter: _ObjectCounter,
+) -> _AnchorMarkup:
+    kind = _OBJECT_KINDS.get(element.tag, "shape" if element.tag in _SHAPE_TAGS else element.tag.removeprefix(_HP))
+    page = home if placed is None or placed.page is None else placed.page
+    width, height = (None, None) if placed is None else (placed.width, placed.height)
+    left, top = (None, None) if placed is None else (placed.x, placed.top)
+    sized = width is not None and height is not None and width > 0 and height > 0
+    positioned = sized and left is not None and top is not None
+    if not positioned:
+        for reason in (placed.unavailable if placed is not None and placed.unavailable else
+                       ("object placement is unavailable",)):
+            issues[(kind, reason)] += 1
+    classes = "hwpx-placed-object"
+    overlay = ""
+    if positioned:
+        layer = {"IN_FRONT_OF_TEXT": "front", "BEHIND_TEXT": "behind"}.get(placed.wrap)
+        if layer:
+            overlay = f' data-overlay="{layer}"'
+    if element.tag == _PICTURE_TAG:
+        label = f"그림 {counter.next_picture()}"
+        image = element.find(f".//{_HC}img")
+        asset = images.get(image.get("binaryItemIDRef", "")) if image is not None else None
+        if asset is not None and sized:
+            mime, data = asset
+            encoded = base64.b64encode(data).decode("ascii")
+            content = f'<img alt="{label}" src="data:{mime};base64,{encoded}">'
+        else:
+            content = _render_object_marker(label)
+            if asset is None:
+                issues[(kind, "embedded image is missing or unsupported in the browser")] += 1
+    elif element.tag in _SHAPE_TAGS and sized:
+        classes += " hwpx-shape-outline"
+        if positioned:
+            text = "<br>".join(html.escape(line) for line in _shape_text_lines(element))
+            content = f'<div aria-label="도형">{text}</div>'
+        else:
+            content = _render_shape(element)
+    elif element.tag in _OTHER_OBJECT_LABELS:
+        content = _render_object_marker(_OTHER_OBJECT_LABELS[element.tag])
+        issues[(kind, "object is shown as a placeholder")] += 1
+    else:
+        content = _render_inline_object(element, counter)
+    css = _style_attr({
+        key: _fmt_mm(_hwp_to_mm(value)) for key, value in (
+            ("left", left), ("top", top), ("width", width), ("height", height),
+        ) if value is not None
+    })
+    return _AnchorMarkup(page, f'<div class="{classes}" data-object-kind="{kind}"{overlay} style="{css}">{content}</div>',
+                         flow=not positioned)
+
+
+def _area_anchors(area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...],
+                  styles: Mapping[str, Any], issues: Counter[tuple[str, str]]) -> list[_AnchorMarkup]:
+    label = _AREA_LABELS[area.tag]
+    kind = area.tag.removeprefix(_HP)
+    paragraphs = list(area.iter(f"{_HP}p"))
+    if not placements:
+        placements = [None]
+    result = []
+    for index, placed in enumerate(placements):
+        page = placed.page if placed is not None and placed.page is not None else home
+        lines = placed.lines if placed is not None else ()
+        if lines and all(line.text is not None for line in lines) and paragraphs:
+            rendered = [_engine_line(line, paragraphs[0], styles, pages[page], area_line=True) for line in lines]
+            exact = placed.top is not None and placed.x is not None and not any(partial for _, partial in rendered)
+            if not exact:
+                issues[(kind, "area coordinates are incomplete")] += 1
+            prefix = "" if exact else _render_object_marker(label)
+            content = prefix + "".join(markup for markup, _ in rendered)
+            result.append(_AnchorMarkup(page, f'<div data-area-kind="{kind}">{content}</div>', flow=not exact))
+        else:
+            for reason in (placed.unavailable if placed is not None and placed.unavailable else
+                           ("area placement is unavailable",)):
+                issues[(kind, reason)] += 1
+            text = " ".join(_paragraph_text(p) for p in paragraphs) if index == 0 else ""
+            result.append(_AnchorMarkup(
+                page, f'<p class="hwpx-paragraph" data-area-kind="{kind}">{_render_object_marker(label)} {html.escape(text)}</p>',
+            ))
+    return result
 
 
 def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool) -> str:
@@ -935,7 +1214,7 @@ def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool) 
 
 def _render_engine_preview(
     document: HwpxDocument, layout: Any, mode: str, title: str,
-    styles: Mapping[str, Any], warnings: list[str],
+    styles: Mapping[str, Any], warnings: list[str], parts: Mapping[str, bytes],
 ) -> LayoutPreview:
     sections = [section.element for section in document.sections]
     body_paragraphs = [section.findall(f"{_HP}p") for section in sections]
@@ -945,6 +1224,17 @@ def _render_engine_preview(
     table_counts = Counter()
     issues: Counter[tuple[str, str]] = Counter()
     counter = _ObjectCounter()
+    tables_by_paragraph: dict[tuple[int, int], dict[int, Any]] = {}
+    for table in getattr(layout, "tables", ()):
+        if all(0 <= row.page < len(layout.pages) for row in table.rows):
+            tables_by_paragraph.setdefault((table.section, table.paragraph), {})[table.table] = table
+    objects_by_paragraph: dict[tuple[int, int], dict[int, Any]] = {}
+    for obj in getattr(layout, "objects", ()):
+        objects_by_paragraph.setdefault((obj.section, obj.paragraph), {})[obj.object_index] = obj
+    areas_by_paragraph: dict[tuple[int, int], dict[int, list[Any]]] = {}
+    for area in getattr(layout, "areas", ()):
+        areas_by_paragraph.setdefault((area.section, area.paragraph), {}).setdefault(area.area, []).append(area)
+    images = _picture_sources(document, parts) if objects_by_paragraph else {}
     section_starts: dict[int, int] = {}
     for page in layout.pages:
         section_starts.setdefault(page.section, page.page)
@@ -953,7 +1243,21 @@ def _render_engine_preview(
         paragraph = body_paragraphs[key[0]][key[1]]
         visible = [line for line in placed.lines if not line.hidden]
         home = placed.lines[0].position.page if placed.lines else section_starts[key[0]]
-        table_counts[home] += len(paragraph.findall(f".//{_HP}tbl"))
+        table_results = tables_by_paragraph.get(key, {})
+        table_placements = {
+            table: table_results[index] for index, table in enumerate(paragraph.iter(f"{_HP}tbl"))
+            if index in table_results
+        }
+        objects = objects_by_paragraph.get(key, {})
+        areas = areas_by_paragraph.get(key, {})
+        sources = _ParagraphSources(
+            table_placements,
+            {node: objects[index] for index, node in enumerate(
+                child for child in paragraph.iter() if child.tag in _OBJECT_TAGS) if index in objects},
+            {node: areas[index] for index, node in enumerate(
+                child for child in paragraph.iter() if child.tag in _AREA_LABELS) if index in areas},
+            images,
+        )
         without_text_range = [line for line in visible if line.text is None]
         missing_pages = {line.position.page for line in without_text_range}
         flow_pages.update(missing_pages)
@@ -962,7 +1266,7 @@ def _render_engine_preview(
             issues[("paragraph", "engine text ranges are unavailable")] += 1
             flow_pages.add(home)
             content[home].append(_render_paragraph(
-                paragraph, styles, counter, include_tables=False, include_objects=False,
+                paragraph, styles, counter, include_tables=False, include_objects=False, extended_styles=True,
             ))
             paragraphs_by_page[home].add(key)
             for page in {line.position.page for line in visible} - {home}:
@@ -982,11 +1286,13 @@ def _render_engine_preview(
                     if partial:
                         flow_pages.add(page)
                         issues[("line", "horizontal placement is incomplete")] += 1
-        anchors = _flow_anchors(paragraph, styles, counter, issues)
-        if anchors:
-            flow_pages.add(home)
-            paragraphs_by_page[home].add(key)
-            content[home].extend(anchors)
+                    if line.text and hasattr(line, "runs") and not line.runs:
+                        issues[("line", "original character run could not be matched")] += 1
+        for anchor in _flow_anchors(paragraph, styles, counter, issues, home, sources, table_counts, layout.pages):
+            if anchor.flow:
+                flow_pages.add(anchor.page)
+            paragraphs_by_page[anchor.page].add(key)
+            content[anchor.page].append(anchor.html)
 
     fragments, pages = [], []
     for page in layout.pages:
@@ -1029,7 +1335,7 @@ def render_layout_preview(
     header = _parse_xml(parts, "Contents/header.xml", warnings)
     styles = _collect_style_maps(header)
     pre_estimate_warnings = len(warnings)
-    engine_preview = _engine_preview(source, mode, title, styles, warnings)
+    engine_preview = _engine_preview(source, mode, title, styles, warnings, parts)
     if engine_preview is not None:
         return engine_preview
 
