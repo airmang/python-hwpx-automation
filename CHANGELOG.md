@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- `apply_table_ops`·`apply_body_ops`·`apply_evalplan_fill`·`apply_form_fill(plan=)`이 거부되거나 실패할 때마다 문서 폴더에
+  문서 전체 사본(`.hwpx-mixed-form-recovery-…`, 숨은 이름)을 하나씩 남기던 것을 고칩니다. 없는 표 번호나 없는 문단처럼 아무것도
+  바꾸지 않은 거부도 사본을 남겨, 세 번 거부하면 세 개가 쌓였습니다(8.0.0은 `dry_run`일 때만 막았습니다). 이 사본은 쓰는 도중
+  실패했을 때 호출 전 바이트를 되살리려고 두는 것이므로, 이제 호출이 끝나면 지웁니다. 성공했을 때, 아무것도 바꾸지 않고 거부했을 때,
+  쓰다 실패해 문서를 호출 전 바이트로 되돌렸을 때가 모두 그렇습니다. 사본이 남는 경우는 둘입니다. 문서가 호출 전 바이트로 돌아오지
+  않았을 때(그 사이 다른 프로그램이 문서를 바꾼 경우 등, 사본이 유일한 복구 수단)와 사본을 지우지 못했을 때(다른 프로그램이 열어 둔
+  경우)입니다. 그때는 결과의 `verificationReceipt.rollbackPreservation.recoveryCopy`(`filename`, `reason`:
+  `output-changed`·`not-removed`)와 MCP 오류의 글·`details.recoveryCopy`가 그 파일 이름을 알립니다. 사본을 지우지 못한 것만으로는
+  성공한 쓰기를 되돌리지 않습니다(지금까지는 문서를 되돌리고 실패로 알렸습니다). 전 판이 남긴 `.hwpx-mixed-form-recovery-*` 파일은
+  이 판이 지우지 않습니다. 어떤 도구도 그 파일을 다시 읽지 않으므로 손으로 지워도 됩니다(각 파일은 그것을 남긴 호출 직전의 문서
+  바이트 그대로이니, 문서가 멀쩡한지 먼저 확인하세요).
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를
   열기부터 거부하던 것을 고칩니다(#247). 지금까지는 읽기 도구도 편집 도구도 코드 없는 `package validation failed`로 끝났습니다.
   열기 관문이 이 한 가지 모양(`section-properties-not-first`)만 통과시켜 읽기 도구가 그대로 읽고, 편집 도구가 저장하면
