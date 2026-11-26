@@ -998,13 +998,32 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
         == [f"{automation['distribution']}[oracle]=={pins[automation['distribution']][1]}"],
         "claude: server/pyproject.toml must lock the oracle extra in the render group at the pinned version",
     )
+    # The window's floor is the verified version once the train is ``released``. Before that the
+    # candidate is not on PyPI, so a lock cannot name it: the bundle keeps the pair that is public
+    # (``currentPublic``) and its version string says so (``<plugin>+core.<x>.automation.<y>``, checked
+    # below). After publication ``refresh_claude_runtime.py`` moves the pins and promotion asks for the
+    # verified floor again.
+    release_state = identity.get("releaseState", {})
+    public = release_state.get("currentPublic") or {}
+    public_floor = {
+        core["distribution"]: public.get("pythonHwpx"),
+        automation["distribution"]: public.get("primaryApplication"),
+    }
     for component in (core, automation):
+        floor_version = component["currentVersion"]
+        if release_state.get("status") != "released" and public_floor.get(component["distribution"]):
+            floor_version = public_floor[component["distribution"]]
         pinned = refresh.parse(pins[component["distribution"]][1])
-        floor = refresh.parse(component["currentVersion"])
+        floor = refresh.parse(floor_version)
+        verified = refresh.parse(component["currentVersion"])
         require(
-            pinned is not None and floor is not None and pinned >= floor and pinned[0] == floor[0],
+            pinned is not None
+            and floor is not None
+            and verified is not None
+            and pinned >= floor
+            and pinned[0] == verified[0],
             f"claude: {component['distribution']} pin is outside the install window "
-            f">={component['currentVersion']},<{floor[0] + 1 if floor else '?'}; run scripts/refresh_claude_runtime.py",
+            f">={floor_version},<{verified[0] + 1 if verified else '?'}; run scripts/refresh_claude_runtime.py",
         )
     core_version = pins[core["distribution"]][1]
     automation_version = pins[automation["distribution"]][1]

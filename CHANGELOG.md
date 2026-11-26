@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [8.0.1] - 2026-11-26
+
+### Changed
+
+- python-hwpx 하한을 7.0.2로 올립니다(`python-hwpx>=7.0.2,<8`). 7.0.2가 이미 있는 `.hwp`를 엔진의 모든 쓰기 길에서 지키고,
+  구역 설정이 뒤 문단에 있는 문서(6.x가 만든 모양)를 저장할 때 첫 문단으로 옮깁니다. 아래 수정 가운데 여럿이 그 동작에 기댑니다.
+  도구 계약의 `minPythonHwpx`(7.0.0)와 계약 해시(`c895883d5f4350ae`)는 그대로입니다.
+
 ### Fixed
 
 - `apply_table_ops`·`apply_body_ops`·`apply_evalplan_fill`·`apply_form_fill(plan=)`이 거부되거나 실패할 때마다 문서 폴더에

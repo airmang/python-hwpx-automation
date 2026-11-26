@@ -69,8 +69,9 @@ def test_fastmcp_dependency_stays_on_the_audited_minor_line() -> None:
     # (>=6.0.0.dev0) served the pre-tag phase; the release narrows it to the
     # first published core of the line.
     # 8.0: python-hwpx 7.0 moved its conversion and guessing features here, so
-    # the floor is the 7.x line.
-    assert "python-hwpx>=7.0,<8" in dependencies
+    # the floor is the 7.x line. 8.0.1: 7.0.2 is the first core that keeps an
+    # existing .hwp on every write path and saves a 6.x-shaped document.
+    assert "python-hwpx>=7.0.2,<8" in dependencies
     # The imaging stack is declared here since the 5.0 boundary closed: core
     # stopped reading PDFs and images, so its `visual` extra is empty and
     # deferring to it would have installed nothing.

@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "hwpx-plugin",
-      "version": "8.0.0",
+      "version": "8.0.1",
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/airmang/python-hwpx-automation.git",

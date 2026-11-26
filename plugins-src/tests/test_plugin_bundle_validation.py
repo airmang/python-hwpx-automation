@@ -219,10 +219,18 @@ def test_claude_locked_runtime_pins_a_pair_inside_the_install_window() -> None:
     project = tomllib.loads((ROOT / "plugins/claude/hwpx-plugin/server/pyproject.toml").read_text(encoding="utf-8"))["project"]
     pins = {spec.split("[")[0]: spec.split("==")[1] for spec in project["dependencies"]}
     assert set(pins) == {"python-hwpx", "python-hwpx-automation"}
+    # Released: the verified pair is the floor. Before publication the candidate is not on PyPI, so
+    # the floor is the pair that is public (validate_claude_locked_runtime has the same rule).
+    release_state = identity["releaseState"]
+    public = {
+        "python-hwpx": release_state["currentPublic"]["pythonHwpx"],
+        "python-hwpx-automation": release_state["currentPublic"]["primaryApplication"],
+    }
     for dist, component in (("python-hwpx", components["core"]), ("python-hwpx-automation", components["automation"])):
         pinned = tuple(int(part) for part in pins[dist].split("."))
-        floor = tuple(int(part) for part in component["currentVersion"].split("."))
-        assert pinned >= floor and pinned[0] == floor[0]
+        verified = tuple(int(part) for part in component["currentVersion"].split("."))
+        floor = verified if release_state["status"] == "released" else tuple(int(part) for part in public[dist].split("."))
+        assert pinned >= floor and pinned[0] == verified[0]
     lock_path = ROOT / "plugins/claude/hwpx-plugin/server/uv.lock"
     assert lock_path.stat().st_size <= 256 * 1024
     lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
@@ -529,6 +537,14 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         text=True,
         capture_output=True,
     )
+    if status == "released" and previous_status != "released":
+        # Promotion comes with refreshed locks: the candidate is published by then, and the bundles'
+        # locks (which named the public stack until now) must move to it. A promotion that leaves
+        # them is refused, with the script to run.
+        output = validated.stdout + validated.stderr
+        assert validated.returncode != 0, output
+        assert "refresh_claude_runtime.py" in output or "--refresh-lock" in output, output
+        return
     assert validated.returncode == 0, validated.stdout + validated.stderr
 
 

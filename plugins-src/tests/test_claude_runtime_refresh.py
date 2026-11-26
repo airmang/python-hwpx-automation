@@ -83,6 +83,70 @@ def test_validator_rejects_a_pin_outside_the_window(tmp_path: Path) -> None:
         validator.validate_claude_locked_runtime(bundle, IDENTITY)
 
 
+def _bundle_pinned_at(tmp_path: Path, core: str, automation: str) -> Path:
+    """The committed Claude bundle with its two pins rewritten (lock and manifest left as they are)."""
+
+    bundle = tmp_path / "hwpx-plugin"
+    shutil.copytree(ROOT / "plugins" / "claude" / "hwpx-plugin", bundle)
+    pyproject = bundle / "server" / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+    text = re.sub(r'("python-hwpx\[[^\]]*\]==)[^"]+"', rf'\g<1>{core}"', text)
+    text = re.sub(r'("python-hwpx-automation\[[^\]]*\]==)[^"]+"', rf'\g<1>{automation}"', text)
+    pyproject.write_text(text, encoding="utf-8")
+    return bundle
+
+
+def _identity_with(status: str, public_core: str, public_automation: str, core: str, automation: str) -> dict:
+    identity = json.loads(json.dumps(IDENTITY))
+    identity["releaseState"]["status"] = status
+    identity["releaseState"]["currentPublic"]["pythonHwpx"] = public_core
+    identity["releaseState"]["currentPublic"]["primaryApplication"] = public_automation
+    identity["components"]["core"]["currentVersion"] = core
+    identity["components"]["automation"]["currentVersion"] = automation
+    return identity
+
+
+def _window_refusal(bundle: Path, identity: dict) -> str | None:
+    """The install-window refusal for *bundle*, or None when the window admits its pins.
+
+    Later checks (the lock, the manifest) may refuse a rewritten bundle for their own reasons; only
+    the window's verdict is read here.
+    """
+
+    try:
+        validator.validate_claude_locked_runtime(bundle, identity)
+    except SystemExit as refused:
+        return str(refused) if "outside the install window" in str(refused) else None
+    return None
+
+
+def test_before_publication_the_window_floor_is_the_public_pair(tmp_path: Path) -> None:
+    """An approved candidate is not on PyPI, so the lock keeps the public pair until it is."""
+
+    bundle = _bundle_pinned_at(tmp_path, "7.0.0", "8.0.0")
+    approved = _identity_with("release-approved", "7.0.0", "8.0.0", core="7.0.2", automation="8.0.1")
+    assert _window_refusal(bundle, approved) is None
+
+    # once released the verified pair is the floor again: the same lock is stale
+    released = _identity_with("released", "7.0.2", "8.0.1", core="7.0.2", automation="8.0.1")
+    refusal = _window_refusal(bundle, released)
+    assert refusal is not None and ">=7.0.2,<8" in refusal
+
+
+def test_before_publication_a_pin_below_the_public_pair_is_still_refused(tmp_path: Path) -> None:
+    bundle = _bundle_pinned_at(tmp_path, "7.0.0", "7.9.0")
+    approved = _identity_with("release-approved", "7.0.0", "8.0.0", core="7.0.2", automation="8.0.1")
+    refusal = _window_refusal(bundle, approved)
+    assert refusal is not None and "python-hwpx-automation" in refusal and ">=8.0.0,<9" in refusal
+
+
+def test_before_publication_a_pin_of_another_major_is_still_refused(tmp_path: Path) -> None:
+    bundle = _bundle_pinned_at(tmp_path, "8.0.0", "8.0.0")
+    approved = _identity_with("release-approved", "7.0.0", "8.0.0", core="7.0.2", automation="8.0.1")
+    refusal = _window_refusal(bundle, approved)
+    assert refusal is not None and "python-hwpx pin" in refusal
+
+
 def test_refresh_workflow_opens_a_pull_request_after_the_tests_run_passes() -> None:
     text = (ROOT / ".github" / "workflows" / "claude-runtime-refresh.yml").read_text(encoding="utf-8")
     assert "gh run watch" in text and "--exit-status" in text
