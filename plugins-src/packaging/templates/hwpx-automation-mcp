@@ -17,10 +17,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-VERIFIED_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle,preview]==8.0.0"
-VERIFIED_CORE_PACKAGE="python-hwpx[preview]==7.0.0"
-CONSTRAINT_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle,preview]>=8.0.0,<9"
-CONSTRAINT_CORE_PACKAGE="python-hwpx[preview]>=7.0.0,<8"
+VERIFIED_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle,preview]==8.0.1"
+VERIFIED_CORE_PACKAGE="python-hwpx[preview]==7.0.2"
+CONSTRAINT_SERVER_PACKAGE="python-hwpx-automation[mcp,oracle,preview]>=8.0.1,<9"
+CONSTRAINT_CORE_PACKAGE="python-hwpx[preview]>=7.0.2,<8"
 
 STACK_CHANNEL="${HWPX_STACK_CHANNEL:-floor}"
 case "${STACK_CHANNEL}" in
