@@ -1096,8 +1096,39 @@ def _engine_line(
     return markup, approximate
 
 
+def _open_for_estimate(source: str | Path | bytes) -> tuple[HwpxDocument | None, Exception | None]:
+    """Open *source* as the layout estimate reads it: the document, or why python-hwpx refused it.
+
+    The refusal is not raised here. The package's own reader still decides what an
+    unreadable source raises, and :func:`_engine_preview` reports or re-raises the rest.
+    """
+    if getattr(experimental, "estimate_layout", None) is None:
+        return None, None
+    try:
+        return HwpxDocument.open(io.BytesIO(source) if isinstance(source, bytes) else str(source)), None
+    except Exception as exc:  # noqa: BLE001 - kept for _engine_preview, which raises what it does not report
+        return None, exc
+
+
+def _document_parts(document: HwpxDocument) -> dict[str, bytes]:
+    """The package parts python-hwpx read when it opened the document (one reader for both)."""
+    package = document.package
+    return {name: package.get_part(name) for name in package.part_names()}
+
+
+def _conversion_notes(document: HwpxDocument) -> list[tuple[str, int]]:
+    """What opening an HWP 5.0 source left out of the document the preview is drawn from."""
+    report = getattr(document, "conversion_report", None)
+    if report is None:
+        return []
+    notes = [(f"{kind} is not converted into the previewed document", count)
+             for kind, count in sorted(report.unconverted.items())]
+    notes += [(f"{kind} has no HWPX form and is left out", count) for kind, count in sorted(report.dropped.items())]
+    return notes
+
+
 def _engine_preview(
-    source: str | Path | bytes, mode: str, title: str,
+    document: HwpxDocument | None, refused: Exception | None, mode: str, title: str,
     styles: Mapping[str, Any], warnings: list[str], parts: Mapping[str, bytes],
 ) -> LayoutPreview | None:
     estimate_layout = getattr(experimental, "estimate_layout", None)
@@ -1105,13 +1136,16 @@ def _engine_preview(
         warnings.append("layout estimate unavailable in the installed python-hwpx")
         return None
     try:
-        document = HwpxDocument.open(io.BytesIO(source) if isinstance(source, bytes) else str(source))
+        if document is None:
+            assert refused is not None
+            raise refused
         layout = estimate_layout(document)
     except (HwpxError, ValueError, OSError) as exc:
         warnings.append(f"layout estimate unavailable: {type(exc).__name__}")
         return None
     if layout.estimate.pages is None:
         warnings.extend(f"layout estimate declined: {reason}" for reason in layout.estimate.unsupported)
+        warnings.extend(f"HWP 5.0 source: {reason} ({count})" for reason, count in _conversion_notes(document))
         return None
     return _render_engine_preview(document, layout, mode, title, styles, warnings, parts)
 
@@ -1472,6 +1506,8 @@ def _render_engine_preview(
     paragraphs_by_page: list[set[tuple[int, int]]] = [set() for _ in layout.pages]
     table_counts = Counter()
     issues: Counter[tuple[str, str]] = Counter()
+    for reason, count in _conversion_notes(document):
+        issues[("hwp-conversion", reason)] += count
     counter = _ObjectCounter()
     tables_by_paragraph: dict[tuple[int, int], dict[int, Any]] = {}
     for table in getattr(layout, "tables", ()):
@@ -1599,7 +1635,8 @@ def render_layout_preview(
     """Render an HWPX package into layout-aware HTML.
 
     Args:
-        source: HWPX file path or raw HWPX bytes.
+        source: HWPX file path or raw HWPX bytes. A document python-hwpx opens by
+            converting it (HWP 5.0) is previewed as that conversion.
         mode: ``"pages"`` for page boxes or ``"long"`` for continuous scrolling.
         title: HTML document title.
     """
@@ -1607,11 +1644,18 @@ def render_layout_preview(
     if mode not in {"pages", "long"}:
         raise ValueError("mode must be 'pages' or 'long'")
 
-    parts, warnings = _read_package_parts(source)
+    # One reader: the parts come from the document python-hwpx opened for the estimate.
+    # A source it refuses is read as before, with the same error for an unreadable package.
+    opened, refused = _open_for_estimate(source)
+    warnings: list[str]
+    if opened is not None:
+        parts, warnings = _document_parts(opened), []
+    else:
+        parts, warnings = _read_package_parts(source)
     header = _parse_xml(parts, "Contents/header.xml", warnings)
     styles = _collect_style_maps(header)
     pre_estimate_warnings = len(warnings)
-    engine_preview = _engine_preview(source, mode, title, styles, warnings, parts)
+    engine_preview = _engine_preview(opened, refused, mode, title, styles, warnings, parts)
     if engine_preview is not None:
         return engine_preview
 

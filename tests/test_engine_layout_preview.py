@@ -2,14 +2,16 @@
 
 import io
 import re
+import warnings
 from base64 import b64decode
+from types import SimpleNamespace
 from zipfile import ZipFile
 
 import pytest
 from hwpx import HwpxDocument, experimental
 from lxml import etree, html
 
-from hwpx_automation.preview import render_layout_preview
+from hwpx_automation.preview import layout_preview, render_layout_preview
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
@@ -288,3 +290,77 @@ def test_supported_embedded_picture_and_shape_overlap_the_engine_page() -> None:
     assert "hwpx-shape-outline" in front.get("class")
     assert "left: 30.00mm" in behind.get("style")
     assert "top: 35.28mm" in front.get("style")
+
+
+def _saved_as_hwp(tmp_path, text: str):
+    document = HwpxDocument.new()
+    document.add_paragraph(text)
+    path = tmp_path / "made.hwp"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # writing .hwp is experimental and says so
+        document.save(str(path))
+    return path
+
+
+def test_the_preview_reads_the_parts_python_hwpx_opened(tmp_path, monkeypatch) -> None:
+    if not hasattr(experimental, "estimate_layout"):
+        pytest.skip("needs the core placement API")
+    hwp = _saved_as_hwp(tmp_path, "한글 5.0 형식으로 저장한 문단")  # no package for zipfile; python-hwpx opens it
+    document = HwpxDocument.new()
+    document.add_paragraph("꾸러미로 저장한 문단")
+    monkeypatch.setattr(layout_preview, "_read_package_parts", lambda source: pytest.fail("read a second time"))
+
+    for source, text in ((hwp, "한글 5.0 형식"), (hwp.read_bytes(), "한글 5.0 형식"), (document.to_bytes(), "꾸러미로")):
+        preview = render_layout_preview(source)
+        assert preview.fidelity_tier == "engine-estimated-pagination" and len(preview.pages) == 1
+        assert text in preview.html
+
+
+def test_what_an_hwp_source_lost_in_conversion_is_named(tmp_path, monkeypatch) -> None:
+    if not hasattr(experimental, "estimate_layout"):
+        pytest.skip("needs the core placement API")
+    hwp = _saved_as_hwp(tmp_path, "변환해서 읽는 문단")
+    report = SimpleNamespace(unconverted={"chart": 2}, dropped={"script": 1})
+    monkeypatch.setattr(HwpxDocument, "conversion_report", property(lambda self: report))
+
+    preview = render_layout_preview(hwp)
+
+    assert preview.fidelity_tier == "partial-engine-estimated-pagination"
+    assert [item.as_dict() for item in preview.limitations] == [
+        {"kind": "hwp-conversion", "reason": "chart is not converted into the previewed document", "count": 2},
+        {"kind": "hwp-conversion", "reason": "script has no HWPX form and is left out", "count": 1},
+    ]
+
+
+@pytest.mark.parametrize("source", [b"not a package at all", b""])
+def test_a_source_nothing_reads_raises_as_it_did(source: bytes, tmp_path) -> None:
+    path = tmp_path / "plain.hwpx"
+    path.write_bytes(source)
+    for given in (source, path, str(path)):
+        with pytest.raises(ValueError, match=r"^unable to read HWPX package: File is not a zip file$"):
+            render_layout_preview(given)
+    with pytest.raises(ValueError, match=r"^unable to read HWPX package: \[Errno 2\]"):
+        render_layout_preview(tmp_path / "missing.hwpx")
+
+
+def test_a_package_python_hwpx_refuses_keeps_its_approximate_preview(monkeypatch) -> None:
+    if not hasattr(experimental, "estimate_layout"):
+        pytest.skip("needs the core placement API")
+    document = HwpxDocument.new()
+    document.add_paragraph("첫 쪽")
+    document.add_paragraph("다음 쪽").element.set("pageBreak", "1")
+    output = io.BytesIO()
+    with ZipFile(io.BytesIO(document.to_bytes())) as source, ZipFile(output, "w") as target:
+        for member in source.namelist():
+            if member != "mimetype":  # python-hwpx does not open a package without it
+                target.writestr(member, source.read(member))
+    payload = output.getvalue()
+
+    preview = render_layout_preview(payload)
+    monkeypatch.setattr(experimental, "estimate_layout", None)
+    legacy = render_layout_preview(payload)
+
+    assert preview.fidelity_tier == "text-approx-pagination"
+    assert preview.warnings == ("layout estimate unavailable: HwpxStructureError",)
+    assert (preview.pages, preview.page_fragments) == (legacy.pages, legacy.page_fragments)
+    assert len(preview.pages) == 2
