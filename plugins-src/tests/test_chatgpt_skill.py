@@ -46,6 +46,37 @@ def test_lock_pins_current_public_train() -> None:
     assert all(re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) for item in lock["wheels"] + lock["coreDocs"])
 
 
+def test_before_publication_the_lock_names_the_public_stack(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An approved candidate has no wheels on PyPI yet; the lock follows it at promotion."""
+
+    identity = build.load_json(build.IDENTITY)
+    components = identity["components"]
+    verified = {
+        "core": components["core"]["currentVersion"],
+        "automation": components["automation"]["currentVersion"],
+        "plugin": components["plugin"]["currentVersion"],
+    }
+    public = {"pythonHwpx": "1.2.3", "primaryApplication": "4.5.6", "plugin": "7.8.9"}
+    load_json = build.load_json
+
+    def with_state(status: str):
+        def load(path: Path):
+            data = load_json(path)
+            if Path(path) == build.IDENTITY:
+                data["releaseState"]["status"] = status
+                data["releaseState"]["currentPublic"].update(public)
+            return data
+
+        return load
+
+    monkeypatch.setattr(build, "load_json", with_state("release-approved"))
+    assert build.identity_versions() == {"core": "1.2.3", "automation": "4.5.6", "plugin": "7.8.9"}
+    monkeypatch.setattr(build, "load_json", with_state("unreleased-candidate"))
+    assert build.identity_versions() == {"core": "1.2.3", "automation": "4.5.6", "plugin": "7.8.9"}
+    monkeypatch.setattr(build, "load_json", with_state("released"))
+    assert build.identity_versions() == verified
+
+
 def test_skill_frontmatter_follows_agent_skills_limits() -> None:
     fields = _frontmatter((SOURCE / "skill" / "SKILL.md").read_text(encoding="utf-8"))
     assert fields["name"] == build.load_json(build.SOURCES)["skillName"] == "hwpx"

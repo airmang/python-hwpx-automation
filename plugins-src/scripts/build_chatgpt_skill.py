@@ -57,7 +57,23 @@ def load_json(path: Path) -> dict:
 
 
 def identity_versions() -> dict[str, str]:
-    components = load_json(IDENTITY)["components"]
+    """The versions the lock names.
+
+    The verified stack once the train is ``released``. Before that the candidate's wheels are not on
+    PyPI, so the lock keeps the stack that is public (``releaseState.currentPublic``); promotion
+    refreshes it (``--refresh-lock``).
+    """
+
+    identity = load_json(IDENTITY)
+    release_state = identity.get("releaseState", {})
+    public = release_state.get("currentPublic")
+    if release_state.get("status") != "released" and isinstance(public, dict):
+        return {
+            "core": public["pythonHwpx"],
+            "automation": public["primaryApplication"],
+            "plugin": public["plugin"],
+        }
+    components = identity["components"]
     return {
         "core": components["core"]["currentVersion"],
         "automation": components["automation"]["currentVersion"],
