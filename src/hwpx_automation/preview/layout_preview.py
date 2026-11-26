@@ -601,6 +601,20 @@ def _border_style(border_ref: str | None, styles: Mapping[str, Any]) -> dict[str
     }
 
 
+_AUTHORED_ROW_HEIGHT = ("table-row", "row height is the authored cell height, not an engine value")
+
+
+def _authored_row_height(cells: list[ET.Element]) -> int:
+    """The tallest ``hp:cellSz@height`` (HWPUNIT) among the row's cells that span one row."""
+    heights = []
+    for cell in cells:
+        span = cell.find(f"{_HP}cellSpan")
+        size = cell.find(f"{_HP}cellSz")
+        if size is not None and _safe_int(span.get("rowSpan") if span is not None else None, 1) == 1:
+            heights.append(_safe_int(size.get("height")))
+    return max(heights, default=0)
+
+
 def _render_table(
     table: ET.Element,
     styles: Mapping[str, Any],
@@ -613,6 +627,7 @@ def _render_table(
     continued_rows: frozenset[int] = frozenset(),
     captions: tuple[Any, ...] = (),
     show_approx_caption: bool = False,
+    issues: Counter[tuple[str, str]] | None = None,
 ) -> str:
     size = table.find(f"{_HP}sz")
     table_width = _hwp_to_mm(size.get("width") if size is not None else None)
@@ -668,7 +683,7 @@ def _render_table(
             body_parts = _table_cell_body(
                 tc, styles, counter, flow=flow, placement=placement, table_placements=table_placements,
                 continued=part is not None and part.row in continued_rows and not part.repeated,
-                page=part.page if part is not None else None,
+                page=part.page if part is not None else None, issues=issues,
             )
             if not body_parts:
                 body_parts.append("&nbsp;")
@@ -696,6 +711,11 @@ def _render_table(
                 attrs += f' data-engine-top="{part.top}"'
             if part.height is not None:
                 attrs += f' style="height:{_fmt_mm(_hwp_to_mm(part.height))}"'
+        elif flow and (authored := _authored_row_height(source_cells)) > 0:
+            # No engine row: the height written in the file is the least the row takes.
+            attrs = f' data-row-height="authored" style="height:{_fmt_mm(_hwp_to_mm(authored))}"'
+            if issues is not None:
+                issues[_AUTHORED_ROW_HEIGHT] += 1
         rows.append(f"<tr{attrs}>{''.join(cells)}</tr>")
     attrs = f' data-engine-table="{table_index}"' if table_index is not None else ""
     caption_html = _table_caption_markup(table, captions, styles, counter, approximate=show_approx_caption)
@@ -705,6 +725,7 @@ def _render_table(
 def _table_cell_body(
     cell: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, *, flow: bool,
     placement: Any, continued: bool, page: int | None, table_placements: Mapping[Any, Any] | None,
+    issues: Counter[tuple[str, str]] | None = None,
 ) -> list[str]:
     paragraphs = _cell_paragraphs(cell)
     measured = placement.lines if placement is not None else ()
@@ -725,7 +746,7 @@ def _table_cell_body(
                     nested, styles, counter, flow=True, row_parts=rows, table_placements=table_placements,
                     table_index=found.table if rows else None,
                     captions=tuple(caption for caption in found.captions if caption.page == page) if found else (),
-                    show_approx_caption=found is None or not found.captions,
+                    show_approx_caption=found is None or not found.captions, issues=issues,
                 ))
     return body
 
@@ -1104,7 +1125,8 @@ def _table_anchors(
         issues[("table", "row and cell placement is unavailable")] += count
         table_counts[home] += count
         return [_AnchorMarkup(
-            home, _render_table(table, styles, counter, flow=True, show_approx_caption=True), inline=inline,
+            home, _render_table(table, styles, counter, flow=True, show_approx_caption=True, issues=issues),
+            inline=inline,
         )]
     issues[("table", "table content uses approximate flow within engine row pages")] += 1
     for nested in table.iter(f"{_HP}tbl"):
@@ -1132,7 +1154,7 @@ def _table_anchors(
         anchors.append(_AnchorMarkup(page, _render_table(
             table, styles, counter, flow=True, row_parts=tuple(rows), table_index=placed.table,
             table_placements=placements, continued_rows=frozenset(seen), captions=captions,
-            show_approx_caption=fallback_caption and page == min(rows_by_page),
+            show_approx_caption=fallback_caption and page == min(rows_by_page), issues=issues,
         ), inline=inline))
         seen.update(row.row for row in rows if not row.repeated)
     return anchors

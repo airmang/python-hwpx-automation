@@ -191,6 +191,38 @@ def test_a_flow_line_before_a_floating_table_keeps_its_own_height() -> None:
     assert after.get("data-engine-advance") is None  # the page's last line
 
 
+def test_rows_take_the_engine_height_or_else_the_authored_cell_height(monkeypatch) -> None:
+    if "TablePlacement" not in experimental.__all__:
+        pytest.skip("needs the core table placement API")
+    document = HwpxDocument.new()
+    for wrap in ("TOP_AND_BOTTOM", "IN_FRONT_OF_TEXT"):  # the layout path keeps no rows for the second
+        table = document.add_paragraph("").add_table(3, 2)
+        table.element.find("{*}pos").set("treatAsChar", "0")
+        table.element.set("textWrap", wrap)
+        for index, cell in enumerate(table.element.iter("{*}tc")):
+            cell.find("{*}cellSz").set("height", "5000" if index < 2 else "2500")
+    payload = document.to_bytes()
+    placed, unplaced = experimental.estimate_layout(payload).tables
+    assert [row.height for row in placed.rows] == [5000, 2500, 2500] and not unplaced.rows
+
+    preview = render_layout_preview(payload)
+
+    engine_table, authored_table = html.fromstring(preview.page_fragments[0]).xpath(".//table")
+    heights = ["height:17.64mm", "height:8.82mm", "height:8.82mm"]
+    assert [(row.get("data-row-height"), row.get("style")) for row in engine_table.xpath(".//tr")] == [
+        (None, height) for height in heights
+    ]
+    assert [(row.get("data-row-height"), row.get("style")) for row in authored_table.xpath(".//tr")] == [
+        ("authored", height) for height in heights
+    ]
+    assert {
+        "kind": "table-row", "reason": "row height is the authored cell height, not an engine value", "count": 3,
+    } in preview.as_dict()["limitations"]
+    # The approximate preview of a document the estimate does not answer is drawn as before.
+    monkeypatch.setattr(experimental, "estimate_layout", None)
+    assert "data-row-height" not in render_layout_preview(payload).html
+
+
 def test_table_rows_follow_the_engine_across_pages_and_repeat_headers() -> None:
     if "TablePlacement" not in experimental.__all__:
         pytest.skip("needs the core table placement API")
