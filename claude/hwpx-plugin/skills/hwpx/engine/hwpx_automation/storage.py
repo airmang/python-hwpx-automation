@@ -263,6 +263,7 @@ class LocalDocumentStorage:
         quality_contract.assert_write_capability()
         if is_hwp5_target(target):
             require_native_hwp5()
+            refuse_existing_hwp_overwrite(target)
         guard = self.capture_output_guard(target)
         self.maybe_backup(target)
         pre_save_snapshot = build_hwpx_presave_snapshot(target)
@@ -301,15 +302,49 @@ class RemoteDocumentClient(Protocol):
         """Persist *data* to *path* on the remote service."""
 
 
+#: The one package error the open gate admits. python-hwpx reports a section whose
+#: ``hp:secPr`` sits in a later paragraph than its first one with this code in the
+#: message (6.x's ``section.insert_paragraphs(0, ...)`` left files that way). Such a
+#: file opens and reads as it is, and python-hwpx 7.0.2 moves the settings back to
+#: the first paragraph when the document is saved.
+_SECTION_SETTINGS_NOT_FIRST_MARKER = "(section-properties-not-first)"
+
+
+def _only_section_settings_not_first(package: Mapping[str, Any]) -> bool:
+    """Whether every blocking package error is the section-settings shape a save repairs."""
+
+    errors = package.get("errors")
+    return bool(
+        isinstance(errors, list)
+        and errors
+        and all(
+            isinstance(error, str) and _SECTION_SETTINGS_NOT_FIRST_MARKER in error
+            for error in errors
+        )
+    )
+
+
+def open_safety_admits_editing(report: Mapping[str, Any]) -> bool:
+    """Whether a document with this open-safety report may be opened, backed up and restored.
+
+    True for a passing report and for one whose only package error is
+    ``section-properties-not-first`` (see :func:`require_hwpx_editor_open_safe`).
+    A file about to be written is held to ``report["ok"]`` instead.
+    """
+
+    return _report_allows_editor_open(report)
+
+
 def _report_allows_editor_open(report: Mapping[str, Any]) -> bool:
     package = report.get("validatePackage", {})
     reopen = report.get("reopen", {})
-    return bool(
+    if not (
         isinstance(package, Mapping)
         and isinstance(reopen, Mapping)
-        and package.get("ok")
         and reopen.get("ok")
-    )
+    ):
+        return False
+    return bool(package.get("ok")) or _only_section_settings_not_first(package)
 
 
 def require_hwpx_editor_open_safe(
@@ -317,13 +352,27 @@ def require_hwpx_editor_open_safe(
     *,
     role: str,
 ) -> Dict[str, Any]:
-    """Fail only on conditions expected to stop an editor from opening HWPX."""
+    """Fail only on conditions expected to stop an editor from opening HWPX.
+
+    A file whose only package error is ``section-properties-not-first`` is admitted
+    (the returned report still says ``ok: False``): read tools read it, and a save
+    through python-hwpx 7.0.2 moves the settings to the first paragraph. Any other
+    failure is refused as ``DOCUMENT_OPEN_FAILED``, whose suggestion names
+    ``repair_hwpx``; the error carries no path and none of the validators' text.
+    """
 
     open_safety = build_hwpx_open_safety_report(source)
     if not _report_allows_editor_open(open_safety):
-        raise RuntimeError(
+        failed_checks = [
+            name
+            for name in ("validatePackage", "reopen")
+            if not open_safety[name].get("ok")
+        ]
+        raise HwpDocumentError(
             f"{role} failed open-safety verification: "
-            + open_safety["summary"]
+            + open_safety["summary"],
+            code="DOCUMENT_OPEN_FAILED",
+            details={"failedChecks": failed_checks},
         )
     return open_safety
 
@@ -336,6 +385,39 @@ def require_native_hwp5() -> None:
             "설치된 python-hwpx는 HWP 5.0(.hwp) 문서를 열거나 저장하지 못합니다.",
             code="READ_ONLY_HWP_DOCUMENT",
         )
+
+
+def refuse_existing_hwp_overwrite(
+    target: Path | str, *, target_exists: bool | None = None
+) -> None:
+    """Refuse writing ``.hwp`` over a file that is already there.
+
+    ``.hwp`` is an input format here: it is read into the HWPX document model and
+    edited through an ``.hwpx`` copy. The HWP 5.0 writer rebuilds a file from that
+    model, so writing ``.hwp`` over an ``.hwp`` already on disk would replace a file
+    Hancom Office saved with a rebuilt one, whichever document is written: one
+    opened from that ``.hwp`` (edit in place) or an ``.hwpx`` copied back over it.
+    Core refuses only ``doc.save(<source>.hwp)`` (``hwp5-overwrite-source``); the
+    save paths here serialize with ``to_bytes(format="hwp")``, which has no path, so
+    they ask this first, before any backup. A dry run asks it too. Writing a new
+    ``.hwp`` path (experimental) is not refused.
+
+    *target_exists* is for storages whose target is not a local path.
+    """
+
+    if not is_hwp5_target(target):
+        return
+    exists = os.path.lexists(target) if target_exists is None else target_exists
+    if not exists:
+        return
+    raise HwpDocumentError(
+        "이미 있는 .hwp 파일은 덮어쓰지 않습니다. 그 파일은 바뀌지 않았습니다.",
+        code="HWP_OVERWRITE_EXISTING",
+        details={
+            "path": str(target),
+            "hwpxCopy": str(Path(target).with_suffix(".hwpx")),
+        },
+    )
 
 
 def open_local_document(path: Path, *, role: str) -> HwpxDocument:
@@ -540,6 +622,9 @@ class HttpDocumentStorage:
         if cache_path is None:
             cache_path = self._cache_path(remote_key)
             self._cache[remote_key] = cache_path
+        if is_hwp5_target(target):
+            # The remote file is known to exist when it was opened (cached) here.
+            refuse_existing_hwp_overwrite(target, target_exists=cache_path.exists())
 
         pre_save_snapshot = build_hwpx_presave_snapshot(cache_path if cache_path.exists() else None)
         tmp_fd, tmp_path_str = tempfile.mkstemp(

@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+## [8.0.1] - 2026-11-26
+
+- 플러그인 판이 8.0.1이 됩니다. 같은 판의 python-hwpx-automation(8.0.1)과 python-hwpx 7.0.2를 검증 좌표로 삼습니다.
+  도구 계약(`c895883d5f4350ae`)은 그대로입니다.
+
+- Claude Code 번들의 잠긴 런타임을 `python-hwpx 7.0.2` · `python-hwpx-automation 8.0.1`로 올립니다(`server/pyproject.toml`,
+  `uv.lock`; 전이 의존성도 허용 범위 안의 최신으로). 7.0.1 뒤의 엔진 수정이 Claude Code 사용자에게 닿습니다.
+
+- Codex·OpenClaw·Hermes도 `python-hwpx-automation`의 `preview` extra를 설치합니다. 앞서 Claude Code 번들의 잠긴 런타임만
+  `[mcp,preview]`로 고쳤고, 번들 런처(Codex)와 OpenClaw·Hermes 설치 안내는 `[mcp,oracle]`만 설치해 `latex2mathml`이 없었으며
+  `render_preview`의 수식이 LaTeX 코드 블록으로 보였습니다. 설치 좌표를 `python-hwpx-automation[mcp,oracle,preview]`로 고칩니다
+  (`product-identity.json`의 `pluginInstallExtras`·`installConstraint`, 런처의 검증 좌표·설치 창·editable 경로, 두 설치 안내).
+  번들 검사(`validate_hwpx_plugin.py`)가 설치 extra에 `preview`가 있는지 확인하고, Claude 런타임은 같은 목록에서 `oracle`만 뺀
+  것이어야 합니다. 판 번호와 Claude `uv.lock`은 그대로입니다. 이미 설치한 OpenClaw·Hermes 환경은 안내의 `uv tool install`
+  줄을 다시 실행하면 `latex2mathml`이 들어옵니다.
+- `references/workflows-bulk-compare.md`에 `mail_merge`가 같은 파일 이름으로 풀리는 행을 `MAIL_MERGE_FILENAME_COLLISION`으로
+  거부한다는 것과 고치는 법(패턴에 `{index}`)을 적습니다.
+
+- 개인정보 안내를 지금 도구가 하는 것에 맞춥니다(`SKILL.md`, `references/workflows-pii.md`, `workflows-reading.md`).
+  "읽기·추출 도구의 `mask`는 기본 ON", "기계세트=항상 마스킹"은 사실이 아니었습니다. 가리는 도구는 `get_document_text`·
+  `hwpx_to_markdown`·`hwpx_extract_json`·`document_to_markdown`·`document_extract_json` 다섯이고, 그 밖의 읽기 도구
+  (`find_text`·`get_document_map`·`get_table_map`·`hwpx_to_html` 등)와 `search_and_replace`·`apply_edits`의 `semanticDiff`는
+  원문을 줍니다. `scan_personal_info`가 검사하는 자리와 검사하지 않는 자리(`scanned`·`notScanned`), 탐지하는 표기와 못 잡는
+  표기(공백·점으로 나눈 번호, 유선 번호, 외국인등록번호, 이름표와 값이 다른 칸에 있는 표 양식), 서버에 로그 가림 장치가
+  걸려 있지 않다는 것을 적습니다.
+
+- Claude Code 번들의 잠긴 런타임이 `python-hwpx-automation[mcp,preview]`를 설치합니다. python-hwpx 7.0에서 미리보기가
+  python-hwpx-automation으로 옮겨져 core의 `preview` extra는 비었는데 번들은 그것만 고정해 `latex2mathml`이 없었고,
+  `render_preview`의 수식이 늘 LaTeX 코드 블록으로 보였습니다. `server/uv.lock`에 `latex2mathml`을 해시와 함께 잠그고
+  번들 검사(`validate_hwpx_plugin.py`)가 extra와 잠금을 확인합니다. README·`references/api.md`의 "최소 호환 버전" 줄은
+  구성요소별 하한이며 함께 설치되는 조합이 아니라고 고쳐 적습니다(automation 7.2~7.5는 core 6.x를 요구합니다).
+- `scripts/zip_replace_all.py`와 `scripts/fix_namespaces.py`가 이미 있는 `.hwp` 파일을 출력으로 받으면 쓰지 않고 끝납니다
+  (종료 코드 2, 함수는 `FileExistsError`). 두 스크립트는 HWPX(ZIP) 바이트를 쓰므로, 지금까지는 `in.hwpx old.hwp`나
+  `--out old.hwp`가 한/글이 저장한 `old.hwp`를 ZIP 바이트로 바꾸고 종료 코드 0을 냈습니다.
+
+- ChatGPT 플러그인을 1.1.0으로 올립니다. 묶인 엔진이 python-hwpx 7.0.0·python-hwpx-automation 8.0.0이 됩니다
+  (1.0.2는 6.6.0·7.3.1). python-hwpx-automation 8.0은 `cryptography`·`anyio`가 없어도 설치되고 돌아가므로, 묶음에서
+  `anyio`·`idna`·`typing_extensions` wheel을 빼고 표 라벨 칸 채우기·새 문서 만들기의 전제를 `pydantic`(2.11 이상)
+  하나로 고칩니다(`SKILL.md`, 시작 스크립트, 목록 설명, README). 샌드박스 모의 실행도 `lxml`·`pydantic`만 깐 환경에서
+  돕니다.
+
 ## [8.0.0] - 2026-11-21
 
 - 플러그인 판이 2.4.0에서 8.0.0으로 뜁니다(소유자 결정). 플러그인은 같은 판의 python-hwpx-automation을 묶어 내고,

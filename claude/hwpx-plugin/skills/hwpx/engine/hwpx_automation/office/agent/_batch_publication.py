@@ -87,6 +87,23 @@ class BatchPublication:
         self.publisher: GuardedSavePipeline | None = None
         self.publication_attempted = False
 
+    def _workspace_of(self, publication: WorkspaceOutputGuard) -> WorkspaceResolver:
+        """The workspace a publication receipt is read, replaced and removed through.
+
+        A receipt names the root it was authorized under. The request's own workspace is rooted at
+        the folders of its source and output; a publisher of the application (the form-fill plan's)
+        writes through the environment's workspace, whose root may be a folder above them. Judged
+        under the wrong root the receipt reads as "the output's parent changed", so a receipt from
+        another root is judged under its own: the same identity checks (the root's and the
+        parent's device and inode, the target's digest), no wider reach.
+        """
+
+        if publication.root in self.workspace.roots:
+            return self.workspace
+        return WorkspaceResolver.from_roots(
+            [publication.root], source="agent-publication-receipt"
+        )
+
     def assert_current_source(self) -> None:
         try:
             if self.source_argument.resolve() != self.source:
@@ -132,7 +149,7 @@ class BatchPublication:
             )
         if self.source != self.output:
             self.assert_current_source()
-        if self.workspace.read_guarded_bytes(publication) != data:
+        if self._workspace_of(publication).read_guarded_bytes(publication) != data:
             raise AgentContractError(
                 "verification_failed",
                 "published bytes differ from the verified candidate",
@@ -167,16 +184,17 @@ class BatchPublication:
             return
         restored = False
         try:
+            workspace = self._workspace_of(publication)
             if self.output_data is None:
-                self.workspace.remove_output(publication)
-                restored = self.workspace.cleanup_owned_parent_directories(publication)
+                workspace.remove_output(publication)
+                restored = workspace.cleanup_owned_parent_directories(publication)
             else:
                 mode = (
                     self.output_guard.target_mode
                     if isinstance(self.output_guard, WorkspaceOutputGuard)
                     else None
                 )
-                self.workspace.atomic_publish_bytes(
+                workspace.atomic_publish_bytes(
                     publication, self.output_data, mode=mode
                 )
                 restored = True

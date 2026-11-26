@@ -35,17 +35,19 @@ from .oxml.table_sizes import COLUMN_FLOOR_EXTRA, GridPositions, effective_cell_
 from .opc.security import guard_zip_file, read_member, read_zip_members
 from .mutation_report import MutationReport, project_byte_splice
 from .patch import (
-    _LINESEG_ARRAY_RE,
     _RUN_OPEN_RE,
     _TEXT_RE,
     _apply_edits,
     _escaped_text,
+    _layout_cache_spans,
     _patch_zip_entries,
     _read_source_bytes,
     _rewrite_zip_entries,
+    _root_namespace_scope,
     _strip_paragraph_layout_cache,
     _text_edit_for_paragraph,
     _finalize,
+    _refuse_hwp_output,
 )
 
 # --- byte-level table / row / cell parsing (namespace-prefix agnostic) ---------
@@ -240,7 +242,9 @@ def _all_paragraph_spans(cell: bytes) -> list[tuple[int, int]]:
 _P_OPEN_TAG_RE = re.compile(rb"<(?P<prefix>(?:[A-Za-z_][\w.-]*:)?)p\b[^>]*>")
 
 
-def _cell_text_edits(cell: bytes, text: str, shrink: tuple[str, str] | None) -> tuple[list[tuple[int, int, bytes]], str | None]:
+def _cell_text_edits(
+    cell: bytes, text: str, shrink: tuple[str, str] | None, scope: Mapping[str, str] | None = None
+) -> tuple[list[tuple[int, int, bytes]], str | None]:
     """Cell-relative byte edits that make the cell's own visible text *text*.
 
     Line k goes to the k-th own text paragraph; lines past the last one stay in
@@ -252,7 +256,8 @@ def _cell_text_edits(cell: bytes, text: str, shrink: tuple[str, str] | None) -> 
     footnote) is treated the same way. A cell whose only paragraphs hold tables
     gets a new paragraph (the holder's paragraph/char shape) before the first
     one. Returns ``(edits, first original own text)``; edits are empty when the
-    cell already shows *text*.
+    cell already shows *text*. *scope* is the section's namespace declarations,
+    for telling the paragraph namespace's line cache from look-alikes.
     """
     masked = _mask_cell_objects(cell)
     spans = [(m.start(), m.end()) for m in _P_SPAN_RE.finditer(masked)]
@@ -281,7 +286,9 @@ def _cell_text_edits(cell: bytes, text: str, shrink: tuple[str, str] | None) -> 
             first_orig = original_text
         if original_text == line:
             continue
-        new_para = _strip_paragraph_layout_cache(replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]))
+        new_para = _strip_paragraph_layout_cache(
+            replacement if (_s, _e) == (0, len(para)) else _apply_edits(para, [(_s, _e, replacement)]), scope
+        )
         edits.append((ps, pe, remap(new_para)))
 
     # Own text beside a nested table is cleared -- or, when the cell has no other
@@ -302,7 +309,7 @@ def _cell_text_edits(cell: bytes, text: str, shrink: tuple[str, str] | None) -> 
             new = _escaped_text(pending, m.group("prefix")) if k == 0 else b""
             edits.append((hs + m.start("text"), hs + m.end("text"), new))
         pending = ""
-        edits.extend((hs + m.start(), hs + m.end(), b"") for m in _LINESEG_ARRAY_RE.finditer(own))
+        edits.extend((hs + start, hs + stop, b"") for start, stop in _layout_cache_spans(own.decode("latin-1"), scope=scope))
 
     if not targets and holders and pending:
         hs, he = holders[0]
@@ -801,6 +808,7 @@ def fill_cells(
     (form_fit FitEngine) is materialised as a real ``charPr`` and the cell's run
     points at it. Column widths and the rest of the document are untouched.
     """
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     if not cells:
         open_safety, _ = _finalize(source_bytes, output_path, source=source)
@@ -839,6 +847,7 @@ def fill_cells(
             skipped.extend(CellSkipped(section_path, ti, r, c, "section part not found") for ti, r, c, _t, _m in section_specs)
             continue
         table_spans = _iter_table_spans(section_xml)
+        section_scope = _root_namespace_scope(section_xml)
         # accumulate byte edits over the whole section (table region splices)
         section_edits: list[tuple[int, int, bytes]] = []
         occupied: set[tuple[int, int]] = set()  # filled cell spans (merge-collision guard)
@@ -880,7 +889,7 @@ def fill_cells(
             # Replace the WHOLE cell's own visible text with `text` (stale multi-line
             # template content — e.g. stacked 성취기준 codes — does not survive);
             # a nested table in the cell keeps its bytes (_cell_text_edits).
-            edits, first_orig = _cell_text_edits(cell_bytes, text, shrink)
+            edits, first_orig = _cell_text_edits(cell_bytes, text, shrink, section_scope)
             if not edits:
                 continue
             span = (ts + cell.start, ts + cell.end)
@@ -2663,6 +2672,7 @@ def apply_table_ops(
     바꾸는지"를 transcript(구조 op별 해석·전후 dims)와 applied(old→new 텍스트)로
     보여주는 승인 근거용.
     """
+    _refuse_hwp_output(output_path)
     source_bytes = _read_source_bytes(source)
     struct_ops = [o for o in ops if o.get("op") not in ("fill_cell", "set_cell_line_spacing")]
     spacing_ops = [o for o in ops if o.get("op") == "set_cell_line_spacing"]
@@ -2971,6 +2981,7 @@ def _strip_trailing_table_text(
     source: str | Path | bytes, *, predicate: Callable[[str], bool],
     output_path: str | Path | None, legacy: bool,
 ) -> CellFillResult:
+    _refuse_hwp_output(output_path)
     # The released caption API retains its exact 6.x splice/selection behavior.
     # The neutral seam uses QName-aware bounded spans and preserves aliases.
     import html

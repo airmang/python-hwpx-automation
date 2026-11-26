@@ -8,11 +8,11 @@
 | 용어 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
-| 검증 좌표 | 공개 발행·설치 관찰 완료 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
-| 릴리스 상태 | `released` — 2026-11-21 공개 발행·실제 marketplace 설치 관찰 | `hwpx-plugin 8.0.0` |
-| 최소 호환 버전 | 이 릴리스의 지원 플로어 | core `>=7.0.0` · automation `>=7.2.0` · skill `>=2.0.0` |
-| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
-| 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle]>=8.0.0,<9` |
+| 검증 좌표 | 발행 승인된 후보의 로컬 검증 조합 | `python-hwpx 7.0.2` · `python-hwpx-automation 8.0.1` · `hwpx-plugin 8.0.1` |
+| 릴리스 상태 | 발행 승인된 후보 (`release-approved`) | `hwpx-plugin 8.0.1` |
+| 최소 호환 버전 | 도구 계약이 구성요소마다 따로 선언한 하한. 함께 설치되는 조합이 아님 — core 7.x와 함께 설치되는 automation은 8.x이고, 7.2~7.5는 core `<7`을 요구 | core `>=7.0.0` · automation `>=7.2.0` · skill `>=2.0.0` |
+| 검증 좌표 | 이 플러그인 후보가 함께 검증할 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 7.0.2` · `python-hwpx-automation 8.0.1` |
+| 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=7.0.2,<8` · `python-hwpx-automation[mcp,oracle,preview]>=8.0.1,<9` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 현재 공개 코어 기준 `Development Status :: 5 - Production/Stable`(이전 공개 트레인의 코어는 `3 - Alpha`)이고 MCP/플러그인의 성숙도는
@@ -736,10 +736,18 @@ assert validate_editor_open_safety("agent-plan.hwpx").ok is True
 
 - `heading`: `level` 1-3, `text`
 - `paragraph`: `text`
-- `bullets`: `items`
+- `bullets`: `items`. 항목은 글이거나 `{"text": "...", "children": [...]}`이고, `children`은 한 수준 아래 항목이다(10수준까지).
+  글로 쓸 수 없는 항목(글 없는 객체, 목록, null)은 `unsupported_bullet_item`으로 거부한다.
 - `table`: `caption`, `columns`, `rows`
 - `page_break`
 - `memo`
+
+계획 꼴: v1은 최상위 `blocks`다. v2(`hwpx.document_plan.v2`)는 `sections[].blocks[]`이고, `get_document_plan_schema()`의
+꼴대로 최상위 `blocks`를 주면 한 구역 문서로 받는다(둘을 함께 주면 `conflicting_plan_body`).
+
+표: 새 문서의 표는 모두 한 표 모양이다(머리 행은 굵게·가운데·음영, 쪽마다 반복, 열 너비는 글 길이대로). 표가 제 모양을
+주면(v2 `headerShading`·`columnWidths`·`merges`, v1 `widthWeight`·`cellStyles`) 선과 너비는 준 대로 그리고 머리 행 규칙은
+그대로 지킨다(준 음영은 그 위에). `tableProfile="government"`는 이 모양의 이름이라 기본 표와 같은 표를 그린다.
 
 검증 리포트에서 반드시 확인할 필드:
 

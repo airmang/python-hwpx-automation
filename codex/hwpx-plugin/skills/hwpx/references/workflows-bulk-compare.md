@@ -24,6 +24,9 @@ mail_merge(template_filename, data_rows=...|data_filename=..., output_dir=...,
 - 사전 점검: `inspect_mail_merge_placeholders(filename)`로 placeholder key를 확인한다.
 - 파일 이름: 기본값은 `001.hwpx`처럼 번호뿐이다. 명부에 이름 열이 있으면
   `filename_pattern="{index:03d}_{이름}.hwpx"`처럼 그 열을 넣어 사용자가 파일을 찾기 쉽게 한다.
+  `{index}` 없이 `{이름}.hwpx`만 쓰면 같은 이름의 행이 같은 파일로 풀린다. 그런 실행은 아무것도 쓰기 전에
+  `MAIL_MERGE_FILENAME_COLLISION`으로 거부되고 `details.collisions`에 파일 이름과 행 번호가 실린다(대소문자만 다른
+  이름도 같은 파일로 본다). 거부되면 `{index}`처럼 행마다 다른 값을 패턴에 넣어 다시 호출한다.
 - 확인할 응답 키: `createdCount`, `rowCount`, `rowsWithIssues`, `rows[].missingKeys`,
   `rows[].unresolvedPlaceholders`, `rows[].openSafety.ok`,
   `verification.openSafety.checkedCount`, `zip.entryCount`.

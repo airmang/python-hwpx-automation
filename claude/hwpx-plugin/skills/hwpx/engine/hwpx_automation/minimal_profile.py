@@ -3,9 +3,11 @@
 
 ``hwpx-automation-mcp --profile minimal`` (or ``HWPX_AUTOMATION_PROFILE=minimal``)
 serves these instead of the canonical tool contract. Descriptions are short,
-results are compact JSON, no result carries the document body, and no tool
+results are compact JSON, no edit result carries the document body, and no tool
 needs a long argument: a long Markdown body is staged in chunks with
 ``stage_text`` and handed to ``create_from_markdown`` by its draft id.
+``read_outline`` does carry text: the first 200 characters of each paragraph
+and table cell, unmasked, so a short document comes back whole.
 
 This profile is a separate surface with its own frozen contract
 (:data:`MINIMAL_TOOL_NAMES`); it does not change the canonical tool contract
@@ -78,7 +80,7 @@ def build_minimal_server(package_version: str) -> FastMCP:
     ) -> dict[str, Any]:
         return compact.read_outline(path, max_chars=max_chars, after=after)
 
-    @server.tool(description="Replace paragraph text by id ({id: new text}); formatting kept. Saves to output (default <name>.edited.hwpx). overflow lists cells the new text may not fit.")
+    @server.tool(description="Replace paragraph text by id ({id: new text}). Saves to output (default <name>.edited.hwpx). Formatting kept except ids in rewritten. overflow: cells the text may not fit.")
     def apply_text_changes(path: str, changes: dict[str, str], output: str | None = None) -> dict[str, Any]:
         return compact.apply_text_changes(path, changes, output=output)
 

@@ -47,6 +47,7 @@ ERROR_CODE_TO_MCP_CODE: dict[str, int] = {
     "WORKSPACE_ROOT_INVALID": -32043,
     "WORKSPACE_PATH_INVALID": -32602,
     "INVALID_ARGUMENT": -32602,
+    "MAIL_MERGE_FILENAME_COLLISION": -32602,
     "NETWORK_DESTINATION_DENIED": -32040,
 }
 
@@ -73,8 +74,9 @@ DEFAULT_ERROR_SUGGESTIONS: dict[str, str] = {
     "EMPTY_MATCH": "찾을 텍스트나 앵커 조건을 실제 문서 내용에 맞게 수정하세요.",
     "HWP_CONVERSION_FAILED": "원본 HWP가 손상되지 않았는지 확인하고 변환 로그의 원인을 기준으로 다시 시도하세요.",
     "HWP_TEXT_EXTRACT_FAILED": "HWP 파일을 다른 뷰어에서 열어 유효성을 확인한 뒤 텍스트 추출을 다시 실행하세요.",
-    "HWPX_PACKAGE_REQUIRED": "copy_document로 .hwpx 사본을 만들어 이 도구를 쓰고, .hwp가 필요하면 결과를 copy_document로 .hwp 경로에 복사하세요. search_and_replace·set_table_cell_text 같은 문서 편집 도구는 .hwp를 그대로 편집합니다.",
+    "HWPX_PACKAGE_REQUIRED": ".hwp는 읽기만 합니다. copy_document로 .hwpx 사본을 만들어(destination을 .hwpx 경로로) 그 사본에 이 도구를 쓰고, 결과도 .hwpx로 내세요. 원본 .hwp는 그대로 둡니다. .hwp 파일이 꼭 필요하면 결과 .hwpx를 한/글에서 열어 .hwp로 저장하세요.",
     "IDEMPOTENT_REPLAY": "이미 적용된 planId입니다. 최신 preview/plan을 새로 만든 뒤 apply를 다시 호출하세요.",
+    "MAIL_MERGE_FILENAME_COLLISION": "filename_pattern에 행마다 다른 값을 넣어 다시 호출하세요(예: {index:03d}_{name}.hwpx). 같은 파일로 풀린 이름과 행 번호는 details.collisions에 있습니다. 이번 호출은 아무 파일도 만들지 않았습니다.",
     "MEMO_NOT_FOUND": "list_memos 또는 문서 리소스에서 memoId를 다시 확인한 뒤 호출하세요.",
     "MISSING_NODE": "대상 섹션, 문단, 표, 셀이 아직 존재하는지 조회한 뒤 새 앵커로 다시 실행하세요.",
     "PARAGRAPH_INDEX_OUT_OF_RANGE": "list_paragraphs 결과의 paragraphIndex 범위 안에서 다시 선택하세요.",
@@ -85,7 +87,9 @@ DEFAULT_ERROR_SUGGESTIONS: dict[str, str] = {
     "HWP_DOCUMENT_UNREADABLE": "한/글에서 문서를 열어 다시 저장한 뒤 사용하세요. details.hwp5Code가 원인입니다.",
     "HWP_ENCRYPTED_DOCUMENT": "한/글에서 문서 암호·배포용 보호를 풀고 다시 저장한 뒤 사용하세요. DRM 문서는 열 수 없습니다.",
     "HWP_WRITE_UNSUPPORTED": "HWP 5.0으로 쓸 수 없는 내용이 있습니다. 출력 경로를 .hwpx로 지정해 저장하세요.",
-    "READ_ONLY_HWP_DOCUMENT": "python-hwpx 6.6.0 이상을 설치하면 .hwp 문서를 그대로 열고 편집·저장할 수 있습니다.",
+    "HWP_OVERWRITE_EXISTING": "이미 있는 .hwp 파일은 덮어쓰지 않습니다. 새 .hwp 파일 이름으로 쓰거나(실험 기능) .hwpx로 저장하세요. 원본 .hwp를 고치려면 copy_document로 .hwpx 사본(예: 같은 이름의 .hwpx, details.hwpxCopy)을 만들어 그 사본을 고치세요. .hwp는 읽기만 합니다.",
+    "HWP_WRITE_LOSSY_SOURCE": "출력 경로를 .hwpx로 지정해 저장하세요. 원본 .hwp에서 옮기지 못한 내용(details.hwpConversion)은 원본에만 남아 있으니 한/글에서 원본과 비교해 확인하세요.",
+    "READ_ONLY_HWP_DOCUMENT": "python-hwpx 6.6.0 이상을 설치하면 .hwp 문서를 열어 읽고, .hwpx 사본으로 고칠 수 있습니다.",
     "RENDER_PREVIEW_INVALID_MODE": "mode는 'pages' 또는 'long'으로 지정한 뒤 다시 실행하세요.",
     "RENDER_PREVIEW_INVALID_SCREENSHOT_MODE": "screenshot은 'auto', 'require', 'off' 중 하나로 지정하세요.",
     "RENDER_PREVIEW_UNAVAILABLE": "matching python-hwpx 버전을 설치하고 MCP 서버를 새로 시작한 뒤 다시 실행하세요.",
@@ -128,6 +132,7 @@ def category_for_error(error_code: str) -> ErrorCategory:
     if error_code in {
         "CLIENT_UPLOAD_PATH_UNAVAILABLE",
         "INVALID_ARGUMENT",
+        "MAIL_MERGE_FILENAME_COLLISION",
         "WORKSPACE_PATH_INVALID",
         "DOCUMENT_LOCATOR_REQUIRED",
         "RANGE_OUT_OF_BOUNDS",
@@ -182,7 +187,8 @@ def build_error_payload(
 
 
 class HwpDocumentError(RuntimeError):
-    """An ``.hwp`` request the installed engine cannot carry out."""
+    """A document request refused with an error code: an ``.hwp`` request the installed
+    engine cannot carry out, or a file the open gate does not admit."""
 
     def __init__(
         self, message: str, *, code: str, details: Optional[Dict[str, Any]] = None
@@ -204,6 +210,8 @@ CORE_SAVE_REFUSALS: Dict[str, str] = {
     "note-memo-unanchored": "문단에 걸지 않은 메모가 있어 저장하지 않았습니다. 한/글은 메모를 문단의 메모 누름틀 안에만 둡니다.",
     "master-page-unlinked": "어느 구역에도 잇지 않은 새 바탕쪽이 있어 저장하지 않았습니다. 한/글은 그런 바탕쪽을 버립니다.",
     "open-safety-failed": "만든 문서가 한/글 열기 안전성 검사를 통과하지 못해 저장하지 않았습니다.",
+    # python-hwpx 7.0.0 and 7.0.1 refuse this save; 7.0.2 moves the settings and saves.
+    "section-properties-not-first": "구역 설정(hp:secPr)이 구역 첫 문단이 아닌 뒤 문단에 있어 저장하지 않았습니다. 한/글은 구역 설정을 첫 문단에서만 읽습니다. python-hwpx 7.0.2부터는 저장할 때 첫 문단으로 옮깁니다. repair_hwpx로 고친 사본을 만들어 그 사본으로 작업할 수도 있습니다.",
     # The file itself cannot be written back (python-hwpx #794, #799): the document save and every
     # byte patch refuse it before writing. Reading it stays allowed.
     "save-duplicate-entry-names": "파일(ZIP) 안에 이름이 같은 항목이 둘 이상 있어 저장하지 않았습니다. 그대로 쓰면 그 가운데 하나의 내용만 남습니다. 한/글에서 열어 다시 저장한 파일로 작업하세요.",
@@ -239,7 +247,29 @@ def hwp5_error_payload(exc: BaseException) -> Optional[Dict[str, Any]]:
     hwp5_code = getattr(exc, "code", None)
     if not isinstance(hwp5_code, str) or not hwp5_code.startswith("hwp5-"):
         return None
-    details = {"hwp5Code": hwp5_code}
+    details: dict[str, Any] = {"hwp5Code": hwp5_code}
+    if hwp5_code == "hwp5-write-lossy-source":
+        # python-hwpx 7.0 refuses to write .hwp from a document whose .hwp source opened
+        # with content left out (to_bytes(format="hwp") and save to .hwp).
+        context = getattr(exc, "context", None)
+        if isinstance(context, dict):
+            details["hwpConversion"] = {
+                "unconverted": dict(context.get("unconverted") or {}),
+                "dropped": dict(context.get("dropped") or {}),
+            }
+        return build_error_payload(
+            code="HWP_WRITE_LOSSY_SOURCE",
+            message="원본 .hwp를 열 때 옮기지 못한 내용이 있어 .hwp로 저장하지 않았습니다. 그대로 쓰면 그 내용이 빠진 .hwp가 됩니다.",
+            details=details,
+        )
+    if hwp5_code in ("hwp5-overwrite-source", "hwp5-overwrite-existing"):
+        # -source: the .hwp the document was opened from. -existing (python-hwpx 7.0.2):
+        # any .hwp already at the target, on every write path of the engine.
+        return build_error_payload(
+            code="HWP_OVERWRITE_EXISTING",
+            message="이미 있는 .hwp 파일은 덮어쓰지 않습니다. 그 파일은 바뀌지 않았습니다.",
+            details=details,
+        )
     if hwp5_code == "hwp5-write-unsupported":
         return build_error_payload(
             code="HWP_WRITE_UNSUPPORTED",

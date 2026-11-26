@@ -483,7 +483,9 @@ def expected_skeleton(content: EvalPlanContent, blank: str | Path | None = None)
 def plan_structural_ops(blank: str | Path, content: EvalPlanContent | None = None) -> dict[str, Any]:
     """Confident, gold-policy structural edits for a 평가계획 blank (no content
     fills): delete the red/optional tables and the 정기시험 columns, keeping the
-    original formatting byte-for-byte. Targets are located by *classification*
+    original formatting byte-for-byte. When the review MD's §6 has a 정기시험 share,
+    only the exam columns it does not name are deleted (see :func:`_keep_exam_cols`);
+    otherwise (100% 수행평가) all of them go. Targets are located by *classification*
     (reusable across the form family), not fixed indices. Returns
     ``{"ops": [...], "transcript": [...]}`` — feed ``ops`` to
     :func:`hwpx.table_patch.apply_table_ops`. Table deletes are emitted in
@@ -524,8 +526,9 @@ def plan_structural_ops(blank: str | Path, content: EvalPlanContent | None = Non
         elif kind == "ratio":
             cols = _regular_exam_cols(t)
             if cols:
-                ops.append({"op": "delete_column", "tableIndex": i, "cols": cols})
-                transcript.append(f"delete_column #{i} cols {cols} (정기시험) — 100% 수행 subject")
+                column_ops, notes = _exam_column_ops(i, t, cols, content)
+                ops.extend(column_ops)
+                transcript.extend(notes)
 
     # Surplus template-example tables: the blank ships >1 achievement / 성취수준 /
     # rubric example (연주/비평 for 3학년, 6 국어 영역 for 2학년); the content needs
@@ -612,6 +615,105 @@ def _regular_exam_cols(table) -> list[int]:
         if c and "정기시험" in table_text(tb[c.start:c.end]):
             cols.append(col)
     return cols
+
+
+def _exam_column_ops(
+    i: int, table: Any, cols: list[int], content: EvalPlanContent | None
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """The ``delete_column`` op (and transcript lines) for the 반영비율 table #*i*'s
+    정기시험 columns *cols*. A 100% 수행평가 subject loses them all; when the MD's §6 has
+    a 정기시험 share, the exam columns it names (matched by their 시기/영역 labels) stay
+    for fill_ratio to fill and only the rest go."""
+    md_leaves = _md_exam_leaves(content) if content else []
+    if not md_leaves:
+        return ([{"op": "delete_column", "tableIndex": i, "cols": cols}],
+                [f"delete_column #{i} cols {cols} (정기시험) — 100% 수행 subject"])
+    keep = _keep_exam_cols(table, cols, md_leaves)
+    drop = [c for c in cols if c not in keep]
+    wanted = ", ".join("/".join(x for x in leaf if x) or "?" for leaf in md_leaves)
+    ops: list[dict[str, Any]] = []
+    notes: list[str] = []
+    if drop:
+        ops.append({"op": "delete_column", "tableIndex": i, "cols": drop})
+        notes.append(f"delete_column #{i} cols {drop} (정기시험) — keep cols "
+                     f"{keep} for the MD's 정기시험 ({wanted})")
+    else:
+        notes.append(f"keep 정기시험 cols {keep} #{i} — the MD's 정기시험 ({wanted})")
+    if len(md_leaves) > len(cols):
+        notes.append(f"정기시험 #{i}: the MD names {len(md_leaves)} exam columns, "
+                     f"the blank has {len(cols)}")
+    return ops, notes
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", "", text or "")
+
+
+def _is_period_area_label(label: str) -> bool:
+    """A 반영비율 row label naming the 시기/영역 rows (the exam round and type, or the
+    수행 영역 name) -- '시기/영역', '시기 / 영역'."""
+    lab = _squash(label)
+    return "시기/영역" in lab or lab == "시기영역"
+
+
+def _md_exam_span(content: EvalPlanContent | None) -> tuple[int, int]:
+    """``(first_index, count)`` of the 정기시험 columns in the MD §6 header, or
+    ``(-1, 0)`` when the MD has no 정기시험. The MD flattens a merged header by leaving
+    the continuation cells empty (``| 정기시험 |  | 수행평가 |``), so the span runs to the
+    next non-empty header cell."""
+    hdr = list(content.ratio_header) if content else []
+    first = next((k for k, h in enumerate(hdr) if k > 0 and "정기시험" in h), -1)
+    if first < 0:
+        return -1, 0
+    count = 1
+    for h in hdr[first + 1:]:
+        if h.strip():
+            break
+        count += 1
+    if hdr and "합계" in hdr[-1]:
+        count = min(count, len(hdr) - 1 - first)
+    return first, max(count, 0)
+
+
+def _md_exam_leaves(content: EvalPlanContent | None) -> list[tuple[str, ...]]:
+    """One label tuple per 정기시험 column of the MD §6 (empty when the MD has no
+    정기시험): the column's cells in the MD's 시기/영역 rows, e.g. ``("2차", "선택형")``."""
+    first, count = _md_exam_span(content)
+    if count <= 0 or content is None:
+        return []
+    period_rows = [r for r in content.ratio_rows if r and _is_period_area_label(r[0])]
+    return [tuple(_squash(r[first + j]) if first + j < len(r) else "" for r in period_rows)
+            for j in range(count)]
+
+
+def _keep_exam_cols(table, cols: list[int], md_leaves: list[tuple[str, ...]]) -> list[int]:
+    """The blank's 정기시험 columns to keep for the MD's exam columns, one per MD column
+    (at most ``len(cols)``). Each MD column takes the unused blank column sharing the
+    most 시기/영역 labels with it (회차 '2차', 유형 '선택형'), the left-most on a tie --
+    fill_ratio rewrites the labels of the kept columns anyway."""
+    from hwpx.table_patch import build_grid, table_text
+    tb = table.bytes
+    grid, rep = build_grid(tb)
+    period_rows = []
+    for r in range(1, rep.row_count):
+        c0 = grid.get((r, 0))
+        if c0 is not None and _is_period_area_label(table_text(tb[c0.start:c0.end])):
+            period_rows.append(r)
+    labels: dict[int, tuple[str, ...]] = {}
+    for col in cols:
+        texts = []
+        for r in period_rows:
+            c = grid.get((r, col))
+            texts.append(_squash(table_text(tb[c.start:c.end])) if c else "")
+        labels[col] = tuple(texts)
+    keep: list[int] = []
+    for leaf in md_leaves:
+        free = [c for c in cols if c not in keep]
+        if not free:
+            break
+        wanted = {x for x in leaf if x}
+        keep.append(max(free, key=lambda c: (len(wanted & set(labels[c])), -c)))
+    return sorted(keep)
 
 
 # --------------------------------------------------------------------------- #
@@ -2463,18 +2565,12 @@ def fill_ratio(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, 
     from hwpx.table_patch import fill_cells, table_text
 
     report: dict[str, Any] = {"rows_filled": 0, "skipped": []}
-    if not content.ratio_rows and not content.ratio_header:
-        report["skipped"].append("MD has no §6 ratio table")
+    target = _ratio_target(data, content, report)
+    if target is None:
         return data, report
-    ti = _classify_index(data, "ratio")
-    if ti is None:
-        report["skipped"].append("no ratio table found")
-        return data, report
-    _sp, tb, grid, rep = _grid_of(data, ti)
-    label_col, area_cols, total_col = _ratio_columns(tb, grid, rep)
-    if not area_cols:
-        report["skipped"].append(f"no area columns detected (label_col={label_col}, total_col={total_col})")
-        return data, report
+    ti, tb, grid, rep, area_cols, total_col = target
+    if _md_exam_span(content)[1] > 0:
+        return _fill_ratio_by_md_columns(data, content, ti, tb, grid, rep, area_cols, total_col, report)
 
     cells: list[dict[str, Any]] = []
     # header 평가 종류 row (r0): the area-name header cells still say '수행평가' -- leave
@@ -2533,6 +2629,175 @@ def fill_ratio(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, 
     report["filled_cells"] = len(fr.applied)
     report["skipped"].extend(s.reason for s in fr.skipped)
     return fr.data, report
+
+
+def _ratio_target(data: bytes, content: EvalPlanContent, report: dict[str, Any]) -> tuple[Any, ...] | None:
+    """``(table_index, table_bytes, grid, grid_report, area_cols, total_col)`` of the
+    produced 반영비율 table, or None with the reason in ``report["skipped"]``."""
+    if not content.ratio_rows and not content.ratio_header:
+        report["skipped"].append("MD has no §6 ratio table")
+        return None
+    ti = _classify_index(data, "ratio")
+    if ti is None:
+        report["skipped"].append("no ratio table found")
+        return None
+    _sp, tb, grid, rep = _grid_of(data, ti)
+    label_col, area_cols, total_col = _ratio_columns(tb, grid, rep)
+    if not area_cols:
+        report["skipped"].append(f"no area columns detected (label_col={label_col}, total_col={total_col})")
+        return None
+    return ti, tb, grid, rep, area_cols, total_col
+
+
+def _ratio_row_kind(label: str) -> str | None:
+    """Which MD §6 row a produced 반영비율 row takes (see :func:`_ratio_row_source`)."""
+    lab = _squash(label)
+    if "만점" in lab:
+        return "만점"
+    if lab.startswith("반영비율"):
+        return "반영비율"
+    if _is_period_area_label(label):
+        return "시기/영역"
+    if "논술형" in lab:
+        return "논술형"
+    if "평가시기" in lab or (lab.startswith("시기") and "영역" not in lab):
+        return "평가시기"
+    if "성취기준" in lab:
+        return "성취기준"
+    if "평가요소" in lab:
+        return "평가요소"
+    return None
+
+
+def _md_ratio_row(content: EvalPlanContent, kind: str, occurrence: int = 0) -> list[str] | None:
+    """The *occurrence*-th MD §6 data row of *kind* (or None)."""
+    rows = [r for r in content.ratio_rows if r]
+    picked = [r for r in rows if _ratio_row_kind(r[0]) == kind]
+    return picked[occurrence] if occurrence < len(picked) else None
+
+
+def _ratio_md_value(value: str) -> str:
+    """An MD §6 cell as cell text: ``<br>`` is the MD's line break inside a cell."""
+    return re.sub(r"<br\s*/?>", "\n", value or "", flags=re.IGNORECASE).strip()
+
+
+def _fill_ratio_by_md_columns(
+    data: bytes,
+    content: EvalPlanContent,
+    ti: int,
+    tb: bytes,
+    grid: Any,
+    rep: Any,
+    area_cols: list[int],
+    total_col: int | None,
+    report: dict[str, Any],
+) -> tuple[bytes, dict[str, Any]]:
+    """Fill a 반영비율 table that keeps 정기시험 columns (the MD's §6 has a 정기시험
+    share; see :func:`plan_structural_ops`).
+
+    The MD writes one column per data column -- its 정기시험 columns, then its 수행평가
+    영역 -- with a merged header flattened into empty cells. Its 정기시험 columns fill
+    the table's 정기시험 columns and its 영역 columns the table's 수행평가 columns, in
+    order; a table column the MD has no column for is cleared (the blank's sample
+    영역 beyond the MD's), as the 수행평가-only path does. Each produced row takes the
+    MD row of the same kind (the 2nd 시기/영역 row takes the MD's 2nd 시기/영역 row).
+    A cell merged over several data columns takes the MD's non-empty values in them
+    (the '반영 비율' 수행평가 cell takes the MD's '70%'); a '반영 비율' row the MD does
+    not write is derived from 영역 만점, a merged cell summing its percentages. Cells
+    covered by a cell from the row above are left to that row. MD columns with no
+    table column left are reported."""
+    from hwpx.table_patch import fill_cells, table_text
+
+    hdr = content.ratio_header
+    total_idx = len(hdr) - 1 if hdr and "합계" in hdr[-1] else None
+    source_of = _md_source_columns(content, tb, grid, area_cols, report)
+
+    cells: list[dict[str, Any]] = []
+    seen_kinds: dict[str, int] = {}
+    for r in range(1, rep.row_count):
+        c0 = grid.get((r, 0))
+        kind = _ratio_row_kind(table_text(tb[c0.start:c0.end])) if c0 else None
+        if kind is None:
+            continue
+        occurrence = seen_kinds.get(kind, 0)
+        seen_kinds[kind] = occurrence + 1
+        src = _md_ratio_row(content, kind, occurrence)
+        derived = src is None and kind == "반영비율"
+        if derived:
+            src = _md_ratio_row(content, "만점")
+        if src is None:
+            continue
+        values = [_ratio_md_value(src[j]) if j is not None and j < len(src) else ""
+                  for j in source_of]
+        if derived:
+            values = [_percent_or_value(v) for v in values]
+        row_cells = _md_row_cells(ti, r, grid, area_cols, values, derived)
+        cells.extend(row_cells)
+        total = _ratio_md_value(src[total_idx]) if total_idx is not None and total_idx < len(src) else ""
+        tcell = grid.get((r, total_col)) if total_col is not None else None
+        if total and total != "—" and tcell is not None and tcell.row == r:
+            cells.append({"table_index": ti, "row": r, "col": total_col, "text": total, "max_lines": 1})
+        report["rows_filled"] += bool(row_cells)
+
+    if not cells:
+        report["skipped"].append("no ratio rows matched the MD labels")
+        return data, report
+    fr = fill_cells(data, cells)
+    report["filled_cells"] = len(fr.applied)
+    report["skipped"].extend(s.reason for s in fr.skipped)
+    return fr.data, report
+
+
+def _md_source_columns(
+    content: EvalPlanContent, tb: bytes, grid: Any, area_cols: list[int], report: dict[str, Any]
+) -> list[int | None]:
+    """For each produced data column (``area_cols`` order) the MD §6 column that fills
+    it, None to clear it: the MD's 정기시험 columns go to the table's 정기시험 columns and
+    its 영역 columns to the 수행평가 columns, in order. MD columns with no table column
+    left are reported."""
+    from hwpx.table_patch import table_text
+
+    hdr = content.ratio_header
+    md_cols = list(range(1, len(hdr) - (1 if hdr and "합계" in hdr[-1] else 0)))
+    exam_first, exam_count = _md_exam_span(content)
+    md_exam = [j for j in md_cols if exam_first <= j < exam_first + exam_count]
+    md_perf = [j for j in md_cols if j not in md_exam]
+    heads = {cc: grid.get((0, cc)) for cc in area_cols}
+    tbl_exam = [cc for cc, h in heads.items() if h is not None and "정기시험" in table_text(tb[h.start:h.end])]
+    tbl_perf = [cc for cc in area_cols if cc not in tbl_exam]
+    source_of: list[int | None] = [None] * len(area_cols)
+    for tbl_group, md_group, name in ((tbl_exam, md_exam, "정기시험"), (tbl_perf, md_perf, "수행평가")):
+        for cc, j in zip(tbl_group, md_group):
+            source_of[area_cols.index(cc)] = j
+        if len(md_group) > len(tbl_group):
+            report["skipped"].append(
+                f"the MD §6 has {len(md_group)} {name} columns, the produced 반영비율 table "
+                f"{len(tbl_group)} -- the last {len(md_group) - len(tbl_group)} not written")
+    return source_of
+
+
+def _md_row_cells(
+    ti: int, r: int, grid: Any, area_cols: list[int], values: list[str], derived: bool
+) -> list[dict[str, Any]]:
+    """fill_cells entries for row *r*'s data cells, one per distinct cell anchored in
+    this row. A merged cell joins the non-empty values of its columns ('—' = empty),
+    or -- for a '반영 비율' row derived from 영역 만점 -- sums their percentages."""
+    out: list[dict[str, Any]] = []
+    seen_cells: set[tuple[int, int]] = set()
+    for cc in area_cols:
+        cell = grid.get((r, cc))
+        if cell is None or cell.row != r or (cell.start, cell.end) in seen_cells:
+            continue        # covered by a cell of an earlier row, or already written
+        seen_cells.add((cell.start, cell.end))
+        spanned = [k for k, ac in enumerate(area_cols) if grid.get((r, ac)) is cell]
+        parts = [values[k] for k in spanned if values[k] and values[k] != "—"]
+        if derived and len(spanned) > 1:
+            nums = [int(n) for p in parts for n in _PCT_RE.findall(p)]
+            val = f"{sum(nums)}%" if nums else ""
+        else:
+            val = " / ".join(dict.fromkeys(parts))
+        out.append({"table_index": ti, "row": cell.row, "col": cell.col, "text": val, "max_lines": 3})
+    return out
 
 
 def finalize_evalplan(data: bytes, content: EvalPlanContent) -> tuple[bytes, dict[str, Any]]:
@@ -2686,6 +2951,14 @@ def finalize_evalplan(data: bytes, content: EvalPlanContent) -> tuple[bytes, dic
         ]).data
         report["teacher"] = True
 
+    # ---- (**) placeholder slot + its legend / ex) example lines -----------------
+    # Before the red strip: the legend line is told apart by its red guidance run.
+    # The fills above keep the paragraph count, so top-level hits join del_idx.
+    data, top_hits, slot = _clean_placeholder_lines(data, _ai_slot_phrase(content.cautions))
+    del_idx.update(top_hits)
+    report["ai_slot_filled"] = slot["filled"]
+    report["placeholder_lines_deleted"] = slot["deleted"] + len(top_hits)
+
     # ---- apply deletes (high->low so indices stay valid) ------------------------
     dr = apply_body_ops(data, [{"op": "delete_paragraph", "index": i}
                                for i in sorted(del_idx, reverse=True)])
@@ -2699,7 +2972,202 @@ def finalize_evalplan(data: bytes, content: EvalPlanContent) -> tuple[bytes, dic
     cap = strip_trailing_table_captions(data)
     data = cap.data
     report["captions"] = len(cap.applied)
+    # a (**) slot the MD gave no text for stays -- named here, never silently left
+    report["placeholders_left"] = _placeholder_paragraphs(data)
     return data, report
+
+
+_PLACEHOLDER = "(**)"
+_AI_SLOT_RE = re.compile(r"AI[를을]?\s*활용하여\s*\(\*\*\)\s*하는\s*행위")
+_P_EDGE = re.compile(r"<hp:p[ >]|</hp:p>")
+_SUBLIST_EDGE = re.compile(r"<hp:subList\b[^>]*>|</hp:subList>")
+_RUN_RE = re.compile(r"<hp:run\b[^>]*?(?<!/)>.*?</hp:run>", re.DOTALL)
+_T_RE = re.compile(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", re.DOTALL)
+_MARKPEN_RE = re.compile(r"<hp:markpen(?:Begin|End)\b[^>]*/>")
+_LINESEG_RE = re.compile(r"<hp:linesegarray>.*?</hp:linesegarray>|<hp:linesegarray\s*/>", re.DOTALL)
+_ORDINAL_START = re.compile(r"^\s*(?:\(\d+\)|[가-하]\.|\d+\.|[①-⑮])")
+
+
+def _ai_slot_phrase(cautions: str) -> str:
+    """The act the review MD §10 forbids with AI -- the words between 'AI를 활용하여'
+    and '하는 행위' ('평가 문항의 답안을 그대로 제출') -- for the form's
+    'AI를 활용하여 (**)하는 행위는 금지…' slot; '' when §10 has no such sentence."""
+    m = re.search(r"AI[를을]?\s*활용하여\s*(.+?)\s*하는\s*행위", cautions or "")
+    phrase = m.group(1).strip() if m else ""
+    return "" if _PLACEHOLDER in phrase else phrase
+
+
+def _paragraph_spans_any_depth(xml: str) -> list[tuple[int, int, int]]:
+    """``(start, end, depth)`` of every ``<hp:p>`` (depth 1 = section level), in
+    document order."""
+    out: list[tuple[int, int, int]] = []
+    stack: list[int] = []
+    for m in _P_EDGE.finditer(xml):
+        if m.group().startswith("</"):
+            if stack:
+                start = stack.pop()
+                out.append((start, m.end(), len(stack) + 1))
+        else:
+            stack.append(m.start())
+    return sorted(out)
+
+
+def _plain(xml: str) -> str:
+    import html
+    return html.unescape(re.sub(r"<[^>]+>", "", "".join(_T_RE.findall(xml))))
+
+
+def _placeholder_paragraphs(data: bytes) -> list[str]:
+    """Text of every innermost paragraph still holding a ``(**)`` placeholder."""
+    import io
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        sec = z.read("Contents/section0.xml").decode("utf-8")
+    left: list[str] = []
+    for a, b, _depth in _paragraph_spans_any_depth(sec):
+        block = sec[a:b]
+        if len(_P_EDGE.findall(block)) > 2:      # holds another paragraph
+            continue
+        text = _norm(_plain(block))
+        if _PLACEHOLDER in text:
+            left.append(text[:80])
+    return left
+
+
+def _clean_placeholder_lines(data: bytes, phrase: str) -> tuple[bytes, list[int], dict[str, Any]]:
+    """Fill the form's 'AI를 활용하여 (**)하는 행위' slot with *phrase* and drop the
+    form's ``(**) : <red guidance>`` legend line and its blue ``ex) …`` example lines
+    (with their blue continuation lines). Located by structure -- the ``(**)`` mark,
+    the guidance's red run, the example's blue runs -- at any depth (the 평가계획 form
+    keeps them in a 1x1 box table).
+
+    The slot's ``(**)`` run takes the preceding run's character shape (body text, so
+    the later red strip / blue recolor leave it alone) and loses its highlight; its
+    paragraph's line cache is dropped. Without *phrase* the slot stays as it is and
+    :func:`_placeholder_paragraphs` reports it. Nested paragraphs are removed here;
+    section-level ones are returned as top-level paragraph indices for the caller's
+    ``delete_paragraph`` pass (removing them here would shift its indices). Returns
+    ``(data, top_level_indices, {"filled": bool, "deleted": int})``."""
+    import html
+    import io
+    import zipfile
+
+    from hwpx.patch import rewrite_package_parts
+
+    info: dict[str, Any] = {"filled": False, "deleted": 0}
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        sec = z.read("Contents/section0.xml").decode("utf-8")
+        hdr_name = next(n for n in z.namelist() if n.endswith("header.xml"))
+        hdr = z.read(hdr_name).decode("utf-8")
+    colors = _charpr_colors(hdr)
+    spans = _paragraph_spans_any_depth(sec)
+    top_level = [(a, b) for a, b, d in spans if d == 1]
+    deletes: list[tuple[int, int]] = []
+    top_hits: list[int] = []
+    edits: list[tuple[int, int, str]] = []
+    prev_end = -1          # end of the last deleted ex) / continuation paragraph
+    for a, b, depth in spans:
+        block = sec[a:b]
+        if len(_P_EDGE.findall(block)) > 2:      # holds a table / text box: not a line
+            continue
+        rs = _colored_runs(block, colors)
+        text = "".join(t for _c, t in rs)
+        role = _scaffold_role(rs, follows_example=prev_end == a)
+        if role:
+            prev_end = b if role != "legend" else -1
+            if depth == 1:
+                top_hits.append(top_level.index((a, b)))
+            else:
+                deletes.append((a, b))
+            continue
+        prev_end = -1
+        if phrase and _AI_SLOT_RE.search(_norm(text)):
+            edit = _fill_slot_paragraph(block, html.escape(phrase, quote=False))
+            if edit is not None:
+                edits.append((a, b, edit))
+                info["filled"] = True
+                edits.extend(_squeeze_to_break(sec, a))
+
+    if not deletes and not edits:
+        return data, top_hits, info
+    info["deleted"] = len(deletes)
+    for a, b, rep in sorted([*((a, b, "") for a, b in deletes), *edits], key=lambda e: e[0], reverse=True):
+        sec = sec[:a] + rep + sec[b:]
+    return rewrite_package_parts(data, {"Contents/section0.xml": sec.encode("utf-8")}), top_hits, info
+
+
+def _charpr_colors(header_xml: str) -> dict[str, str]:
+    """charPr id -> its textColor (upper-case hex)."""
+    colors: dict[str, str] = {}
+    for cm in re.finditer(r"<hh:charPr\b[^>]*>", header_xml):
+        idm = re.search(r'\bid="(\d+)"', cm.group(0))
+        colm = re.search(r'\btextColor="([#0-9A-Fa-f]+)"', cm.group(0))
+        if idm and colm:
+            colors[idm.group(1)] = colm.group(1).upper()
+    return colors
+
+
+def _colored_runs(block: str, colors: dict[str, str]) -> list[tuple[str, str]]:
+    """``(text color, text)`` of each run of a paragraph without nested paragraphs."""
+    out = []
+    for rm in _RUN_RE.finditer(block):
+        cid = re.search(r'charPrIDRef="(\d+)"', rm.group(0))
+        out.append((colors.get(cid.group(1), "") if cid else "", _plain(rm.group(0))))
+    return out
+
+
+def _scaffold_role(runs: list[tuple[str, str]], *, follows_example: bool) -> str:
+    """'legend' for a ``(**) : <red guidance>`` line, 'example' for a blue ``ex) …``
+    line, 'continuation' for a blue line right after an example line (not an
+    ordinal item), '' for anything else."""
+    text = "".join(t for _c, t in runs)
+    red = "".join(t for c, t in runs if c == "#FF0000")
+    nonred = re.sub(r"\s", "", "".join(t for c, t in runs if c != "#FF0000"))
+    blue_only = not re.sub(r"\s", "", "".join(t for c, t in runs if c != "#0000FF"))
+    if nonred == _PLACEHOLDER and red.strip():
+        return "legend"
+    if blue_only and text.strip().startswith("ex)"):
+        return "example"
+    if follows_example and blue_only and text.strip() and not _ORDINAL_START.match(text):
+        return "continuation"
+    return ""
+
+
+def _squeeze_to_break(sec: str, pos: int) -> list[tuple[int, int, str]]:
+    """The edit turning the cell holding *pos* from ``lineWrap="SQUEEZE"`` to BREAK --
+    a squeezed cell would compress longer text onto the old line -- or none."""
+    open_lists: list[tuple[int, int]] = []
+    for sm in _SUBLIST_EDGE.finditer(sec, 0, pos):
+        if sm.group().startswith("</"):
+            if open_lists:
+                open_lists.pop()
+        else:
+            open_lists.append((sm.start(), sm.end()))
+    if not open_lists:
+        return []
+    s0, s1 = open_lists[-1]
+    tag = sec[s0:s1]
+    if 'lineWrap="SQUEEZE"' not in tag:
+        return []
+    return [(s0, s1, tag.replace('lineWrap="SQUEEZE"', 'lineWrap="BREAK"'))]
+
+
+def _fill_slot_paragraph(block: str, escaped: str) -> str | None:
+    """*block* with its ``(**)`` replaced by *escaped* text: the placeholder run takes the
+    preceding run's charPr, highlight marks go, the line cache is dropped."""
+    found = [m for m in _RUN_RE.finditer(block) if _PLACEHOLDER in "".join(_T_RE.findall(m.group(0)))]
+    if len(found) != 1:
+        return None
+    run = found[0]
+    before = [m for m in _RUN_RE.finditer(block) if m.end() <= run.start()]
+    new_run = run.group(0).replace(_PLACEHOLDER, escaped, 1)
+    if before:
+        prev = re.search(r'charPrIDRef="(\d+)"', before[-1].group(0))
+        if prev:
+            new_run = re.sub(r'charPrIDRef="\d+"', f'charPrIDRef="{prev.group(1)}"', new_run, count=1)
+    out = block[:run.start()] + new_run + block[run.end():]
+    out = _MARKPEN_RE.sub("", out)
+    return _LINESEG_RE.sub("", out)
 
 
 def _changed_part_names(before: bytes, after: bytes) -> list[str]:

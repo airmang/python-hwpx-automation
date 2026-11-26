@@ -15,6 +15,7 @@ from hwpx.document import HwpxDocument
 from hwpx.quality import SavePipeline
 from hwpx.tools.package_validator import validate_editor_open_safety
 
+from .._batch_verification import _refuse_existing_hwp_output
 from ..catalog import catalog_hash
 from ....upstream import content_seed, stamp_save_dates
 from ..commands import _error_from_exception, _member_diff, _quality_policy, _record_for_native, _revision
@@ -408,6 +409,7 @@ def _replay_load_target(
     input_data = input_path.read_bytes()
     output_before = _output_fingerprint(output_path)
     state.output_before = output_before
+    _refuse_existing_hwp_output(output_path, target="target.output")
     if output_before["exists"] and not normalized["target"]["overwrite"] and not normalized["dryRun"]:
         raise AgentContractError("identity_collision", "replay output already exists", target="target.output")
     if not output_path.parent.exists():

@@ -11,7 +11,9 @@ from dataclasses import dataclass
 
 from hwpx.document import HwpxDocument
 
+from ...storage import refuse_existing_hwp_overwrite
 from ...upstream import open_seeded_input, stamp_save_dates
+from ...workspace import backup_replaced_output
 
 from ..form_fill.fit.wordbox import (
     detect_overflow,
@@ -195,6 +197,8 @@ def compose_exam_into_form(
     max_rounds: int = 2,
     role_style_names=None,
 ) -> ComposeResult:
+    # An .hwp already at the output is never replaced; asked before anything is read or written.
+    refuse_existing_hwp_overwrite(out_path)
     notes: list[str] = []
     exam = parse_exam_markdown(exam_md)
     expected_ph = {ph.raw_text for q in exam.iter_questions() for ph in q.placeholders}
@@ -204,6 +208,8 @@ def compose_exam_into_form(
     specs = lower_exam(exam, prof)
     anchors = replace_body_region(doc, prof, specs)
     stamp_save_dates(doc)
+    # A document already at the output stays as .bak (made once; the re-saves below are this run's).
+    backup_replaced_output(out_path)
     doc.save(out_path)
     notes.append(
         f"composed {len(list(exam.iter_questions()))} 문항 into body"

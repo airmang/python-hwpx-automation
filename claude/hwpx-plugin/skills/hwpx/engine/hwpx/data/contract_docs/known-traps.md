@@ -7,12 +7,14 @@
 
 ## 편집·저장
 
-- **바이트-스플라이스 op의 `output_path`는 게이트 실패에도 쓴다.**
+- **바이트-스플라이스 op의 `output_path`는 skip이 있어도 쓴다.**
   `paragraph_patch`·`fill_cells`·`apply_table_ops`·`apply_body_ops` 계열은
-  결과가 skip·불안전이어도 `output_path`를 주면 파일을 쓴다(전 op 스킵 시
-  원본 바이트 그대로 기록). 합성 실행이 필요하면 `output_path` 없이 부르고
-  쓰기를 직접 소유하거나, 처음부터 `hwpx.plan.apply_edit_plan`(all-or-nothing
-  원자 실행)을 쓰라.
+  결과에 skip이 있어도 `output_path`를 주면 파일을 쓴다(전 op 스킵 시
+  원본 바이트 그대로 기록). 결과가 열기 안전 검사에 떨어지면 쓰지 않는다:
+  대상 파일은 그대로이고 `open_safety`의 `ok`가 `False`, `code`가
+  `open-safety-failed`다(7.0.1까지는 그 결과도 썼다). 합성 실행이 필요하면
+  `output_path` 없이 부르고 쓰기를 직접 소유하거나, 처음부터
+  `hwpx.plan.apply_edit_plan`(all-or-nothing 원자 실행)을 쓰라.
 - **결과 `ok`는 "스킵 0 + open-safety 통과"다.** 스킵은 부분 적용이 아니라
   "그 항목은 건드리지 않았다"는 뜻이다 — `ok=False`인데 산출물을 채택하면
   무음 부분 적용이 된다.
@@ -138,7 +140,12 @@
   지원하지 않는다 — 실패하면 계획을 고쳐 처음부터 다시 실행하라(실패 시 파일
   무접촉이므로 안전하다).
 - **`journalPath`는 실패 시에도 쓰이는 유일한 파일 표면이다.** 문서 파일의
-  무접촉 보장과 별개다(원하지 않으면 지정하지 말 것).
+  무접촉 보장과 별개다(원하지 않으면 지정하지 말 것). 저널은 그 경로 끝에 JSONL을
+  덧붙이므로 문서를 가리키면 안 된다: source나 output과 같은 파일이면(다른 철자·
+  대소문자·링크 포함) 검증이 `PlanValidationError`로, 이미 있는 `.hwp` 파일이면
+  `hwp5-overwrite-existing`으로 거부한다(`validate_edit_plan`·`dry_run`·실제 실행이
+  같은 판정, `apply_edit_plan(journal_path=...)` 인자도 같다). 그 밖의 이미 있는
+  파일은 보지 않고 덧붙인다.
 - **step `args`의 중첩 op 어휘는 스키마가 깊게 검증하지 않는다.** 실행-시
   해당 op의 fail-closed 검증이 진실 원천이다 — dry_run으로 전체 체인을 미리
   실행해 transcript를 확인하는 것이 가장 확실한 선검증이다.

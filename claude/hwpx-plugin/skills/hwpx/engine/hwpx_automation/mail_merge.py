@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
+import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from hwpx import HwpxDocument, validate_editor_open_safety
 
 from .upstream import open_seeded_input, stamp_save_dates
+from .workspace import backup_replaced_output
 
 MAIL_MERGE_REPORT_VERSION = "mail-merge-v1"
 
@@ -39,6 +42,33 @@ ValueSanitizer = Callable[[str], str]
 class MailMergeDataError(TypeError, ValueError):
     """Mail-merge data of the wrong shape. A ``ValueError`` too, so the MCP tool reports it as an
     argument error (``INVALID_ARGUMENT``); a ``TypeError`` as it always was for Python callers."""
+
+
+class MailMergeFilenameCollisionError(ValueError):
+    """Two or more outputs of one run would be the same file. Nothing was written.
+
+    ``collisions`` has one entry per file: ``filename`` (as the first row spells it),
+    ``rowIndexes`` (1-based, as in the report), ``filenames`` when the rows spell the name
+    differently (case), and ``archive: True`` when the ZIP archive itself goes to that name.
+    The MCP tool reports it under ``code`` with the collisions in ``details``.
+    """
+
+    code = "MAIL_MERGE_FILENAME_COLLISION"
+
+    def __init__(self, collisions: list[dict[str, Any]], *, total: int | None = None) -> None:
+        self.collisions = collisions
+        self.details: dict[str, Any] = {"collisions": collisions}
+        if total is not None and total > len(collisions):
+            self.details["collisionCount"] = total
+        first = collisions[0]
+        rows = ", ".join(str(index) for index in first["rowIndexes"])
+        target = "the archive and row" if first.get("archive") else "rows"
+        more = f" (and {(total or len(collisions)) - 1} more)" if (total or len(collisions)) > 1 else ""
+        super().__init__(
+            f"mail merge would write {target} {rows} to the same file {first['filename']!r}{more}; "
+            "nothing was written. Put a value that differs in every row into filename_pattern, "
+            "for example {index:03d}_{name}.hwpx"
+        )
 
 
 def load_mail_merge_rows(data: str | Path | Sequence[Mapping[str, Any]] | Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -217,6 +247,12 @@ def merge_template_rows(
     A value that would overflow its slot, or a row missing a required field, is
     isolated into ``needsReview[]`` / ``skipped[]`` with a reason — never silently
     truncated, never corrupting the rest of the batch (FR-004).
+
+    Every row's output name is worked out first. When two rows that would be written (or a row
+    and *zip_path*) name the same file — the same name, or names that differ only in case —
+    :class:`MailMergeFilenameCollisionError` is raised and nothing is written: the second
+    document would replace the first. A file that was already in the output folder is kept as
+    ``<name>.bak`` and replaced.
     """
 
     template_path = Path(template)
@@ -225,7 +261,6 @@ def merge_template_rows(
         raise ValueError("mail merge requires at least one data row")
 
     output_root = Path(output_dir) if output_dir is not None else template_path.with_suffix("").parent / "mail_merge_out"
-    output_root.mkdir(parents=True, exist_ok=True)
 
     placeholder_report = inspect_mail_merge_placeholders(template_path)
     placeholders = list(placeholder_report["placeholders"])
@@ -240,15 +275,24 @@ def merge_template_rows(
         finally:
             measure_doc.close()
 
-    row_reports: list[dict[str, Any]] = []
-    generated_paths: list[Path] = []
+    # Every output name of the run is worked out before anything is written.
+    planned: list[tuple[int, dict[str, Any], list[str], Path]] = []
     for index, row in enumerate(rows, start=1):
         missing_keys = [key for key in required_keys if _is_missing(row.get(key))]
         filename = _format_filename(filename_pattern, row=row, index=index)
         out_path = output_root / filename
         if out_path.suffix.lower() != ".hwpx":
             out_path = out_path.with_suffix(".hwpx")
+        planned.append((index, row, missing_keys, out_path))
+    _refuse_filename_collisions(
+        [(index, out_path) for index, _row, missing_keys, out_path in planned if not (strict and missing_keys)],
+        zip_path=Path(zip_path) if zip_path is not None else None,
+    )
+    output_root.mkdir(parents=True, exist_ok=True)
 
+    row_reports: list[dict[str, Any]] = []
+    generated_paths: list[Path] = []
+    for index, row, missing_keys, out_path in planned:
         if strict and missing_keys:
             row_reports.append(
                 {
@@ -292,6 +336,7 @@ def merge_template_rows(
                         fit_fields.append(_fit_field_report(key, fit_result))
                 replaced_count += _replace_token(document, token, apply_value)
             stamp_save_dates(document)  # Hangul's save dates: ModifiedDate now, CreatedDate kept
+            backup_replaced_output(out_path)  # a document already at this name stays as .bak
             receipt = document.save(out_path)
         finally:
             document.close()
@@ -332,6 +377,7 @@ def merge_template_rows(
     if zip_path is not None:
         zip_file = Path(zip_path)
         zip_file.parent.mkdir(parents=True, exist_ok=True)
+        backup_replaced_output(zip_file)  # so does a file already at the archive's name
         with ZipFile(zip_file, "w", compression=ZIP_DEFLATED) as archive:
             for path in generated_paths:
                 archive.write(path, arcname=path.name)
@@ -393,6 +439,52 @@ def merge_template_rows(
         "rows": row_reports,
         "zip": zip_result,
     }
+
+
+_MAX_REPORTED_COLLISIONS = 20
+
+
+def _same_file_key(path: Path) -> str:
+    """One key for the paths that are one file on Windows, whatever system this runs on.
+
+    Windows file names do not tell upper case from lower case, and a document sent to a Windows
+    user lands there. The Unicode form is folded too (macOS does not tell the forms apart).
+    """
+
+    return unicodedata.normalize("NFC", os.path.normpath(os.path.abspath(path))).casefold()
+
+
+def _refuse_filename_collisions(outputs: Sequence[tuple[int, Path]], *, zip_path: Path | None) -> None:
+    """Raise when two rows of this run, or a row and the archive, would be written to one file.
+
+    Called before the output folder is made, so a refused run leaves nothing behind. A file that
+    was already in the folder is not a collision: it is kept as ``.bak`` when its name is written.
+    """
+
+    by_file: dict[str, list[tuple[int, Path]]] = {}
+    for index, out_path in outputs:
+        by_file.setdefault(_same_file_key(out_path), []).append((index, out_path))
+    archive_key = _same_file_key(zip_path) if zip_path is not None else None
+
+    collisions: list[dict[str, Any]] = []
+    for key, writers in by_file.items():
+        archive_here = key == archive_key
+        if len(writers) < 2 and not archive_here:
+            continue
+        spellings = list(dict.fromkeys(path.name for _index, path in writers))
+        if archive_here and zip_path is not None and zip_path.name not in spellings:
+            spellings.append(zip_path.name)
+        collision: dict[str, Any] = {"filename": spellings[0]}
+        if len(spellings) > 1:
+            collision["filenames"] = spellings
+        collision["rowIndexes"] = [index for index, _path in writers]
+        if archive_here:
+            collision["archive"] = True
+        collisions.append(collision)
+    if collisions:
+        raise MailMergeFilenameCollisionError(
+            collisions[:_MAX_REPORTED_COLLISIONS], total=len(collisions)
+        )
 
 
 def _find_placeholders(text: str) -> list[dict[str, str]]:
@@ -545,6 +637,7 @@ class _FormatValues(dict[str, Any]):
 
 __all__ = [
     "MAIL_MERGE_REPORT_VERSION",
+    "MailMergeFilenameCollisionError",
     "ValueSanitizer",
     "inspect_mail_merge_placeholders",
     "load_mail_merge_rows",

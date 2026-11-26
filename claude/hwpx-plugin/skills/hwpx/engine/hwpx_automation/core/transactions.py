@@ -7,48 +7,36 @@ import difflib
 import os
 import shutil
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
 from .. import quality as quality_contract
 from ..storage import (
     build_hwpx_verification_report,
+    refuse_existing_hwp_overwrite,
     require_hwpx_editor_open_safe,
     require_native_hwp5,
 )
 from ..upstream import HwpxDocument, hwp5_document_bytes, is_hwp5_target, open_document
+from ..workspace import (  # noqa: F401 - re-exported: the backup rule lives with the publisher
+    BackupReport,
+    backup_path_for,
+    backup_replaced_output,
+    rotated_backup_path,
+)
 
 _MAX_SUMMARY_ITEMS = 20
 _MAX_SNIPPET = 80
 HwpxSnapshotSource = str | Path | bytes
 
 
-@dataclass(frozen=True)
-class BackupReport:
-    backup_path: Path | None
-    rotated_paths: tuple[Path, ...] = ()
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "created": self.backup_path is not None,
-            "path": str(self.backup_path) if self.backup_path else None,
-            "rotatedPaths": [str(path) for path in self.rotated_paths],
-        }
-
-
-def backup_path_for(path: Path) -> Path:
-    return path.with_suffix(path.suffix + ".bak")
-
-
-def rotated_backup_path(path: Path, index: int) -> Path:
-    if index < 1:
-        raise ValueError("backup rotation index must be >= 1")
-    return path.with_suffix(path.suffix + f".bak.{index}")
-
-
 def rotate_and_backup(path: Path, *, max_backups: int = 5) -> BackupReport:
-    """Rotate existing ``.bak`` files and copy *path* to the current backup."""
+    """Rotate existing ``.bak`` files and copy *path* to the current backup.
+
+    The backup of a document edited in place. The rotation itself is
+    :func:`hwpx_automation.workspace.backup_replaced_output`, which the writers
+    that replace some other existing output call directly.
+    """
 
     if not path.exists():
         return BackupReport(None)
@@ -56,25 +44,7 @@ def rotate_and_backup(path: Path, *, max_backups: int = 5) -> BackupReport:
     if path.suffix.lower() == ".hwpx":
         require_hwpx_editor_open_safe(path, role="transaction backup source")
 
-    backup = backup_path_for(path)
-    rotated: list[Path] = []
-    if max_backups > 0:
-        oldest = rotated_backup_path(path, max_backups)
-        if oldest.exists():
-            oldest.unlink()
-        for index in range(max_backups - 1, 0, -1):
-            src = rotated_backup_path(path, index)
-            if src.exists():
-                dst = rotated_backup_path(path, index + 1)
-                os.replace(src, dst)
-                rotated.append(dst)
-        if backup.exists():
-            dst = rotated_backup_path(path, 1)
-            os.replace(backup, dst)
-            rotated.append(dst)
-
-    shutil.copy2(path, backup)
-    return BackupReport(backup, tuple(rotated))
+    return backup_replaced_output(path, max_backups=max_backups)
 
 
 def _snippet(text: str) -> str:
@@ -348,6 +318,8 @@ def save_dry_run(
     hwp_target = is_hwp5_target(target_path)
     if hwp_target:
         require_native_hwp5()
+        # A dry run refuses what the real save would refuse.
+        refuse_existing_hwp_overwrite(target_path)
     # The gate checks HWPX parts, so an .hwp target is staged as HWPX.
     fd, tmp_name = tempfile.mkstemp(
         prefix=f".{target_path.stem}.dry-run.",
@@ -375,7 +347,7 @@ def save_dry_run(
                 + verification["openSafety"]["summary"]
             )
         if hwp_target:
-            # Raises Hwp5Error (hwp5-write-unsupported) as the real save would.
+            # Raises Hwp5Error (hwp5-write-unsupported, hwp5-write-lossy-source) as the real save would.
             hwp5_document_bytes(document)
             verification["format"] = "hwp"
         diff = semantic_diff(target_path, tmp_path) if target_path.exists() else None

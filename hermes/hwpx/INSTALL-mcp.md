@@ -6,7 +6,7 @@ server there.
 
 ## Release coordinates
 
-The coordinates below belong to the current public release: `python-hwpx 7.0.0` / `python-hwpx-automation 8.0.0` / `hwpx-plugin 8.0.0`. The install window follows newer engine releases inside the same major.
+Release state `release-approved`: the coordinates below (`python-hwpx 7.0.2` / `python-hwpx-automation 8.0.1` / `hwpx-plugin 8.0.1`) are carried for pre-release verification and are not yet the public release. The current public release is `python-hwpx 7.0.0` / `python-hwpx-automation 8.0.0` / `hwpx-plugin 8.0.0`.
 
 ## Publishing command (maintainers only; never before release approval)
 
@@ -17,7 +17,7 @@ hermes skills publish plugins/hermes/hwpx --to github --repo airmang/hwpx-plugin
 ## Install the server once
 
 ```bash
-uv tool install --with "python-hwpx[preview]>=7.0.0,<8" "python-hwpx-automation[mcp,oracle]>=8.0.0,<9"
+uv tool install --with "python-hwpx[preview]>=7.0.2,<8" "python-hwpx-automation[mcp,oracle,preview]>=8.0.1,<9"
 uv tool dir --bin
 ```
 
@@ -34,14 +34,14 @@ mcp_servers:
     env:
       HWPX_AUTOMATION_ADVANCED: "0"
       HWPX_AUTOMATION_AUTOBACKUP: "1"
-      HWPX_SKILL_VERSION: "8.0.0"
+      HWPX_SKILL_VERSION: "8.0.1"
       HWPX_AUTOMATION_WORKSPACE_ROOTS: '["/absolute/path/to/workspace"]'
 ```
 
 ## Update and clean up
 
 같은 메이저 안의 최신으로 옮기려면 `uv tool upgrade python-hwpx-automation`을 실행합니다. 설치할 때
-준 범위(`>=8.0.0,<9`, `>=7.0.0,<8`)를 그대로 지키며 같은 가상환경을 제자리에서 갱신하고, 다음 서버
+준 범위(`>=8.0.1,<9`, `>=7.0.2,<8`)를 그대로 지키며 같은 가상환경을 제자리에서 갱신하고, 다음 서버
 시작부터 적용됩니다. 자동 갱신은 번들 런처 `scripts/hwpx-automation-mcp`(Claude Code·Codex 번들)
 경로만 제공합니다.
 

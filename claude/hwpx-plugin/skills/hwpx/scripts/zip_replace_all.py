@@ -42,7 +42,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from fix_namespaces import fix_namespaces, normalize_hwpml_root_bytes, validate_open_safety
+from fix_namespaces import (
+    fix_namespaces,
+    normalize_hwpml_root_bytes,
+    refuse_existing_hwp_output,
+    validate_open_safety,
+)
 
 
 _LINESEGARRAY_PATTERN = re.compile(
@@ -266,6 +271,7 @@ def zip_replace_all(
     """Replace plain text in the text nodes of the XML/HPF parts of an HWPX package."""
 
     output_path = Path(out_hwpx)
+    refuse_existing_hwp_output(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = Path(_make_temp_hwpx_path(output_path.parent, "hwpx-replace-"))
     try:
@@ -412,6 +418,11 @@ def main(argv: list[str]) -> int:
         return 2
 
     target_path = input_path if args.inplace else Path(args.output_hwpx).resolve()
+    try:
+        refuse_existing_hwp_output(target_path)
+    except FileExistsError as exc:
+        print(f"[ERR] {exc}", file=sys.stderr)
+        return 2
     if not args.inplace:
         target_path.parent.mkdir(parents=True, exist_ok=True)
     same_output_path = _same_path(input_path, target_path)

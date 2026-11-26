@@ -14,11 +14,12 @@
   </p>
 </p>
 
-<!-- release-state: released -->
+<!-- release-state: release-approved -->
 
 > [!NOTE]
+> 발행 승인 후보 (release-approved; 원격 발행 대기): `python-hwpx 7.0.2` · `python-hwpx-automation 8.0.1` · `hwpx-plugin 8.0.1`.
 > 현재 공개 트레인은 `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0`입니다.
-> 2026-11-21에 공개 발행과 실제 Claude Code·Codex marketplace 설치(새 설치와 기존 설치의 갱신)를 관찰했습니다.
+> 2026-11-21에 그 공개 발행과 실제 Claude Code·Codex marketplace 설치(새 설치와 기존 설치의 갱신)를 관찰했습니다.
 > [설치 검증 영수증](https://github.com/airmang/python-hwpx-automation/blob/main/plugins-src/references/release-2026-11-21-engine-7-automation-8.md)
 
 HWPX를 잘 몰라도 됩니다. 스킬을 설치하면 Claude Code·Codex·Cursor 같은
@@ -44,24 +45,25 @@ import·콘솔은 각각 `python-hwpx-automation` · `hwpx_automation` ·
 
 ```bash
 # Claude Code
-claude plugin marketplace add airmang/hwpx-plugins
+claude plugin marketplace add airmang/python-hwpx-automation
 claude plugin install hwpx-plugin@hwpx
 
 # Codex CLI
-codex plugin marketplace add airmang/hwpx-plugins
+codex plugin marketplace add airmang/python-hwpx-automation
 codex plugin add hwpx-plugin@hwpx
 ```
 
-**ChatGPT**에서는 플러그인 디렉터리(Customize → Plugins)에서 `python-hwpx`를 찾아 설치합니다. 플러그인 대신
+**ChatGPT**용 플러그인은 아직 플러그인 디렉터리에 없습니다. [GitHub Release](https://github.com/airmang/hwpx-plugins/releases?q=chatgpt-plugin)에서
+`python-hwpx-plugin-<판>.zip`을 내려받아 Plugins → Upload plugin으로 올리면 본인 계정에서 쓸 수 있습니다. 플러그인 대신
 스킬만 올리려면 Skills → Create → Upload from your computer에서 스킬 zip(`python-hwpx-skill-<판>.zip`, 저장소의
 `scripts/build_chatgpt_skill.py`가 만듭니다)을 올립니다. Enterprise·Edu 워크스페이스는 관리자가 스킬과 스킬 올리기를
 켜 두어야 합니다. 엔진은 묶음 안에 있어 인터넷 없이 설치되지만, ChatGPT 코드 실행 환경에 `lxml`이 있어야 하고
-표 라벨 칸 채우기·새 문서 만들기에는 `pydantic`·`cryptography`도 있어야 합니다. ChatGPT에서는 결과를 늘 새
+표 라벨 칸 채우기·새 문서 만들기에는 `pydantic`(2.11 이상)도 있어야 합니다. ChatGPT에서는 결과를 늘 새
 `.hwpx` 파일로 돌려주고 `.hwp`는 읽기만 합니다.
 
 Claude Code는 런타임(`python-hwpx`·`python-hwpx-automation`)을 번들의 `server/uv.lock`에 잠긴 정확한 버전으로
 `uv run --frozen`으로 실행합니다. 잠긴 버전은 아래 표의 검증 좌표가 아니라 설치 제약 창 안에서 갱신 절차가 마지막으로 올린 조합이며,
-값은 번들의 `server/pyproject.toml`에 적혀 있습니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 새 엔진은 CI 봇이 검증해 PR로 올리고, 유지보수자가 승인한 뒤 플러그인 업데이트로 전달합니다.
+값은 번들의 `server/pyproject.toml`에 적혀 있습니다. **[`uv`](https://docs.astral.sh/uv/getting-started/installation/)가 설치되어 있어야** MCP 서버가 시작됩니다(Windows: `winget install --id=astral-sh.uv -e`). 엔진 판은 유지보수자가 python-hwpx-automation을 배포한 뒤 `plugins-dist` 작업(손으로 실행)에서 그 판에 맞춰 다시 잠그고 검증해 플러그인 업데이트로 전달합니다.
 Codex에서는 설치 뒤 번들 런처가 런타임을 하루 1회 같은 메이저 안의 최신으로 스스로 갱신합니다. 끄려면 `HWPX_STACK_AUTO_UPDATE=0`, 검증 좌표에 고정하려면
 `HWPX_STACK_CHANNEL=verified`를 MCP 서버 환경에 둡니다. Codex 번들의 MCP 서버는 `bash`로 런처를 실행하므로,
 **Windows에서는 `bash`(Git for Windows의 Git Bash 또는 WSL)가 `PATH`에 있어야** 시작됩니다. `bash`가 없으면 서버가 뜨지 않습니다. 스킬 번들 자체의 갱신은 호스트가 맡습니다 —
@@ -75,7 +77,7 @@ MCP 도구가 없으면 스킬이 `chat-engine.md` 절차로 이 엔진을 불�
 Claude Code·Cowork에서 MCP 서버가 뜨지 않을 때(`uv`가 없을 때 등)도 같은 경로를 씁니다. 환경의 Python 3.10 이상에
 `lxml`이 있어야 하며, 새 문서 만들기는 `pydantic`·`cryptography`도 있어야 합니다. 없으면 스킬이 사용자 동의를 받은 뒤
 같은 Python에 그 패키지만 설치합니다(네트워크가 막힌 환경에서는 알리고 멈춥니다). 엔진 사본은 손으로
-고치지 않습니다. 봇이 `server/uv.lock`을 올릴 때 같은 wheel에서 다시 풀고 파일마다 해시를 `engine/VENDOR.json`에 남기므로,
+고치지 않습니다. `plugins-dist` 작업이 `server/uv.lock`을 다시 잠글 때(`scripts/refresh_claude_runtime.py`) 같은 wheel에서 다시 풀고(`scripts/vendor_claude_engine.py`) 파일마다 해시를 `engine/VENDOR.json`에 남기므로,
 MCP 서버와 채팅 경로는 항상 같은 엔진 버전으로 함께 바뀝니다.
 
 환경마다 쓰는 경로가 다릅니다.
@@ -114,7 +116,7 @@ codex plugin marketplace upgrade
   탭에서 Update now를 눌러도 됩니다.
 - Codex 번들의 런처는 같은 큰 판 안에서만 런타임을 스스로 갱신합니다. 2.4.0 플러그인의 런처는
   `python-hwpx <7`·`python-hwpx-automation <8` 안에서만 움직이므로, **플러그인을 갱신해야** 엔진 7.0·8.0을 받습니다.
-- ChatGPT 플러그인은 디렉터리에 새 판이 게시되면 새 대화부터 쓰입니다. 스킬 zip을 직접 올렸다면 새 zip을 다시 올립니다.
+- ChatGPT 플러그인은 새 판 ZIP을 다시 올리면 새 대화부터 쓰입니다. 스킬 zip을 직접 올렸다면 새 스킬 zip을 다시 올립니다.
 
 ## 8.0에서 달라지는 것
 
@@ -160,9 +162,9 @@ codex plugin marketplace upgrade
 | 구분 | 의미 | 현재 값 |
 |---|---|---|
 | 완전한 공개 트레인 | 현재 공개 릴리스 — 실제 설치까지 관찰한 조합 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` · `hwpx-plugin 8.0.0` |
-| 최소 호환 버전 | 이 릴리스의 지원 플로어 | `python-hwpx >= 7.0.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
-| 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
-| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 이 창 안의 한 조합을 `uv.lock`으로 고정(검증 좌표와 다를 수 있음. 값은 번들 `server/pyproject.toml`) | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle]>=8.0.0,<9` |
+| 최소 호환 버전 | 도구 계약이 구성요소마다 따로 선언한 하한. 함께 설치되는 조합이 아님 — `python-hwpx` 7.x와 함께 설치되는 `python-hwpx-automation`은 8.x이고, 7.2~7.5는 `python-hwpx<7`을 요구 | `python-hwpx >= 7.0.0` · `python-hwpx-automation >= 7.2.0` · skill `>= 2.0.0` |
+| 검증 좌표 | 이 플러그인 후보가 함께 검증할 정확 조합. `HWPX_STACK_CHANNEL=verified`를 주면 이 조합만 설치하고 갱신하지 않음 | `python-hwpx 7.0.2` · `python-hwpx-automation 8.0.1` |
+| 플러그인 설치 제약 | Codex 번들 런처가 설치하고 하루 1회 자동 갱신하는 창 — 같은 메이저 안의 최신. Claude Code는 이 창 안의 한 조합을 `uv.lock`으로 고정(검증 좌표와 다를 수 있음. 값은 번들 `server/pyproject.toml`)하고 `oracle`을 번들의 `render` 그룹으로 뺀 `python-hwpx-automation[mcp,preview]`로 설치. `preview`는 미리보기 수식을 MathML로 그리는 `latex2mathml`이고 어느 호스트에서나 설치 | `python-hwpx[preview]>=7.0.2,<8` · `python-hwpx-automation[mcp,oracle,preview]>=8.0.1,<9` |
 
 - 코어 성숙도: 현재 공개 코어의 패키지 분류는 `Development Status :: 5 - Production/Stable`, 이전 공개 트레인의
   코어는 `Development Status :: 3 - Alpha`였습니다. Python 기준은 3.10 이상입니다.
@@ -174,8 +176,9 @@ codex plugin marketplace upgrade
 ## 관리 런타임의 갱신 시점
 
 Codex는 관리 런처를 실행합니다. Claude Code는 관리 런처 대신 `server/uv.lock`으로 잠긴 런타임을
-플러그인 폴더의 `server/.venv`에 설치합니다. 창 안의 새 엔진은 저장소의 CI 봇이 매일 확인해 전체 테스트를
-통과한 조합을 PR로 올리고, 유지보수자가 검토·승인한 것만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 됩니다.
+플러그인 폴더의 `server/.venv`에 설치합니다. 창 안의 새 엔진을 매일 찾아 올리는 봇은 없습니다. 유지보수자가 python-hwpx-automation을 배포한 뒤 `plugins-dist`
+작업을 손으로 돌려 잠금을 새 판으로 올리고 검증한 것만 플러그인 업데이트로 내보내므로, Claude Code에서 플러그인 자동 업데이트를 켜 두면 그 판을 받습니다.
+그 사이에 나온 python-hwpx 패치 판은 다음 내보내기까지 Claude Code 번들에 들어가지 않습니다.
 Codex 런처는 시작할 때 마지막 점검에서
 24시간(설정 가능)이 지났으면 백그라운드로 갱신을 시도합니다. 검증한 새 세대는
 다음 서버 시작부터 사용하며 실행 중인 서버를 교체하지 않습니다. 계속 켜 두거나

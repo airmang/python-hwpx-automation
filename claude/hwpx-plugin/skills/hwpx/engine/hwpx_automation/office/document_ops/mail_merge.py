@@ -11,6 +11,7 @@ from ...mail_merge import (
     inspect_mail_merge_placeholders as inspect_core_placeholders,
 )
 from ...mail_merge import merge_template_rows
+from ...storage import refuse_existing_hwp_overwrite
 from ..form_fill.fit import FitMode, FitPolicy
 
 if TYPE_CHECKING:
@@ -43,6 +44,9 @@ def build_mail_merge(
     carries field names and counts, never the values, so nothing in it needs masking.
     """
 
+    if zip_path is not None:
+        # The archive is written at this name as it is given: an .hwp already there is not replaced.
+        refuse_existing_hwp_overwrite(zip_path)
     fit_policy = None
     if fit_mode:
         valid_modes = set(getattr(FitMode, "__args__", ()))

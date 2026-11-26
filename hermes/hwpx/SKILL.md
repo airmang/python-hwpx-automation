@@ -1,7 +1,7 @@
 ---
 name: hwpx
 description: "한글 문서(.hwpx·.hwp) 편집·추출·자동화 스킬. '한글 문서 편집해줘', 가정통신문·공문·한글 양식 작성, HWPX 편집, 한글 파일/OWPML 분석, 플레이스홀더 치환, 문서 자동화 요청이면 이 스킬을 반드시 사용하세요. 줄간격·여백·쪽번호·머리글 등 서식 변경, 그림 삽입/교체, 문서 비교·신구대조표, 메일머지 대량생산(상장·수료증·가정통신문), 사진대지·조직도 생성, 표 합계/소계 계산 요청도 모두 이 스킬의 대상입니다."
-version: 8.0.0
+version: 8.0.1
 author: airmang
 license: Apache-2.0
 metadata:
@@ -111,7 +111,7 @@ Codex 관리 런처가 시작 시 점검 간격(기본 24시간)이 지났으면
 | 공문·가정통신문 (유형별 한컴 양식 프로파일 + 공문 구조 hard-gate·결문 메타·맞춤법 정직보고). 보고서(`document_type=보고서`)는 정해 둔 보고서 모양. 사용자가 고른 양식은 `designProfile` | `create_document_from_plan` (`metadata.document_type` + `gyeolmun`, 양식을 고르면 `designProfile`) | [workflows-authoring](references/workflows-authoring.md) |
 | 살아있는 목차(한컴이 재계산)·쪽 번호 상호참조 | `add_toc` · `add_cross_reference` · `verify_toc` | [workflows-toc](references/workflows-toc.md) |
 | 변경추적 redline 저작 (삽입/삭제/치환 + 코멘트, 사람이 한컴서 수락/거부) | `add_tracked_edit` (+ `add_memo_by_anchor`) | [workflows-redline](references/workflows-redline.md) |
-| 개인정보(PII) 탐지·마스킹 (읽기·추출 기본 마스킹, 쓰기 입력 사전 정제) | `scan_personal_info` · 읽기/추출 `mask` param | [workflows-pii](references/workflows-pii.md) |
+| 개인정보(PII) 검사, 추출 도구 5개의 기본 가림(그 밖의 읽기 도구는 원문), 쓰기 입력 사전 정제 | `scan_personal_info` · `get_document_text`·`hwpx_to_markdown`·`hwpx_extract_json`·`document_to_markdown`·`document_extract_json`의 `mask` | [workflows-pii](references/workflows-pii.md) |
 | 정부보고서·공문형 보고서 (□/○/※ 불릿) | `parse_government_report_text` → document plan 구성·검증 → `create_document_from_plan` | [workflows-creation](references/workflows-creation.md) |
 | 운영 계획서 제출 후보 | document-plan + `quality_profile="operating_plan"` | [workflows-creation](references/workflows-creation.md) |
 | 운영 계획서 하우스 스타일·섹션칩 변주 | skill이 genre/profile/variable slot 판단 → 기존 document-plan MCP 경로 | [workflows-house-style](references/workflows-house-style.md) |
@@ -229,7 +229,7 @@ canonical path, body anchor를 함께 넣고 **한 트랜잭션**으로 적용�
 - [`references/workflows-editing.md`](references/workflows-editing.md) — 트랜잭션 편집 루프, 서식 5종, 그림, byte patch, render_preview.
 - [`references/workflows-creation.md`](references/workflows-creation.md) — document-plan, builder, 정부보고서, 운영계획서, 제안서, 공문서 레시피.
 - [`references/workflows-redline.md`](references/workflows-redline.md) — 변경추적 저작(insert/delete/replace + 코멘트), 사람이 한컴서 수락/거부, verify 영수증. `add_tracked_edit`.
-- [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 탐지, 읽기·추출 기본 마스킹, 폼필·메일머지 입력 사전 정제 + 가명/비식별. `scan_personal_info` · 읽기/추출 `mask` param.
+- [`references/workflows-pii.md`](references/workflows-pii.md) — 개인정보(PII) 검사(보는 자리·안 보는 자리), 가리는 추출 도구 5개와 원문을 주는 읽기 도구, 탐지하는 표기의 한계, 폼필·메일머지 입력 사전 정제 + 가명/비식별. `scan_personal_info` · 추출 도구의 `mask`.
 - [`references/workflows-reading.md`](references/workflows-reading.md) — 런서식(굵게·색·크기·글꼴)+각주/미주 본문 충실 읽기. `hwpx_extract_json`(`format_detail`·`doc.notes[]`)·`hwpx_to_markdown` 각주 부록, `document_to_markdown` 로컬 ingest.
 - [`references/workflows-toc.md`](references/workflows-toc.md) — 네이티브 자동 차례·상호참조(재페이지네이션 시 한컴이 재번호). `add_toc`·`add_cross_reference`·`verify_toc`.
 - [`references/workflows-preview.md`](references/workflows-preview.md) — 한컴 없는 스크롤 통독 문서 뷰어(수식 MathML 렌더 fail-closed 3단계), 환경별 전달(Claude Code=Artifact/Codex=local open), 충실도 티어 정직 라벨. `render_preview(viewer=true)`.

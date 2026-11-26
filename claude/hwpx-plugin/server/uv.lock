@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 
 [[package]]
@@ -184,7 +184,7 @@ version = "0"
 source = { virtual = "." }
 dependencies = [
     { name = "python-hwpx" },
-    { name = "python-hwpx-automation", extra = ["mcp"] },
+    { name = "python-hwpx-automation", extra = ["mcp", "preview"] },
 ]
 
 [package.dev-dependencies]
@@ -197,13 +197,13 @@ render = [
 
 [package.metadata]
 requires-dist = [
-    { name = "python-hwpx", extras = ["preview"], specifier = "==7.0.0" },
-    { name = "python-hwpx-automation", extras = ["mcp"], specifier = "==8.0.0" },
+    { name = "python-hwpx", extras = ["preview"], specifier = "==7.0.2" },
+    { name = "python-hwpx-automation", extras = ["mcp", "preview"], specifier = "==8.0.1" },
 ]
 
 [package.metadata.requires-dev]
 chat-engine = [{ name = "tomli", specifier = "==2.4.1" }]
-render = [{ name = "python-hwpx-automation", extras = ["oracle"], specifier = "==8.0.0" }]
+render = [{ name = "python-hwpx-automation", extras = ["oracle"], specifier = "==8.0.1" }]
 
 [[package]]
 name = "idna"
@@ -239,6 +239,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d", size = 32855, upload-time = "2025-09-08T01:34:59.186Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe", size = 18437, upload-time = "2025-09-08T01:34:57.871Z" },
+]
+
+[[package]]
+name = "latex2mathml"
+version = "3.81.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/db/336c38300e44582752b95842b15a4be8fe656914cf5b02ad1bec53cebceb/latex2mathml-3.81.1.tar.gz", hash = "sha256:c95add0c0fcdecad2d70567e0643050d5ea1149fb2e98a5d5792fb1c8eea2ed5", size = 77475, upload-time = "2026-09-07T19:55:11.037Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/30/b8bcfb01a2514cb7554a048ed52883de276e66d757c3cc535a3c29eb9e98/latex2mathml-3.81.1-py3-none-any.whl", hash = "sha256:c337668441b71c819b6733905a8058ba9a9d767bae11a0c5fdacb3aff31361bd", size = 79159, upload-time = "2026-09-07T19:55:09.611Z" },
 ]
 
 [[package]]
@@ -340,11 +349,11 @@ wheels = [
 
 [[package]]
 name = "packaging"
-version = "26.3"
+version = "26.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", size = 313412, upload-time = "2026-08-04T18:15:28.737Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/75/ffb1dc0ed12352139fb4ca0e3fde4325a23e3d0f3f40efe89717bc4f557b/packaging-26.4.tar.gz", hash = "sha256:c4b671c41ddb9bf26e543c37723610d28fb6bf7affc4da17cf048d419d2c062a", size = 355877, upload-time = "2026-11-23T21:44:11.152Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/7b/5504f91c9c2733f693d7759e50ede5d27119d4da7e5836c46d3b5ff81d56/packaging-26.4-py3-none-any.whl", hash = "sha256:81383611a09c1bc0b08b76e0fd5829d7c6824c65b27a6aee339da133f4233ea2", size = 140049, upload-time = "2026-11-23T21:44:09.531Z" },
 ]
 
 [[package]]
@@ -485,7 +494,7 @@ crypto = [
 
 [[package]]
 name = "pymupdf"
-version = "2.1"
+version = "2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "networkx" },
@@ -497,36 +506,36 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tabulate" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/13/d9/5ae3cce31a4a62de4f6979331b4d8d5b86a8f2520f06754cf5e69065c887/pymupdf-2.1.tar.gz", hash = "sha256:9ac95f98016e83eafb8f1d786396f9c60e400d559590596e5b2df9eb6384948b", size = 88893521, upload-time = "2026-11-02T17:17:53.36Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/c5/25a5e7d63224bece0196207ab3e8f300abcd079051a79447be370d387e02/pymupdf-2.2.tar.gz", hash = "sha256:593ad37f814496e359dea5c4d7532856842988bf35320cb3e25d03e9438ae236", size = 88978161, upload-time = "2026-11-25T23:20:50.668Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/5c/e636dacbb4d3d39985e20904e3f13712c181e0e9bec6553953583a6723b1/pymupdf-2.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:1bb2284bde6067f05f83961ea678480060870dc966ad520bcf97da0b0eccf40c", size = 67177399, upload-time = "2026-11-02T17:15:19.686Z" },
-    { url = "https://files.pythonhosted.org/packages/10/f9/bf895749cbe37a881f4e3d6eb29b6112bedf366829f3709c94c1e3b6ac22/pymupdf-2.1-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:5a1a1fee36d5598013614e06eef25aaa68819d828f5401170dbcaf6f2714d1dd", size = 68308665, upload-time = "2026-11-02T17:15:32.475Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/dc/e244c162ab621a45bfe36e33fe432264ef7e40592f739474864df66a2dd8/pymupdf-2.1-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:a9efa2e9e5f469d3b5749199329739cfef1ff1d1846538ced4885c544eecbcd9", size = 68983787, upload-time = "2026-11-02T17:15:45.378Z" },
-    { url = "https://files.pythonhosted.org/packages/9d/1a/397ef60ed67c5b99c8584d2f07c3970b0cd693283212a233b06737f7c859/pymupdf-2.1-cp311-abi3-win_amd64.whl", hash = "sha256:e1122bbc3a1212396f0d70d19f78e084991b59ebdfc9d846c28ca8b509de01ad", size = 63020050, upload-time = "2026-11-02T17:16:01.425Z" },
+    { url = "https://files.pythonhosted.org/packages/76/cc/8aca7071a36351c04ebe171b967093ba802a0d871450bc6aba3674d90f49/pymupdf-2.2-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:bc54f498f0b0cb0f8c082c0171705369bcc0b4d9856810704cfdc1e31b7c9013", size = 67211491, upload-time = "2026-11-25T23:19:42.585Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/a8/6ee12083cda64555f0af211bce9627530791d3d5564d4861cda107824d61/pymupdf-2.2-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:c682ff3c7a3ee82364409590f970e66a208774564c6bec642c699797351824b7", size = 68342865, upload-time = "2026-11-25T23:19:47.325Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/08/86eee736b37e75bea39286205eb2a8e1c5defad63de7ec86bb6cd8b02a86/pymupdf-2.2-cp311-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:62f4e616192d86419f94ce59c9de498e5f735c682908488c1305f4acec8b0dc0", size = 69017977, upload-time = "2026-11-25T23:19:51.859Z" },
+    { url = "https://files.pythonhosted.org/packages/48/fb/66b0ecb2ea76086552a1ba1360a1b25da815d463f3cc58530c9438577898/pymupdf-2.2-cp311-abi3-win_amd64.whl", hash = "sha256:c22e081d07d4b5596ca11c4fda6c8a6bd882205cebe956e063796672374a5e76", size = 63054304, upload-time = "2026-11-25T23:19:56.675Z" },
 ]
 
 [[package]]
 name = "pymupdf-layout"
-version = "2.1"
+version = "2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pymupdf" },
     { name = "pymupdf4llm" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/13/7a1edc4029348e728114cf37837dd121a7439defd668caa087d128b5df2d/pymupdf_layout-2.1-py3-none-any.whl", hash = "sha256:e7e00bc50ec9113d36bdbb0dd5cdafa5f4d61e22e598960fc187ee4f721f5095", size = 1044, upload-time = "2026-11-02T17:16:05.112Z" },
+    { url = "https://files.pythonhosted.org/packages/26/ca/9c420be0671e228fd999fbe79a88194088cddb1a1258fe62518d8c952c49/pymupdf_layout-2.2-py3-none-any.whl", hash = "sha256:098d17df7d7904fe1454a7d605539fd1d9098b876fd881b922fd9f8367245d5c", size = 1043, upload-time = "2026-11-25T23:20:00.111Z" },
 ]
 
 [[package]]
 name = "pymupdf4llm"
-version = "2.1"
+version = "2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pymupdf" },
     { name = "pymupdf-layout" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/19/21e262de4e1ddbcd552889e5f04147f83ed219dd13d1e0e0db46ab4d2347/pymupdf4llm-2.1-py3-none-any.whl", hash = "sha256:2fe8bb344444c6a8ef41fd745d2d10f6da59df6e104ef20f35d51dd26914b5fb", size = 1023, upload-time = "2026-11-02T17:16:04.153Z" },
+    { url = "https://files.pythonhosted.org/packages/75/35/d010c604b27537edf92d6e3cb1cbbf3eede470c735c3b18e58d09567ac42/pymupdf4llm-2.2-py3-none-any.whl", hash = "sha256:0e453094d318c5b21cd86ff328383b217d432b8b5c22869adbea823ea2303c27", size = 1026, upload-time = "2026-11-25T23:19:59.104Z" },
 ]
 
 [[package]]
@@ -540,27 +549,27 @@ wheels = [
 
 [[package]]
 name = "python-hwpx"
-version = "7.0.0"
+version = "7.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lxml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6c/05/3fd199d341d35385182542d2d2e0c710d043edba870d16c4243a61a8aca9/python_hwpx-7.0.0.tar.gz", hash = "sha256:48a05bbefcdb6fff73b9650c1e835b0b7fe5417f17190129978b748c754f0eee", size = 1481270, upload-time = "2026-11-20T17:31:34.408Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/78/8f262a308a54a1927b6a59c22edc0c7f7a98ab93247f049138c9ed27fd6d/python_hwpx-7.0.2.tar.gz", hash = "sha256:c7ee4d2ba20129883514e3dcbf52e4c2f007418512a7fdacf37e7a26c407f46c", size = 1502712, upload-time = "2026-11-26T05:08:12.39Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/ca/11e559e568e645ef0e91c77ebc00b8655b047dee92738e5abe8b8499a6ce/python_hwpx-7.0.0-py3-none-any.whl", hash = "sha256:9dcb2fe77298284fd6593e71a8092ee032d50801b31f9f30791ef0ceeefc968d", size = 1576401, upload-time = "2026-11-20T17:31:32.383Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/75/9b4bec73d7ac92117c11715d1f0f06eb2a55bb586c41c4f650419a765e71/python_hwpx-7.0.2-py3-none-any.whl", hash = "sha256:f6afd044023c1440171d6857ab187449353d27423cbbb11d7ba7863867cb5ea8", size = 1598674, upload-time = "2026-11-26T05:08:09.746Z" },
 ]
 
 [[package]]
 name = "python-hwpx-automation"
-version = "8.0.0"
+version = "8.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "python-hwpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/05/3f/b6ab6fb8b055989fc4abf810ceb91cb850c624ff586782840ce37ff6f83e/python_hwpx_automation-8.0.0.tar.gz", hash = "sha256:69287874694067795420b7df61d64d1f670d40f324d600c6d7142d6fffa3f460", size = 919950, upload-time = "2026-11-21T00:16:33.251Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/c0/412e51e4ba61cc8ee36bb020fec7c241c88ee6f1aa60e866297f0bbbdb9d/python_hwpx_automation-8.0.1.tar.gz", hash = "sha256:5046a8f691f039c4c0db4592333d2cb13171f76fe3c0a7cf95529572f29fc209", size = 952465, upload-time = "2026-11-26T06:22:07.03Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/bc/73c18a57db215f7baf4ee18519102930f26621f338734a1a416073649714/python_hwpx_automation-8.0.0-py3-none-any.whl", hash = "sha256:216df98c6c1ad300f6813a04da241c32b9a1d3d5778cf9a2219b90c2ad767590", size = 1084395, upload-time = "2026-11-21T00:16:31.382Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/3d/81d827154065c095c009812703c9fdb5971f4f92c23e3229df5b680ce022/python_hwpx_automation-8.0.1-py3-none-any.whl", hash = "sha256:f2ffa71e9a8e5b99bdf4a4fdd2feaa479c151b5562854993add634b239ae4a9e", size = 1114957, upload-time = "2026-11-26T06:22:05.271Z" },
 ]
 
 [package.optional-dependencies]
@@ -572,6 +581,9 @@ oracle = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "pymupdf" },
+]
+preview = [
+    { name = "latex2mathml" },
 ]
 
 [[package]]
@@ -662,15 +674,15 @@ wheels = [
 
 [[package]]
 name = "sse-starlette"
-version = "3.7.0"
+version = "3.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "starlette" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/41/43/a232e3cd804293bd4f6d01e8895bc0f6f83ea148d712baf9d783c7d93d23/sse_starlette-3.7.0.tar.gz", hash = "sha256:326416da2ab52e9a41b3f409d3ff897eda45aa68c9f3b7b17d0913aab8d219c3", size = 43869, upload-time = "2026-11-07T11:15:49.389Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/12/c0/eb8c9eec5c0e29ce2a1c4d4654ddfb06c77b52b4db63ab40226198456be6/sse_starlette-3.7.1.tar.gz", hash = "sha256:9a8256e3e80a0fdc8d1dec14f2bb0b3f304c99f23a6d4d26c61ff50145761597", size = 45764, upload-time = "2026-11-22T19:19:59.535Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/11/25cabac0a24fa76f58637d8671b549c90d818d69d26beecf0c59a3b186e0/sse_starlette-3.7.0-py3-none-any.whl", hash = "sha256:f1d3136caa12d129284fca3d2ded79bc9af943320b6472712955fea52a6d3eea", size = 18432, upload-time = "2026-11-07T11:15:47.86Z" },
+    { url = "https://files.pythonhosted.org/packages/78/4d/6b0380b7dbb965b84c3368c0bfd85aa6ba1b9b825e9b8f42b8643efbab11/sse_starlette-3.7.1-py3-none-any.whl", hash = "sha256:c1bb3af0508c6c24cd4ab6257047654bbec01456a424bed36b36e8020cd7a37f", size = 18969, upload-time = "2026-11-22T19:19:58.344Z" },
 ]
 
 [[package]]
