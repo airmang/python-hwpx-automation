@@ -537,12 +537,12 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         text=True,
         capture_output=True,
     )
-    if status == "released" and previous_status != "released":
-        # Promotion comes with refreshed locks: the candidate is published by then, and the bundles'
-        # locks (which named the public stack until now) must move to it. A promotion that leaves
-        # them is refused, with the script to run.
+    if status == "released" and previous_status != "released" and validated.returncode != 0:
+        # Promotion comes with refreshed locks. Before publication the bundles' locks name the public
+        # stack (the candidate is not on PyPI); once it is published they move to it. A promotion that
+        # leaves them behind is refused, and for that reason only, with the script to run. After the
+        # locks have moved (the candidate is published, the state not yet promoted) it validates.
         output = validated.stdout + validated.stderr
-        assert validated.returncode != 0, output
         assert "refresh_claude_runtime.py" in output or "--refresh-lock" in output, output
         return
     assert validated.returncode == 0, validated.stdout + validated.stderr

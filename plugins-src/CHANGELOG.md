@@ -7,6 +7,9 @@
 - 플러그인 판이 8.0.1이 됩니다. 같은 판의 python-hwpx-automation(8.0.1)과 python-hwpx 7.0.2를 검증 좌표로 삼습니다.
   도구 계약(`c895883d5f4350ae`)은 그대로입니다.
 
+- Claude Code 번들의 잠긴 런타임을 `python-hwpx 7.0.2` · `python-hwpx-automation 8.0.1`로 올립니다(`server/pyproject.toml`,
+  `uv.lock`; 전이 의존성도 허용 범위 안의 최신으로). 7.0.1 뒤의 엔진 수정이 Claude Code 사용자에게 닿습니다.
+
 - Codex·OpenClaw·Hermes도 `python-hwpx-automation`의 `preview` extra를 설치합니다. 앞서 Claude Code 번들의 잠긴 런타임만
   `[mcp,preview]`로 고쳤고, 번들 런처(Codex)와 OpenClaw·Hermes 설치 안내는 `[mcp,oracle]`만 설치해 `latex2mathml`이 없었으며
   `render_preview`의 수식이 LaTeX 코드 블록으로 보였습니다. 설치 좌표를 `python-hwpx-automation[mcp,oracle,preview]`로 고칩니다
