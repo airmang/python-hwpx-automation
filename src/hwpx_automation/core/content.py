@@ -753,16 +753,18 @@ def remove_memo_from_doc(
     paragraph_index: int | None,
     location: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """문단의 메모를 제거한다."""
+    """문단의 메모를 제거한다. ``memo_removed``는 실제로 지운 메모가 있을 때만 True이고,
+    ``removed_count``는 지운 메모의 수다."""
     patch_python_hwpx()
     resolved = resolve_paragraph_reference(doc, paragraph_index=paragraph_index, location=location)
     paragraph = resolved.paragraph
 
     # doc.notes.remove_memo drops the memo with its MEMO field (python-hwpx 7.0); a 6.x memo kept
     # in hp:memogroup goes with the field that anchors it here.
-    for memo in [memo for memo in doc.notes.memos if memo.paragraph == paragraph]:
+    memos = [memo for memo in doc.notes.memos if memo.paragraph == paragraph]
+    for memo in memos:
         doc.notes.remove_memo(memo)
-    return {"memo_removed": True, "location": resolved.location}
+    return {"memo_removed": bool(memos), "removed_count": len(memos), "location": resolved.location}
 
 
 # ── 페이지 ────────────────────────────────────────────

@@ -121,7 +121,7 @@ jobs:
       - name: Generate tested-runtime SBOM
         run: |
           uv venv .sbom-runtime
-          uv pip install --python .sbom-runtime/bin/python -e './python-hwpx[preview]' -e './python-hwpx-automation[mcp,oracle]'
+          uv pip install --python .sbom-runtime/bin/python -e './python-hwpx[preview]' -e './python-hwpx-automation[mcp,oracle,preview]'
           mkdir -p hwpx-skill/artifacts
           uvx --from "cyclonedx-bom==7.3.0" cyclonedx-py environment .sbom-runtime/bin/python \
             --pyproject python-hwpx-automation/pyproject.toml \

@@ -137,7 +137,7 @@ def test_verified_channel_requests_the_exact_verified_pair(tmp_path: Path) -> No
     assert _generations(env_dir) == [f"gen-{CORE}-{AUTOMATION}"]
     assert _state(env_dir)["channel"] == "verified"
     specs = [arg for call in _uv_calls(env) if call[:2] == ["pip", "install"] for arg in call if arg.startswith("python-hwpx")]
-    assert f"python-hwpx[preview]=={CORE}" in specs and f"python-hwpx-automation[mcp,oracle]=={AUTOMATION}" in specs
+    assert f"python-hwpx[preview]=={CORE}" in specs and f"python-hwpx-automation[mcp,oracle,preview]=={AUTOMATION}" in specs
 
 
 def test_invalid_channel_fails_closed(tmp_path: Path) -> None:

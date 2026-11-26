@@ -238,7 +238,7 @@ def _probe_editable_runtime(
             "--with-editable",
             f"{core_repo}[preview]",
             "--with-editable",
-            f"{automation_repo}[mcp,oracle]",
+            f"{automation_repo}[mcp,oracle,preview]",
             "python",
             "-c",
             _RUNTIME_PROBE,
@@ -386,7 +386,7 @@ def main() -> int:
             workspace=workspace,
             expected_versions=expected_versions,
         )
-        server_package = f"{automation_wheel}[mcp,oracle]"
+        server_package = f"{automation_wheel}[mcp,oracle,preview]"
         core_package = f"{core_wheel}[preview]"
         env.update(
             {

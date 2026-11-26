@@ -147,7 +147,8 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
         assert "uv run --no-project" in text
         assert "uv run --project" not in text
         assert '--with-editable "${PYTHON_HWPX_REPO}[preview]"' in text
-        assert '--with-editable "${MCP_REPO}[mcp,oracle]"' in text
+        assert '--with-editable "${MCP_REPO}[mcp,oracle,preview]"' in text
+        assert '--with-editable "${MCP_REPO}[mcp,oracle]"' not in text
         assert '--with-editable "${MCP_REPO}[mcp]"' not in text
         assert "HWPX_AUTOMATION_RUNTIME_ROOT" in text
         assert "find_stack_root" not in text
@@ -422,7 +423,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     automation_major = int(components["automation"]["currentVersion"].split(".")[0])
     assert identity["installConstraint"] == {
         "core": f"python-hwpx[preview]>={components['core']['currentVersion']},<{core_major + 1}",
-        "automation": f"python-hwpx-automation[mcp,oracle]>={components['automation']['currentVersion']},<{automation_major + 1}",
+        "automation": f"python-hwpx-automation[mcp,oracle,preview]>={components['automation']['currentVersion']},<{automation_major + 1}",
     }
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts
