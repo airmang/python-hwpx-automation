@@ -89,6 +89,68 @@ def _exception_chain(exc: BaseException) -> list[BaseException]:
     return chain
 
 
+# A byte-preserving write keeps the output's bytes from before in a sidecar beside it and removes
+# it when the call ends. When one stays, the write says so (mixed_form: the receipt's
+# rollbackPreservation.recoveryCopy, or hwpx_recovery_copy on the raised error); the client is told
+# the file's name and why, never its folder.
+_RECOVERY_COPY_NAME = re.compile(r"\.hwpx-mixed-form-recovery-[0-9a-f]{12}-[0-9a-f]{32}")
+_RECOVERY_COPY_MESSAGES = {
+    "output-changed": (
+        "문서가 호출 전과 같지 않거나 같은지 확인하지 못했습니다. 호출 전 문서의 사본이 "
+        "같은 폴더에 `{name}`(으)로 남아 있습니다."
+    ),
+    "not-removed": (
+        "호출 전 문서의 임시 사본 `{name}`을(를) 지우지 못해 같은 폴더에 남아 있습니다. "
+        "문서는 호출 전 그대로이며 그 파일은 지워도 됩니다."
+    ),
+}
+
+
+def _recovery_copy_note(value: object) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    filename, reason = value.get("filename"), value.get("reason")
+    if (
+        isinstance(filename, str)
+        and _RECOVERY_COPY_NAME.fullmatch(filename)
+        and reason in _RECOVERY_COPY_MESSAGES
+    ):
+        return {"filename": filename, "reason": str(reason)}
+    return None
+
+
+def _recovery_copy_of_error(exc: BaseException | None) -> dict[str, str] | None:
+    for item in _exception_chain(exc) if exc is not None else ():
+        note = _recovery_copy_note(getattr(item, "hwpx_recovery_copy", None))
+        if note is not None:
+            return note
+    return None
+
+
+def _recovery_copy_of_result(payload: object) -> dict[str, str] | None:
+    receipt = payload.get("verificationReceipt") if isinstance(payload, dict) else None
+    preservation = receipt.get("rollbackPreservation") if isinstance(receipt, dict) else None
+    return _recovery_copy_note(
+        preservation.get("recoveryCopy") if isinstance(preservation, dict) else None
+    )
+
+
+def _with_recovery_copy(
+    payload: dict[str, Any], note: dict[str, str] | None
+) -> dict[str, Any]:
+    """The error payload, also naming a recovery copy that outlived the failed call."""
+
+    if note is None:
+        return payload
+    told = dict(payload)
+    told["details"] = {**(payload.get("details") or {}), "recoveryCopy": note}
+    told["message"] = (
+        f"{payload['message']} "
+        + _RECOVERY_COPY_MESSAGES[note["reason"]].format(name=note["filename"])
+    )
+    return told
+
+
 def _document_error_payload(item: BaseException) -> dict[str, Any] | None:
     """The payload for an operation, ``.hwp`` or non-package failure; else None."""
 
@@ -205,7 +267,10 @@ def _gate_or_plain_error(
                 "suggestedRetry": gate.block.get("suggestedRetry"),
             },
         )
-    return _error_data(_classified_error_payload(exc), tool_name=tool_name)
+    return _error_data(
+        _with_recovery_copy(_classified_error_payload(exc), _recovery_copy_of_error(exc)),
+        tool_name=tool_name,
+    )
 
 
 def _failure_code_from_payload(payload: object) -> str | None:
@@ -298,12 +363,15 @@ def _result_failure_error(
         if isinstance(value, str) and len(value) <= 512 and "/Users/" not in value and "\\" not in value:
             suggestion = value
     return _error_data(
-        build_error_payload(
-            code=error_code,
-            message="도구가 요청을 안전하게 완료하지 못했습니다.",
-            details=details,
-            retryable=retryable,
-            suggestion=suggestion,
+        _with_recovery_copy(
+            build_error_payload(
+                code=error_code,
+                message="도구가 요청을 안전하게 완료하지 못했습니다.",
+                details=details,
+                retryable=retryable,
+                suggestion=suggestion,
+            ),
+            _recovery_copy_of_result(payload),
         ),
         tool_name=tool_name,
     )

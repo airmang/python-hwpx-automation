@@ -12,7 +12,7 @@
 | 릴리스 상태 | `released` — 2026-11-21 공개 발행·실제 marketplace 설치 관찰 | `hwpx-plugin 8.0.0` |
 | 최소 호환 버전 | 도구 계약이 구성요소마다 따로 선언한 하한. 함께 설치되는 조합이 아님 — core 7.x와 함께 설치되는 automation은 8.x이고, 7.2~7.5는 core `<7`을 요구 | core `>=7.0.0` · automation `>=7.2.0` · skill `>=2.0.0` |
 | 검증 좌표 | 이 플러그인 릴리스가 함께 검증한 정확 조합 (`HWPX_STACK_CHANNEL=verified`) | `python-hwpx 7.0.0` · `python-hwpx-automation 8.0.0` |
-| 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle]>=8.0.0,<9` |
+| 플러그인 설치 제약 | 번들 런처가 설치·자동 갱신하는 창 | `python-hwpx[preview]>=7.0.0,<8` · `python-hwpx-automation[mcp,oracle,preview]>=8.0.0,<9` |
 
 - import 이름은 `hwpx`다.
 - 코어의 공개 성숙도는 현재 공개 코어 기준 `Development Status :: 5 - Production/Stable`(이전 공개 트레인의 코어는 `3 - Alpha`)이고 MCP/플러그인의 성숙도는

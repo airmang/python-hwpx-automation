@@ -134,7 +134,10 @@ def test_the_locked_runtime_installs_the_equation_renderer() -> None:
         spec.split("[")[0]: spec.split("[")[1].split("]")[0].split(",")
         for spec in project["dependencies"]
     }
-    assert extras["python-hwpx-automation"] == ["mcp", *validator.CLAUDE_RUNTIME_ADDED_EXTRAS]
+    # every host's install extras, with oracle left to the render group
+    assert extras["python-hwpx-automation"] == [
+        extra for extra in validator.PLUGIN_INSTALL_EXTRAS if extra != "oracle"
+    ]
     assert "preview" in extras["python-hwpx-automation"]
 
     # the extra is one python-hwpx-automation declares, and it is the one with the renderer
@@ -166,5 +169,5 @@ def test_validator_rejects_a_runtime_without_the_preview_extra(tmp_path: Path) -
         text.replace('"python-hwpx-automation[mcp,preview]==', '"python-hwpx-automation[mcp]=='),
         encoding="utf-8",
     )
-    with pytest.raises(SystemExit, match="plus preview"):
+    with pytest.raises(SystemExit, match="preview brings latex2mathml"):
         validator.validate_claude_locked_runtime(bundle, IDENTITY)
