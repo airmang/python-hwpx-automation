@@ -450,7 +450,35 @@ def _parse_border_fill(node: ET.Element) -> dict[str, Any]:
         if face and face.lower() != "none":
             fill = _css_color(face, default="transparent")
 
-    return {"sides": sides, "fill": fill}
+    # What an engine page draws: the solid face colour as it is; one colour for a pattern
+    # (its face) or a gradient (the mean of its colours); no picture. *fill_notes* names
+    # what was reduced, so the page can say so.
+    shown, notes = fill, []
+    if win_brush is not None and (win_brush.get("hatchStyle") or "NONE").upper() != "NONE":
+        notes.append("pattern")
+    gradation = node.find(f".//{_HC}gradation")
+    if gradation is not None:
+        stops = [_css_color(stop.get("value"), default="") for stop in gradation.findall(f"{_HC}color")]
+        shown = _mean_color([stop for stop in stops if stop]) or shown
+        notes.append("gradient")
+    image = node.find(f".//{_HC}imgBrush")
+    if image is not None:
+        notes.append("picture")
+
+    return {"sides": sides, "fill": fill, "shown_fill": shown, "fill_notes": tuple(notes), "fill_picture": image}
+
+
+def _mean_color(colors: list[str]) -> str | None:
+    """The channel-wise mean of CSS hex colours (alpha left out), or ``None`` for no colours."""
+    channels = []
+    for color in colors:
+        digits = color.removeprefix("#")
+        if len(digits) == 3:
+            digits = "".join(digit * 2 for digit in digits)
+        channels.append([int(digits[index:index + 2], 16) for index in (0, 2, 4)])
+    if not channels:
+        return None
+    return "#" + "".join(f"{round(sum(values) / len(values)):02X}" for values in zip(*channels))
 
 
 def _page_spec(section: ET.Element) -> tuple[float, float, dict[str, float]]:
@@ -589,15 +617,31 @@ def _paragraph_style(paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
     )
 
 
-def _border_style(border_ref: str | None, styles: Mapping[str, Any]) -> dict[str, str | None]:
+_CELL_FILL_NOTES = {
+    "pattern": ("table-cell", "cell fill pattern or gradient is drawn as one colour"),
+    "gradient": ("table-cell", "cell fill pattern or gradient is drawn as one colour"),
+    "picture": ("table-cell", "cell fill picture is not drawn"),
+}
+
+
+def _border_style(
+    border_ref: str | None, styles: Mapping[str, Any], *, issues: Counter[tuple[str, str]] | None = None,
+) -> dict[str, str | None]:
+    """Borders and background of a cell. With *issues* (an engine page) a pattern or gradient
+    is drawn as one colour and every reduced fill is counted."""
     border = styles["border"].get(border_ref or "", {})
     sides = border.get("sides") or {}
+    fill = border.get("fill", "transparent")
+    if issues is not None:
+        fill = border.get("shown_fill", fill)
+        for note in dict.fromkeys(_CELL_FILL_NOTES[note] for note in border.get("fill_notes", ())):
+            issues[note] += 1
     return {
         "border-left": sides.get("left", "1px solid #b9c0c7"),
         "border-right": sides.get("right", "1px solid #b9c0c7"),
         "border-top": sides.get("top", "1px solid #b9c0c7"),
         "border-bottom": sides.get("bottom", "1px solid #b9c0c7"),
-        "background": border.get("fill", "transparent"),
+        "background": fill,
     }
 
 
@@ -668,7 +712,7 @@ def _render_table(
                 key: _hwp_to_mm(getattr(cell_margins, key)) if cell_margins is not None else 0.5
                 for key in ("top", "right", "bottom", "left")
             }
-            css = _border_style(tc.get("borderFillIDRef") or table.get("borderFillIDRef"), styles)
+            css = _border_style(tc.get("borderFillIDRef") or table.get("borderFillIDRef"), styles, issues=issues)
             css.update(
                 {
                     "width": _fmt_mm(width) if width > 0 else None,
@@ -890,6 +934,8 @@ def _base_css(mode: str) -> str:
         ".hwpx-placed-object[data-overlay=front] { z-index: 2; }\n"
         ".hwpx-placed-object img { display: block; width: 100%; height: 100%; }\n"
         ".hwpx-placed-object.hwpx-shape-outline { border: 1px solid #646e79; }\n"
+        ".hwpx-page-fill { position: absolute; inset: 0; z-index: -1; margin: 0; "
+        "background-repeat: repeat-y; }\n"
         ".hwpx-engine-page-status { position: absolute; top: 1mm; inset-inline: 2mm; "
         "margin: 0; color: #6b4a1a; font-size: 8pt; text-align: right; }\n"
         ".hwpx-paragraph { white-space: pre-wrap; word-break: break-word; }\n"
@@ -1270,6 +1316,94 @@ def _area_anchors(area: ET.Element, home: int, placements: list[Any], pages: tup
     return result
 
 
+#: Bytes of fill pictures a document may repeat over its pages before they are left out.
+_PAGE_FILL_PICTURE_BUDGET = 4 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class _PageFill:
+    """What a section's page border fill (``hp:pageBorderFill``) puts behind its pages."""
+
+    color: str | None = None
+    picture: tuple[str, bytes] | None = None
+    visibility: str = "SHOW_ALL"
+    notes: tuple[str, ...] = ()
+
+    def shows_on(self, first_page: bool) -> bool:
+        return {"HIDE_FIRST": not first_page, "SHOW_FIRST": first_page}.get(self.visibility, True)
+
+    def markup(self, page: Any, *, with_picture: bool) -> str:
+        """The fill under the whole page box. A flow page that grows past the paper is
+        painted again for every paper height, as the sheets it would run onto are."""
+        picture = self.picture if with_picture else None
+        if self.color is None and picture is None:
+            return ""
+        source = None
+        if picture is not None:  # a type this module names and bytes it checked, in base64
+            source = f"url(data:{picture[0]};base64,{base64.b64encode(picture[1]).decode('ascii')})"
+        css = _style_attr({
+            "background-color": self.color,
+            "background-image": source,
+            "background-size": f"100% {_fmt_mm(_hwp_to_mm(page.paper_height))}" if source else None,
+        })
+        return f'<div class="hwpx-page-fill" style="{css}"></div>'
+
+
+def _page_fill(
+    section: ET.Element, styles: Mapping[str, Any], images: Mapping[str, tuple[str, bytes]],
+) -> _PageFill | None:
+    """The fill behind a section's pages, as far as the file states it plainly.
+
+    Drawn: a fill over the whole paper set for both odd and even pages, as a colour
+    and/or a picture stretched over the paper with no picture effect. Anything else
+    is left out and named in ``notes``.
+    """
+    properties = section.find(f".//{_HP}secPr")
+    if properties is None:
+        return None
+    entries = {node.get("type") or "BOTH": node for node in properties.findall(f"{_HP}pageBorderFill")}
+
+    def brush(kind: str) -> Mapping[str, Any]:
+        node = entries.get(kind)
+        return styles["border"].get(node.get("borderFillIDRef") or "", {}) if node is not None else {}
+
+    def filled(border: Mapping[str, Any]) -> bool:
+        return border.get("shown_fill", "transparent") != "transparent" or bool(border.get("fill_notes"))
+
+    both = brush("BOTH")
+    notes = []
+    if any(filled(brush(kind)) and brush(kind) is not both for kind in ("EVEN", "ODD")):
+        notes.append("page fill set for odd or even pages only is not drawn")
+    if not filled(both):
+        return _PageFill(notes=tuple(notes)) if notes else None
+    shown = properties.find(f"{_HP}visibility")
+    visibility = (shown.get("fill") if shown is not None else None) or "SHOW_ALL"
+    if entries["BOTH"].get("fillArea") != "PAPER":
+        notes.append("page fill over an area other than the whole paper is not drawn")
+        return _PageFill(visibility=visibility, notes=tuple(notes))
+    if {"pattern", "gradient"} & set(both["fill_notes"]):
+        notes.append("page fill pattern or gradient is drawn as one colour")
+    picture = None
+    if both["fill_picture"] is not None:
+        picture = _stretched_picture(both["fill_picture"], images)
+        if picture is None:
+            notes.append("page fill picture is not drawn")
+    color = both["shown_fill"] if both["shown_fill"] != "transparent" else None
+    return _PageFill(color, picture, visibility, tuple(notes))
+
+
+def _stretched_picture(brush: ET.Element, images: Mapping[str, tuple[str, bytes]]) -> tuple[str, bytes] | None:
+    """The embedded picture of an ``hc:imgBrush`` that fills its area whole, with no picture effect."""
+    image = brush.find(f"{_HC}img")
+    if image is None or brush.get("mode") != "TOTAL":
+        return None
+    if (image.get("effect") or "REAL_PIC") != "REAL_PIC":
+        return None
+    if any((image.get(name) or "0") != "0" for name in ("bright", "contrast", "alpha")):
+        return None
+    return images.get(image.get("binaryItemIDRef") or "")
+
+
 def _page_content(
     items: list[str | _PlacedLine | _AnchorMarkup], page: Any, styles: Mapping[str, Any], *, flow: bool,
 ) -> str:
@@ -1301,7 +1435,7 @@ def _page_content(
     return "".join(parts)
 
 
-def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool) -> str:
+def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool, backdrop: str = "") -> str:
     width, height = map(_hwp_to_mm, (page.paper_width, page.paper_height))
     if flow:
         left, top, body_width, body_height = map(_hwp_to_mm, page.body)
@@ -1310,13 +1444,14 @@ def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool) 
         padding = " ".join(map(_fmt_mm, (max(top, 6), right, bottom, left)))
         style = f"width:{_fmt_mm(width)};padding:{padding}"
         body = (
+            f"{backdrop}"
             '<p class="hwpx-engine-page-status">세로 배치 근사'
             '<span class="hwpx-engine-overflow" hidden> · 근사 배치가 엔진 본문 높이를 넘습니다</span></p>'
             f'<div class="hwpx-engine-flow" style="min-height:{_fmt_mm(body_height)}">{content}</div>'
         )
     else:
         style = f"width:{_fmt_mm(width)};padding:0"
-        body = f'<div class="hwpx-engine-canvas" style="height:{_fmt_mm(height)}">{content}</div>'
+        body = f'<div class="hwpx-engine-canvas" style="height:{_fmt_mm(height)}">{backdrop}{content}</div>'
     classes = "hwpx-preview-page hwpx-engine-page"
     if flow:
         classes += " hwpx-engine-flow-page"
@@ -1348,7 +1483,8 @@ def _render_engine_preview(
     areas_by_paragraph: dict[tuple[int, int], dict[int, list[Any]]] = {}
     for area in getattr(layout, "areas", ()):
         areas_by_paragraph.setdefault((area.section, area.paragraph), {}).setdefault(area.area, []).append(area)
-    images = _picture_sources(document, parts) if objects_by_paragraph else {}
+    fill_pictures = any(border["fill_picture"] is not None for border in styles["border"].values())
+    images = _picture_sources(document, parts) if objects_by_paragraph or fill_pictures else {}
     section_starts: dict[int, int] = {}
     for page in layout.pages:
         section_starts.setdefault(page.section, page.page)
@@ -1418,6 +1554,12 @@ def _render_engine_preview(
                 host = None
             content[anchor.page].append(anchor)
 
+    fills = [_page_fill(section, styles, images) for section in sections]
+    filled = {
+        page.page: fill for page in layout.pages
+        if (fill := fills[page.section]) is not None and fill.shows_on(page.page == section_starts[page.section])
+    }
+    with_pictures = sum(len(fill.picture[1]) for fill in filled.values() if fill.picture) <= _PAGE_FILL_PICTURE_BUDGET
     fragments, pages = [], []
     for page in layout.pages:
         index = page.page
@@ -1425,8 +1567,15 @@ def _render_engine_preview(
         _, _, margins = _page_spec(sections[page.section])
         page_id = f"hwpx-preview-page-{index + 1}"
         flow = index in flow_pages
+        backdrop = ""
+        if index in filled:
+            backdrop = filled[index].markup(page, with_picture=with_pictures)
+            for note in filled[index].notes:
+                issues[("page-fill", note)] += 1
+            if filled[index].picture is not None and not with_pictures:
+                issues[("page-fill", "page fill picture is not drawn")] += 1
         fragments.append(_engine_page_fragment(
-            page, page_id, _page_content(content[index], page, styles, flow=flow), flow=flow,
+            page, page_id, _page_content(content[index], page, styles, flow=flow), flow=flow, backdrop=backdrop,
         ))
         pages.append(PreviewPage(index, page.section, page_id, width, height, margins,
                                  len(paragraphs_by_page[index]), table_counts[index]))
