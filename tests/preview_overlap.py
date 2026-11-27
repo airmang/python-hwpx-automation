@@ -15,6 +15,12 @@ under 100 %, or fixed under the line, as Hangul's saved lines also stand), and a
 inside the height of the line that holds the table (``table-body inside the table's line``: a
 fixed line spacing under the table's height). What remains is drawn wrongly: the check wants it 0.
 
+Objects, text boxes and headers, footers and notes are measured too (see :func:`_objects_and_areas`):
+an object against the body lines it does not stand on (``object-body``), two lines of a text box
+(``box-lines``, its pitch-set part apart as for cells), and a header, footer or note line against a
+body line (``area-body``). What is drawn at a place the engine does not give (``data-approx``) is
+counted apart, as approximate.
+
 Only text that shows counts (a line without characters takes room but draws nothing), and an
 object the document sets in front of or behind the text is left out: there the overlap is the
 document's own. Pages drawn as flow are not measured: the browser stacks them.
@@ -93,17 +99,96 @@ def page_overlaps(fragment: str) -> Counter[str]:
             box = _box(cell, (frame[0], frame[1]))
             if box is None:
                 continue
-            lines = sorted(
-                ((line_box, _text_box(line, line_box)) for line in cell.xpath("./div[@class='hwpx-engine-cell-line']")
-                 if _shows_text(line) and (line_box := _box(line, (box[0], box[1]))) is not None),
-                key=lambda item: item[0][1],
-            )
-            found["cell-line pairs"] += max(0, len(lines) - 1)
-            for (upper, upper_text), (lower, lower_text) in zip(lines, lines[1:]):
-                if upper_text[1] + upper_text[3] - lower_text[1] > _EPSILON_MM:
-                    found["cell-lines"] += 1
-                    found["cell-lines closer than their height"] += upper[1] + upper[3] - lower[1] > _EPSILON_MM
+            _stacked_lines(cell, box, found, "cell-lines")
+    _objects_and_areas(page, every, found)
     return found
+
+
+def _stacked_lines(holder: Any, box: tuple[float, ...], found: Counter[str], name: str) -> None:
+    """Two lines of one cell or text box that follow each other (*name* and its pitch-set part)."""
+    lines = sorted(
+        ((line_box, _text_box(line, line_box)) for line in holder.xpath("./div[@class='hwpx-engine-cell-line']")
+         if _shows_text(line) and (line_box := _box(line, (box[0], box[1]))) is not None),
+        key=lambda item: item[0][1],
+    )
+    found[f"{name.removesuffix('s')} pairs"] += max(0, len(lines) - 1)
+    for (upper, upper_text), (lower, lower_text) in zip(lines, lines[1:]):
+        if upper_text[1] + upper_text[3] - lower_text[1] > _EPSILON_MM:
+            found[name] += 1
+            found[f"{name} closer than their height"] += upper[1] + upper[3] - lower[1] > _EPSILON_MM
+
+
+def _objects_and_areas(page: Any, every: list[tuple[tuple[float, ...], bool]], found: Counter[str]) -> None:
+    """Objects drawn at coordinates and headers, footers and notes, against the body's text lines.
+
+    - ``object-body``: an object (not in front of or behind the text) and a body line with text it does not
+      stand on (an object set as a character stands inside its line's height, beside that line's text);
+      one at an approximate place (``data-approx``) is counted apart (``object-body approximate``);
+    - ``box-lines``: two lines of a text box, as ``cell-lines``;
+    - ``area-body``: a header, footer or note line and a body line; an area drawn whole at an approximate
+      place in its room is counted apart (``area-room-body approximate``).
+    """
+    lines = [
+        (box, _text_box(line, box), _shows_text(line)) for line in page.xpath(".//div[@class='hwpx-engine-line']")
+        if (box := _box(line, height="--hwpx-line-height")) is not None
+    ]
+    body = [(box, text) for box, text, shows in lines if shows]
+    placed = "contains(concat(' ', @class, ' '), ' hwpx-placed-object ')"
+    for item in page.xpath(f".//div[{placed}][not(ancestor::*[{placed}])]"):
+        classes = item.get("class") or ""
+        if item.get("data-overlay") or "hwpx-object-caption" in classes:
+            continue
+        box = _box(item)
+        if box is None:
+            continue
+        if "hwpx-area-room" in classes:
+            found["area-room-body approximate"] += sum(1 for line, _ in body if _cross(box, line))
+            continue
+        found["objects"] += 1
+        # An object set as a character stands in the line holding it (as tall as it or taller).
+        holders = [
+            line for line, _, _ in lines if item.get("data-wrap") == "AS_CHARACTER"
+            and box[1] >= line[1] - _EPSILON_MM and box[1] + box[3] <= line[1] + line[3] + _EPSILON_MM
+        ]
+        for line, _ in body:
+            if not _cross(box, line) or line in holders:
+                continue  # an object's own line holds it beside that line's text
+            if item.get("data-approx"):
+                found["object-body approximate"] += 1
+                continue
+            found["object-body"] += 1
+            # The line and the line holding the object set inside each other's height (a line spacing
+            # under the lines' height, as Hangul's saved lines also stand): the document's own overlap.
+            found["object-body inside its line's height"] += any(
+                min(holder[1] + holder[3], line[1] + line[3]) - max(holder[1], line[1]) > _EPSILON_MM
+                for holder in holders
+            )
+        _box_lines(item, (0.0, 0.0), found, placed)
+    for line in page.xpath(".//div[@class='hwpx-area-layer']/div[@class='hwpx-engine-area-line']"):
+        area = _box(line, height="--hwpx-line-height")
+        if area is None or not _shows_text(line):
+            continue
+        found["area-lines"] += 1
+        note = line.getparent().get("data-area-kind") in ("footNote", "endNote")
+        for box, text in body:
+            if _cross(_text_box(line, area), text):
+                found["area-body"] += 1
+                # A note shares the body's column: the engine may set its line inside the height of the
+                # body's last line (or that line inside the note's). A header or footer has its own room.
+                found["area-body inside a line's height"] += note and (
+                    box[1] - _EPSILON_MM <= area[1] < box[1] + box[3] - _EPSILON_MM
+                    or area[1] - _EPSILON_MM <= box[1] < area[1] + area[3] - _EPSILON_MM
+                )
+
+
+def _box_lines(item: Any, origin: tuple[float, float], found: Counter[str], placed: str) -> None:
+    """The lines of a text box, and of the text boxes of a group's members (at their places in the group)."""
+    box = _box(item, origin)
+    if box is None:
+        return
+    _stacked_lines(item, box, found, "box-lines")
+    for member in item.xpath(f"./div[{placed}]"):
+        _box_lines(member, (box[0], box[1]), found, placed)
 
 
 def overlaps(fragments: Iterable[str]) -> Counter[str]:
@@ -117,4 +202,7 @@ def overlaps(fragments: Iterable[str]) -> Counter[str]:
 def drawn_wrongly(found: Counter[str]) -> int:
     """The overlaps the engine's line pitch does not set (see the module)."""
     return (found["cell-lines"] - found["cell-lines closer than their height"]
-            + found["table-body"] - found["table-body inside the table's line"])
+            + found["table-body"] - found["table-body inside the table's line"]
+            + found["box-lines"] - found["box-lines closer than their height"]
+            + found["object-body"] - found["object-body inside its line's height"]
+            + found["area-body"] - found["area-body inside a line's height"])
