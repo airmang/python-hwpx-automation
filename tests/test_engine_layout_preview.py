@@ -198,6 +198,7 @@ def test_a_flow_line_before_a_floating_table_keeps_its_own_height() -> None:
     assert after.get("data-engine-advance") is None  # the page's last line
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_rows_take_the_engine_height_or_else_the_authored_cell_height(monkeypatch) -> None:
     if "TablePlacement" not in experimental.__all__:
         pytest.skip("needs the core table placement API")

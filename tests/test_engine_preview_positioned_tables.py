@@ -9,7 +9,7 @@ from lxml import html
 from preview_overlap import drawn_wrongly, overlaps, page_overlaps
 from preview_text_cover import every_engine_preview_shows_the_text  # noqa: F401
 
-from hwpx_automation.preview import render_layout_preview
+from hwpx_automation.preview import layout_preview, render_layout_preview
 
 pytestmark = pytest.mark.skipif(
     "TableRowPlacement" not in getattr(experimental, "__all__", ())
@@ -220,7 +220,9 @@ def test_a_table_holding_what_cell_lines_do_not_give_flows_and_says_so(holds: st
     assert _limitations(preview)[FLOWING] == 1
 
 
-def test_a_table_with_coordinates_on_a_flow_page_flows_and_is_counted_once() -> None:
+def test_a_table_with_coordinates_on_a_flow_page_flows_and_is_counted_once(monkeypatch) -> None:
+    # A table without rows the preview does not set over the page makes the page flow.
+    monkeypatch.setattr(layout_preview, "_floating_table", lambda *arguments: None)
     document = HwpxDocument.new()
     first = document.add_paragraph("").add_table(2, 2)
     first.cell(0, 0).text = "좌표를 가진 표"
@@ -240,3 +242,41 @@ def test_a_table_with_coordinates_on_a_flow_page_flows_and_is_counted_once() -> 
     limitations = _limitations(preview)
     assert limitations[FLOWING] == 1
     assert limitations["table", "row and cell placement is unavailable"] == 1
+
+
+def test_a_table_in_front_of_the_text_stands_over_the_page_at_its_offset_and_keeps_the_page_positioned() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("표 위의 문단")
+    holder = document.add_paragraph("떠 있는 표를 단 문단")
+    floating = holder.add_table(2, 2)
+    floating.element.find("{*}pos").attrib.update({
+        "treatAsChar": "0", "vertRelTo": "PARA", "horzRelTo": "COLUMN", "vertAlign": "TOP", "horzAlign": "LEFT",
+        "vertOffset": "1200", "horzOffset": "3000",
+    })
+    floating.element.set("textWrap", "IN_FRONT_OF_TEXT")
+    for row in range(2):
+        for column in range(2):
+            floating.cell(row, column).text = f"떠 있는 칸 {row + 1}-{column + 1}"
+    document.add_paragraph("표 아래의 문단")
+    payload = document.to_bytes()
+    layout = experimental.estimate_layout(payload)
+    placed, = layout.tables
+    assert not placed.rows  # the layout gives a table in front of the text no rows
+
+    preview = render_layout_preview(payload)
+
+    page = html.fromstring(preview.page_fragments[0])
+    assert page.get("data-layout-mode") == "positioned"
+    box, = page.xpath(".//div[contains(@class, 'hwpx-floating-table')]")
+    assert box.get("data-overlay") == "front" and box.get("data-approx") == "place"
+    line = next(paragraph for paragraph in layout.paragraphs if paragraph.paragraph == placed.paragraph).lines[0]
+    engine_page = layout.pages[0]
+    assert _mm(box, "left") == pytest.approx((_column_left(engine_page, 0, line.top) + 3000) * MM, abs=0.006)
+    assert _mm(box, "top") == pytest.approx((line.top + 1200) * MM, abs=0.006)
+    assert [cell.text_content() for cell in box.xpath(".//td")] == [
+        f"떠 있는 칸 {row}-{column}" for row in (1, 2) for column in (1, 2)
+    ]
+    assert _limitations(preview)["table", "table in front of or behind the text is drawn at an approximate place"] == 1
+    # Over the text: no overlap is counted against it (the document sets it there).
+    assert not drawn_wrongly(overlaps(preview.page_fragments))
+    assert "function hang(page)" in preview.html
