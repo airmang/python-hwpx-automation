@@ -1556,6 +1556,9 @@ def _base_css(mode: str) -> str:
         ".hwpx-placed-object[data-overlay] { position: absolute; }\n"
         ".hwpx-placed-object[data-overlay=behind] { z-index: -1; }\n"
         ".hwpx-placed-object[data-overlay=front] { z-index: 2; }\n"
+        ".hwpx-floating-table > .hwpx-table { margin: 0 !important; }\n"
+        # A table over or under the text running past the paper's foot: the page keeps the room, marked.
+        ".hwpx-engine-page[data-float-overflow=true] { outline: 1px dashed #c58a1b; outline-offset: 2px; }\n"
         ".hwpx-placed-object img { display: block; width: 100%; height: 100%; }\n"
         ".hwpx-placed-object.hwpx-shape-outline { border: 1px solid #646e79; }\n"
         # A group's members and a text box's lines stand at their places in the object's box.
@@ -1600,6 +1603,10 @@ def _base_css(mode: str) -> str:
         ".hwpx-preview-page { margin: 0; box-shadow: none; page-break-after: always; } }\n"
         f"{long_page_css}"
     )
+
+
+#: Markup the page script works on besides flow pages: cell lines to narrow, tables over or under the text.
+_SCRIPTED = ("hwpx-engine-cell-line", "hwpx-floating-table")
 
 
 def _flow_overflow_script() -> str:
@@ -1702,9 +1709,26 @@ def _flow_overflow_script() -> str:
     page.dataset.flowHeight = Math.ceil(page.getBoundingClientRect().height + (spilled ? band.getBoundingClientRect().height : 0));
     page.querySelector('.hwpx-engine-overflow').hidden = !spilled;
   }
+  // A table over or under the text stands at an approximate place on its page; what of it runs past
+  // the paper's foot is not hidden under the next page: the page box grows (its fill with it), marked.
+  function hang(page) {
+    const canvas = page.querySelector(':scope > .hwpx-engine-canvas');
+    if (!canvas) return;
+    const paper = parseFloat(canvas.dataset.paperHeight || getComputedStyle(canvas).height);
+    canvas.dataset.paperHeight = String(paper);
+    const top = canvas.getBoundingClientRect().top;
+    let below = 0;
+    canvas.querySelectorAll('.hwpx-floating-table').forEach(table => {
+      below = Math.max(below, table.getBoundingClientRect().bottom - top - paper);
+    });
+    page.dataset.floatOverflow = String(below > 0.5);
+    canvas.style.height = (paper + Math.max(0, below)) + 'px';
+  }
   const pages = [...document.querySelectorAll('.hwpx-engine-flow-page')];
+  const hung = [...document.querySelectorAll('.hwpx-engine-page')].filter(page => page.querySelector('.hwpx-floating-table'));
   pages.forEach(spill);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => pages.forEach(spill));
+  hung.forEach(hang);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { pages.forEach(spill); hung.forEach(hang); });
 })();
 </script>
 """
@@ -1742,7 +1766,7 @@ def _document_html(
         "</head>\n"
         f'<body data-hwpx-preview-mode="{html.escape(mode)}">\n'
         f"{body}\n"
-        f"{_flow_overflow_script() if has_flow or 'hwpx-engine-cell-line' in body else ''}"
+        f"{_flow_overflow_script() if has_flow or any(mark in body for mark in _SCRIPTED) else ''}"
         "</body>\n"
         "</html>\n"
     )
@@ -1969,12 +1993,14 @@ def _table_anchors(
         count = sum(1 for _ in table.iter(f"{_HP}tbl"))
         issues[("table", "row and cell placement is unavailable")] += count
         table_counts[home] += count
-        return [_AnchorMarkup(
-            home, _render_table(
-                table, styles, counter, flow=True, show_approx_caption=True, issues=issues, sources=sources,
-            ),
-            inline=inline,
-        )]
+        markup = _render_table(
+            table, styles, counter, flow=True, show_approx_caption=True, issues=issues, sources=sources,
+        )
+        floating = _floating_table(table, markup, sources.lines, pages[home] if pages and 0 <= home < len(pages) else None)
+        if floating is not None:
+            issues[_APPROX_FLOATING_TABLE] += 1
+            return [_AnchorMarkup(home, floating, flow=False, overlay=True)]
+        return [_AnchorMarkup(home, markup, inline=inline)]
     plans = _cell_plans(table, placed)
     for nested in table.iter(f"{_HP}tbl"):
         found = placements.get(nested)
@@ -2042,6 +2068,58 @@ def _table_anchors(
 
 
 _FLOWING_TABLE = ("table", "table content uses approximate flow within engine row pages")
+_APPROX_FLOATING_TABLE = ("table", "table in front of or behind the text is drawn at an approximate place")
+
+
+def _floating_table(table: ET.Element, markup: str, lines: tuple[Any, ...], page: Any) -> str | None:
+    """A table set in front of or behind the text, which the engine does not place, drawn over the page at
+    an approximate place: its ``hp:pos`` offset from what it is set against (the paper, the body, its
+    paragraph's column or first line on *page*), aligned as the file says. It takes no room from the
+    text, so its page keeps the engine's lines. ``None`` for any other table (it flows)."""
+    position = table.find(f"{_HP}pos")
+    wrap = table.get("textWrap") or ""
+    if page is None or position is None or wrap not in _FLOATING or _placed_as_character(table):
+        return None
+    own = [line for line in lines if line.position.page == page.page]
+    first = own[0] if own else None
+    size = table.find(f"{_HP}sz")
+    width, height = (_safe_int(size.get("width")), _safe_int(size.get("height"))) if size is not None else (0, 0)
+    body_x, body_top, body_width, body_height = page.body
+
+    def start(relative: str, *, across: bool) -> tuple[int, int]:
+        """Where the reference begins and how long it is, across the page (x) or down it (top)."""
+        if relative == "PAPER":
+            return 0, page.paper_width if across else page.paper_height
+        if relative == "PAGE" or first is None:
+            return (body_x, body_width) if across else (body_top, body_height)
+        if not across:
+            return first.top, first.height
+        if relative == "COLUMN":
+            left = _column_left(page, first.position.column, first.top)
+            area = next((area for area in reversed(page.column_areas) if area.top <= first.top), None)
+            room = area.widths[first.position.column] if area is not None and first.position.column < len(
+                area.widths) else body_width
+            return (left, room) if left is not None else (body_x, body_width)
+        frame = _line_frame(first, page)
+        return round(frame[0]), round(frame[2])
+
+    def place(relative: str, align: str, offset: int, extent: int, *, across: bool) -> int:
+        origin, room = start(relative, across=across)
+        if align in ("RIGHT", "BOTTOM"):
+            return origin + room - extent - offset
+        if align == "CENTER":
+            return origin + (room - extent) // 2 + offset
+        return origin + offset
+
+    x = place((position.get("horzRelTo") or "COLUMN").upper(), (position.get("horzAlign") or "LEFT").upper(),
+              _safe_int(position.get("horzOffset")), width, across=True)
+    top = place((position.get("vertRelTo") or "PARA").upper(), (position.get("vertAlign") or "TOP").upper(),
+                _safe_int(position.get("vertOffset")), height, across=False)
+    layer = "front" if wrap == "IN_FRONT_OF_TEXT" else "behind"
+    css = _style_attr({"left": _fmt_mm(_hwp_to_mm(x)), "top": _fmt_mm(_hwp_to_mm(top)),
+                       "width": _fmt_mm(_hwp_to_mm(width)) if width > 0 else None})
+    return (f'<div class="hwpx-placed-object hwpx-floating-table" data-object-kind="table" data-overlay="{layer}" '
+            f'data-approx="place" style="{css}">{markup}</div>')
 
 
 def _cell_held_objects(table: ET.Element) -> list[ET.Element]:
