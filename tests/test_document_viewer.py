@@ -134,4 +134,7 @@ def test_shape_and_ole_markers() -> None:
 
 def test_tables_still_render_as_tables_not_markers() -> None:
     html = render_layout_preview(CORPUS / "reader_writer__SimpleTable.hwpx").html
-    assert '<table class="hwpx-table"' in html
+    # A table the engine gives every coordinate is drawn at them, as cells; else as an HTML table.
+    assert '<table class="hwpx-table"' in html or 'class="hwpx-engine-table"' in html
+    assert "hwpx-engine-cell" in html or "<td" in html
+    assert "⟦표" not in html
