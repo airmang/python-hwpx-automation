@@ -30,6 +30,7 @@ from hwpx.errors import HwpxError
 from hwpx.opc.security import guard_zip_file, parse_xml_stdlib, read_member
 from hwpx.oxml.section_format import PAGE_PORTRAIT
 from hwpx.oxml.table_sizes import cell_margins_of
+from hwpx.tools.exporter import ListLabels
 
 from .equation_render import render_equation
 
@@ -96,6 +97,8 @@ class _AnchorMarkup:
     flow_issues: Counter[tuple[str, str]] | None = None
     #: The table (by ``id``) an engine-placed table fragment belongs to.
     table: int | None = None
+    #: The engine's box of an engine-placed table fragment on its page: (paper top, paper bottom, width), HWPUNIT.
+    box: tuple[int, int, int] | None = None
 
     def markup(self, flow: bool) -> tuple[str, Counter[tuple[str, str]] | None]:
         """The markup a page draws (a *flow* page or one at coordinates) and what it counts."""
@@ -555,6 +558,11 @@ def _shape_text_lines(element: ET.Element, *, captions: bool = True) -> list[str
             continue
         if child.tag == f"{_HP}p":
             text = _paragraph_text(child)
+            labels = _LABELS.get()
+            found = labels.label(child) if labels is not None else None
+            if found is not None and labels is not None:
+                labels.drawn.add(child)
+                text = f"{found.text} {text}"
             if text.strip():
                 lines.append(text)
         lines.extend(_shape_text_lines(child, captions=captions))
@@ -646,7 +654,8 @@ def _caption_text(element: ET.Element, styles: Mapping[str, Any], counter: _Obje
     if caption is None:
         return ""
     lines = [
-        _render_inline_runs(paragraph, styles, counter, include_objects=False, extended_styles=True)
+        _label_markup(paragraph, styles)
+        + _render_inline_runs(paragraph, styles, counter, include_objects=False, extended_styles=True)
         for paragraph in caption.iter(f"{_HP}p")
     ]
     return "<br>".join(line for line in lines if line)
@@ -744,6 +753,148 @@ def _run_numbers(run: ET.Element) -> list[str]:
     return [
         text for node in run.findall(f"{_HP}ctrl/{_HP}autoNum") if (text := _auto_number(node)) is not None
     ]
+
+
+# The number or bullet Hangul draws before a paragraph, in the engine preview. Its text is python-hwpx's own
+# count (:class:`hwpx.tools.exporter.ListLabels`, the count the engine measures a label's room with): every
+# paragraph once, in reading order -- the body's paragraphs, each followed by those of the tables, text boxes
+# and captions placed in it. What a header, footer or note holds is not counted there, nor labelled here.
+# Where the engine's line carries a label of its own (``line.label``, with its ``text`` and character shape
+# ``char_pr_id_ref``), that one is drawn instead.
+
+_NO_SHAPE = "4294967295"
+#: Each paragraph drawn with its label: the engine gives the label no place, so it stands at its line's start, its gap approximated.
+_LABEL_ROOM = ("paragraph-label", "number or bullet is drawn at its paragraph's first line: its place and room are approximate")
+#: A paragraph its shape numbers whose label python-hwpx does not write (a number format it does not write,
+#: a level its numbering does not define, a picture bullet).
+_LABEL_UNWRITTEN = ("paragraph-label", "number or bullet is not written here: the paragraph is drawn without it")
+
+
+@dataclass(frozen=True)
+class _Label:
+    """A label to draw: its text, the character shape it is set in and the gap after it."""
+
+    text: str
+    char_pr_id_ref: str
+    #: The gap to the paragraph's text: (value, unit), unit ``"em"`` (of the label's size) or ``"hwp"``.
+    gap: tuple[float, str]
+
+
+def _heading(para_pr: Any) -> Any | None:
+    """A paragraph shape's ``hh:heading``: its own, else the one an ``hp:switch`` holds (case, then default)."""
+    own = para_pr.find(f"{_HH}heading")
+    if own is not None:
+        return own
+    for switch in para_pr.findall(f"{_HP}switch"):
+        for branch in (*switch.findall(f"{_HP}case"), *switch.findall(f"{_HP}default")):
+            found = branch.find(f"{_HH}heading")
+            if found is not None:
+                return found
+    return None
+
+
+def _label_heads(header: Any, outline: str | None) -> dict[str, dict[str, str]]:
+    """The ``hh:paraHead`` attributes of each paragraph shape that numbers or bullets its paragraphs."""
+    if header is None:
+        return {}
+    numberings = {node.get("id") or "": node for node in header.iter(f"{_HH}numbering")}
+    bullets = {node.get("id") or "": node for node in header.iter(f"{_HH}bullet")}
+    found: dict[str, dict[str, str]] = {}
+    for para_pr in header.iter(f"{_HH}paraPr"):
+        heading = _heading(para_pr)
+        kind = (heading.get("type") or "NONE").upper() if heading is not None else "NONE"
+        if heading is None or kind == "NONE":
+            continue
+        ref = heading.get("idRef") or ""
+        if kind == "BULLET":
+            head = bullets[ref].find(f"{_HH}paraHead") if ref in bullets else None
+        else:
+            numbering = numberings.get((outline or "") if kind == "OUTLINE" else ref)
+            level = str(_safe_int(heading.get("level")) + 1)
+            head = next((node for node in numbering.iter(f"{_HH}paraHead") if (node.get("level") or "1") == level),
+                        None) if numbering is not None else None
+        found[para_pr.get("id") or ""] = dict(head.attrib) if head is not None else {}
+    return found
+
+
+@dataclass
+class _Labels:
+    """The labels of a document's paragraphs (by their ``hp:p`` element) and what drawing them counts."""
+
+    labels: dict[Any, str]
+    heads: dict[str, dict[str, str]]
+    shapes: frozenset[str]
+    issues: Counter[tuple[str, str]] = field(default_factory=Counter)
+    #: The paragraphs drawn with their label (a paragraph a page draws twice, or as two alternatives, once).
+    drawn: set[Any] = field(default_factory=set)
+
+    @classmethod
+    def of(cls, document: HwpxDocument, char_shapes: Mapping[str, Any]) -> _Labels:
+        counted = ListLabels(document)
+        labels: dict[Any, str] = {}
+        issues: Counter[tuple[str, str]] = Counter()
+        sections = [section.element for section in document.sections]
+        for section in sections:
+            for paragraph in section.iter(f"{_HP}p"):
+                label = counted.label(paragraph)
+                if label:
+                    labels[paragraph] = label
+                elif counted.kind(paragraph) is not None:
+                    issues[_LABEL_UNWRITTEN] += 1
+        sec_pr = next(sections[0].iter(f"{_HP}secPr"), None) if sections else None
+        headers = document.oxml.headers
+        heads = _label_heads(headers[0].element if headers else None,
+                             sec_pr.get("outlineShapeIDRef") if sec_pr is not None else None)
+        return cls(labels, heads, frozenset(char_shapes), issues)
+
+    def label(self, paragraph: Any, engine: Any = None) -> _Label | None:
+        """The label drawn before *paragraph* (the engine's own *engine* label first), else None."""
+        head = self.heads.get(paragraph.get("paraPrIDRef") or "", {})
+        text = getattr(engine, "text", None) if engine is not None else None
+        own = getattr(engine, "char_pr_id_ref", None) if text else None
+        if not text:
+            text = self.labels.get(paragraph)
+            own = head.get("charPrIDRef")
+        if not text:
+            return None
+        if not own or own == _NO_SHAPE or own not in self.shapes:
+            # a label without a shape of its own takes the paragraph end's (its last run's), as the engine measures it
+            runs = paragraph.findall(f"{_HP}run")
+            own = (runs[-1].get("charPrIDRef") if runs else None) or "0"
+        try:
+            offset = float(head.get("textOffset") or 50)
+        except ValueError:
+            offset = 50.0
+        gap = (offset, "hwp") if (head.get("textOffsetType") or "").upper() == "HWPUNIT" else (offset / 100, "em")
+        return _Label(text, str(own), gap)
+
+
+#: Set while the engine preview is drawn: the numbers and bullets of the document's paragraphs.
+_LABELS: ContextVar[_Labels | None] = ContextVar("_LABELS", default=None)
+
+
+def _opens_paragraph(line: Any) -> bool:
+    """Whether *line* is its paragraph's first: a cell or text box line's index 0, a body line's text from 0."""
+    index = getattr(line, "line", None)
+    return index == 0 if isinstance(index, int) else line.text_start == 0
+
+
+def _label_markup(paragraph: ET.Element, styles: Mapping[str, Any], line: Any = None) -> str:
+    """The number or bullet drawn before *paragraph* (on *line*, when it is the paragraph's first), in its
+    character shape and followed by its gap to the text; empty without one or outside the engine preview.
+    Each one drawn is counted: the engine gives no place for it, so where it stands is approximate."""
+    labels = _LABELS.get()
+    if labels is None or (line is not None and not _opens_paragraph(line)):
+        return ""
+    found = labels.label(paragraph, getattr(line, "label", None))
+    if found is None:
+        return ""
+    labels.drawn.add(paragraph)
+    value, unit = found.gap
+    css = _character_css(styles["char"].get(found.char_pr_id_ref, {}), extended=True)
+    gap = f"{value:.2f}em" if unit == "em" else _fmt_mm(_hwp_to_mm(value))
+    return (f'<span class="hwpx-paragraph-label" data-approx="label" '
+            f'style="{css}; margin-right: {gap}">{html.escape(found.text)}</span>')
 
 
 def _render_inline_runs(
@@ -1385,7 +1536,7 @@ def _cell_line_markup(
         "margin-right": _fmt_mm(right) if right > 0 else None,
     })
     # A line without text here belongs to a paragraph that has none: it keeps its room.
-    text = _styled_line_text(line, styles) if line.text is not None else ""
+    text = _label_markup(paragraph, styles, line) + (_styled_line_text(line, styles) if line.text is not None else "")
     pitch = ""
     if engine_advance is not None:
         pitch = f' data-engine-advance="{engine_advance}"'
@@ -1422,7 +1573,7 @@ def _render_paragraph(
     extended_styles: bool = False,
     cell_objects: _CellObjects | None = None,
 ) -> str:
-    text_html = _render_inline_runs(
+    text_html = _label_markup(paragraph, styles) + _render_inline_runs(
         paragraph, styles, counter, include_objects=include_objects, extended_styles=extended_styles,
         cell_objects=cell_objects,
     )
@@ -1576,6 +1727,12 @@ def _base_css(mode: str) -> str:
         ".hwpx-area-layer { position: absolute; inset: 0; margin: 0; pointer-events: none; }\n"
         ".hwpx-area-layer > .hwpx-engine-area-line { position: absolute; margin-left: 0; }\n"
         ".hwpx-area-room { position: absolute; overflow: visible; }\n"
+        # A table in a header or footer drawn whole takes its own height only: the room is the area's.
+        ".hwpx-area-room > .hwpx-table, .hwpx-area-paragraph > .hwpx-table { margin: 0 !important; }\n"
+        # A paragraph of a room drawn whole, at its first line's top where the engine gives it.
+        ".hwpx-area-paragraph { position: absolute; left: 0; right: 0; margin: 0; }\n"
+        # What stands across a flow page's columns, above their boxes.
+        ".hwpx-engine-column-across > .hwpx-table { margin-top: 0 !important; }\n"
         # What stands at a place the engine does not give is marked as approximate.
         "[data-approx] { outline: 1px dashed #d08a3a; outline-offset: -1px; }\n"
         ".hwpx-page-fill { position: absolute; inset: 0; z-index: -1; margin: 0; "
@@ -1673,7 +1830,9 @@ def _flow_overflow_script() -> str:
     }
     const room = parseFloat(getComputedStyle(body).minHeight);
     const holders = body.querySelectorAll(':scope > .hwpx-engine-column-area > .hwpx-engine-column');
-    let moved = 0;
+    let moved = 0, shows = 0;
+    const drawn = 'img, svg, table, math, [style*="border"], .hwpx-placed-object';
+    const shown = item => (item.textContent.trim() || item.matches(drawn) || item.querySelector(drawn)) ? 1 : 0;
     for (const holder of (holders.length ? holders : [body])) {
       const items = [...holder.children].filter(inFlow);
       let first = items.findIndex(item => item.getBoundingClientRect().bottom > foot);
@@ -1687,12 +1846,17 @@ def _flow_overflow_script() -> str:
         if (rest) {
           target.appendChild(rest);
           moved += 1;
+          shows += 1;
           first += 1;
         } else if (across.getBoundingClientRect().height > room / 2) {
           first += 1;
         }
       }
-      items.slice(first).forEach(item => { target.appendChild(item); moved += 1; });
+      items.slice(first).forEach(item => { target.appendChild(item); moved += 1; shows += shown(item); });
+    }
+    if (moved && !shows) {
+      // Only lines showing nothing ran past the foot (empty paragraphs): the band stays hidden.
+      moved = 0;
     }
     if (moved) {
       // The band runs on from the page: the page's fill is behind it too (light text on it stays legible).
@@ -1860,7 +2024,7 @@ def _engine_line(
         "color": None if hosted else char.get("color", "#000000"),
         "text-align": None if hosted else para_style.get("align", "left"),
     })
-    text = _styled_line_text(line, styles, inserts)
+    text = _label_markup(paragraph, styles, line) + _styled_line_text(line, styles, inserts)
     css_class = "hwpx-engine-area-line" if area_line else "hwpx-engine-line"
     attrs = f' data-engine-advance="{advance}"' if advance is not None else ""
     if hosted:
@@ -2044,12 +2208,13 @@ def _table_anchors(
                 table, tuple(rows), placed.table, pages[page], styles, plans, at_coordinates,
                 unplaced=closing and _has_unplaced_cells(table, plans), placements=placements,
             )
+        box = _rows_box(table, rows)
         if positioned is None:
-            anchors.append(_AnchorMarkup(page, flowing_markup, inline=inline, issues=flowing, table=id(table)))
+            anchors.append(_AnchorMarkup(page, flowing_markup, inline=inline, issues=flowing, table=id(table), box=box))
         else:
             anchors.append(_AnchorMarkup(
                 page, positioned, flow=False, inline=inline, flow_html=flowing_markup, issues=at_coordinates,
-                flow_issues=flowing, table=id(table),
+                flow_issues=flowing, table=id(table), box=box,
             ))
             # The objects its cells hold stand at their own places; a flow page draws them in the flowing rows.
             # Either way a picture takes the number the flowing rows gave it.
@@ -2065,6 +2230,16 @@ def _table_anchors(
                                              issues=drawn))
             counter.pictures = max(flowed, counter.pictures)
     return anchors
+
+
+def _rows_box(table: ET.Element, rows: list[Any]) -> tuple[int, int, int] | None:
+    """The engine's box of a table's rows on one page: (paper top of the first, foot of the last, the table's
+    width), HWPUNIT; ``None`` when a row has no top or height."""
+    if not rows or any(row.top is None or row.height is None for row in rows):
+        return None
+    size = table.find(f"{_HP}sz")
+    return (min(row.top for row in rows), max(row.top + row.height for row in rows),
+            _safe_int(size.get("width")) if size is not None else 0)
 
 
 _FLOWING_TABLE = ("table", "table content uses approximate flow within engine row pages")
@@ -2312,7 +2487,7 @@ def _positioned_table(
 
 def _positioned_cell_line(line: Any, paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
     """One text line of a cell at the engine's top, left edge and width (cell-relative), as tall as the line."""
-    text = _styled_line_text(line, styles)
+    text = _label_markup(paragraph, styles, line) + _styled_line_text(line, styles)
     if not text:
         return ""  # a line with nothing to show (an empty paragraph's) keeps its room without markup
     run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
@@ -2796,16 +2971,51 @@ def _numbers_of(numbering: _Numbering | None, page: int) -> Iterator[None]:
         _PAGE_NUMBERS.reset(token)
 
 
+def _tables_at_its_top(paragraph: ET.Element) -> bool:
+    """Whether a paragraph holds tables standing at its top -- each set as a character, or set at no offset from
+    the paragraph with the text above and below it -- and nothing else to show (no text, object, note or label):
+    the tables are what it shows."""
+    tables = paragraph.findall(f"{_HP}run/{_HP}tbl")
+    labels = _LABELS.get()
+
+    def on_top(table: ET.Element) -> bool:
+        if _placed_as_character(table):
+            return True
+        position = table.find(f"{_HP}pos")
+        return position is not None and (table.get("textWrap") or "") == "TOP_AND_BOTTOM" and (
+            (position.get("vertRelTo") or "PARA").upper() == "PARA" and _safe_int(position.get("vertOffset")) == 0
+            and (position.get("vertAlign") or "TOP").upper() == "TOP")
+
+    return bool(tables) and all(on_top(table) for table in tables) and not (
+        _paragraph_text(paragraph).strip() or _has_objects(paragraph)
+        or any(node.tag in _AREA_LABELS for node in paragraph.iter())
+        or (labels is not None and labels.label(paragraph) is not None)
+    )
+
+
 def _area_whole(
     area: ET.Element, kind: str, room: tuple[int, int, int | None, int | None], styles: Mapping[str, Any],
-    counter: _ObjectCounter, *, foot: bool = False,
+    counter: _ObjectCounter, *, foot: bool = False, lines: tuple[Any, ...] = (),
 ) -> str:
     """All an area holds, its paragraphs and tables the approximate way, in its *room* on the paper
-    (with *foot*, standing on the room's top: a note above the body's foot)."""
-    content = "".join(
-        _render_paragraph(paragraph, styles, counter, extended_styles=True)
-        for paragraph in area.findall(f"{_HP}subList/{_HP}p")
-    )
+    (with *foot*, standing on the room's top: a note above the body's foot). A paragraph that holds only
+    tables standing at its top draws no empty line of its own: the tables are what it shows. Where the
+    engine's *lines* give each paragraph its first line's top, the paragraph begins there in the room."""
+    own = area.findall(f"{_HP}subList/{_HP}p")
+    holders = _area_line_paragraphs(lines, own) if lines and all(line.top is not None for line in lines) else None
+    tops: dict[int, int] = {}
+    for line, holder in zip(lines, holders or ()):
+        tops.setdefault(id(holder), line.top - room[1])
+    parts = []
+    for paragraph in own:
+        drawn = (
+            "".join(_render_table(table, styles, counter) for table in paragraph.findall(f"{_HP}run/{_HP}tbl"))
+            if _tables_at_its_top(paragraph) else _render_paragraph(paragraph, styles, counter, extended_styles=True)
+        )
+        if id(paragraph) in tops:
+            css = _style_attr({"top": _fmt_mm(_hwp_to_mm(max(0, tops[id(paragraph)])))})
+            drawn = f'<div class="hwpx-area-paragraph" style="{css}">{drawn}</div>'
+        parts.append(drawn)
     css = _style_attr({
         "left": _fmt_mm(_hwp_to_mm(room[0])), "top": _fmt_mm(_hwp_to_mm(room[1])),
         "width": _fmt_mm(_hwp_to_mm(room[2])) if room[2] is not None else None,
@@ -2813,7 +3023,7 @@ def _area_whole(
         "transform": "translateY(-100%)" if foot else None,
     })
     return (f'<div class="hwpx-placed-object hwpx-area-room" data-area-kind="{kind}" data-approx="area" '
-            f'style="{css}">{content}</div>')
+            f'style="{css}">{"".join(parts)}</div>')
 
 
 def _engine_area_anchors(
@@ -2889,7 +3099,7 @@ def _area_anchors(
             if not result:
                 table_counts[found[0]] += tables
             with _numbers_of(numbering, found[0]):
-                whole = _area_whole(area, kind, found[1], styles, counter)
+                whole = _area_whole(area, kind, found[1], styles, counter, lines=tuple(lines))
             result.append(_AnchorMarkup(found[0], whole, flow=False, overlay=True))
             continue
         if unplaced or not 0 <= home < len(pages):
@@ -3008,14 +3218,15 @@ def _slot(page: Any, line: Any) -> tuple[int, int]:
     return area, line.position.column
 
 
-def _bare_line_tops(items: list[str | _PlacedLine | _AnchorMarkup]) -> list[int | None]:
-    """The paper top of each body line item whose paragraph draws nothing else on the page that takes room
-    (a table it anchors stands above its line), else ``None``."""
-    tops: list[int | None] = []
+def _bare_line_tops(items: list[str | _PlacedLine | _AnchorMarkup]) -> list[tuple[int, int, int | None] | None]:
+    """The engine's box of each item, (paper top, paper foot, width or ``None``), where it is known: a body line
+    whose paragraph draws nothing after it on the page that takes room (a table it anchors below its line), and
+    a table fragment the engine sets in the body (not over or under the text); else ``None``."""
+    tops: list[tuple[int, int, int | None] | None] = []
     for index, item in enumerate(items):
-        top = None
+        top: tuple[int, int, int | None] | None = None
         if isinstance(item, _PlacedLine) and not item.hosted:
-            top = item.line.top
+            top = (item.line.top, item.line.top + item.line.height, None)
             for after in items[index + 1:]:
                 if isinstance(after, _PlacedLine):
                     if after.paragraph is not item.paragraph:
@@ -3023,8 +3234,14 @@ def _bare_line_tops(items: list[str | _PlacedLine | _AnchorMarkup]) -> list[int 
                 elif not (isinstance(after, _AnchorMarkup) and after.overlay):
                     top = None
                     break
+        elif isinstance(item, _AnchorMarkup) and item.box is not None and not item.overlay:
+            top = item.box
         tops.append(top)
     return tops
+
+
+#: HWPUNIT a table may run past its column's width and still stand in it (its border, rounding).
+_ACROSS_TOLERANCE = 284
 
 
 def _has_columns(page: Any) -> bool:
@@ -3033,26 +3250,36 @@ def _has_columns(page: Any) -> bool:
 
 def _column_flow(
     parts: list[str], slots: list[tuple[int, int] | None], page: Any, issues: Counter[tuple[str, str]],
-    tops: list[int | None],
+    tops: list[tuple[int, int, int | None] | None],
 ) -> str:
     """A flow page set in its columns: each column area of the page (``ColumnArea``) a row as high as the
     engine gives it at least, each of its columns a box at the column's width and gap, holding what the
     engine sets in that column, in the document's order. An item without a column of its own stands in the
     column of the item before it (the first column at first).
 
-    A column whose first item is an engine line (*tops*: the paper top of each line item) starts at that
-    line's top: the room above it, which the engine leaves to what stands across the columns (a table
-    wider than its column), stays free."""
+    What the engine sets first in a column area and wider than its column (a table across the columns) stands
+    across them, above their boxes: the columns start under it, never beside it. A column whose first item
+    the engine gives a top (*tops*: the box of each item where known) starts at that top: the room above it,
+    which the engine leaves to what stands across the columns, stays free."""
     areas = page.column_areas
     held: dict[tuple[int, int], list[str]] = {}
+    across: dict[int, list[str]] = {}
+    under: dict[int, int] = {}  # the engine's foot of what stands across an area's columns
     current = (0, 0)
     _, body_top, body_width, body_height = page.body
     for part, slot, top in zip(parts, slots, tops):
         current = slot if slot is not None else current
         area = min(current[0], len(areas) - 1)
         key = (area, min(current[1], max(len(areas[area].widths), 1) - 1))
-        if key not in held and top is not None and top > max(areas[area].top, body_top):
-            lead = _style_attr({"height": _fmt_mm(_hwp_to_mm(top - max(areas[area].top, body_top)))})
+        widths = areas[area].widths
+        if (len(widths) > 1 and not any(column[0] == area for column in held) and top is not None
+                and top[2] is not None and top[2] > widths[key[1]] + _ACROSS_TOLERANCE):
+            across.setdefault(area, []).append(part)
+            under[area] = max(under.get(area, 0), top[1])
+            continue
+        start = max(areas[area].top, body_top, under.get(area, 0))
+        if key not in held and top is not None and top[0] > start:
+            lead = _style_attr({"height": _fmt_mm(_hwp_to_mm(top[0] - start))})
             held[key] = [f'<div class="hwpx-engine-column-lead" style="{lead}"></div>']
         held.setdefault(key, []).append(part)
     rows = []
@@ -3063,6 +3290,9 @@ def _column_flow(
             issues[("page-flow", "column gap is not given: the columns are spaced evenly")] += 1
             gap = max(0, (body_width - sum(widths)) // (len(widths) - 1))
         foot = areas[number + 1].top if number + 1 < len(areas) else body_top + body_height
+        if number in across:
+            rows.append(f'<div class="hwpx-engine-column-across" data-column-area="{number}">'
+                        f'{"".join(across[number])}</div>')
         columns = []
         for column, width in enumerate(widths):
             css = _style_attr({
@@ -3071,7 +3301,8 @@ def _column_flow(
             })
             columns.append(f'<div class="hwpx-engine-column" data-column="{column}" style="{css}">'
                            f'{"".join(held.get((number, column), []))}</div>')
-        height = _style_attr({"min-height": _fmt_mm(_hwp_to_mm(max(0, foot - max(area.top, body_top))))})
+        height = _style_attr({"min-height": _fmt_mm(_hwp_to_mm(
+            max(0, foot - max(area.top, body_top, under.get(number, 0)))))})
         rows.append(f'<div class="hwpx-engine-column-area" data-column-area="{number}" style="{height}">'
                     f'{"".join(columns)}</div>')
     return "".join(rows)
@@ -3301,6 +3532,19 @@ def _render_engine_preview(
     document: HwpxDocument, layout: Any, mode: str, title: str,
     styles: Mapping[str, Any], warnings: list[str], parts: Mapping[str, bytes],
 ) -> LayoutPreview:
+    """The engine preview, the numbers and bullets of its paragraphs drawn before their first lines."""
+    labels = _Labels.of(document, styles["char"])
+    token = _LABELS.set(labels)
+    try:
+        return _draw_engine_preview(document, layout, mode, title, styles, warnings, parts, labels)
+    finally:
+        _LABELS.reset(token)
+
+
+def _draw_engine_preview(
+    document: HwpxDocument, layout: Any, mode: str, title: str,
+    styles: Mapping[str, Any], warnings: list[str], parts: Mapping[str, bytes], labels: _Labels,
+) -> LayoutPreview:
     sections = [section.element for section in document.sections]
     body_paragraphs = [section.findall(f"{_HP}p") for section in sections]
     content: list[list[str | _PlacedLine | _AnchorMarkup]] = [[] for _ in layout.pages]
@@ -3332,9 +3576,14 @@ def _render_engine_preview(
     # The column each item of a page stands in, as (column area, column); None: the one of the item before.
     slots: list[list[tuple[int, int] | None]] = [[] for _ in layout.pages]
 
-    def put(page: int, item: str | _PlacedLine | _AnchorMarkup, line: Any = None) -> None:
-        content[page].append(item)
-        slots[page].append(_slot(layout.pages[page], line) if line is not None else None)
+    def put(page: int, item: str | _PlacedLine | _AnchorMarkup, line: Any = None, at: int | None = None) -> None:
+        slot = _slot(layout.pages[page], line) if line is not None else None
+        if at is None:
+            content[page].append(item)
+            slots[page].append(slot)
+        else:
+            content[page].insert(at, item)
+            slots[page].insert(at, slot)
 
     for placed in layout.paragraphs:
         key = placed.section, placed.paragraph
@@ -3376,6 +3625,9 @@ def _render_engine_preview(
         )
         fallback = (without_text_range or not placed.lines or uncovered) and text
         shown: list[_PlacedLine] = []
+        # Where the paragraph's items begin on each page: a table it anchors that the engine sets above its
+        # first line there goes before that line, as it stands on the paper.
+        opened = {page: len(content[page]) for page in first_on}
         if fallback:
             issues[("paragraph", "engine lines do not give all the paragraph's text" if uncovered
                     else "engine text ranges are unavailable")] += 1
@@ -3417,7 +3669,12 @@ def _render_engine_preview(
                 continue
             if host is not None and anchor.page == host.line.position.page:
                 host = None
-            put(anchor.page, anchor, first_on.get(anchor.page))
+            first = first_on.get(anchor.page)
+            above = (anchor.box is not None and first is not None and not anchor.inline and not anchor.overlay
+                     and anchor.box[0] < first.top and opened.get(anchor.page, 0) < len(content[anchor.page]))
+            put(anchor.page, anchor, first, at=opened[anchor.page] if above else None)
+            if above:
+                opened[anchor.page] += 1
 
     # A body paragraph the engine lists nowhere is still shown, on its section's first page; what a header,
     # footer or note of it holds stands beside the body, in its margin, as one the engine gives no page.
@@ -3473,6 +3730,9 @@ def _render_engine_preview(
                                  len(paragraphs_by_page[index]), table_counts[index]))
     if flowing_tables:
         issues[_FLOWING_TABLE] += len(flowing_tables)
+    issues.update(labels.issues)
+    if labels.drawn:
+        issues[_LABEL_ROOM] += len(labels.drawn)
     if memos := _memo_count(sections):
         issues[("memo", "memo text is not part of the page")] += memos
     if flow_pages:
