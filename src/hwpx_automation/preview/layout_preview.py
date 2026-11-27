@@ -672,6 +672,8 @@ class _PageNumbers:
     total: int
     #: What drawing a number counts (a number style this module does not write, drawn in digits).
     issues: Counter[tuple[str, str]]
+    #: The engine gives the page no number: *number* is the preview's own count.
+    counted: bool = False
 
 
 #: Set while a header or footer is drawn for one page: its page numbers are written as that page's.
@@ -687,6 +689,7 @@ _LETTER_STYLES = {
     "CIRCLED_DIGIT": _CIRCLED,
 }
 _NUMBER_STYLE_UNREAD = ("page-number", "number style is not written here: the number is drawn in digits")
+_NUMBER_COUNTED = ("page-number", "the engine gives the page no number: the preview's own count is drawn")
 
 
 def _roman(value: int) -> str:
@@ -721,6 +724,8 @@ def _auto_number(node: ET.Element) -> str | None:
         return None
     form = node.find(f"{_HP}autoNumFormat")
     style = form.get("type") if form is not None else None
+    if kind == "PAGE" and numbers.counted:
+        numbers.issues[_NUMBER_COUNTED] += 1
     text = _number_text(numbers.number if kind == "PAGE" else numbers.total, style, numbers.issues)
     if form is not None:
         text = f"{form.get('prefixChar') or ''}{text}{form.get('suffixChar') or ''}"
@@ -1991,13 +1996,14 @@ def _table_anchors(
         issues[("table", "caption placement is unavailable")] += 1
     anchors = []
     seen: set[int] = set()
-    drawable = _drawable_at_coordinates(table, sources.objects)
-    held = _cell_held_objects(table) if drawable else []
+    drawable = _drawable_at_coordinates(table, sources.objects, placements)
+    held = [node for child in _table_tree(table) for node in _cell_held_objects(child)] if drawable else []
     for page, rows in sorted(rows_by_page.items()):
         table_counts[page] += 1
         captions = tuple(caption for caption in placed.captions if caption.page == page)
         closing = rows[-1] is placed.rows[-1]
         flowing: Counter[tuple[str, str]] = Counter()
+        numbered = counter.pictures
         flowing_markup = _render_table(
             table, styles, counter, flow=True, row_parts=tuple(rows), table_index=placed.table,
             table_placements=placements, continued_rows=frozenset(seen), captions=captions,
@@ -2010,7 +2016,7 @@ def _table_anchors(
         if drawable and pages is not None and 0 <= page < len(pages):
             positioned = _positioned_table(
                 table, tuple(rows), placed.table, pages[page], styles, plans, at_coordinates,
-                unplaced=closing and _has_unplaced_cells(table, plans),
+                unplaced=closing and _has_unplaced_cells(table, plans), placements=placements,
             )
         if positioned is None:
             anchors.append(_AnchorMarkup(page, flowing_markup, inline=inline, issues=flowing, table=id(table)))
@@ -2020,6 +2026,8 @@ def _table_anchors(
                 flow_issues=flowing, table=id(table),
             ))
             # The objects its cells hold stand at their own places; a flow page draws them in the flowing rows.
+            # Either way a picture takes the number the flowing rows gave it.
+            flowed, counter.pictures = counter.pictures, numbered
             for node in held:
                 found = sources.objects.get(node)
                 if found is None or found.page != page:
@@ -2029,6 +2037,7 @@ def _table_anchors(
                                         pages=pages or ())
                 anchors.append(_AnchorMarkup(page, anchor.html, flow=False, overlay=anchor.overlay, flow_html="",
                                              issues=drawn))
+            counter.pictures = max(flowed, counter.pictures)
     return anchors
 
 
@@ -2043,10 +2052,43 @@ def _cell_held_objects(table: ET.Element) -> list[ET.Element]:
     ]
 
 
-def _drawable_at_coordinates(table: ET.Element, objects: Mapping[Any, Any] | None = None) -> bool:
-    """Whether a table holds only what is drawn at coordinates: its engine cell lines, and objects its cells
-    anchor that the engine gives a rectangle (with what they hold). No table, note or caption, and no other
-    object: the engine sets no lines for those in a cell, and a table holding any of them flows.
+def _cell_tables(table: ET.Element) -> list[ET.Element]:
+    """The tables the cells of *table* anchor in their own paragraphs (not a header's or footer's)."""
+    return [
+        nested for cell in table.findall(f"{_HP}tr/{_HP}tc") for paragraph in cell.findall(f"{_HP}subList/{_HP}p")
+        for nested in _anchored_tables(paragraph, areas=False)
+    ]
+
+
+def _holds_tables(line: Any) -> bool:
+    """Whether a cell line is one the engine gives for the tables it holds."""
+    return bool(getattr(line, "tables", ()))
+
+
+def _table_tree(table: ET.Element) -> list[ET.Element]:
+    """*table* and the tables its cells anchor, theirs in turn."""
+    return [table] + [node for child in _cell_tables(table) for node in _table_tree(child)]
+
+
+def _rows_at_coordinates(placed: Any) -> bool:
+    """Whether the engine gives every row of a table its paper top, height and left edge."""
+    return placed is not None and bool(placed.rows) and all(
+        None not in (row.top, row.height, row.x) for row in placed.rows
+    )
+
+
+_PAGE_AREAS = frozenset({f"{_HP}header", f"{_HP}footer"})
+
+
+def _drawable_at_coordinates(
+    table: ET.Element, objects: Mapping[Any, Any] | None = None, placements: Mapping[Any, Any] | None = None,
+) -> bool:
+    """Whether a table holds only what is drawn at coordinates: its engine cell lines, objects its cells
+    anchor that the engine gives a rectangle (with what they hold), and tables its cells set on a line of
+    their own that the engine gives every row's place (*placements*), each drawable in turn. A header or
+    footer control a cell holds is drawn in its own room, so it takes nothing from the cell. No note or
+    caption, and no other table or object: the engine sets no lines for those in a cell, and a table
+    holding any of them flows.
     """
     if table.find(f"{_HP}caption") is not None:
         return False
@@ -2054,8 +2096,16 @@ def _drawable_at_coordinates(table: ET.Element, objects: Mapping[Any, Any] | Non
     if any(_object_rect((objects or {}).get(node)) is None for node in held):
         return False
     inside = {node for holder in held for node in holder.iter()}
+    nested = _cell_tables(table)
+    for node in nested:
+        if not _rows_at_coordinates((placements or {}).get(node)) or not _drawable_at_coordinates(
+            node, objects, placements,
+        ):
+            return False
+    within = {node for child in nested for node in child.iter()}
+    areas = {node for area in table.iter() if area.tag in _PAGE_AREAS for node in area.iter()}
     return not any(
-        node is not table and (
+        node is not table and node not in within and node not in areas and (
             node.tag == f"{_HP}tbl" or node.tag in _AREA_LABELS or (node.tag in _OBJECT_TAGS and node not in inside)
         )
         for node in table.iter()
@@ -2091,6 +2141,7 @@ def _half_border(border: str | None) -> str:
 def _positioned_table(
     table: ET.Element, rows: tuple[Any, ...], number: int, page: Any, styles: Mapping[str, Any],
     plans: Mapping[int, _CellPlan], issues: Counter[tuple[str, str]], *, unplaced: bool,
+    placements: Mapping[Any, Any] | None = None,
 ) -> str | None:
     """The rows the engine set on one page, drawn at the engine's coordinates; ``None`` when a value is missing.
 
@@ -2098,9 +2149,27 @@ def _positioned_table(
     its top, left, width and text, and no paragraph of a cell may need drawing whole. A cell's
     rectangle is the engine's; its border lines stand on the cell's edges (half inside, half out,
     so two cells share one line); its lines stand at the engine's tops, left edges and widths.
+    A cell line holding a table (its text not given) draws nothing itself: the table's rows on this
+    page are drawn after the outer table, at the engine's coordinates in turn (*placements*).
     """
     if unplaced:
         return None
+    nested = []
+    for child in _cell_tables(table):
+        found: Any = (placements or {}).get(child)
+        if not _rows_at_coordinates(found):
+            return None
+        here = tuple(row for row in found.rows if row.page == page.page)
+        if not here:
+            continue
+        child_plans = _cell_plans(child, found)
+        markup = _positioned_table(
+            child, here, found.table, page, styles, child_plans, issues,
+            unplaced=here[-1] is found.rows[-1] and _has_unplaced_cells(child, child_plans), placements=placements,
+        )
+        if markup is None:
+            return None
+        nested.append(markup)
     sources = table.findall(f"{_HP}tr/{_HP}tc")
     boxes = []
     for row in rows:
@@ -2117,7 +2186,8 @@ def _positioned_table(
                 return None
             source = sources[cell.source_index]
             own = source.findall(f"{_HP}subList/{_HP}p")
-            lines = _fragment_lines(cell)
+            # A line holding tables, its text not given, is drawn by those tables (below).
+            lines = tuple(line for line in _fragment_lines(cell) if line.text is not None or not _holds_tables(line))
             if any(
                 line.top is None or line.x is None or line.width is None or line.text is None
                 or line.paragraph >= len(own) for line in lines
@@ -2158,7 +2228,7 @@ def _positioned_table(
     })
     return (
         f'<div class="hwpx-engine-table" data-engine-table="{number}" data-engine-page="{page.page}" '
-        f'style="{extent}">{"".join(cells)}</div>'
+        f'style="{extent}">{"".join(cells)}</div>{"".join(nested)}'
     )
 
 
@@ -2629,11 +2699,13 @@ class _Numbering:
 
     numbers: tuple[int, ...]
     issues: Counter[tuple[str, str]]
+    #: Pages the engine gives no number: the preview's own count stands in (counted when drawn).
+    counted: frozenset[int] = frozenset()
 
     def on(self, page: int) -> _PageNumbers | None:
         if not 0 <= page < len(self.numbers):
             return None
-        return _PageNumbers(self.numbers[page], len(self.numbers), self.issues)
+        return _PageNumbers(self.numbers[page], len(self.numbers), self.issues, page in self.counted)
 
 
 @contextmanager
@@ -3046,9 +3118,10 @@ def _page_numbering(
     layout: Any, sections: list[ET.Element], body_paragraphs: list[list[ET.Element]],
     starts: Mapping[tuple[int, int], int], issues: Counter[tuple[str, str]],
 ) -> _Numbering:
-    """The number of each page in the engine's page order: one more than the page before, from 1; a section
-    whose ``hp:startNum@page`` is set starts at it, and a page a body paragraph sets a new page number on
-    (``hp:newNum@numType=PAGE``) takes it."""
+    """The number of each page in the engine's page order: the engine's (``PagePlacement.number``) where it
+    gives one. Where it does not, the preview's own count stands in, as an approximation: one more than the
+    page before, from 1; a section whose ``hp:startNum@page`` is set starts at it, and a page a body
+    paragraph sets a new page number on (``hp:newNum@numType=PAGE``) takes it."""
     renumbered = {
         page: _safe_int(node.get("num"), 1) for _, page, node in _page_controls(body_paragraphs, starts, "newNum")
         if node.get("numType") == "PAGE"
@@ -3057,16 +3130,22 @@ def _page_numbering(
     for page in layout.pages:
         first.setdefault(page.section, page.page)
     numbers: list[int] = []
+    counted: set[int] = set()
     for page in layout.pages:
+        engine = getattr(page, "number", None)
         start = sections[page.section].find(f".//{_HP}secPr/{_HP}startNum") if page.section < len(sections) else None
-        if page.page in renumbered:
+        if engine is not None:
+            number = engine
+        elif page.page in renumbered:
             number = renumbered[page.page]
         elif first[page.section] == page.page and start is not None and _safe_int(start.get("page")) > 0:
             number = _safe_int(start.get("page"))
         else:
             number = numbers[-1] + 1 if numbers else 1
+        if engine is None:
+            counted.add(page.page)
         numbers.append(number)
-    return _Numbering(tuple(numbers), issues)
+    return _Numbering(tuple(numbers), issues, frozenset(counted))
 
 
 _PAGE_NUMBER_PLACE = ("page-number", "page number is drawn at an approximate place in the header or footer margin")
@@ -3094,6 +3173,8 @@ def _page_number_anchors(
         if control is None or position == "NONE" or page.page in hidden:
             continue
         number = numbering.numbers[page.page]
+        if page.page in numbering.counted:
+            issues[_NUMBER_COUNTED] += 1
         vertical, _, side = position.partition("_")
         if vertical in ("OUTSIDE", "INSIDE"):
             vertical, side = side, ("RIGHT" if (number % 2 == 1) == (vertical == "OUTSIDE") else "LEFT")
