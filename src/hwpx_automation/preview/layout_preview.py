@@ -17,7 +17,9 @@ import io
 import re
 from collections import Counter
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -125,6 +127,8 @@ class _ParagraphSources:
     lines: tuple[Any, ...] = ()
     #: The section's header and footer margins (HWPUNIT): where a header or footer without a page stands.
     margins: Mapping[str, int] = field(default_factory=dict)
+    #: The numbers of the pages, for the page numbers a header or footer holds.
+    numbering: _Numbering | None = None
 
 
 _DEFAULT_PAGE_WIDTH_MM = 210.0
@@ -659,6 +663,84 @@ def _run_objects(run: ET.Element) -> Iterator[ET.Element]:
                 yield found
 
 
+@dataclass(frozen=True)
+class _PageNumbers:
+    """The page an area is drawn on, for the page numbers it holds (``hp:autoNum``): the number the
+    engine's page order gives that page, and the document's page count."""
+
+    number: int
+    total: int
+    #: What drawing a number counts (a number style this module does not write, drawn in digits).
+    issues: Counter[tuple[str, str]]
+
+
+#: Set while a header or footer is drawn for one page: its page numbers are written as that page's.
+_PAGE_NUMBERS: ContextVar[_PageNumbers | None] = ContextVar("_PAGE_NUMBERS", default=None)
+
+_CIRCLED = "".join(chr(code) for code in range(0x2460, 0x2474))
+_LETTER_STYLES = {
+    "LATIN_CAPITAL": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "LATIN_SMALL": "abcdefghijklmnopqrstuvwxyz",
+    "HANGUL_SYLLABLE": "가나다라마바사아자차카타파하",
+    "HANGUL_JAMO": "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ",
+    "IDEOGRAPH": "一二三四五六七八九十",
+    "CIRCLED_DIGIT": _CIRCLED,
+}
+_NUMBER_STYLE_UNREAD = ("page-number", "number style is not written here: the number is drawn in digits")
+
+
+def _roman(value: int) -> str:
+    result = []
+    for amount, letters in ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"),
+                            (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")):
+        count, value = divmod(value, amount)
+        result.append(letters * count)
+    return "".join(result)
+
+
+def _number_text(value: int, style: str | None, issues: Counter[tuple[str, str]]) -> str:
+    """*value* in the file's number style (``DIGIT`` and those named here); any other in digits, counted."""
+    style = (style or "DIGIT").upper()
+    if style == "DIGIT":
+        return str(value)
+    if style in ("ROMAN_CAPITAL", "ROMAN_SMALL") and 0 < value < 4000:
+        roman = _roman(value)
+        return roman if style == "ROMAN_CAPITAL" else roman.lower()
+    letters = _LETTER_STYLES.get(style)
+    if letters is not None and 0 < value <= len(letters):
+        return letters[value - 1]
+    issues[_NUMBER_STYLE_UNREAD] += 1
+    return str(value)
+
+
+def _auto_number(node: ET.Element) -> str | None:
+    """The text a page number or page count (``hp:autoNum``) shows on the page being drawn, else ``None``."""
+    numbers = _PAGE_NUMBERS.get()
+    kind = node.get("numType")
+    if numbers is None or kind not in ("PAGE", "TOTAL_PAGE"):
+        return None
+    form = node.find(f"{_HP}autoNumFormat")
+    style = form.get("type") if form is not None else None
+    text = _number_text(numbers.number if kind == "PAGE" else numbers.total, style, numbers.issues)
+    if form is not None:
+        text = f"{form.get('prefixChar') or ''}{text}{form.get('suffixChar') or ''}"
+    return text
+
+
+def _number_span(number: str, style: str) -> str:
+    """A page number in a header or footer. The style sheet draws it from the attribute: it is no text of
+    the document (Hangul lists none for it among a page's text), so it stays out of the page's text."""
+    shown = html.escape(number, quote=True)
+    return f'<span class="hwpx-page-number-text" data-number-text="{shown}" style="{style}"></span>'
+
+
+def _run_numbers(run: ET.Element) -> list[str]:
+    """The page numbers a run holds, as the page being drawn shows them."""
+    return [
+        text for node in run.findall(f"{_HP}ctrl/{_HP}autoNum") if (text := _auto_number(node)) is not None
+    ]
+
+
 def _render_inline_runs(
     paragraph: ET.Element,
     styles: Mapping[str, Any],
@@ -672,10 +754,12 @@ def _render_inline_runs(
     char_styles = styles["char"]
     for run in paragraph.findall(f"{_HP}run"):
         text = _find_text_in_run(run)
-        if text:
+        numbers = _run_numbers(run) if _PAGE_NUMBERS.get() is not None else []
+        if text or numbers:
             char_style = char_styles.get(run.get("charPrIDRef") or "0", {})
             style = _character_css(char_style, extended=extended_styles)
-            spans.append(f'<span style="{style}">{html.escape(text)}</span>')
+            spans.append(f'<span style="{style}">{html.escape(text)}</span>' if text else "")
+            spans.extend(_number_span(number, style) for number in numbers)
         # Inline objects that carry no text are rendered as real content or an
         # honest marker -- never dropped to a blank (Constitution VI).
         if include_objects and cell_objects is not None:
@@ -1445,6 +1529,24 @@ def _base_css(mode: str) -> str:
         ".hwpx-object-caption { display: block; white-space: normal; }\n"
         ".hwpx-cell-picture { display: inline-block; vertical-align: bottom; }\n"
         ".hwpx-engine-flow-page { position: relative; isolation: isolate; }\n"
+        # A flow page with columns: a row per column area, a box per column (not positioned: what stands
+        # on the paper is still placed from the page box).
+        ".hwpx-engine-column-area { display: flex; align-items: flex-start; }\n"
+        ".hwpx-engine-column { flex: none; display: flow-root; min-width: 0; }\n"
+        # What the approximate flow stacks past the body's foot: under the page box, marked.
+        ".hwpx-engine-spill { position: absolute; top: 100%; left: 0; right: 0; box-sizing: border-box; isolation: isolate; "
+        "padding-top: 1mm !important; padding-bottom: 2mm !important; background: #fff8ef; "
+        "border-top: 0.6mm dashed #d08a3a; box-shadow: 0 0 0 1px #e8c9a4; }\n"
+        ".hwpx-engine-spill::before { display: table; margin: 0 0 1mm; padding: 0 1mm; color: #6b4a1a; "
+        "background: #fff8ef; font-size: 8pt; "
+        "content: '넘침 · 엔진은 이 쪽 본문에 넣었으나 근사 배치가 본문 높이를 넘은 부분'; }\n"
+        ".hwpx-engine-spill .hwpx-engine-column-area { min-height: 0 !important; }\n"
+        # A footer (and a page number at the foot) of a flow page stands on the page box's foot.
+        ".hwpx-area-foot { position: absolute; left: 0; right: 0; bottom: 0; "
+        "height: var(--hwpx-paper-height); margin: 0; pointer-events: none; }\n"
+        ".hwpx-page-number { position: absolute; display: flex; align-items: center; box-sizing: border-box; "
+        "margin: 0; font-size: 10pt; white-space: pre; }\n"
+        ":is(.hwpx-page-number, .hwpx-page-number-text)::before { content: attr(data-number-text); }\n"
         ".hwpx-placed-object { display: block; box-sizing: border-box; margin: 0; }\n"
         ".hwpx-placed-object[data-overlay] { position: absolute; }\n"
         ".hwpx-placed-object[data-overlay=behind] { z-index: -1; }\n"
@@ -1509,19 +1611,95 @@ def _flow_overflow_script() -> str:
       line.dataset.fitted = scale.toFixed(3);
     }
   });
-  function measure(body) {
-    const page = body.parentElement;
-    const engineHeight = parseFloat(getComputedStyle(body).minHeight);
-    const overflows = body.getBoundingClientRect().height > engineHeight + 0.5;
-    page.dataset.flowHeight = Math.ceil(page.getBoundingClientRect().height);
-    page.dataset.flowOverflow = String(overflows);
-    page.querySelector('.hwpx-engine-overflow').hidden = !overflows;
+  // A flow page keeps its paper's height. What its approximate flow stacks past the body's foot
+  // (in each column) moves, in order, into the overflow band under the page box, which shows it.
+  // What stands on the paper (headers, footers, objects over or under the text) stays.
+  function inFlow(item) {
+    const position = getComputedStyle(item).position;
+    return position !== 'absolute' && position !== 'fixed';
   }
-  const observer = new ResizeObserver(entries => entries.forEach(entry => measure(entry.target)));
-  document.querySelectorAll('.hwpx-engine-flow').forEach(body => {
-    measure(body);
-    observer.observe(body);
-  });
+  // The rows of a table (alone, or the one table a line holds) below the foot, moved into a copy of
+  // the table (and of the line holding it); null when no row above the foot stays.
+  function splitRows(item, foot) {
+    const table = item.tagName === 'TABLE' ? item : item.querySelector(':scope > table');
+    if (!table || (item !== table && item.querySelectorAll(':scope > table').length !== 1)) return null;
+    const rows = [...table.rows].filter(row => row.parentElement.closest('table') === table);
+    const at = rows.findIndex(row => row.getBoundingClientRect().bottom > foot);
+    if (at <= 0) return null;
+    const rest = table.cloneNode(false);
+    table.querySelectorAll(':scope > colgroup').forEach(group => rest.appendChild(group.cloneNode(true)));
+    const part = document.createElement('tbody');
+    rows.slice(at).forEach(row => part.appendChild(row));
+    rest.appendChild(part);
+    rest.dataset.continued = '1';
+    if (item === table) return rest;
+    const holder = item.cloneNode(false);
+    holder.appendChild(rest);
+    return holder;
+  }
+  function spill(page) {
+    const body = page.querySelector(':scope > .hwpx-engine-flow');
+    const band = page.querySelector(':scope > .hwpx-engine-spill');
+    if (!body || !band) return;
+    const foot = body.getBoundingClientRect().top + parseFloat(getComputedStyle(body).minHeight) + 0.5;
+    const into = band.querySelector('.hwpx-engine-spill-flow');
+    const copies = new Map();
+    function copy(holder) {
+      if (holder === body) return into;
+      if (!copies.has(holder)) {
+        const row = holder.parentElement;
+        if (!copies.has(row)) {
+          const rowCopy = row.cloneNode(false);
+          into.appendChild(rowCopy);
+          copies.set(row, rowCopy);
+        }
+        const holderCopy = holder.cloneNode(false);
+        copies.get(row).appendChild(holderCopy);
+        copies.set(holder, holderCopy);
+      }
+      return copies.get(holder);
+    }
+    const room = parseFloat(getComputedStyle(body).minHeight);
+    const holders = body.querySelectorAll(':scope > .hwpx-engine-column-area > .hwpx-engine-column');
+    let moved = 0;
+    for (const holder of (holders.length ? holders : [body])) {
+      const items = [...holder.children].filter(inFlow);
+      let first = items.findIndex(item => item.getBoundingClientRect().bottom > foot);
+      if (first < 0) continue;
+      const target = copy(holder);
+      const across = items[first];
+      if (across.getBoundingClientRect().top < foot) {
+        // Across the foot: a table keeps the rows above it and moves the rest; anything else
+        // taller than half the body stays whole (the page box grows), a shorter one moves.
+        const rest = splitRows(across, foot);
+        if (rest) {
+          target.appendChild(rest);
+          moved += 1;
+          first += 1;
+        } else if (across.getBoundingClientRect().height > room / 2) {
+          first += 1;
+        }
+      }
+      items.slice(first).forEach(item => { target.appendChild(item); moved += 1; });
+    }
+    if (moved) {
+      // The band runs on from the page: the page's fill is behind it too (light text on it stays legible).
+      const fill = page.querySelector(':scope > .hwpx-page-fill');
+      if (fill && !band.querySelector(':scope > .hwpx-page-fill')) band.prepend(fill.cloneNode(true));
+      band.hidden = false;
+      const base = parseFloat(page.dataset.flowMargin || getComputedStyle(page).marginBottom) || 0;
+      page.dataset.flowMargin = String(base);
+      page.style.marginBottom = (base + band.getBoundingClientRect().height) + 'px';
+    }
+    const spilled = !band.hidden;
+    page.dataset.flowOverflow = String(spilled);
+    page.dataset.flowSpilled = String(Number(page.dataset.flowSpilled || 0) + moved);
+    page.dataset.flowHeight = Math.ceil(page.getBoundingClientRect().height + (spilled ? band.getBoundingClientRect().height : 0));
+    page.querySelector('.hwpx-engine-overflow').hidden = !spilled;
+  }
+  const pages = [...document.querySelectorAll('.hwpx-engine-flow-page')];
+  pages.forEach(spill);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => pages.forEach(spill));
 })();
 </script>
 """
@@ -1565,19 +1743,37 @@ def _document_html(
     )
 
 
-def _styled_line_text(line: Any, styles: Mapping[str, Any]) -> str:
-    runs = getattr(line, "runs", ())
+def _styled_line_text(
+    line: Any, styles: Mapping[str, Any], inserts: tuple[tuple[int, str, str], ...] = (),
+) -> str:
+    """A line's text in its runs' character styles; each of *inserts* (offset in the line's text, text,
+    character style reference) is set in at its offset: a page number the engine's text leaves out."""
+    runs = list(getattr(line, "runs", ()))
     if not runs:
-        return html.escape(line.text.removesuffix("\n"))
-    spans = []
+        if not inserts:
+            return html.escape(line.text.removesuffix("\n"))
+        runs = [(inserts[0][2], line.text)]
+    pieces: list[tuple[str, str, bool]] = []
+    offset = 0
+    pending = sorted(inserts)
     for index, (reference, text) in enumerate(runs):
         if index == len(runs) - 1:
             text = text.removesuffix("\n")
+        while pending and pending[0][0] <= offset + len(text):
+            at, number, own = pending.pop(0)
+            cut = max(0, at - offset)
+            pieces.append((reference, text[:cut], False))
+            pieces.append((own, number, True))
+            text, offset = text[cut:], offset + cut
+        pieces.append((reference, text, False))
+        offset += len(text)
+    pieces.extend((own, number, True) for _, number, own in pending)
+    spans = []
+    for reference, text, inserted in pieces:
         if not text:
             continue
-        char = styles["char"].get(reference, {})
-        css = _character_css(char, extended=True)
-        spans.append(f'<span style="{css}">{html.escape(text)}</span>')
+        css = _character_css(styles["char"].get(reference, {}), extended=True)
+        spans.append(_number_span(text, css) if inserted else f'<span style="{css}">{html.escape(text)}</span>')
     return "".join(spans)
 
 
@@ -1609,10 +1805,15 @@ def _line_advance(line: Any, following: Any) -> int | None:
 
 def _engine_line(
     line: Any, paragraph: Any, styles: Mapping[str, Any], page: Any, *, area_line: bool = False,
-    advance: int | None = None, hosted: str = "",
+    advance: int | None = None, hosted: str = "", in_column: bool = False,
+    inserts: tuple[tuple[int, str, str], ...] = (),
 ) -> tuple[str, bool]:
-    """One engine line. In a flow page it takes *advance*, and *hosted* is drawn inside it."""
+    """One engine line. In a flow page it takes *advance*, and *hosted* is drawn inside it; *in_column*,
+    it stands in its column's own box, its offset taken from the column's left edge. *inserts* are
+    page numbers set into its text (see :func:`_styled_line_text`)."""
     paper_x, offset, width, approximate = _line_frame(line, page)
+    if in_column:
+        offset = line.x
     column = line.position.column
     run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
     char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
@@ -1630,7 +1831,7 @@ def _engine_line(
         "color": None if hosted else char.get("color", "#000000"),
         "text-align": None if hosted else para_style.get("align", "left"),
     })
-    text = _styled_line_text(line, styles)
+    text = _styled_line_text(line, styles, inserts)
     css_class = "hwpx-engine-area-line" if area_line else "hwpx-engine-line"
     attrs = f' data-engine-advance="{advance}"' if advance is not None else ""
     if hosted:
@@ -1740,7 +1941,7 @@ def _flow_anchors(
                 if area.tag in _AREA_LABELS:
                     anchors.extend(_engine_area_anchors(
                         area, home, sources.areas.get(area, []), pages, styles, issues, counter, sources.margins,
-                        table_counts,
+                        table_counts, sources.numbering,
                     ))
     return anchors
 
@@ -2370,6 +2571,81 @@ def _area_room(placed: Any, pages: tuple[Any, ...]) -> tuple[int, tuple[int, int
     return placed.page, (placed.x, placed.top, placed.width, placed.height)
 
 
+def _area_numbers(area: ET.Element) -> list[list[tuple[int, ET.Element, str]]]:
+    """For each of an area's own paragraphs, its page numbers (``hp:autoNum`` in a run's ``hp:ctrl``):
+    how many characters of the paragraph's text stand before each, the node, and its run's character style."""
+    result = []
+    for paragraph in area.findall(f"{_HP}subList/{_HP}p"):
+        found: list[tuple[int, ET.Element, str]] = []
+        offset = 0
+        for run in paragraph.findall(f"{_HP}run"):
+            reference = run.get("charPrIDRef") or "0"
+            for child in run:
+                if child.tag == f"{_HP}ctrl":
+                    found.extend((offset, node, reference) for node in child.findall(f"{_HP}autoNum"))
+                    offset += 1 if (child.get("id") or "").lower() == "tab" else 0
+                elif child.tag == f"{_HP}t":
+                    offset += len(_text_node_content(child))
+                elif child.tag in (f"{_HP}tab", f"{_HP}lineBreak"):
+                    offset += 1
+        result.append(found)
+    return result
+
+
+def _line_numbers(
+    lines: tuple[Any, ...], holders: list[ET.Element], own: list[ET.Element], area: ET.Element,
+) -> list[tuple[tuple[int, str, str], ...]]:
+    """The page numbers to set into each of an area's engine lines, as the page being drawn shows them.
+
+    The engine's line text leaves a page number out. It goes into the line of its paragraph that holds
+    the characters before it (at its offset there), the paragraph's last line when they end the paragraph.
+    """
+    numbers = _area_numbers(area)
+    result: list[list[tuple[int, str, str]]] = [[] for _ in lines]
+    starts: dict[int, int] = {}
+    places: dict[int, list[tuple[int, int, int]]] = {}  # paragraph -> (line, start, length)
+    for index, (line, holder) in enumerate(zip(lines, holders)):
+        number = next((at for at, paragraph in enumerate(own) if paragraph is holder), -1)
+        start = starts.get(number, 0)
+        length = len((line.text or "").removesuffix("\n"))
+        places.setdefault(number, []).append((index, start, length))
+        starts[number] = start + length
+    for number, found in enumerate(numbers):
+        held = places.get(number)
+        if not held:
+            continue
+        for offset, node, reference in found:
+            text = _auto_number(node)
+            if text is None:
+                continue
+            index, start, _ = next((place for place in held if offset < place[1] + place[2]), held[-1])
+            result[index].append((max(0, offset - start), text, reference))
+    return [tuple(found) for found in result]
+
+
+@dataclass(frozen=True)
+class _Numbering:
+    """The numbers of the document's pages in the engine's page order, and its page count."""
+
+    numbers: tuple[int, ...]
+    issues: Counter[tuple[str, str]]
+
+    def on(self, page: int) -> _PageNumbers | None:
+        if not 0 <= page < len(self.numbers):
+            return None
+        return _PageNumbers(self.numbers[page], len(self.numbers), self.issues)
+
+
+@contextmanager
+def _numbers_of(numbering: _Numbering | None, page: int) -> Iterator[None]:
+    """Within it, the page numbers drawn are written as page *page*'s."""
+    token = _PAGE_NUMBERS.set(numbering.on(page) if numbering is not None else None)
+    try:
+        yield
+    finally:
+        _PAGE_NUMBERS.reset(token)
+
+
 def _area_whole(
     area: ET.Element, kind: str, room: tuple[int, int, int | None, int | None], styles: Mapping[str, Any],
     counter: _ObjectCounter, *, foot: bool = False,
@@ -2393,7 +2669,7 @@ def _area_whole(
 def _engine_area_anchors(
     area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...], styles: Mapping[str, Any],
     issues: Counter[tuple[str, str]], counter: _ObjectCounter, margins: Mapping[str, int],
-    table_counts: Counter[int],
+    table_counts: Counter[int], numbering: _Numbering | None = None,
 ) -> list[_AnchorMarkup]:
     """A header, footer or note on each page the engine gives it, over or beside the body: it takes no room
     in a flow page, which only stacks the body.
@@ -2401,8 +2677,23 @@ def _engine_area_anchors(
     Its lines stand at the engine's places when they give all its text. Otherwise it is drawn whole,
     the approximate way, in the room the engine gives it on that page; one the engine gives no page is
     drawn once on its paragraph's page, a header or footer in that page's header or footer margin, a
-    note at the foot of the body. Each approximation is counted.
+    note at the foot of the body. Each approximation is counted. A page number it holds shows the
+    number of the page it is drawn on (*numbering*).
+
+    On a flow page a footer stands on the foot of the page box, at its place in a paper-high layer.
     """
+    anchors = _area_anchors(area, home, placements, pages, styles, issues, counter, margins, table_counts, numbering)
+    if area.tag != f"{_HP}footer":
+        return anchors
+    return [replace(anchor, flow_html=f'<div class="hwpx-area-foot">{anchor.html}</div>') for anchor in anchors]
+
+
+def _area_anchors(
+    area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...], styles: Mapping[str, Any],
+    issues: Counter[tuple[str, str]], counter: _ObjectCounter, margins: Mapping[str, int],
+    table_counts: Counter[int], numbering: _Numbering | None,
+) -> list[_AnchorMarkup]:
+    """See :func:`_engine_area_anchors`."""
     kind = area.tag.removeprefix(_HP)
     own = area.findall(f"{_HP}subList/{_HP}p")
     every = list(area.iter(f"{_HP}p"))
@@ -2425,8 +2716,11 @@ def _engine_area_anchors(
         if found is not None and covered and lines and all(line.text is not None for line in lines):
             page = found[0]
             holders = _area_line_paragraphs(lines, own) or [own[0] if own else every[0]] * len(lines)
+            with _numbers_of(numbering, page):
+                inserts = _line_numbers(lines, holders, own, area)
             rendered = [
-                _engine_line(line, holder, styles, pages[page], area_line=True) for line, holder in zip(lines, holders)
+                _engine_line(line, holder, styles, pages[page], area_line=True, inserts=numbers)
+                for line, holder, numbers in zip(lines, holders, inserts)
             ]
             partial = any(approximate for _, approximate in rendered)
             if partial:
@@ -2444,9 +2738,9 @@ def _engine_area_anchors(
             issues[(kind, _AREA_WHOLE)] += 1
             if not result:
                 table_counts[found[0]] += tables
-            result.append(_AnchorMarkup(
-                found[0], _area_whole(area, kind, found[1], styles, counter), flow=False, overlay=True,
-            ))
+            with _numbers_of(numbering, found[0]):
+                whole = _area_whole(area, kind, found[1], styles, counter)
+            result.append(_AnchorMarkup(found[0], whole, flow=False, overlay=True))
             continue
         if unplaced or not 0 <= home < len(pages):
             continue
@@ -2460,8 +2754,9 @@ def _engine_area_anchors(
             margin_room = None
         issues[(kind, _AREA_MARGIN if margin_room is not None else _NOTE_FOOT)] += 1
         table_counts[home] += tables
-        markup = (_area_whole(area, kind, margin_room, styles, counter) if margin_room is not None else
-                  _area_whole(area, kind, (left, top + height, width, None), styles, counter, foot=True))
+        with _numbers_of(numbering, home):
+            markup = (_area_whole(area, kind, margin_room, styles, counter) if margin_room is not None else
+                      _area_whole(area, kind, (left, top + height, width, None), styles, counter, foot=True))
         result.append(_AnchorMarkup(home, markup, flow=False, overlay=True))
     return result
 
@@ -2556,19 +2851,98 @@ def _stretched_picture(brush: ET.Element, images: Mapping[str, tuple[str, bytes]
     return images.get(image.get("binaryItemIDRef") or "")
 
 
+def _slot(page: Any, line: Any) -> tuple[int, int]:
+    """The column a body line stands in: (the page's column area in force at its top, its column)."""
+    areas = page.column_areas
+    area = next((number for number in range(len(areas) - 1, -1, -1) if areas[number].top <= line.top), 0)
+    return area, line.position.column
+
+
+def _bare_line_tops(items: list[str | _PlacedLine | _AnchorMarkup]) -> list[int | None]:
+    """The paper top of each body line item whose paragraph draws nothing else on the page that takes room
+    (a table it anchors stands above its line), else ``None``."""
+    tops: list[int | None] = []
+    for index, item in enumerate(items):
+        top = None
+        if isinstance(item, _PlacedLine) and not item.hosted:
+            top = item.line.top
+            for after in items[index + 1:]:
+                if isinstance(after, _PlacedLine):
+                    if after.paragraph is not item.paragraph:
+                        break
+                elif not (isinstance(after, _AnchorMarkup) and after.overlay):
+                    top = None
+                    break
+        tops.append(top)
+    return tops
+
+
+def _has_columns(page: Any) -> bool:
+    return any(len(area.widths) > 1 for area in page.column_areas)
+
+
+def _column_flow(
+    parts: list[str], slots: list[tuple[int, int] | None], page: Any, issues: Counter[tuple[str, str]],
+    tops: list[int | None],
+) -> str:
+    """A flow page set in its columns: each column area of the page (``ColumnArea``) a row as high as the
+    engine gives it at least, each of its columns a box at the column's width and gap, holding what the
+    engine sets in that column, in the document's order. An item without a column of its own stands in the
+    column of the item before it (the first column at first).
+
+    A column whose first item is an engine line (*tops*: the paper top of each line item) starts at that
+    line's top: the room above it, which the engine leaves to what stands across the columns (a table
+    wider than its column), stays free."""
+    areas = page.column_areas
+    held: dict[tuple[int, int], list[str]] = {}
+    current = (0, 0)
+    _, body_top, body_width, body_height = page.body
+    for part, slot, top in zip(parts, slots, tops):
+        current = slot if slot is not None else current
+        area = min(current[0], len(areas) - 1)
+        key = (area, min(current[1], max(len(areas[area].widths), 1) - 1))
+        if key not in held and top is not None and top > max(areas[area].top, body_top):
+            lead = _style_attr({"height": _fmt_mm(_hwp_to_mm(top - max(areas[area].top, body_top)))})
+            held[key] = [f'<div class="hwpx-engine-column-lead" style="{lead}"></div>']
+        held.setdefault(key, []).append(part)
+    rows = []
+    for number, area in enumerate(areas):
+        widths = area.widths or (body_width,)
+        gap = area.gap
+        if gap is None and len(widths) > 1:
+            issues[("page-flow", "column gap is not given: the columns are spaced evenly")] += 1
+            gap = max(0, (body_width - sum(widths)) // (len(widths) - 1))
+        foot = areas[number + 1].top if number + 1 < len(areas) else body_top + body_height
+        columns = []
+        for column, width in enumerate(widths):
+            css = _style_attr({
+                "width": _fmt_mm(_hwp_to_mm(width)),
+                "margin-left": _fmt_mm(_hwp_to_mm(gap)) if column and gap else None,
+            })
+            columns.append(f'<div class="hwpx-engine-column" data-column="{column}" style="{css}">'
+                           f'{"".join(held.get((number, column), []))}</div>')
+        height = _style_attr({"min-height": _fmt_mm(_hwp_to_mm(max(0, foot - max(area.top, body_top))))})
+        rows.append(f'<div class="hwpx-engine-column-area" data-column-area="{number}" style="{height}">'
+                    f'{"".join(columns)}</div>')
+    return "".join(rows)
+
+
 def _page_content(
     items: list[str | _PlacedLine | _AnchorMarkup], page: Any, styles: Mapping[str, Any], *, flow: bool,
-    issues: Counter[tuple[str, str]], flowing_tables: set[int],
+    issues: Counter[tuple[str, str]], flowing_tables: set[int], slots: list[tuple[int, int] | None] | None = None,
 ) -> str:
     """The markup of one page. A flow page stacks its lines at the engine's line advance.
 
     The advance is the distance between the tops of two lines that follow each other in the
     same column with nothing between them taking room. A line without such a successor keeps
-    its own height: the page stays marked as an approximate vertical placement.
+    its own height: the page stays marked as an approximate vertical placement. A flow page
+    with more than one column stacks each column apart, in its own box (*slots*: the column of
+    each item, see :func:`_column_flow`).
 
     What the drawn markup of an anchor counts goes into *issues*; an engine-placed table drawn
     with its rows flowing goes into *flowing_tables*.
     """
+    in_columns = flow and slots is not None and len(slots) == len(items) and _has_columns(page)
 
     def drawn(anchor: _AnchorMarkup) -> str:
         markup, counted = anchor.markup(flow)
@@ -2595,26 +2969,36 @@ def _page_content(
             parts.append(drawn(item))
         elif flow:
             hosted = "".join(drawn(anchor) for anchor in item.hosted)
-            parts.append(_engine_line(item.line, item.paragraph, styles, page, advance=advances[index], hosted=hosted)[0])
+            parts.append(_engine_line(item.line, item.paragraph, styles, page, advance=advances[index], hosted=hosted,
+                                      in_column=in_columns)[0])
         else:  # at coordinates: the line, then what it holds, each at its own place
-            parts.append(_engine_line(item.line, item.paragraph, styles, page)[0])
-            parts.extend(drawn(anchor) for anchor in item.hosted)
+            parts.append(_engine_line(item.line, item.paragraph, styles, page)[0]
+                         + "".join(drawn(anchor) for anchor in item.hosted))
+    if in_columns:
+        assert slots is not None
+        return _column_flow(parts, slots, page, issues, _bare_line_tops(items))
     return "".join(parts)
 
 
 def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool, backdrop: str = "") -> str:
+    """One page box. A flow page is as high as its paper: what its approximate flow stacks past the body's
+    foot is moved (by the page's script) into the overflow band under the box, so its footer stays in the
+    footer's place; without the script the box grows, its footer still on the box's foot."""
     width, height = map(_hwp_to_mm, (page.paper_width, page.paper_height))
     if flow:
         left, top, body_width, body_height = map(_hwp_to_mm, page.body)
         right = max(0, width - left - body_width)
         bottom = max(0, height - top - body_height)
         padding = " ".join(map(_fmt_mm, (max(top, 6), right, bottom, left)))
-        style = f"width:{_fmt_mm(width)};padding:{padding}"
+        style = (f"width:{_fmt_mm(width)};padding:{padding};min-height:{_fmt_mm(height)};"
+                 f"--hwpx-paper-height:{_fmt_mm(height)}")
         body = (
             f"{backdrop}"
             '<p class="hwpx-engine-page-status">세로 배치 근사'
-            '<span class="hwpx-engine-overflow" hidden> · 근사 배치가 엔진 본문 높이를 넘습니다</span></p>'
+            '<span class="hwpx-engine-overflow" hidden> · 근사 배치가 엔진 본문 높이를 넘어 넘친 부분은 쪽 아래 띠에</span></p>'
             f'<div class="hwpx-engine-flow" style="min-height:{_fmt_mm(body_height)}">{content}</div>'
+            f'<div class="hwpx-engine-spill" hidden style="padding:0 {_fmt_mm(right)} 0 {_fmt_mm(left)}">'
+            '<div class="hwpx-engine-spill-flow"></div></div>'
         )
     else:
         style = f"width:{_fmt_mm(width)};padding:0"
@@ -2635,6 +3019,107 @@ def _header_footer_margins(section: ET.Element) -> dict[str, int]:
     if margin is None:
         return defaults
     return {key: _safe_int(margin.get(key), defaults[key]) for key in defaults}
+
+
+def _paragraph_pages(layout: Any) -> dict[tuple[int, int], int]:
+    """The page each body paragraph the engine lists starts on (its first visible line's)."""
+    found = {}
+    for placed in layout.paragraphs:
+        visible = [line for line in placed.lines if not line.hidden] or list(placed.lines)
+        if visible:
+            found[(placed.section, placed.paragraph)] = visible[0].position.page
+    return found
+
+
+def _page_controls(
+    body_paragraphs: list[list[ET.Element]], starts: Mapping[tuple[int, int], int], name: str,
+) -> list[tuple[int, int, ET.Element]]:
+    """The page controls *name* (``hp:ctrl/hp:<name>``) of the body, with their section and their paragraph's page."""
+    return [
+        (number, starts[(number, index)], node)
+        for number, paragraphs in enumerate(body_paragraphs) for index, paragraph in enumerate(paragraphs)
+        if (number, index) in starts for node in paragraph.findall(f"{_HP}run/{_HP}ctrl/{_HP}{name}")
+    ]
+
+
+def _page_numbering(
+    layout: Any, sections: list[ET.Element], body_paragraphs: list[list[ET.Element]],
+    starts: Mapping[tuple[int, int], int], issues: Counter[tuple[str, str]],
+) -> _Numbering:
+    """The number of each page in the engine's page order: one more than the page before, from 1; a section
+    whose ``hp:startNum@page`` is set starts at it, and a page a body paragraph sets a new page number on
+    (``hp:newNum@numType=PAGE``) takes it."""
+    renumbered = {
+        page: _safe_int(node.get("num"), 1) for _, page, node in _page_controls(body_paragraphs, starts, "newNum")
+        if node.get("numType") == "PAGE"
+    }
+    first: dict[int, int] = {}
+    for page in layout.pages:
+        first.setdefault(page.section, page.page)
+    numbers: list[int] = []
+    for page in layout.pages:
+        start = sections[page.section].find(f".//{_HP}secPr/{_HP}startNum") if page.section < len(sections) else None
+        if page.page in renumbered:
+            number = renumbered[page.page]
+        elif first[page.section] == page.page and start is not None and _safe_int(start.get("page")) > 0:
+            number = _safe_int(start.get("page"))
+        else:
+            number = numbers[-1] + 1 if numbers else 1
+        numbers.append(number)
+    return _Numbering(tuple(numbers), issues)
+
+
+_PAGE_NUMBER_PLACE = ("page-number", "page number is drawn at an approximate place in the header or footer margin")
+
+
+def _page_number_anchors(
+    layout: Any, body_paragraphs: list[list[ET.Element]], starts: Mapping[tuple[int, int], int],
+    numbering: _Numbering, margins: list[dict[str, int]], issues: Counter[tuple[str, str]],
+) -> list[_AnchorMarkup]:
+    """The page number a body paragraph's ``hp:pageNum`` shows on each page from its own to the next one's,
+    in the header or footer margin of the page at its side (outside or inside by the number's parity), its
+    number in its number style between its side characters. A page a ``hp:pageHiding@hidePageNum`` hides
+    shows none. Each is drawn at an approximate place, counted. The number is shown by the style sheet
+    (``data-number-text``), not as text of the page."""
+    controls = _page_controls(body_paragraphs, starts, "pageNum")
+    hidden = {
+        page for _, page, node in _page_controls(body_paragraphs, starts, "pageHiding")
+        if node.get("hidePageNum") in ("1", "true")
+    }
+    anchors = []
+    for page in layout.pages:
+        control = next((node for section, start, node in reversed(controls)
+                        if section == page.section and start <= page.page), None)
+        position = (control.get("pos") or "NONE").upper() if control is not None else "NONE"
+        if control is None or position == "NONE" or page.page in hidden:
+            continue
+        number = numbering.numbers[page.page]
+        vertical, _, side = position.partition("_")
+        if vertical in ("OUTSIDE", "INSIDE"):
+            vertical, side = side, ("RIGHT" if (number % 2 == 1) == (vertical == "OUTSIDE") else "LEFT")
+        left, top, width, height = page.body
+        own = margins[page.section] if page.section < len(margins) else {}
+        room = (top - own.get("header", 0), own.get("header", 0)) if vertical == "TOP" else (
+            top + height, own.get("footer", 0))
+        text = _number_text(number, control.get("formatType"), issues)
+        side_char = control.get("sideChar") or ""
+        if side_char:
+            text = f"{side_char} {text} {side_char}"
+        css = _style_attr({
+            "left": _fmt_mm(_hwp_to_mm(left)), "top": _fmt_mm(_hwp_to_mm(room[0])),
+            "width": _fmt_mm(_hwp_to_mm(width)), "height": _fmt_mm(_hwp_to_mm(room[1])),
+            "justify-content": {"LEFT": "flex-start", "RIGHT": "flex-end"}.get(side, "center"),
+        })
+        # Drawn by the style sheet from the attribute: a page number control is not text of the document
+        # (Hangul gives none for it when it lists a page's text), so it stays out of the page's text.
+        markup = (f'<div class="hwpx-page-number" data-approx="page-number" data-number-position="{position}" '
+                  f'data-number-text="{html.escape(text, quote=True)}" style="{css}"></div>')
+        issues[_PAGE_NUMBER_PLACE] += 1
+        anchors.append(_AnchorMarkup(
+            page.page, markup, flow=False, overlay=True,
+            flow_html=f'<div class="hwpx-area-foot">{markup}</div>' if vertical == "BOTTOM" else None,
+        ))
+    return anchors
 
 
 def _memo_count(sections: list[ET.Element]) -> int:
@@ -2683,10 +3168,22 @@ def _render_engine_preview(
     for page in layout.pages:
         section_starts.setdefault(page.section, page.page)
     area_margins = [_header_footer_margins(section) for section in sections]
+    starts = _paragraph_pages(layout)
+    numbering = _page_numbering(layout, sections, body_paragraphs, starts, issues)
+    # The column each item of a page stands in, as (column area, column); None: the one of the item before.
+    slots: list[list[tuple[int, int] | None]] = [[] for _ in layout.pages]
+
+    def put(page: int, item: str | _PlacedLine | _AnchorMarkup, line: Any = None) -> None:
+        content[page].append(item)
+        slots[page].append(_slot(layout.pages[page], line) if line is not None else None)
+
     for placed in layout.paragraphs:
         key = placed.section, placed.paragraph
         paragraph = body_paragraphs[key[0]][key[1]]
         visible = [line for line in placed.lines if not line.hidden]
+        first_on: dict[int, Any] = {}
+        for line in visible:
+            first_on.setdefault(line.position.page, line)
         home = placed.lines[0].position.page if placed.lines else section_starts[key[0]]
         table_results = tables_by_paragraph.get(key, {})
         table_placements = {
@@ -2708,6 +3205,7 @@ def _render_engine_preview(
             ),
             tuple(visible),
             area_margins[key[0]],
+            numbering,
         )
         without_text_range = [line for line in visible if line.text is None]
         missing_pages = {line.position.page for line in without_text_range}
@@ -2723,15 +3221,15 @@ def _render_engine_preview(
             issues[("paragraph", "engine lines do not give all the paragraph's text" if uncovered
                     else "engine text ranges are unavailable")] += 1
             flow_pages.add(home)
-            content[home].append(_render_paragraph(
+            put(home, _render_paragraph(
                 paragraph, styles, counter, include_tables=False, include_objects=False, extended_styles=True,
-            ))
+            ), first_on.get(home))
             paragraphs_by_page[home].add(key)
-            for page in {line.position.page for line in visible} - {home}:
+            for page in sorted({line.position.page for line in visible} - {home}):
                 flow_pages.add(page)
                 paragraphs_by_page[page].add(key)
                 marker = _render_object_marker("이어지는 문단의 줄 위치 미확인")
-                content[page].append(f'<p class="hwpx-paragraph">{marker}</p>')
+                put(page, f'<p class="hwpx-paragraph">{marker}</p>', first_on.get(page))
         else:
             if without_text_range:
                 issues[("line", "engine text ranges are unavailable")] += len(without_text_range)
@@ -2740,7 +3238,7 @@ def _render_engine_preview(
                 paragraphs_by_page[page].add(key)
                 if line.text is not None:
                     shown.append(_PlacedLine(line, paragraph))
-                    content[page].append(shown[-1])
+                    put(page, shown[-1], line)
                     if _line_frame(line, layout.pages[page])[3]:
                         flow_pages.add(page)
                         issues[("line", "horizontal placement is incomplete")] += 1
@@ -2760,21 +3258,31 @@ def _render_engine_preview(
                 continue
             if host is not None and anchor.page == host.line.position.page:
                 host = None
-            content[anchor.page].append(anchor)
+            put(anchor.page, anchor, first_on.get(anchor.page))
 
-    # A body paragraph the engine lists nowhere is still shown, on its section's first page.
+    # A body paragraph the engine lists nowhere is still shown, on its section's first page; what a header,
+    # footer or note of it holds stands beside the body, in its margin, as one the engine gives no page.
     listed = {(placed.section, placed.paragraph) for placed in layout.paragraphs}
     for number, paragraphs in enumerate(body_paragraphs):
         for index, paragraph in enumerate(paragraphs):
             if (number, index) not in listed and number in section_starts and (
                 _paragraph_text(paragraph).strip() or _has_objects(paragraph)
                 or next(_anchored_tables(paragraph), None) is not None
+                or any(node.tag in _AREA_LABELS for node in paragraph.iter())
             ):
                 page = section_starts[number]
                 issues[("paragraph", "paragraph the engine places nowhere is shown on its section's first page")] += 1
                 flow_pages.add(page)
                 paragraphs_by_page[page].add((number, index))
-                content[page].append(_render_paragraph(paragraph, styles, counter, extended_styles=True))
+                put(page, _render_paragraph(paragraph, styles, counter, include_tables=False, extended_styles=True)
+                    + "".join(_render_table(table, styles, counter)
+                              for table in _anchored_tables(paragraph, areas=False)))
+                for area in (node for node in paragraph.iter() if node.tag in _AREA_LABELS):
+                    for anchor in _engine_area_anchors(area, page, [], layout.pages, styles, issues, counter,
+                                                       area_margins[number], table_counts, numbering):
+                        put(anchor.page, anchor)
+    for anchor in _page_number_anchors(layout, body_paragraphs, starts, numbering, area_margins, issues):
+        put(anchor.page, anchor)
     fills = [_page_fill(section, styles, images) for section in sections]
     filled = {
         page.page: fill for page in layout.pages
@@ -2798,7 +3306,8 @@ def _render_engine_preview(
                 issues[("page-fill", "page fill picture is not drawn")] += 1
         fragments.append(_engine_page_fragment(
             page, page_id,
-            _page_content(content[index], page, styles, flow=flow, issues=issues, flowing_tables=flowing_tables),
+            _page_content(content[index], page, styles, flow=flow, issues=issues, flowing_tables=flowing_tables,
+                          slots=slots[index]),
             flow=flow, backdrop=backdrop,
         ))
         pages.append(PreviewPage(index, page.section, page_id, width, height, margins,
