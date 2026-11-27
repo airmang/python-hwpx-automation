@@ -108,7 +108,7 @@ def test_launcher_and_manifests_match_contract_minimums() -> None:
     assert contract["minPythonHwpx"] == components["core"]["minimumCompatibleVersion"]
     assert contract["minSkillVersion"] == components["plugin"]["minimumCompatibleVersion"]
     assert (
-        "python-hwpx-automation[mcp,oracle]"
+        "python-hwpx-automation[mcp,oracle,preview]"
         f"=={components['automation']['currentVersion']}"
         in launcher
     )
@@ -361,7 +361,8 @@ def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
     assert "candidate checkout is required" in smoke
     assert "no sibling or private worktree is selected implicitly" in smoke
     assert "python-hwpx-automation[mcp,oracle]" not in smoke
-    assert "[mcp,oracle]" in smoke and "[preview]" in smoke
+    assert "[mcp,oracle,preview]" in smoke and "[preview]" in smoke
+    assert "[mcp,oracle]" not in smoke
     assert "editable runtime extras are incomplete" in smoke
     assert "did not load from the selected editable checkout" in smoke
     launcher = (
@@ -369,7 +370,8 @@ def test_clean_install_smoke_runs_workflow_protocol_e2e_from_wheels() -> None:
     ).read_text(encoding="utf-8")
     assert "uv venv --quiet --relocatable" in launcher
     assert '"runtimeLayout": "generations-v2"' in launcher
-    assert '--with-editable "${MCP_REPO}[mcp,oracle]"' in launcher
+    assert '--with-editable "${MCP_REPO}[mcp,oracle,preview]"' in launcher
+    assert '--with-editable "${MCP_REPO}[mcp,oracle]"' not in launcher
     assert '--with-editable "${MCP_REPO}[mcp]"' not in launcher
     assert "HWPX_AUTOMATION_WORKSPACE_ROOTS" in e2e
     assert "site-packages" in e2e

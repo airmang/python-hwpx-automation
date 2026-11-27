@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, Sequence
 
+from ..core.content import page_number_count
 from .context import DocumentContext
 from .save_policy import SavePolicy
 from .transactions import TransactionService
@@ -409,18 +410,12 @@ class ContentLayoutService:
         kind: str,
         page_type: str,
     ) -> Dict[str, Any]:
-        # 쪽 번호 컨트롤 수: 머리말·꼬리말 안(칸·글상자 속 문단까지)의 run.content "page_number".
-        page_number_count = 0
-        for paragraph in getattr(wrapper, "paragraphs", None) or ():
-            for inner in (paragraph, *(place.paragraph for place in paragraph.iter_paragraphs())):
-                for run in inner.runs:
-                    page_number_count += sum(1 for item in run.content if item.kind == "page_number")
         return {
             "kind": kind,
             "pageType": page_type,
             "id": getattr(wrapper, "id", None),
             "text": getattr(wrapper, "text", ""),
-            "pageNumberCount": page_number_count,
+            "pageNumberCount": page_number_count(wrapper),
         }
 
     def set_header_footer(

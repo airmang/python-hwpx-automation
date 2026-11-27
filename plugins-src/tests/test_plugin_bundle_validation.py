@@ -147,7 +147,8 @@ def test_bundled_launchers_use_isolated_editable_dev_stack() -> None:
         assert "uv run --no-project" in text
         assert "uv run --project" not in text
         assert '--with-editable "${PYTHON_HWPX_REPO}[preview]"' in text
-        assert '--with-editable "${MCP_REPO}[mcp,oracle]"' in text
+        assert '--with-editable "${MCP_REPO}[mcp,oracle,preview]"' in text
+        assert '--with-editable "${MCP_REPO}[mcp,oracle]"' not in text
         assert '--with-editable "${MCP_REPO}[mcp]"' not in text
         assert "HWPX_AUTOMATION_RUNTIME_ROOT" in text
         assert "find_stack_root" not in text
@@ -218,10 +219,18 @@ def test_claude_locked_runtime_pins_a_pair_inside_the_install_window() -> None:
     project = tomllib.loads((ROOT / "plugins/claude/hwpx-plugin/server/pyproject.toml").read_text(encoding="utf-8"))["project"]
     pins = {spec.split("[")[0]: spec.split("==")[1] for spec in project["dependencies"]}
     assert set(pins) == {"python-hwpx", "python-hwpx-automation"}
+    # Released: the verified pair is the floor. Before publication the candidate is not on PyPI, so
+    # the floor is the pair that is public (validate_claude_locked_runtime has the same rule).
+    release_state = identity["releaseState"]
+    public = {
+        "python-hwpx": release_state["currentPublic"]["pythonHwpx"],
+        "python-hwpx-automation": release_state["currentPublic"]["primaryApplication"],
+    }
     for dist, component in (("python-hwpx", components["core"]), ("python-hwpx-automation", components["automation"])):
         pinned = tuple(int(part) for part in pins[dist].split("."))
-        floor = tuple(int(part) for part in component["currentVersion"].split("."))
-        assert pinned >= floor and pinned[0] == floor[0]
+        verified = tuple(int(part) for part in component["currentVersion"].split("."))
+        floor = verified if release_state["status"] == "released" else tuple(int(part) for part in public[dist].split("."))
+        assert pinned >= floor and pinned[0] == verified[0]
     lock_path = ROOT / "plugins/claude/hwpx-plugin/server/uv.lock"
     assert lock_path.stat().st_size <= 256 * 1024
     lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
@@ -422,7 +431,7 @@ def test_product_identity_is_the_name_version_and_maturity_authority() -> None:
     automation_major = int(components["automation"]["currentVersion"].split(".")[0])
     assert identity["installConstraint"] == {
         "core": f"python-hwpx[preview]>={components['core']['currentVersion']},<{core_major + 1}",
-        "automation": f"python-hwpx-automation[mcp,oracle]>={components['automation']['currentVersion']},<{automation_major + 1}",
+        "automation": f"python-hwpx-automation[mcp,oracle,preview]>={components['automation']['currentVersion']},<{automation_major + 1}",
     }
     assert hosts["identityFile"] == "product-identity.json"
     assert "pluginName" not in hosts and "skillName" not in hosts
@@ -528,6 +537,14 @@ def test_product_identity_validator_supports_the_full_release_lifecycle(
         text=True,
         capture_output=True,
     )
+    if status == "released" and previous_status != "released" and validated.returncode != 0:
+        # Promotion comes with refreshed locks. Before publication the bundles' locks name the public
+        # stack (the candidate is not on PyPI); once it is published they move to it. A promotion that
+        # leaves them behind is refused, and for that reason only, with the script to run. After the
+        # locks have moved (the candidate is published, the state not yet promoted) it validates.
+        output = validated.stdout + validated.stderr
+        assert "refresh_claude_runtime.py" in output or "--refresh-lock" in output, output
+        return
     assert validated.returncode == 0, validated.stdout + validated.stderr
 
 

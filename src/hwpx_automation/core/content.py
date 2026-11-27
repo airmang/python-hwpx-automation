@@ -753,16 +753,18 @@ def remove_memo_from_doc(
     paragraph_index: int | None,
     location: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """문단의 메모를 제거한다."""
+    """문단의 메모를 제거한다. ``memo_removed``는 실제로 지운 메모가 있을 때만 True이고,
+    ``removed_count``는 지운 메모의 수다."""
     patch_python_hwpx()
     resolved = resolve_paragraph_reference(doc, paragraph_index=paragraph_index, location=location)
     paragraph = resolved.paragraph
 
     # doc.notes.remove_memo drops the memo with its MEMO field (python-hwpx 7.0); a 6.x memo kept
     # in hp:memogroup goes with the field that anchors it here.
-    for memo in [memo for memo in doc.notes.memos if memo.paragraph == paragraph]:
+    memos = [memo for memo in doc.notes.memos if memo.paragraph == paragraph]
+    for memo in memos:
         doc.notes.remove_memo(memo)
-    return {"memo_removed": True, "location": resolved.location}
+    return {"memo_removed": bool(memos), "removed_count": len(memos), "location": resolved.location}
 
 
 # ── 페이지 ────────────────────────────────────────────
@@ -794,3 +796,22 @@ def collect_full_text(doc: Any) -> str:
         if text:
             chunks.append(text)
     return "\n".join(chunks)
+
+
+def page_number_count(story: Any) -> int:
+    """Page numbers in a header or footer, paragraphs in its cells and text boxes included.
+
+    Hancom writes a page number as an automatic number (``hp:autoNum numType="PAGE"``) alone;
+    python-hwpx up to 7.x also adds a page-number control (``hp:pageNum``) beside it, and some
+    older files hold only the control. A paragraph counts the larger of the two, so a number
+    written either way, or both ways, counts once.
+    """
+
+    count = 0
+    for paragraph in getattr(story, "paragraphs", None) or ():
+        for inner in (paragraph, *(place.paragraph for place in paragraph.iter_paragraphs())):
+            items = [item for run in inner.runs for item in run.content]
+            pages = sum(1 for item in items if item.kind == "auto_number" and item.attribute("numType") == "PAGE")
+            controls = sum(1 for item in items if item.kind == "page_number")
+            count += max(pages, controls)
+    return count

@@ -1,5 +1,7 @@
 # Skill-First Workflows on the Automation MCP Adapter
 
+> Release status: `release-approved` — 8.0.1 publication is approved; remote publication and installation have not yet been observed.
+
 > Release status: `released` — 8.0.0 publication and the 7.0.0/8.0.0/8.0.0 marketplace installation were observed.
 
 > Previous public train: python-hwpx 6.6.0 · python-hwpx-automation 7.3.1 · hwpx-plugin 2.4.0.

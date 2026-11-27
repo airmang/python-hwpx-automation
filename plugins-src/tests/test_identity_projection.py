@@ -48,8 +48,8 @@ EXEMPT = (
 # candidate train next to the public one (the validator requires both), so it
 # reads 15 until the promotion commit takes those lines out again.
 PENDING_PROSE = {
-    "README.md": 12,
-    "references/api.md": 16,
+    "README.md": 14,
+    "references/api.md": 15,
 }
 
 SCANNED_GLOBS = (

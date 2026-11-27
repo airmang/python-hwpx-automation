@@ -44,6 +44,14 @@ def install_constraints(identity: dict) -> dict[str, str]:
     }
 
 
+# What every host installs from python-hwpx-automation. ``preview`` brings latex2mathml: the
+# preview moved from python-hwpx to python-hwpx-automation in 8.0, so the core ``preview`` extra
+# brings nothing and, without this one, render_preview shows every equation as a LaTeX code block.
+EQUATION_RENDERER_EXTRA = "preview"
+CLAUDE_EQUATION_RENDERER = "latex2mathml"
+PLUGIN_INSTALL_EXTRAS = ("mcp", "oracle", EQUATION_RENDERER_EXTRA)
+
+
 INTERNAL_CODENAME_RE = re.compile(
     r"(?<![A-Za-z0-9])(?:S-[0-9]{3}|STG-[A-Za-z0-9_-]+)(?![A-Za-z0-9])"
 )
@@ -310,8 +318,9 @@ def validate_product_identity(config: dict, identity: dict) -> None:
         "canonical launcher path mismatch",
     )
     require(
-        automation.get("pluginInstallExtras") == ["mcp", "oracle"],
-        "plugin automation extras must cover MCP and oracle verification",
+        automation.get("pluginInstallExtras") == list(PLUGIN_INSTALL_EXTRAS),
+        "plugin automation extras must cover MCP, oracle verification and the preview's "
+        f"equation renderer ({EQUATION_RENDERER_EXTRA}: {CLAUDE_EQUATION_RENDERER})",
     )
     compatibility = identity.get("compatibility")
     require(isinstance(compatibility, dict), "compatibility identity missing")
@@ -928,10 +937,6 @@ def validate_skill_files_match(host: dict, skill_dir: Path, recorded: set[Path])
 
 
 CLAUDE_LOCK_MAX_BYTES = 256 * 1024
-# What the Claude locked runtime installs beyond the launcher's install extras, and the
-# distribution that must then be in server/uv.lock (python-hwpx-automation's ``preview`` extra).
-CLAUDE_RUNTIME_ADDED_EXTRAS = ("preview",)
-CLAUDE_EQUATION_RENDERER = "latex2mathml"
 
 
 def validate_vendored_engine() -> None:
@@ -976,18 +981,16 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
     )
     # The imaging stack behind the ``oracle`` extra only reads PDFs rendered by Hancom Office,
     # so the Claude runtime installs the other extras by default and locks ``oracle`` in the
-    # ``render`` dependency group, which a user adds on demand. It also installs automation's
-    # ``preview`` extra (latex2mathml): the preview moved from python-hwpx to
-    # python-hwpx-automation in 8.0, so the core ``preview`` extra brings nothing and
-    # render_preview showed every equation as a LaTeX code block.
+    # ``render`` dependency group, which a user adds on demand. The other extras include
+    # automation's ``preview`` (latex2mathml), as on every host (PLUGIN_INSTALL_EXTRAS).
     default_extras = [
         extra for extra in automation["pluginInstallExtras"] if extra != "oracle"
-    ] + list(CLAUDE_RUNTIME_ADDED_EXTRAS)
+    ]
     require(
         pins[automation["distribution"]][0] == ",".join(default_extras)
         and pins[core["distribution"]][0] == "preview",
-        "claude: server/pyproject.toml extras differ from the plugin install extras without oracle, "
-        "plus " + ",".join(CLAUDE_RUNTIME_ADDED_EXTRAS),
+        "claude: server/pyproject.toml extras differ from the plugin install extras without oracle "
+        f"({','.join(default_extras)}; {EQUATION_RENDERER_EXTRA} brings {CLAUDE_EQUATION_RENDERER})",
     )
     groups = tomllib.loads(pyproject_path.read_text(encoding="utf-8")).get("dependency-groups", {})
     require(
@@ -995,13 +998,32 @@ def validate_claude_locked_runtime(out: Path, identity: dict) -> None:
         == [f"{automation['distribution']}[oracle]=={pins[automation['distribution']][1]}"],
         "claude: server/pyproject.toml must lock the oracle extra in the render group at the pinned version",
     )
+    # The window's floor is the verified version once the train is ``released``. Before that the
+    # candidate is not on PyPI, so a lock cannot name it: the bundle keeps the pair that is public
+    # (``currentPublic``) and its version string says so (``<plugin>+core.<x>.automation.<y>``, checked
+    # below). After publication ``refresh_claude_runtime.py`` moves the pins and promotion asks for the
+    # verified floor again.
+    release_state = identity.get("releaseState", {})
+    public = release_state.get("currentPublic") or {}
+    public_floor = {
+        core["distribution"]: public.get("pythonHwpx"),
+        automation["distribution"]: public.get("primaryApplication"),
+    }
     for component in (core, automation):
+        floor_version = component["currentVersion"]
+        if release_state.get("status") != "released" and public_floor.get(component["distribution"]):
+            floor_version = public_floor[component["distribution"]]
         pinned = refresh.parse(pins[component["distribution"]][1])
-        floor = refresh.parse(component["currentVersion"])
+        floor = refresh.parse(floor_version)
+        verified = refresh.parse(component["currentVersion"])
         require(
-            pinned is not None and floor is not None and pinned >= floor and pinned[0] == floor[0],
+            pinned is not None
+            and floor is not None
+            and verified is not None
+            and pinned >= floor
+            and pinned[0] == verified[0],
             f"claude: {component['distribution']} pin is outside the install window "
-            f">={component['currentVersion']},<{floor[0] + 1 if floor else '?'}; run scripts/refresh_claude_runtime.py",
+            f">={floor_version},<{verified[0] + 1 if verified else '?'}; run scripts/refresh_claude_runtime.py",
         )
     core_version = pins[core["distribution"]][1]
     automation_version = pins[automation["distribution"]][1]
@@ -1084,6 +1106,7 @@ def validate_launcher(out: Path, host_id: str, identity: dict) -> None:
     core_version = components["core"]["currentVersion"]
     automation = components["automation"]
     automation_version = automation["currentVersion"]
+    extras = ",".join(automation["pluginInstallExtras"])
     plugin_version = components["plugin"]["currentVersion"]
     fragments = [
         "Editable mode is deliberately opt-in",
@@ -1107,9 +1130,9 @@ def validate_launcher(out: Path, host_id: str, identity: dict) -> None:
         "--refresh-package python-hwpx-automation",
         "--refresh-package python-hwpx",
         "--from \"${SERVER_PACKAGE}\"",
-        f"python-hwpx-automation[mcp,oracle]=={automation_version}",
+        f"python-hwpx-automation[{extras}]=={automation_version}",
         f"python-hwpx[preview]=={core_version}",
-        '--with-editable "${MCP_REPO}[mcp,oracle]"',
+        f'--with-editable "${{MCP_REPO}}[{extras}]"',
         "hwpx-automation-mcp",
         f"HWPX_SKILL_VERSION:-{plugin_version}",
     ]

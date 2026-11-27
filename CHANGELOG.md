@@ -82,7 +82,58 @@
   쪽 수와 엔진이 제공한 줄바꿈을 유지하고, 세로 배치가 근사인 쪽과 본문 높이를 넘긴 쪽을 표시합니다.
 - 배치 추정이 거절한 문서의 근사 미리보기가 구역에 바로 놓인 표(문단 밖의 `hp:tbl`)와 그 글을 빠뜨리던 것을 고칩니다.
   이제 문단 사이 제자리에 그립니다. 근사 미리보기의 다른 부분은 그대로입니다.
+- `set_header_footer`·`set_page_number`의 `pageNumberCount`가 한/글이 쓰는 모양의 쪽 번호도 셉니다. 한/글은 머리말·꼬리말의
+  쪽 번호를 자동 번호(`hp:autoNum numType="PAGE"`) 하나로만 쓰는데, 지금까지는 쪽 번호 컨트롤(`hp:pageNum`)만 세어 한/글에서
+  넣은 쪽 번호를 0개로 알렸습니다. 이제 문단마다 자동 쪽 번호와 쪽 번호 컨트롤 중 많은 쪽을 셉니다. python-hwpx 7.x가 쓰는
+  모양(둘 다)이나 컨트롤만 있는 옛 문서는 전과 같은 수가 나오고, 전체 쪽 수(`TOTAL_PAGE`)는 세지 않습니다. 엔진이 뒤 판에서
+  한/글처럼 자동 번호만 쓰게 되어도 이 수는 바뀌지 않습니다.
 
+## [8.0.1] - 2026-11-26
+
+### Changed
+
+- python-hwpx 하한을 7.0.2로 올립니다(`python-hwpx>=7.0.2,<8`). 7.0.2가 이미 있는 `.hwp`를 엔진의 모든 쓰기 길에서 지키고,
+  구역 설정이 뒤 문단에 있는 문서(6.x가 만든 모양)를 저장할 때 첫 문단으로 옮깁니다. 아래 수정 가운데 여럿이 그 동작에 기댑니다.
+  도구 계약의 `minPythonHwpx`(7.0.0)와 계약 해시(`c895883d5f4350ae`)는 그대로입니다.
+
+### Fixed
+
+- `apply_table_ops`·`apply_body_ops`·`apply_evalplan_fill`·`apply_form_fill(plan=)`이 거부되거나 실패할 때마다 문서 폴더에
+  문서 전체 사본(`.hwpx-mixed-form-recovery-…`, 숨은 이름)을 하나씩 남기던 것을 고칩니다. 없는 표 번호나 없는 문단처럼 아무것도
+  바꾸지 않은 거부도 사본을 남겨, 세 번 거부하면 세 개가 쌓였습니다(8.0.0은 `dry_run`일 때만 막았습니다). 이 사본은 쓰는 도중
+  실패했을 때 호출 전 바이트를 되살리려고 두는 것이므로, 이제 호출이 끝나면 지웁니다. 성공했을 때, 아무것도 바꾸지 않고 거부했을 때,
+  쓰다 실패해 문서를 호출 전 바이트로 되돌렸을 때가 모두 그렇습니다. 사본이 남는 경우는 둘입니다. 문서가 호출 전 바이트로 돌아오지
+  않았을 때(그 사이 다른 프로그램이 문서를 바꾼 경우 등, 사본이 유일한 복구 수단)와 사본을 지우지 못했을 때(다른 프로그램이 열어 둔
+  경우)입니다. 그때는 결과의 `verificationReceipt.rollbackPreservation.recoveryCopy`(`filename`, `reason`:
+  `output-changed`·`not-removed`)와 MCP 오류의 글·`details.recoveryCopy`가 그 파일 이름을 알립니다. 사본을 지우지 못한 것만으로는
+  성공한 쓰기를 되돌리지 않습니다(지금까지는 문서를 되돌리고 실패로 알렸습니다). 전 판이 남긴 `.hwpx-mixed-form-recovery-*` 파일은
+  이 판이 지우지 않습니다. 어떤 도구도 그 파일을 다시 읽지 않으므로 손으로 지워도 됩니다(각 파일은 그것을 남긴 호출 직전의 문서
+  바이트 그대로이니, 문서가 멀쩡한지 먼저 확인하세요).
+- `mail_merge`가 같은 파일 이름으로 풀리는 행이 있는 실행을 쓰기 전에 거부합니다. `filename_pattern="{name}.hwpx"`에 이름이 같은
+  행이 둘이면 뒤 행의 문서가 앞 행의 문서를 덮어썼는데, 보고는 모든 행을 만들었다고 했습니다(`createdCount`가 행 수, 파일은
+  하나 적음). 이제 아무것도 쓰기 전에 이번 실행의 출력 이름을 모두 풀어 보고, 같은 파일로 가는 이름이 둘 이상이면
+  `MAIL_MERGE_FILENAME_COLLISION`으로 거부합니다. 대소문자만 다른 이름(`Kim.hwpx`·`kim.hwpx`), `.hwpx`를 붙이거나 경로·금지
+  문자를 정리한 뒤 같아지는 이름, `zip_filename`이 행 문서와 같은 파일인 경우도 충돌입니다(Windows에서 같은 파일이면 충돌).
+  오류의 `details.collisions`에 파일 이름과 행 번호(`rowIndexes`)가 실리고, 이름 패턴에 행마다 다른 값(예: `{index:03d}_{name}.hwpx`)을
+  넣으라는 안내가 붙습니다. 거부한 호출은 출력 폴더를 만들지도, 그 안의 파일을 바꾸지도, ZIP을 쓰지도 않습니다.
+  `strict=True`로 건너뛰는 행은 쓰지 않으므로 충돌로 세지 않습니다. 출력 폴더에 이미 있던 같은 이름 파일은 전처럼 `.bak`으로
+  남기고 덮어씁니다. 파이썬에서 `hwpx_automation.mail_merge.merge_template_rows`를 직접 부르면
+  `MailMergeFilenameCollisionError`(`ValueError`)입니다.
+- `remove_memo`가 메모가 없는 문단에 불렸을 때 `memo_removed: false`를 돌려주고 파일을 쓰지 않습니다. 지금까지는 지운 메모가
+  없어도 `memo_removed: true`를 돌려주고 문서를 다시 써서 백업을 한 칸 밀었습니다(그 뒤의 `undo_last_edit`는 직전 편집이 아니라
+  같은 내용의 판으로 돌아갔습니다). 이제 지운 메모가 없으면 문서의 바이트도, `.bak`도, 폴더의 다른 파일도 호출 전과 같고,
+  결과에는 `verificationReport`·`backup` 없이 `document_revision`만 실립니다. `dry_run=True`도 같은 값을 돌려줍니다.
+  지운 메모의 수를 `removed_count`로 함께 돌려줍니다. 메모를 지운 호출은 전과 같습니다.
+- Codex·OpenClaw·Hermes 플러그인도 `python-hwpx-automation`의 `preview` extra를 설치합니다. Claude 번들의 잠긴 런타임만
+  `[mcp,preview]`로 고쳤고, 번들 런처(Codex)와 OpenClaw·Hermes 설치 안내는 `[mcp,oracle]`만 설치해 `latex2mathml`이 없었으며
+  `render_preview`의 수식이 LaTeX 코드 블록으로 보였습니다. 플러그인의 설치 좌표를
+  `python-hwpx-automation[mcp,oracle,preview]`로 고치고(`plugins-src/packaging/product-identity.json`, 런처 틀, 두 설치 안내),
+  번들 검사가 설치 extra에 `preview`가 있는지 확인합니다. 판 번호와 Claude `uv.lock`은 그대로입니다.
+- `apply_form_fill(plan=…)`의 실제 적용이, 문서가 작업 폴더 루트 바로 아래가 아니라 **하위 폴더**에 있으면 늘
+  `verification_failed`로 끝나고 되돌려지던 것을 고칩니다(8.0.0도 같습니다). 계획의 게시자는 환경 작업 폴더를 기준으로 쓰는데,
+  쓴 파일을 다시 읽어 확인하는 쪽은 문서가 든 폴더를 기준으로 삼아 "출력의 부모 폴더가 바뀌었다"로 읽었습니다. 게시 영수증은
+  그것이 허가된 기준 폴더로 읽고, 실패 뒤 되돌리기도 같은 기준으로 합니다(같은 신원 확인: 기준·부모 폴더의 장치·inode, 대상의
+  해시). 루트 바로 아래의 문서는 전과 같습니다.
 - 구역 설정(`hp:secPr`)이 구역 첫 문단이 아닌 뒤 문단에 있는 문서(python-hwpx 6.x의 `insert_paragraphs(0, …)`가 만든 모양)를
   열기부터 거부하던 것을 고칩니다(#247). 지금까지는 읽기 도구도 편집 도구도 코드 없는 `package validation failed`로 끝났습니다.
   열기 관문이 이 한 가지 모양(`section-properties-not-first`)만 통과시켜 읽기 도구가 그대로 읽고, 편집 도구가 저장하면

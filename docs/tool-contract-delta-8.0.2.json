@@ -1,15 +1,15 @@
 {
   "schemaVersion": "hwpx.tool-contract-delta/v1",
-  "release": "8.1.0",
+  "release": "8.0.2",
   "releaseStatus": "unreleased-source",
   "baseline": {
-    "release": "8.0.0",
+    "release": "8.0.1",
     "contractHash": "c895883d5f4350ae",
     "defaultToolCount": 128,
     "advancedToolCount": 136
   },
   "target": {
-    "release": "8.1.0",
+    "release": "8.0.2",
     "contractHash": "c895883d5f4350ae",
     "defaultToolCount": 128,
     "advancedToolCount": 136,

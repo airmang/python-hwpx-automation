@@ -47,6 +47,7 @@ ERROR_CODE_TO_MCP_CODE: dict[str, int] = {
     "WORKSPACE_ROOT_INVALID": -32043,
     "WORKSPACE_PATH_INVALID": -32602,
     "INVALID_ARGUMENT": -32602,
+    "MAIL_MERGE_FILENAME_COLLISION": -32602,
     "NETWORK_DESTINATION_DENIED": -32040,
 }
 
@@ -75,6 +76,7 @@ DEFAULT_ERROR_SUGGESTIONS: dict[str, str] = {
     "HWP_TEXT_EXTRACT_FAILED": "HWP 파일을 다른 뷰어에서 열어 유효성을 확인한 뒤 텍스트 추출을 다시 실행하세요.",
     "HWPX_PACKAGE_REQUIRED": ".hwp는 읽기만 합니다. copy_document로 .hwpx 사본을 만들어(destination을 .hwpx 경로로) 그 사본에 이 도구를 쓰고, 결과도 .hwpx로 내세요. 원본 .hwp는 그대로 둡니다. .hwp 파일이 꼭 필요하면 결과 .hwpx를 한/글에서 열어 .hwp로 저장하세요.",
     "IDEMPOTENT_REPLAY": "이미 적용된 planId입니다. 최신 preview/plan을 새로 만든 뒤 apply를 다시 호출하세요.",
+    "MAIL_MERGE_FILENAME_COLLISION": "filename_pattern에 행마다 다른 값을 넣어 다시 호출하세요(예: {index:03d}_{name}.hwpx). 같은 파일로 풀린 이름과 행 번호는 details.collisions에 있습니다. 이번 호출은 아무 파일도 만들지 않았습니다.",
     "MEMO_NOT_FOUND": "list_memos 또는 문서 리소스에서 memoId를 다시 확인한 뒤 호출하세요.",
     "MISSING_NODE": "대상 섹션, 문단, 표, 셀이 아직 존재하는지 조회한 뒤 새 앵커로 다시 실행하세요.",
     "PARAGRAPH_INDEX_OUT_OF_RANGE": "list_paragraphs 결과의 paragraphIndex 범위 안에서 다시 선택하세요.",
@@ -130,6 +132,7 @@ def category_for_error(error_code: str) -> ErrorCategory:
     if error_code in {
         "CLIENT_UPLOAD_PATH_UNAVAILABLE",
         "INVALID_ARGUMENT",
+        "MAIL_MERGE_FILENAME_COLLISION",
         "WORKSPACE_PATH_INVALID",
         "DOCUMENT_LOCATOR_REQUIRED",
         "RANGE_OUT_OF_BOUNDS",

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import logging
 import os
 import re
 import secrets
@@ -480,6 +481,7 @@ _IDEMPOTENCY_LOCK = PUBLIC_MUTATION_LOCK
 _fault_injector_for_tests: Any = None
 _SECTION_PATH = re.compile(r"^/section\[([1-9][0-9]*)\](?:/|$)")
 _FAILURE_RECOVERY_PREFIX = ".hwpx-mixed-form-recovery"
+_LOGGER = logging.getLogger(__name__)
 
 
 def _publish_exact_failure_recovery(
@@ -549,17 +551,66 @@ def _publish_exact_failure_recovery(
 
 @dataclass(slots=True)
 class _FailurePreimagePreserver:
-    """Reserve, retain, and guardedly release an output preimage sidecar."""
+    """Reserve, retain, and guardedly release an output preimage sidecar.
+
+    The sidecar is for the write only. It is on disk before the output can be replaced, so a
+    write that fails half way (or a process that dies in it) leaves the bytes from before
+    somewhere. ``settle`` retires it when the call ends; it stays only while the output does not
+    hold those bytes again, or when it could not be removed, and then the caller is told its name.
+    """
 
     workspace: WorkspaceResolver
     output: Path
     data: bytes | None
     mode: int | None
     publication: WorkspaceOutputGuard | None = None
+    before: _PathSnapshot | None = None
+    reserved: bool = False
+
+    def output_holds_preimage(self) -> bool:
+        """Whether the output, read now, has the bytes and mode it had before the call.
+
+        False when that cannot be shown (no snapshot from before, or the output cannot be read)."""
+
+        if self.before is None or self.data is None:
+            return False
+        try:
+            return _snapshots_match(
+                _capture_optional_path_snapshot(self.output),
+                self.before,
+                identity=False,
+            )
+        except Exception:
+            return False
+
+    def settle(self, *, succeeded: bool) -> dict[str, str] | None:
+        """Retire the sidecar at the end of a call; never raises.
+
+        Returns None when no sidecar is left, else the one that stays and why:
+        ``output-changed`` -- the call failed and the output does not hold its bytes from before
+        (or that cannot be shown), so the sidecar is the way back to them;
+        ``not-removed`` -- the sidecar had no more use (the call succeeded, or the output holds its
+        bytes from before) and could not be removed.
+        """
+
+        publication = self.publication
+        if publication is None:
+            return None
+        needed = not succeeded and not self.output_holds_preimage()
+        try:
+            if not needed and self.cleanup_after_success():
+                return None
+        except Exception:
+            pass
+        return {
+            "filename": publication.path.name,
+            "reason": "output-changed" if needed else "not-removed",
+        }
 
     def reserve(self) -> WorkspaceOutputGuard | None:
         if self.data is None:
             return None
+        self.reserved = True
         if self.publication is not None:
             try:
                 if self.workspace.read_guarded_bytes(self.publication) == self.data:
@@ -575,6 +626,13 @@ class _FailurePreimagePreserver:
         return self.publication
 
     def preserve(self) -> WorkspaceOutputGuard | None:
+        """Have the bytes from before on disk after a failure.
+
+        Nothing is written while no sidecar was ever reserved (so this call never came to publish)
+        and the output still holds those bytes: a refusal has nothing to recover."""
+
+        if not self.reserved and self.output_holds_preimage():
+            return None
         return self.reserve()
 
     def cleanup_after_success(self) -> bool:
@@ -589,6 +647,46 @@ class _FailurePreimagePreserver:
             return False
         self.publication = None
         return True
+
+
+def _tell_recovery_copy_in_result(
+    result: dict[str, Any],
+    kept: dict[str, str] | None,
+) -> dict[str, Any]:
+    """Name a recovery sidecar that outlives the call in the result's receipt
+    (``verificationReceipt.rollbackPreservation.recoveryCopy``: its file name beside the output,
+    and why it stayed)."""
+
+    if kept is None:
+        return result
+    _LOGGER.warning(
+        "recovery copy %s left beside the output (%s)", kept["filename"], kept["reason"]
+    )
+    receipt = result.get("verificationReceipt")
+    if isinstance(receipt, dict):
+        preservation = receipt.get("rollbackPreservation")
+        if not isinstance(preservation, dict):
+            preservation = receipt["rollbackPreservation"] = {}
+        preservation["recoveryCopy"] = dict(kept)
+    return result
+
+
+def _tell_recovery_copy_on_error(
+    error: BaseException,
+    kept: dict[str, str] | None,
+) -> None:
+    """Name a recovery sidecar that outlives a failed call on the error it raises
+    (``hwpx_recovery_copy``; the MCP error carries it as ``details.recoveryCopy``)."""
+
+    if kept is None:
+        return
+    _LOGGER.warning(
+        "recovery copy %s left beside the output (%s)", kept["filename"], kept["reason"]
+    )
+    try:
+        error.hwpx_recovery_copy = dict(kept)  # type: ignore[attr-defined]
+    except Exception:  # an error type that takes no attributes: the log line is what is left
+        pass
 
 
 class _WorkspaceSavePipeline(GuardedSavePipeline):
@@ -1529,6 +1627,7 @@ def _apply_canonical_mixed_form_plan_locked(
         output=output_snapshot.path,
         data=output_before if output_existed else None,
         mode=output_mode_before,
+        before=output_snapshot,
     )
     if not dry_run:
         output_precondition = (
@@ -1578,7 +1677,7 @@ def _apply_canonical_mixed_form_plan_locked(
         candidate_snapshot = _capture_optional_path_snapshot(output)
         candidate_existed = candidate_snapshot.existed
         candidate_bytes = candidate_snapshot.data
-        return _finalize_canonical_apply(
+        public = _finalize_canonical_apply(
             compiled=compiled,
             source=source,
             output=output,
@@ -1599,7 +1698,7 @@ def _apply_canonical_mixed_form_plan_locked(
             publication=publication,
             failure_preimage=failure_preimage,
         )
-    except BaseException:
+    except BaseException as error:
         if publication is None and save_pipeline is not None:
             publication = save_pipeline.publication
         failure_preimage.preserve()
@@ -1618,7 +1717,14 @@ def _apply_canonical_mixed_form_plan_locked(
             publication=publication,
             failure_preimage=failure_preimage,
         )
+        _tell_recovery_copy_on_error(error, failure_preimage.settle(succeeded=False))
         raise
+    # The recovery sidecar is for the write only: it goes when the call ends, unless the output
+    # does not hold its bytes from before (then the receipt names it).
+    return _tell_recovery_copy_in_result(
+        public,
+        failure_preimage.settle(succeeded=public.get("ok") is True),
+    )
 
 
 def _finalize_canonical_apply(
@@ -1979,26 +2085,25 @@ def _finalize_canonical_apply(
         )
     else:
         output_matches = _snapshots_match(observed_output, candidate_snapshot)
-    success_cleanup_failed = False
     if source_matches and output_matches:
         if dry_run:
             return public
-        if failure_preimage.cleanup_after_success():
-            observed_source = _capture_optional_path_snapshot(source)
-            observed_output = _capture_optional_path_snapshot(output)
-            source_matches = _snapshots_match(
-                observed_source,
-                source_snapshot_before,
-            )
-            output_matches = (
-                _snapshot_matches_publication(observed_output, publication)
-                if publication is not None
-                else _snapshots_match(observed_output, candidate_snapshot)
-            )
-            if source_matches and output_matches:
-                return public
-        else:
-            success_cleanup_failed = True
+        # A sidecar that cannot be removed (another program holds it open) does not undo a write
+        # that succeeded: the caller's settle() names the file that stayed.
+        failure_preimage.cleanup_after_success()
+        observed_source = _capture_optional_path_snapshot(source)
+        observed_output = _capture_optional_path_snapshot(output)
+        source_matches = _snapshots_match(
+            observed_source,
+            source_snapshot_before,
+        )
+        output_matches = (
+            _snapshot_matches_publication(observed_output, publication)
+            if publication is not None
+            else _snapshots_match(observed_output, candidate_snapshot)
+        )
+        if source_matches and output_matches:
+            return public
 
     _forget_fresh_idempotency(compiled, fresh=fresh)
     failure_preimage.preserve()
@@ -2025,21 +2130,8 @@ def _finalize_canonical_apply(
             "recoverability": "retryable",
             "target": "batch.output.filename",
         }
-        rolled_back = (
-            _restore_owned_candidate(
-                output=output,
-                output_existed=output_existed,
-                output_before=output_before,
-                output_mode_before=output_mode_before,
-                candidate_bytes=candidate_bytes,
-                claimed_revision=claimed_revision,
-                fresh=fresh and not dry_run,
-                publication=publication,
-                failure_preimage=failure_preimage,
-            )
-            if success_cleanup_failed and output_matches
-            else False
-        )
+        # The output is not the one this call published: it is not this call's to put back.
+        rolled_back = False
     final_output_snapshot = _capture_optional_path_snapshot(output)
     final_exists = final_output_snapshot.existed
     final_bytes = final_output_snapshot.data
@@ -2700,6 +2792,61 @@ def _run_specialized_form_operation_locked(
     ]
     | None,
 ) -> dict[str, Any]:
+    """Execute a specialized write, then retire its recovery sidecar.
+
+    The sidecar (the output's bytes from before) is for the write only. It goes when the call
+    ends -- after a success, after a refusal that changed nothing, after a failed write that was
+    put back. It stays only while the output does not hold its bytes from before, or when it
+    could not be removed; the result's receipt or the raised error then names it.
+    """
+
+    failure_preimage = _FailurePreimagePreserver(
+        workspace=WorkspaceResolver.from_environment(),
+        output=output_before.path,
+        data=output_before.data if output_before.existed else None,
+        mode=output_before.mode,
+        before=output_before,
+    )
+    try:
+        result = _run_specialized_form_operation_guarded(
+            operation=operation,
+            source=source,
+            output=output,
+            source_before=source_before,
+            output_before=output_before,
+            dry_run=dry_run,
+            execute=execute,
+            execute_with_guard=execute_with_guard,
+            failure_preimage=failure_preimage,
+        )
+    except BaseException as error:
+        _tell_recovery_copy_on_error(error, failure_preimage.settle(succeeded=False))
+        raise
+    return _tell_recovery_copy_in_result(
+        result,
+        failure_preimage.settle(succeeded=result.get("ok") is True),
+    )
+
+
+def _run_specialized_form_operation_guarded(
+    *,
+    operation: str,
+    source: Path,
+    output: Path,
+    source_before: _PathSnapshot,
+    output_before: _PathSnapshot,
+    dry_run: bool,
+    execute: Callable[[], dict[str, Any]] | None,
+    execute_with_guard: Callable[
+        [
+            WorkspaceOutputGuard | WorkspaceMissingParentGuard,
+            Callable[[WorkspaceOutputGuard], None],
+        ],
+        dict[str, Any],
+    ]
+    | None,
+    failure_preimage: _FailurePreimagePreserver,
+) -> dict[str, Any]:
     """Execute a specialized write and roll back only its exact publication."""
 
     same_path = source.resolve(strict=False) == output.resolve(strict=False)
@@ -2707,13 +2854,7 @@ def _run_specialized_form_operation_locked(
     if source_bytes is None:  # pragma: no cover - required source invariant
         raise FileNotFoundError(source)
     allowed_members = _specialized_allowed_members(source_bytes)
-    workspace = WorkspaceResolver.from_environment()
-    failure_preimage = _FailurePreimagePreserver(
-        workspace=workspace,
-        output=output_before.path,
-        data=output_before.data if output_before.existed else None,
-        mode=output_before.mode,
-    )
+    workspace = failure_preimage.workspace
     rollback_attempted = False
 
     def snapshots() -> tuple[_PathSnapshot, _PathSnapshot]:
@@ -2817,6 +2958,9 @@ def _run_specialized_form_operation_locked(
         if output_precondition is None:  # pragma: no cover - snapshot invariant
             raise RuntimeError("specialized output precondition is unavailable")
         if not dry_run:
+            # Before the writer runs, not after it validated: the writer is a callback that may
+            # replace the output at any point, and a sidecar that cannot be written must stop it
+            # first. The caller retires the sidecar when the call ends.
             failure_preimage.reserve()
         result = (
             execute_with_guard(output_precondition, record_publication)
@@ -2991,7 +3135,9 @@ def _run_specialized_form_operation_locked(
             preserve_preimage()
             restore_publication(publication if output_matches else None)
             raise
-    cleanup_ok = failure_preimage.cleanup_after_success()
+    # A sidecar that cannot be removed (another program holds it open) does not undo a write that
+    # succeeded: the caller's settle() names the file that stayed.
+    failure_preimage.cleanup_after_success()
     try:
         final_source, final_output = snapshots()
     except BaseException:
@@ -3008,7 +3154,7 @@ def _run_specialized_form_operation_locked(
         if publication is not None
         else _snapshots_match(final_output, output_before)
     )
-    if cleanup_ok and source_matches and output_matches:
+    if source_matches and output_matches:
         return attached
 
     preserve_preimage()

@@ -13,6 +13,7 @@ from ..office.authoring.style_profile import (
 
 from ..core.content import (
     add_memo_to_doc,
+    page_number_count,
     remove_memo_from_doc,
 )
 from ..core.document import open_doc
@@ -26,6 +27,7 @@ from ..utils.helpers import resolve_path
 from ._shared import (
     _revision_guard,
     _save_doc_verification,
+    _with_document_state,
     _with_dry_run_verification,
     _with_save_verification,
 )
@@ -377,19 +379,8 @@ def _header_footer_payload(
         "pageType": page_type,
         "id": getattr(wrapper, "id", None),
         "text": getattr(wrapper, "text", ""),
-        "pageNumberCount": _page_number_count(wrapper),
+        "pageNumberCount": page_number_count(wrapper),
     }
-
-
-def _page_number_count(story: Any) -> int:
-    """머리말·꼬리말 안(칸·글상자 속 문단까지)의 쪽 번호 컨트롤(``run.content``의 ``page_number``) 수."""
-
-    count = 0
-    for paragraph in getattr(story, "paragraphs", None) or ():
-        for inner in (paragraph, *(place.paragraph for place in paragraph.iter_paragraphs())):
-            for run in inner.runs:
-                count += sum(1 for item in run.content if item.kind == "page_number")
-    return count
 
 
 def set_header_footer(
@@ -576,6 +567,11 @@ def remove_memo(
     result = remove_memo_from_doc(doc, paragraph_index, location=location)
     if result["location"].get("kind") == "body_paragraph":
         result["paragraph_index"] = result["location"]["paragraph_index"]
+    if not result["memo_removed"]:
+        # No memo on that paragraph: the document is the same, so it is not written again
+        # (a write would move the backups up and undo_last_edit would lose the edit before).
+        result["dryRun"] = bool(dry_run)
+        return _with_document_state(result, path)
     if dry_run:
         return _with_dry_run_verification(result, doc, path)
     verification = _save_doc_verification(doc, path)
