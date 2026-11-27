@@ -52,6 +52,7 @@ def _needs_lines_with_tables() -> None:
 # --- a) a table inside a cell stands at its place among the cell's lines
 
 
+@pytest.mark.usefixtures("tables_flow")  # drawn flowing (at coordinates, see the positioned table tests)
 def test_a_table_in_a_cell_is_drawn_once_between_the_lines_around_it() -> None:
     _needs_lines_with_tables()
     document = HwpxDocument.new()
@@ -285,10 +286,12 @@ def test_a_picture_without_bytes_a_browser_reads_is_a_counted_marker() -> None:
 
     preview = render_layout_preview(document.to_bytes())
 
-    cell_markup, = html.fromstring(preview.page_fragments[0]).xpath(".//td")
-    assert not cell_markup.xpath(".//img")
-    assert [marker.text for marker in cell_markup.xpath(".//span[@class='hwpx-object-marker']")] == ["⟦그림 1⟧"]
-    assert _limitations(preview)["picture", PLACEHOLDER] == 1
+    # In its cell when the table flows, at its own place when the engine gives the picture one.
+    page = html.fromstring(preview.page_fragments[0])
+    assert not page.xpath(".//img")
+    assert [marker.text for marker in page.xpath(".//span[@class='hwpx-object-marker']")] == ["⟦그림 1⟧"]
+    reason = PLACEHOLDER if page.xpath(".//td") else "embedded image is missing or unsupported in the browser"
+    assert _limitations(preview)["picture", reason] == 1
 
 
 # --- d) a row split over pages

@@ -300,16 +300,43 @@ def test_a_header_on_a_flow_page_stands_in_its_room_and_takes_no_body_room(monke
     assert "머리말의 글" in layer.text_content()
 
 
-def test_a_header_for_odd_pages_only_stands_in_the_first_page_header_margin() -> None:
+def test_a_header_for_odd_pages_stands_in_its_room_on_the_odd_pages_the_engine_gives_it() -> None:
+    document = HwpxDocument.new()
+    document.page.set_header(text="홀수 쪽 머리말", page_type="ODD")
+    _long_body(document, 90)
+    payload = document.to_bytes()
+    layout = experimental.estimate_layout(payload)
+    given = {area.page: area for area in layout.areas if area.page is not None}
+    if not given:
+        pytest.skip("the engine gives a header for odd pages no page")
+    assert layout.estimate.pages >= 3 and all(layout.pages[page].number % 2 == 1 for page in given)
+
+    preview = render_layout_preview(payload)
+
+    assert set(_modes(preview)) == {"positioned"}
+    for number, fragment in enumerate(preview.page_fragments):
+        lines = html.fromstring(fragment).xpath(".//div[@class='hwpx-area-layer'][@data-area-kind='header']/div")
+        if number not in given:
+            assert not lines
+            continue
+        line, = lines
+        assert line.text_content() == "홀수 쪽 머리말"
+        assert _mm(line, "top") == pytest.approx(given[number].lines[0].top / MM, abs=0.006)
+    assert "header" not in {kind for kind, _ in _limitations(preview)}
+
+
+def test_a_header_the_engine_gives_no_page_stands_in_the_first_page_header_margin(monkeypatch) -> None:
     document = HwpxDocument.new()
     document.page.set_header(text="홀수 쪽 머리말", page_type="ODD")
     _long_body(document)
     payload = document.to_bytes()
-    layout = experimental.estimate_layout(payload)
-    area, = layout.areas
-    assert area.page is None and area.unavailable
+    real = experimental.estimate_layout(payload)
+    first = real.areas[0]
+    area = replace(first, page=None, column=None, x=None, top=None, width=None, height=None, lines=(),
+                   unavailable=("area page not retained",))
+    layout = replace(real, areas=(area,))
 
-    preview = render_layout_preview(payload)
+    preview = _preview_with(monkeypatch, payload, layout)
 
     assert set(_modes(preview)) == {"positioned"}
     rooms = [html.fromstring(fragment).xpath(".//div[contains(@class, 'hwpx-area-room')]")
@@ -324,6 +351,38 @@ def test_a_header_for_odd_pages_only_stands_in_the_first_page_header_margin() ->
     limits = _limitations(preview)
     assert limits["header", "area without a page is drawn in the margin of its paragraph's page"] == 1
     assert limits["header", area.unavailable[0]] == 1
+
+
+def test_a_header_set_in_a_table_cell_stands_in_its_room_and_the_table_at_coordinates() -> None:
+    document = HwpxDocument.new()
+    document.page.set_header(text="칸에 든 머리말")
+    _long_body(document, 50)
+    table = document.add_paragraph("").add_table(1, 2)
+    table.cell(0, 0).text = "머리말 조판부호를 담은 칸"
+    table.cell(0, 1).text = "옆 칸"
+    header = next(node for node in document.sections[0].element.iter() if node.tag.endswith("}header"))
+    table.cell(0, 0).paragraphs[0].element.find("{*}run").append(header.getparent())  # its control, into the cell
+    payload = document.to_bytes()
+    layout = experimental.estimate_layout(payload)
+    area, = [area for area in layout.areas if area.kind == "header"]
+    placed, = layout.tables
+    if area.page is None:
+        pytest.skip("the engine gives a header in a cell no page")
+    assert area.page == placed.rows[0].page
+
+    preview = render_layout_preview(payload)
+
+    page = html.fromstring(preview.page_fragments[area.page])
+    assert page.get("data-layout-mode") == "positioned"
+    assert page.xpath(".//div[@class='hwpx-engine-table']") and not page.xpath(".//table")
+    line, = page.xpath(".//div[@class='hwpx-area-layer'][@data-area-kind='header']/div")
+    assert line.text_content() == "칸에 든 머리말"
+    assert _mm(line, "left") == pytest.approx(area.x / MM, abs=0.006)
+    assert _mm(line, "top") == pytest.approx(area.lines[0].top / MM, abs=0.006)
+    # Not on the pages before the one showing the cell.
+    assert not any(html.fromstring(fragment).xpath(".//*[@data-area-kind='header']")
+                   for fragment in preview.page_fragments[:area.page])
+    assert not drawn_wrongly(overlaps(preview.page_fragments))
 
 
 def test_a_header_holding_a_table_is_drawn_whole_in_its_room_on_every_page() -> None:

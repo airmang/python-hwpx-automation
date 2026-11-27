@@ -203,9 +203,12 @@ def test_captions_of_pictures_and_shapes_are_shown_in_the_body_and_in_cells() ->
     captions = [caption.text_content() for caption in page.xpath(".//*[contains(@class, 'hwpx-object-caption')]")]
     assert sorted(captions) == ["도형의 캡션", "본문 그림의 캡션", "칸 안 그림의 캡션"]
     assert all(_text(preview).count(caption) == 1 for caption in captions)  # not inside the shape as well
-    assert page.xpath(".//td//*[contains(@class, 'hwpx-object-caption')]")[0].text_content() == "칸 안 그림의 캡션"
+    # In its cell when the table flows; beside the picture, at its own place, when the engine gives it one.
+    if page.xpath(".//td"):
+        assert page.xpath(".//td//*[contains(@class, 'hwpx-object-caption')]")[0].text_content() == "칸 안 그림의 캡션"
     limitations = _limitations(preview)
-    assert limitations["picture", "caption placement is unavailable"] == 1
+    # The body picture's caption, and the cell picture's when it stands at its own place.
+    assert limitations["picture", "caption placement is unavailable"] == (1 if page.xpath(".//td") else 2)
     assert limitations["shape", "caption placement is unavailable"] == 1
 
 

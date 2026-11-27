@@ -180,6 +180,32 @@ def test_a_page_number_in_a_footer_shows_the_number_of_its_page() -> None:
         assert not "".join(span.text_content() for span in shown)
 
 
+@pytest.mark.skipif(not hasattr(experimental.PagePlacement, "number"), reason="needs the core page numbers")
+def test_page_numbers_are_the_engine_s_and_the_preview_counts_only_where_it_gives_none(monkeypatch) -> None:
+    document = HwpxDocument.new()
+    document.page.set_page_number()
+    _long_body(document, 90)
+    payload = document.to_bytes()
+    real = experimental.estimate_layout
+    layout = real(payload)
+    assert layout.estimate.pages >= 3
+    assert [page.number for page in layout.pages] == list(range(1, layout.estimate.pages + 1))
+
+    def numbered(source):
+        found = real(source)
+        pages = tuple(replace(page, number=None if page.page == 1 else 10 + page.page) for page in found.pages)
+        return replace(found, pages=pages)
+
+    monkeypatch.setattr(experimental, "estimate_layout", numbered)
+    preview = render_layout_preview(payload)
+
+    shown = [[span.get("data-number-text") for span in html.fromstring(fragment).xpath(
+        ".//*[@data-area-kind='footer']//span[@class='hwpx-page-number-text']")] for fragment in preview.page_fragments]
+    # The engine's numbers; the page it gives none goes on from the page before, counted.
+    assert shown[:3] == [["10"], ["11"], ["12"]]
+    assert _limitations(preview)["page-number", layout_preview._NUMBER_COUNTED[1]] == 1
+
+
 def _page_number_control(document: HwpxDocument, **attributes: str) -> None:
     """A page number control (``hp:ctrl/hp:pageNum``) in the first paragraph."""
     run = document.sections[0].element.find(f"{HP}p/{HP}run")

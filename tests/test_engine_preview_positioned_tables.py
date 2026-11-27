@@ -146,17 +146,71 @@ def test_a_table_split_over_pages_is_drawn_at_coordinates_on_every_page_with_its
     assert all(len(re.findall(rf"(?<![0-9]){row}번 행의 내용", text)) == 1 for row in range(2, 61))
 
 
-@pytest.mark.parametrize("holds", ["caption", "picture", "table"])
+def _nested_document() -> HwpxDocument:
+    document = HwpxDocument.new()
+    document.add_paragraph("표 위의 문단")
+    outer = document.add_paragraph("").add_table(2, 2)
+    outer.cell(0, 0).text = "바깥 칸"
+    outer.cell(1, 1).text = "안쪽 표를 담은 칸"
+    inner = outer.cell(1, 1).add_paragraph("").add_table(2, 2)
+    for row in range(2):
+        for column in range(2):
+            inner.cell(row, column).text = f"안 {row + 1}-{column + 1}"
+    document.add_paragraph("표 아래의 문단")
+    return document
+
+
+@pytest.mark.skipif(not hasattr(experimental.TableRowPlacement, "x"), reason="needs the core row left edge")
+def test_a_table_alone_on_a_cell_line_is_drawn_at_the_engine_s_coordinates_inside_its_cell() -> None:
+    payload = _nested_document().to_bytes()
+    layout = experimental.estimate_layout(payload)
+    outer, inner = layout.tables
+    if any(row.top is None or row.x is None for row in inner.rows):
+        pytest.skip("the core does not set this nested table at coordinates")
+
+    preview = render_layout_preview(payload)
+
+    page = html.fromstring(preview.page_fragments[0])
+    assert page.get("data-layout-mode") == "positioned" and not page.xpath(".//table")
+    drawn = {int(table.get("data-engine-table")): table for table in page.xpath(".//div[@class='hwpx-engine-table']")}
+    assert sorted(drawn) == [outer.table, inner.table]
+    engine_page = layout.pages[0]
+    for row in inner.rows:
+        for cell in row.cells:
+            markup, = drawn[inner.table].xpath(
+                f"./div[@data-engine-row='{row.row}'][@data-engine-column='{cell.column}']"
+            )
+            paper_x = _column_left(engine_page, row.column, row.top) + row.x + cell.x
+            paper_top = row.top - row.table_offset + cell.top
+            assert _mm(drawn[inner.table], "left") + _mm(markup, "left") == pytest.approx(paper_x * MM, abs=0.011)
+            assert _mm(drawn[inner.table], "top") + _mm(markup, "top") == pytest.approx(paper_top * MM, abs=0.011)
+            assert _mm(markup, "width") == pytest.approx(cell.width * MM, abs=0.006)
+    # The inner table stands inside the outer cell holding it, under that cell's own line.
+    holder = next(cell for row in outer.rows for cell in row.cells if cell.lines_with_tables)
+    holder_box, = drawn[outer.table].xpath(
+        f"./div[@data-engine-row='{holder.row}'][@data-engine-column='{holder.column}']"
+    )
+    left = _mm(drawn[outer.table], "left") + _mm(holder_box, "left")
+    top = _mm(drawn[outer.table], "top") + _mm(holder_box, "top")
+    assert left <= _mm(drawn[inner.table], "left") and top < _mm(drawn[inner.table], "top")
+    assert _mm(drawn[inner.table], "left") + _mm(drawn[inner.table], "width") <= left + _mm(holder_box, "width") + 0.02
+    assert FLOWING not in _limitations(preview)
+    assert not drawn_wrongly(overlaps(preview.page_fragments))
+    text = page.text_content()
+    assert all(text.count(f"안 {row}-{column}") == 1 for row in (1, 2) for column in (1, 2))
+
+
+@pytest.mark.parametrize("holds", ["caption", "table"])
 def test_a_table_holding_what_cell_lines_do_not_give_flows_and_says_so(holds: str) -> None:
     document = HwpxDocument.new()
     table = document.add_paragraph("").add_table(2, 2)
     table.cell(0, 0).text = "글이 든 칸"
     if holds == "caption":
         table.set_caption("표의 캡션")
-    elif holds == "picture":
-        table.cell(1, 1).paragraphs[0].add_picture(document.media.add_image(PIXEL, "png"), width=3000, height=2000)
-    else:
-        table.cell(1, 1).add_paragraph("").add_table(1, 1).cell(0, 0).text = "안쪽 표"
+    else:  # a table in a cell not set as a character: the engine gives it no place in the cell
+        inner = table.cell(1, 1).add_paragraph("").add_table(1, 1)
+        inner.cell(0, 0).text = "안쪽 표"
+        inner.element.find("{*}pos").set("treatAsChar", "0")
 
     preview = render_layout_preview(document.to_bytes())
 

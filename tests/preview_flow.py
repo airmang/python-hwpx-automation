@@ -16,5 +16,5 @@ from hwpx_automation.preview import layout_preview
 
 @pytest.fixture
 def tables_flow(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setattr(layout_preview, "_drawable_at_coordinates", lambda table, objects=None: False)
+    monkeypatch.setattr(layout_preview, "_drawable_at_coordinates", lambda table, objects=None, placements=None: False)
     yield
