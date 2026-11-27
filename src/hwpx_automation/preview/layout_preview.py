@@ -105,6 +105,8 @@ class _ParagraphSources:
     objects: Mapping[Any, Any]
     areas: Mapping[Any, list[Any]]
     images: Mapping[str, tuple[str, bytes]]
+    #: Tables (by ``TablePlacement.table``) the engine sets on a line of some cell of this paragraph.
+    hosted_tables: frozenset[int] = frozenset()
 
 
 _DEFAULT_PAGE_WIDTH_MM = 210.0
@@ -417,12 +419,15 @@ def _parse_para_style(node: ET.Element) -> dict[str, Any]:
             }.get(child.tag)
             if key:
                 margins[key] = _hwp_to_mm(child.get("value"))
+    spacing_value = _safe_int(line_spacing.get("value") if line_spacing is not None else None, 160)
+    spacing_kind = (line_spacing.get("type") if line_spacing is not None else None) or "PERCENT"
+    if spacing_kind != "PERCENT" and line_spacing is not None and line_spacing.get("unit") == "CHAR":
+        spacing_kind = "UNKNOWN"  # a length in character units: not read here
     return {
         "align": _TEXT_ALIGN.get(horizontal.lower(), "left"),
-        "line_spacing_percent": _safe_int(
-            line_spacing.get("value") if line_spacing is not None else None,
-            160,
-        ),
+        "line_spacing_percent": spacing_value,
+        # (type, value) as written: PERCENT of the line height, or a length in HWPUNIT.
+        "line_spacing": (spacing_kind, spacing_value),
         "margins_mm": margins,
     }
 
@@ -566,6 +571,57 @@ def _render_inline_object(child: ET.Element, counter: _ObjectCounter) -> str:
     return ""
 
 
+_PLACEHOLDER = "object is shown as a placeholder"
+
+
+@dataclass(frozen=True)
+class _CellObjects:
+    """Draws what the cells of an engine page's tables anchor: nothing a cell holds may vanish.
+
+    A picture is shown itself when the engine gives its size and the file holds bytes a browser
+    reads, an equation as an equation, anything else as its marker (a shape with its text).
+    They stand in the cell's flow; every marker is counted.
+    """
+
+    objects: Mapping[Any, Any]
+    images: Mapping[str, tuple[str, bytes]]
+    issues: Counter[tuple[str, str]]
+    counter: _ObjectCounter
+
+    def markup(self, element: ET.Element) -> str:
+        if element.tag == _EQUATION_TAG:
+            return _render_equation_element(element)
+        kind = _OBJECT_KINDS.get(element.tag, "shape" if element.tag in _SHAPE_TAGS else element.tag.removeprefix(_HP))
+        if element.tag == _PICTURE_TAG:
+            label = f"그림 {self.counter.next_picture()}"
+            placed = self.objects.get(element)
+            image = element.find(f".//{_HC}img")
+            asset = self.images.get(image.get("binaryItemIDRef", "")) if image is not None else None
+            if asset is not None and placed is not None and placed.width and placed.height:
+                css = _style_attr({
+                    "width": _fmt_mm(_hwp_to_mm(placed.width)), "height": _fmt_mm(_hwp_to_mm(placed.height)),
+                })
+                encoded = base64.b64encode(asset[1]).decode("ascii")
+                return f'<img class="hwpx-cell-picture" alt="{label}" style="{css}" src="data:{asset[0]};base64,{encoded}">'
+            self.issues[(kind, _PLACEHOLDER)] += 1
+            return _render_object_marker(label)
+        self.issues[(kind, _PLACEHOLDER)] += 1
+        if element.tag in _SHAPE_TAGS:
+            return _render_shape(element)
+        return _render_object_marker(_OTHER_OBJECT_LABELS.get(element.tag, "개체"))
+
+
+def _run_objects(run: ET.Element) -> Iterator[ET.Element]:
+    """The objects a run anchors, tables apart: its own, and of an ``hp:switch`` the first choice."""
+    for child in run:
+        if child.tag in _OBJECT_TAGS:
+            yield child
+        elif child.tag == f"{_HP}switch":
+            found = next((node for node in child.iter() if node.tag in _OBJECT_TAGS), None)
+            if found is not None:
+                yield found
+
+
 def _render_inline_runs(
     paragraph: ET.Element,
     styles: Mapping[str, Any],
@@ -573,6 +629,7 @@ def _render_inline_runs(
     *,
     include_objects: bool = True,
     extended_styles: bool = False,
+    cell_objects: _CellObjects | None = None,
 ) -> str:
     spans: list[str] = []
     char_styles = styles["char"]
@@ -584,7 +641,9 @@ def _render_inline_runs(
             spans.append(f'<span style="{style}">{html.escape(text)}</span>')
         # Inline objects that carry no text are rendered as real content or an
         # honest marker -- never dropped to a blank (Constitution VI).
-        if include_objects:
+        if include_objects and cell_objects is not None:
+            spans.extend(cell_objects.markup(child) for child in _run_objects(run))
+        elif include_objects:
             spans.extend(_render_inline_object(child, counter) for child in run)
     return "".join(spans)
 
@@ -649,6 +708,56 @@ def _border_style(
 _AUTHORED_ROW_HEIGHT = ("table-row", "row height is the authored cell height, not an engine value")
 
 
+def _column_widths(table: ET.Element) -> list[int] | None:
+    """The table's column widths (HWPUNIT) as its cells' addresses, spans and widths settle them.
+
+    A fixed-layout HTML table takes its columns from its first row alone; a first row of merged
+    cells would leave them even. ``None`` when the cells do not settle every column.
+    """
+    cells = []
+    count = 0
+    for cell in table.findall(f"{_HP}tr/{_HP}tc"):
+        address, span, size = (cell.find(f"{_HP}{name}") for name in ("cellAddr", "cellSpan", "cellSz"))
+        if address is None or size is None:
+            return None
+        start = _safe_int(address.get("colAddr"))
+        columns = max(1, _safe_int(span.get("colSpan") if span is not None else None, 1))
+        cells.append((start, columns, _safe_int(size.get("width"))))
+        count = max(count, start + columns)
+    known: dict[int, int] = {}
+    settled = True
+    while settled and len(known) < count:
+        settled = False
+        for start, columns, width in cells:
+            missing = [column for column in range(start, start + columns) if column not in known]
+            if len(missing) == 1:
+                value = width - sum(known[column] for column in range(start, start + columns) if column in known)
+                if value <= 0:
+                    return None
+                known[missing[0]] = value
+                settled = True
+    return [known[column] for column in range(count)] if count and len(known) == count else None
+
+
+def _padding_less_border(margin_mm: float, border: str | None) -> str | None:
+    """A cell margin less the half of *border* (a CSS border side) the cell's box takes; ``None`` for no border.
+
+    A browser lays a border thinner than a pixel out as one whole pixel.
+    """
+    width = (border or "none").split(" ", 1)[0]
+    pixels = 0.0
+    if width.endswith("mm"):
+        pixels = float(width[:-2]) * 96 / 25.4
+    elif width.endswith("px"):
+        pixels = float(width[:-2])
+    if pixels <= 0:
+        return None
+    half = max(1.0, float(int(pixels))) / 2
+    if margin_mm * 96 / 25.4 <= half:
+        return "0mm"
+    return f"calc({_fmt_mm(margin_mm)} - {half:g}px)"
+
+
 def _authored_row_height(cells: list[ET.Element]) -> int:
     """The tallest ``hp:cellSz@height`` (HWPUNIT) among the row's cells that span one row."""
     heights = []
@@ -673,6 +782,7 @@ def _render_table(
     captions: tuple[Any, ...] = (),
     show_approx_caption: bool = False,
     issues: Counter[tuple[str, str]] | None = None,
+    sources: _ParagraphSources | None = None,
 ) -> str:
     size = table.find(f"{_HP}sz")
     table_width = _hwp_to_mm(size.get("width") if size is not None else None)
@@ -685,13 +795,13 @@ def _render_table(
         }
     )
     rows: list[str] = []
-    sources = table.findall(f"{_HP}tr")
+    source_rows = table.findall(f"{_HP}tr")
     if row_parts:
         source_cells = table.findall(f"{_HP}tr/{_HP}tc")
         selected = [([source_cells[cell.source_index] for cell in part.cells if cell.source_index is not None], part)
                     for part in row_parts]
     else:
-        selected = [(row.findall(f"{_HP}tc"), None) for row in sources]
+        selected = [(row.findall(f"{_HP}tc"), None) for row in source_rows]
     for source_cells, part in selected:
         cells: list[str] = []
         measured = {cell.column: cell for cell in part.cells} if part is not None else {}
@@ -714,6 +824,16 @@ def _render_table(
                 for key in ("top", "right", "bottom", "left")
             }
             css = _border_style(tc.get("borderFillIDRef") or table.get("borderFillIDRef"), styles, issues=issues)
+            above = below = None
+            vertical = "middle"
+            if flow:
+                # The engine's row height has no border in it: the half of each border the cell's box
+                # takes comes off the margin, so that a row of engine lines is as tall as the engine says.
+                above = _padding_less_border(padding["top"], css["border-top"])
+                below = _padding_less_border(padding["bottom"], css["border-bottom"])
+                vertical = _cell_vertical_align(tc)
+                if placement is not None and placement.line_start:
+                    vertical = "top"  # the later part of a split cell goes on from its top
             css.update(
                 {
                     "width": _fmt_mm(width) if width > 0 else None,
@@ -722,15 +842,17 @@ def _render_table(
                         f"{_fmt_mm(padding['top'])} {_fmt_mm(padding['right'])} "
                         f"{_fmt_mm(padding['bottom'])} {_fmt_mm(padding['left'])}"
                     ),
-                    "vertical-align": "middle",
+                    "padding-top": above,
+                    "padding-bottom": below,
+                    "vertical-align": vertical,
                 }
             )
             body_parts = _table_cell_body(
                 tc, styles, counter, flow=flow, placement=placement, table_placements=table_placements,
                 continued=part is not None and part.row in continued_rows and not part.repeated,
-                page=part.page if part is not None else None, issues=issues,
+                page=part.page if part is not None else None, issues=issues, sources=sources,
             )
-            if not body_parts:
+            if not body_parts and part is None:
                 body_parts.append("&nbsp;")
             span = tc.find(f"{_HP}cellSpan")
             colspan = _safe_int(span.get("colSpan") if span is not None else None, 1)
@@ -764,51 +886,241 @@ def _render_table(
         rows.append(f"<tr{row_attrs}>{''.join(cells)}</tr>")
     table_attrs = f' data-engine-table="{table_index}"' if table_index is not None else ""
     caption_html = _table_caption_markup(table, captions, styles, counter, approximate=show_approx_caption)
-    return f'<table class="hwpx-table"{table_attrs} style="{table_style}">{caption_html}<tbody>{"".join(rows)}</tbody></table>'
+    columns = ""
+    if flow and (widths := _column_widths(table)) is not None:
+        columns = "".join(f'<col style="width:{_fmt_mm(_hwp_to_mm(width))}">' for width in widths)
+        columns = f"<colgroup>{columns}</colgroup>"
+    return (
+        f'<table class="hwpx-table"{table_attrs} style="{table_style}">{caption_html}{columns}'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+
+
+_CELL_VERTICAL = {"TOP": "top", "CENTER": "middle", "BOTTOM": "bottom"}
+_STACKED_CELL = ("table-cell", "cell lines stand at the file's line spacing, not at engine tops")
+_CONTINUED_PARAGRAPH = "이어지는 문단의 줄 위치 미확인"
+
+
+def _cell_vertical_align(cell: ET.Element) -> str:
+    """Where the cell sets its content (``hp:subList@vertAlign``); the middle when it does not say."""
+    content = cell.find(f"{_HP}subList")
+    return _CELL_VERTICAL.get((content.get("vertAlign") if content is not None else None) or "CENTER", "middle")
 
 
 def _table_cell_body(
     cell: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, *, flow: bool,
     placement: Any, continued: bool, page: int | None, table_placements: Mapping[Any, Any] | None,
-    issues: Counter[tuple[str, str]] | None = None,
+    issues: Counter[tuple[str, str]] | None = None, sources: _ParagraphSources | None = None,
 ) -> list[str]:
-    paragraphs = _cell_paragraphs(cell)
-    measured = placement.lines if placement is not None else ()
-    if measured and all(line.text is not None for line in measured):
-        return [_cell_line_markup(line, paragraphs[line.paragraph], styles) for line in measured]
+    cell_objects = None
+    if sources is not None and issues is not None:
+        cell_objects = _CellObjects(sources.objects, sources.images, issues, counter)
+    # A cell holding tables gives its lines, the tables' among them, apart from ``lines``.
+    lines = () if placement is None else (getattr(placement, "lines_with_tables", ()) or placement.lines)
+    if lines:
+        return _placed_cell_lines(
+            cell, lines, styles, counter, page=page, table_placements=table_placements, issues=issues,
+            sources=sources, cell_objects=cell_objects,
+        )
     if placement is not None and placement.line_start is not None and placement.line_start == placement.line_end:
         return []
     if continued or (placement is not None and placement.line_start):
         return [_render_object_marker("이어지는 칸의 줄 위치 미확인")]
+    if not flow:
+        return [
+            _render_paragraph(paragraph, styles, counter, include_tables=False)
+            for paragraph in _cell_paragraphs(cell)
+        ]
+    # No engine lines: the cell's own paragraphs in order, each table after the paragraph that anchors it.
     body = []
-    for paragraph in paragraphs:
-        body.append(_render_paragraph(paragraph, styles, counter, include_tables=False, extended_styles=flow))
-        if flow:
-            for nested in _anchored_tables(paragraph):
-                found = table_placements.get(nested) if table_placements is not None else None
-                rows = tuple(row for row in found.rows if row.page == page) if found is not None else ()
-                body.append(_render_table(
-                    nested, styles, counter, flow=True, row_parts=rows, table_placements=table_placements,
-                    table_index=found.table if found is not None and rows else None,
-                    captions=tuple(caption for caption in found.captions if caption.page == page) if found else (),
-                    show_approx_caption=found is None or not found.captions, issues=issues,
-                ))
+    for paragraph in cell.findall(f"{_HP}subList/{_HP}p"):
+        body.append(_render_paragraph(
+            paragraph, styles, counter, include_tables=False, extended_styles=True, cell_objects=cell_objects,
+        ))
+        body.extend(
+            _nested_table(nested, styles, counter, page=page, table_placements=table_placements,
+                          issues=issues, sources=sources)
+            for nested in _anchored_tables(paragraph)
+        )
     return body
 
 
-def _cell_line_markup(line: Any, paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
+def _nested_table(
+    table: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, *, page: int | None,
+    table_placements: Mapping[Any, Any] | None, issues: Counter[tuple[str, str]] | None,
+    sources: _ParagraphSources | None, every_page: bool = False,
+) -> str:
+    """A table inside a cell: its engine rows of *page* (of every page with *every_page*), or all of it
+    when the engine placed no row."""
+    found = table_placements.get(table) if table_placements is not None else None
+    rows = tuple(row for row in found.rows if every_page or row.page == page) if found is not None else ()
+    if found is not None and found.rows and not rows:
+        return ""  # placed, on other pages only
+    return _render_table(
+        table, styles, counter, flow=True, row_parts=rows, table_placements=table_placements,
+        table_index=found.table if found is not None and rows else None,
+        captions=tuple(caption for caption in found.captions if every_page or caption.page == page) if found else (),
+        show_approx_caption=found is None or not found.captions, issues=issues, sources=sources,
+    )
+
+
+def _has_inline_objects(paragraph: ET.Element) -> bool:
+    return any(_placed_as_character(node) for run in paragraph.findall(f"{_HP}run") for node in _run_objects(run))
+
+
+def _cell_line_room(
+    line: Any, following: Any, style: Mapping[str, Any], following_style: Mapping[str, Any],
+    character_mm: float | None = None,
+) -> tuple[float | None, int | None]:
+    """Millimetres from this cell line's top to the next line's top, and the engine's value if it gave one.
+
+    With both engine tops, their difference. Otherwise what the file states: the paragraph's line
+    spacing over the line's height (over the character size for a line that is a table), plus the
+    paragraph spacing between two paragraphs -- never less than the line's own height, so that
+    two lines cannot overlap. The cell's last line here has no next line and keeps its height.
+    """
+    if following is None:
+        return None, None
+    if line.top is not None and following.top is not None and following.top > line.top:
+        return _hwp_to_mm(following.top - line.top), following.top - line.top
+    height = _hwp_to_mm(line.height)
+    kind, value = style.get("line_spacing", ("PERCENT", 160))
+    if kind == "FIXED":
+        room = _hwp_to_mm(value)
+    elif kind == "BETWEEN_LINES":
+        room = height + _hwp_to_mm(value)
+    elif kind == "AT_LEAST":
+        room = max(height, _hwp_to_mm(value))
+    elif kind == "PERCENT":
+        room = height + (height if character_mm is None else character_mm) * (value - 100) / 100
+    else:
+        room = height
+    if following.paragraph != line.paragraph:
+        room += style.get("margins_mm", {}).get("bottom", 0.0) + following_style.get("margins_mm", {}).get("top", 0.0)
+    return max(room, height), None
+
+
+def _placed_cell_lines(
+    cell: ET.Element, lines: tuple[Any, ...], styles: Mapping[str, Any], counter: _ObjectCounter, *,
+    page: int | None, table_placements: Mapping[Any, Any] | None, issues: Counter[tuple[str, str]] | None,
+    sources: _ParagraphSources | None, cell_objects: _CellObjects | None,
+) -> list[str]:
+    """The part of a cell the engine placed on a page: its lines in order, a table on the line holding it.
+
+    A paragraph holding objects set as characters (or a line whose text the engine does not give) is
+    drawn whole where it begins, objects in place; of its later part only a marker shows. What else a
+    paragraph anchors -- floating objects, tables the engine sets on no line -- follows its lines.
+    """
+    own = cell.findall(f"{_HP}subList/{_HP}p")
+    held = {placed.table: element for element, placed in (table_placements or {}).items()}
+    hosted = sources.hosted_tables if sources is not None else frozenset()
+    para_styles = styles["para"]
+
+    def style_of(index: int) -> Mapping[str, Any]:
+        return para_styles.get(own[index].get("paraPrIDRef") or "0", {})
+
+    lines = tuple(line for line in lines if line.paragraph < len(own))
+    begins = {line.paragraph for line in lines if line.line == 0}
+    whole = {
+        line.paragraph for line in lines
+        if not getattr(line, "tables", ()) and (line.text is None or _has_inline_objects(own[line.paragraph]))
+    }
+    body: list[str] = []
+    drawn: set[int] = set()
+    stacked = False
+    for index, line in enumerate(lines):
+        paragraph = own[line.paragraph]
+        following = lines[index + 1] if index + 1 < len(lines) else None
+        style = style_of(line.paragraph)
+        following_style = style_of(following.paragraph) if following is not None else {}
+        tables = getattr(line, "tables", ())
+        if tables:
+            run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
+            if run is None:
+                run = paragraph.find(f"{_HP}run")
+            char = styles["char"].get(run.get("charPrIDRef") or "0", {}) if run is not None else {}
+            room, engine = _cell_line_room(
+                line, following, style, following_style, character_mm=char.get("font_size_pt", 10.0) * 25.4 / 72,
+            )
+            stacked = stacked or (room is not None and engine is None)
+            inner = "".join(
+                _nested_table(held[number], styles, counter, page=page, table_placements=table_placements,
+                              issues=issues, sources=sources)
+                for number in tables if number in held
+            )
+            css = _style_attr({
+                "--hwpx-line-height": _fmt_mm(_hwp_to_mm(line.height)),
+                "--hwpx-line-advance": _fmt_mm(room) if room is not None else None,
+            })
+            body.append(f'<div class="hwpx-engine-cell-line" data-engine-host="1" style="{css}">{inner}</div>')
+        elif line.paragraph in whole:
+            if line.paragraph not in drawn:
+                drawn.add(line.paragraph)
+                if line.paragraph in begins:
+                    body.append(_render_paragraph(
+                        paragraph, styles, counter, include_tables=False, extended_styles=True,
+                        cell_objects=cell_objects,
+                    ))
+                else:
+                    body.append(f'<p class="hwpx-paragraph">{_render_object_marker(_CONTINUED_PARAGRAPH)}</p>')
+        else:
+            room, engine = _cell_line_room(line, following, style, following_style)
+            stacked = stacked or (room is not None and engine is None)
+            body.append(_cell_line_markup(line, paragraph, styles, room=room, engine_advance=engine))
+        ends = following is None or following.paragraph != line.paragraph
+        if ends and line.paragraph in begins:
+            # What the paragraph anchors beside its lines stands after them, where it begins.
+            if line.paragraph not in whole and cell_objects is not None:
+                extras = "".join(
+                    cell_objects.markup(node) for run in paragraph.findall(f"{_HP}run") for node in _run_objects(run)
+                )
+                if extras:
+                    body.append(f'<div class="hwpx-engine-cell-objects">{extras}</div>')
+            for nested in _anchored_tables(paragraph, areas=False):
+                found = table_placements.get(nested) if table_placements is not None else None
+                if found is None or found.table not in hosted:
+                    body.append(_nested_table(
+                        nested, styles, counter, page=page, table_placements=table_placements, issues=issues,
+                        sources=sources, every_page=True,
+                    ))
+    if stacked and issues is not None:
+        issues[_STACKED_CELL] += 1
+    return body
+
+
+def _cell_line_markup(
+    line: Any, paragraph: ET.Element, styles: Mapping[str, Any], *,
+    room: float | None = None, engine_advance: int | None = None,
+) -> str:
+    """One text line of a cell: as tall as the line, taking *room* down to the next line's top."""
     run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
     char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
+    para_style = styles["para"].get(paragraph.get("paraPrIDRef") or "0", {})
+    margins = para_style.get("margins_mm", {})
+    indent = margins.get("indent", 0.0)
+    # A first line is set in by a positive indent; the lines after it by a negative one.
+    left = margins.get("left", 0.0) + (max(indent, 0.0) if line.line == 0 else max(-indent, 0.0))
+    right = margins.get("right", 0.0)
+    align = para_style.get("align", "left")
     css = _style_attr({
         "line-height": _fmt_mm(_hwp_to_mm(line.height)),
+        "height": _fmt_mm(room) if room is not None else None,
         "font-size": _fmt_pt(char.get("font_size_pt", 10.0)),
         "color": char.get("color", "#000000"),
         "white-space": "pre",
+        "text-align": align if align != "left" else None,
+        "margin-left": _fmt_mm(left) if left > 0 else None,
+        "margin-right": _fmt_mm(right) if right > 0 else None,
     })
     text = _styled_line_text(line, styles)
+    pitch = ""
+    if engine_advance is not None:
+        pitch = f' data-engine-advance="{engine_advance}"'
+    elif room is not None:
+        pitch = ' data-line-pitch="file"'
     return (
         f'<div class="hwpx-engine-cell-line" data-text-start="{line.text_start}" '
-        f'data-text-end="{line.text_end}" style="{css}">{text}</div>'
+        f'data-text-end="{line.text_end}"{pitch} style="{css}">{text}</div>'
     )
 
 
@@ -835,9 +1147,11 @@ def _render_paragraph(
     include_tables: bool = True,
     include_objects: bool = True,
     extended_styles: bool = False,
+    cell_objects: _CellObjects | None = None,
 ) -> str:
     text_html = _render_inline_runs(
         paragraph, styles, counter, include_objects=include_objects, extended_styles=extended_styles,
+        cell_objects=cell_objects,
     )
     css = _paragraph_style(paragraph, styles)
     classes = ["hwpx-paragraph"]
@@ -928,6 +1242,8 @@ def _base_css(mode: str) -> str:
         ".hwpx-engine-flow [data-engine-host] { height: auto; white-space: normal; "
         "min-height: var(--hwpx-line-advance, var(--hwpx-line-height)); }\n"
         ".hwpx-engine-flow [data-engine-host] > .hwpx-table { margin: 0 !important; }\n"
+        ".hwpx-engine-cell-objects { white-space: normal; }\n"
+        ".hwpx-cell-picture { display: inline-block; vertical-align: bottom; }\n"
         ".hwpx-engine-flow-page { position: relative; isolation: isolate; }\n"
         ".hwpx-placed-object { display: block; box-sizing: border-box; margin: 0; }\n"
         ".hwpx-placed-object[data-overlay] { position: absolute; }\n"
@@ -965,6 +1281,17 @@ def _base_css(mode: str) -> str:
 def _flow_overflow_script() -> str:
     return """<script>
 (() => {
+  // A cell line is the engine's line: where this browser's glyphs run wider than the cell,
+  // the line is narrowed to its room (to three fifths at most) instead of breaking anew.
+  document.querySelectorAll('.hwpx-engine-cell-line[data-text-start]').forEach(line => {
+    const room = line.clientWidth, need = line.scrollWidth;
+    if (room > 0 && need > room + 1) {
+      const scale = Math.max(room / need, 0.6);
+      line.style.transformOrigin = 'left center';
+      line.style.transform = 'scaleX(' + scale.toFixed(4) + ')';
+      line.dataset.fitted = scale.toFixed(3);
+    }
+  });
   function measure(body) {
     const page = body.parentElement;
     const engineHeight = parseFloat(getComputedStyle(body).minHeight);
@@ -1151,18 +1478,21 @@ def _engine_preview(
     return _render_engine_preview(document, layout, mode, title, styles, warnings, parts)
 
 
-def _outer_tables(element: ET.Element) -> Iterator[ET.Element]:
-    """Yield tables owned by this anchor. A nested table belongs to its cell."""
+def _outer_tables(element: ET.Element, *, areas: bool = True) -> Iterator[ET.Element]:
+    """Yield tables owned by this anchor. A nested table belongs to its cell.
+
+    Without *areas*, what a header, footer or note holds is left to that area.
+    """
     if element.tag == f"{_HP}tbl":
         yield element
-    else:
+    elif areas or element.tag not in _AREA_LABELS:
         for child in element:
-            yield from _outer_tables(child)
+            yield from _outer_tables(child, areas=areas)
 
 
-def _anchored_tables(paragraph: ET.Element) -> Iterator[ET.Element]:
+def _anchored_tables(paragraph: ET.Element, *, areas: bool = True) -> Iterator[ET.Element]:
     for run in paragraph.findall(f"{_HP}run"):
-        yield from _outer_tables(run)
+        yield from _outer_tables(run, areas=areas)
 
 
 def _flow_anchors(
@@ -1183,7 +1513,7 @@ def _flow_anchors(
             if obj is not None:
                 anchors.append(_object_anchor(obj, home, sources.objects.get(obj), sources.images, issues, counter))
             for table in _outer_tables(child):
-                anchors.extend(_table_anchors(table, styles, counter, issues, home, sources.tables, table_counts))
+                anchors.extend(_table_anchors(table, styles, counter, issues, home, sources, table_counts))
             for area in child.iter():
                 if area.tag in _AREA_LABELS:
                     anchors.extend(_area_anchors(area, home, sources.areas.get(area, []), pages, styles, issues))
@@ -1197,8 +1527,9 @@ def _placed_as_character(element: ET.Element) -> bool:
 
 def _table_anchors(
     table: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, issues: Counter[tuple[str, str]],
-    home: int, placements: Mapping[Any, Any], table_counts: Counter[int],
+    home: int, sources: _ParagraphSources, table_counts: Counter[int],
 ) -> list[_AnchorMarkup]:
+    placements = sources.tables
     placed = placements.get(table)
     inline = _placed_as_character(table)
     if placed is None or not placed.rows:
@@ -1206,7 +1537,9 @@ def _table_anchors(
         issues[("table", "row and cell placement is unavailable")] += count
         table_counts[home] += count
         return [_AnchorMarkup(
-            home, _render_table(table, styles, counter, flow=True, show_approx_caption=True, issues=issues),
+            home, _render_table(
+                table, styles, counter, flow=True, show_approx_caption=True, issues=issues, sources=sources,
+            ),
             inline=inline,
         )]
     issues[("table", "table content uses approximate flow within engine row pages")] += 1
@@ -1220,7 +1553,8 @@ def _table_anchors(
             for row in found.rows:
                 for cell in row.cells:
                     for reason in cell.unavailable:
-                        issues[("table-cell", reason)] += 1
+                        if not reason.startswith("the cell holds tables"):  # where its lines are, not a lack
+                            issues[("table-cell", reason)] += 1
     rows_by_page: dict[int, list[Any]] = {}
     for row in placed.rows:
         rows_by_page.setdefault(row.page, []).append(row)
@@ -1235,7 +1569,7 @@ def _table_anchors(
         anchors.append(_AnchorMarkup(page, _render_table(
             table, styles, counter, flow=True, row_parts=tuple(rows), table_index=placed.table,
             table_placements=placements, continued_rows=frozenset(seen), captions=captions,
-            show_approx_caption=fallback_caption and page == min(rows_by_page), issues=issues,
+            show_approx_caption=fallback_caption and page == min(rows_by_page), issues=issues, sources=sources,
         ), inline=inline))
         seen.update(row.row for row in rows if not row.repeated)
     return anchors
@@ -1301,7 +1635,7 @@ def _object_anchor(
             content = _render_shape(element)
     elif element.tag in _OTHER_OBJECT_LABELS:
         content = _render_object_marker(_OTHER_OBJECT_LABELS[element.tag])
-        issues[(kind, "object is shown as a placeholder")] += 1
+        issues[(kind, _PLACEHOLDER)] += 1
     else:
         content = _render_inline_object(element, counter)
     css = _style_attr({
@@ -1547,6 +1881,10 @@ def _render_engine_preview(
             {node: areas[index] for index, node in enumerate(
                 child for child in paragraph.iter() if child.tag in _AREA_LABELS) if index in areas},
             images,
+            frozenset(
+                number for table in table_results.values() for row in table.rows for cell in row.cells
+                for line in getattr(cell, "lines_with_tables", ()) for number in line.tables
+            ),
         )
         without_text_range = [line for line in visible if line.text is None]
         missing_pages = {line.position.page for line in without_text_range}
