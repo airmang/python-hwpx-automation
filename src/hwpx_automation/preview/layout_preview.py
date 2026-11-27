@@ -2213,6 +2213,22 @@ def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool, 
     )
 
 
+def _memo_count(sections: list[ET.Element]) -> int:
+    """The memos of the document: its MEMO fields, and the ``hp:memogroup`` memos no field anchors.
+
+    Hangul keeps a memo's text off the page, so the preview does not draw it; the count says so.
+    """
+    count = 0
+    for section in sections:
+        anchored: set[str] = set()
+        for begin in section.iter(f"{_HP}fieldBegin"):
+            if begin.get("type") == "MEMO":
+                count += 1
+                anchored.update(param.text or "" for param in begin.iter(f"{_HP}stringParam") if param.get("name") == "ID")
+        count += sum(1 for memo in section.findall(f"{_HP}memogroup/{_HP}memo") if memo.get("id") not in anchored)
+    return count
+
+
 def _render_engine_preview(
     document: HwpxDocument, layout: Any, mode: str, title: str,
     styles: Mapping[str, Any], warnings: list[str], parts: Mapping[str, bytes],
@@ -2362,6 +2378,8 @@ def _render_engine_preview(
                                  len(paragraphs_by_page[index]), table_counts[index]))
     if flowing_tables:
         issues[_FLOWING_TABLE] += len(flowing_tables)
+    if memos := _memo_count(sections):
+        issues[("memo", "memo text is not part of the page")] += memos
     if flow_pages:
         issues[("page-flow", "vertical placement is approximate and may exceed the engine body")] = len(flow_pages)
     limitations = tuple(_Limitation(kind, reason, count) for (kind, reason), count in sorted(issues.items()))

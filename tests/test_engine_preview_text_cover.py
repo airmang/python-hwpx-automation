@@ -10,10 +10,12 @@ from dataclasses import replace
 
 import pytest
 from hwpx import HwpxDocument, experimental
-from lxml import html
+from lxml import etree, html
 
 from hwpx_automation.preview import render_layout_preview
 from preview_text_cover import every_engine_preview_shows_the_text, missing_characters  # noqa: F401
+
+HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 
 pytestmark = pytest.mark.skipif(
     "TableCellPlacement" not in getattr(experimental, "__all__", ()), reason="needs the core table placement API",
@@ -253,3 +255,20 @@ def test_a_memo_is_not_page_text_and_is_not_drawn() -> None:
     assert "메모가 걸린 문단" in text and "메모가 걸린 칸" in text
     assert "보이지 않는 메모" not in text and "칸에 건 메모" not in text
     assert not missing_characters(opened, preview.page_fragments)
+    assert _limitations(preview)["memo", "memo text is not part of the page"] == 2  # said, with the count
+
+
+def test_a_memo_not_anchored_yet_is_counted_and_a_document_without_memos_says_nothing() -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("메모 없는 문단")
+    assert not any(kind == "memo" for kind, _ in _limitations(render_layout_preview(document.to_bytes())))
+    # A memo kept in hp:memogroup with no MEMO field anchoring it (as python-hwpx 6.x could write).
+    group = etree.SubElement(document.sections[0].element, f"{HP}memogroup")
+    memo = etree.SubElement(etree.SubElement(group, f"{HP}memo", id="7"), f"{HP}paraList")
+    etree.SubElement(etree.SubElement(etree.SubElement(memo, f"{HP}p"), f"{HP}run"), f"{HP}t").text = "걸리지 않은 메모"
+    document.sections[0].mark_dirty()
+
+    preview = render_layout_preview(document.to_bytes())
+
+    assert _limitations(preview)["memo", "memo text is not part of the page"] == 1
+    assert "걸리지 않은 메모" not in _text(preview)
