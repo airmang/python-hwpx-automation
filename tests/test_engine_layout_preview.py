@@ -12,6 +12,7 @@ from hwpx import HwpxDocument, experimental
 from lxml import etree, html
 
 from hwpx_automation.preview import layout_preview, render_layout_preview
+from preview_text_cover import every_engine_preview_shows_the_text  # noqa: F401
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
 
