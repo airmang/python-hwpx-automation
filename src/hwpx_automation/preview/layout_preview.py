@@ -1606,23 +1606,25 @@ def _cell_line_markup(
     left = margins.get("left", 0.0) + (max(indent, 0.0) if line.line == 0 else max(-indent, 0.0))
     right = margins.get("right", 0.0)
     align = para_style.get("align", "left")
+    # A line without text here belongs to a paragraph that has none: it keeps its room.
+    text, tabbed = _line_markup(line, paragraph, styles, align=align)
     css = _style_attr({
         "line-height": _fmt_mm(_hwp_to_mm(line.height)),
         "height": _fmt_mm(room) if room is not None else None,
         "font-size": _fmt_pt(char.get("font_size_pt", 10.0)),
         "color": char.get("color", "#000000"),
         "white-space": "pre",
-        "text-align": align if align != "left" else None,
+        "text-align": align if align != "left" and not tabbed else None,
         "margin-left": _fmt_mm(left) if left > 0 else None,
         "margin-right": _fmt_mm(right) if right > 0 else None,
     })
-    # A line without text here belongs to a paragraph that has none: it keeps its room.
-    text = _label_markup(paragraph, styles, line) + (_styled_line_text(line, styles) if line.text is not None else "")
     pitch = ""
     if engine_advance is not None:
         pitch = f' data-engine-advance="{engine_advance}"'
     elif room is not None:
         pitch = ' data-line-pitch="file"'
+    if tabbed:
+        pitch += f' data-tabs="{tabbed}"'
     return (
         f'<div class="hwpx-engine-cell-line" data-text-start="{line.text_start}" '
         f'data-text-end="{line.text_end}"{pitch} style="{css}">{text}</div>'
@@ -1748,6 +1750,15 @@ def _base_css(mode: str) -> str:
         "{ position: absolute; }\n"
         ".hwpx-engine-line, .hwpx-engine-area-line { margin: 0; white-space: pre; "
         "overflow: visible; overflow-wrap: normal; word-break: normal; }\n"
+        # A line cut at its tabs: in a frame as wide as the line (the line itself keeps its place, at coordinates or
+        # in a flow), each piece after a tab starts at the engine's place; a tab's fill spans the tab as the engine
+        # places it.
+        ".hwpx-tab-frame { display: block; position: relative; }\n"
+        ".hwpx-tab-frame::before { content: '\\200b'; }\n"  # keeps the line's height when no piece is in flow
+        ".hwpx-tab-piece { display: inline-block; white-space: pre; }\n"
+        ".hwpx-tab-piece:not([data-tab='0']) { position: absolute; top: 0; }\n"
+        ".hwpx-tab-leader { position: absolute; top: 0; height: calc(0.5lh + 0.3em); box-sizing: border-box; "
+        "border-bottom: 0.3mm dotted currentColor; pointer-events: none; }\n"
         # A table at the engine's coordinates: cells at their rectangles, borders over the fills, lines over both.
         ".hwpx-engine-table { position: absolute; isolation: isolate; margin: 0; font-size: 10pt; }\n"
         ".hwpx-engine-cell { position: absolute; box-sizing: border-box; margin: 0; }\n"
@@ -1860,14 +1871,28 @@ def _flow_overflow_script() -> str:
 (() => {
   // A cell line is the engine's line: where this browser's glyphs run wider than the cell,
   // the line is narrowed to its room (to three fifths at most) instead of breaking anew.
-  document.querySelectorAll('.hwpx-engine-cell-line[data-text-start]').forEach(line => {
-    const room = line.clientWidth, need = line.scrollWidth;
+  function narrow(item, room, need) {
     if (room > 0 && need > room + 1) {
       const scale = Math.max(room / need, 0.6);
-      line.style.transformOrigin = 'left center';
-      line.style.transform = 'scaleX(' + scale.toFixed(4) + ')';
-      line.dataset.fitted = scale.toFixed(3);
+      item.style.transformOrigin = 'left center';
+      item.style.transform = 'scaleX(' + scale.toFixed(4) + ')';
+      item.dataset.fitted = scale.toFixed(3);
     }
+  }
+  // A line cut at its tabs keeps each piece at the engine's place: a piece is narrowed to its own room,
+  // up to the next piece (the last, to the line's right edge).
+  document.querySelectorAll('.hwpx-engine-cell-line[data-text-start]').forEach(line => {
+    if (!line.dataset.tabs) {
+      narrow(line, line.clientWidth, line.scrollWidth);
+      return;
+    }
+    const pieces = [...line.querySelectorAll(':scope > .hwpx-tab-frame > .hwpx-tab-piece')];
+    const right = line.getBoundingClientRect().left + line.clientWidth;
+    pieces.forEach((piece, at) => {
+      const box = piece.getBoundingClientRect();
+      const end = at + 1 < pieces.length ? pieces[at + 1].getBoundingClientRect().left : right;
+      narrow(piece, end - box.left, Math.max(box.width, piece.scrollWidth));
+    });
   });
   // A flow page keeps its paper's height. What its approximate flow stacks past the body's foot
   // (in each column) moves, in order, into the overflow band under the page box, which shows it.
@@ -2030,10 +2055,19 @@ def _styled_line_text(
 ) -> str:
     """A line's text in its runs' character styles; each of *inserts* (offset in the line's text, text,
     character style reference) is set in at its offset: a page number the engine's text leaves out."""
+    return "".join("".join(segment) for segment in _styled_segments(line, styles, inserts, split=False))
+
+
+def _styled_segments(
+    line: Any, styles: Mapping[str, Any], inserts: tuple[tuple[int, str, str], ...] = (), *, split: bool,
+) -> list[list[str]]:
+    """The styled spans of a line's text (see :func:`_styled_line_text`), split at its tabs when *split*:
+    the spans before the first tab, those between it and the next, and so on (the tabs themselves left out)."""
     runs = list(getattr(line, "runs", ()))
     if not runs:
         if not inserts:
-            return html.escape(line.text.removesuffix("\n"))
+            text = line.text.removesuffix("\n")
+            return [[html.escape(part)] for part in text.split("\t")] if split else [[html.escape(text)]]
         runs = [(inserts[0][2], line.text)]
     pieces: list[tuple[str, str, bool]] = []
     offset = 0
@@ -2050,13 +2084,112 @@ def _styled_line_text(
         pieces.append((reference, text, False))
         offset += len(text)
     pieces.extend((own, number, True) for _, number, own in pending)
-    spans = []
+    segments: list[list[str]] = [[]]
     for reference, text, inserted in pieces:
-        if not text:
-            continue
         css = _character_css(styles["char"].get(reference, {}), extended=True)
-        spans.append(_number_span(text, css) if inserted else f'<span style="{css}">{html.escape(text)}</span>')
-    return "".join(spans)
+        if inserted:
+            if text:
+                segments[-1].append(_number_span(text, css))
+            continue
+        for index, part in enumerate(text.split("\t") if split else [text]):
+            if index:
+                segments.append([])
+            if part:
+                segments[-1].append(f'<span style="{css}">{html.escape(part)}</span>')
+    return segments
+
+
+#: Set while the engine preview is drawn: what drawing the tabs of its lines leaves approximate.
+_TAB_ISSUES: ContextVar[Counter[tuple[str, str]] | None] = ContextVar("_TAB_ISSUES", default=None)
+_TAB_AT_BROWSER = "text after a tab stands where the browser's tab width puts it"
+_TAB_UNGIVEN = ("tab", f"{_TAB_AT_BROWSER}: the engine gives no place for it")
+_TAB_NO_FIELD = ("tab", f"{_TAB_AT_BROWSER}: the installed python-hwpx gives no tab places")
+_TAB_NO_RUNS = ("tab", f"{_TAB_AT_BROWSER}: the line's runs do not hold its tabs")
+_TAB_NO_ORIGIN = ("tab", f"{_TAB_AT_BROWSER}: the line has no left edge to measure it from")
+_TAB_ALIGNED = ("tab", f"{_TAB_AT_BROWSER}: the line is set centred or right and where its first tab starts "
+                       "is not given")
+_TAB_LEADER = ("tab", "tab fill is drawn as a line of its kind's nearest style")
+_TAB_LEADER_START = ("tab", "tab fill is not drawn: where the tab starts is not given")
+#: The CSS line a tab's fill (``hh:tabItem@leader``) is drawn as; another kind is drawn dotted, counted.
+_TAB_LEADERS = {
+    "SOLID": "solid", "DOT": "dotted", "DASH": "dashed", "LONG_DASH": "dashed", "DASH_DOT": "dashed",
+    "DASH_DOT_DOT": "dashed", "CIRCLE": "dotted", "DOUBLE_SLIM": "double",
+}
+
+
+def _tab_issue(tabs: tuple[Any, ...] | None, count: int, issues: Counter[tuple[str, str]], reason: tuple[str, str]
+               ) -> None:
+    """Counts a line's *count* tabs left at the browser's width: each by the engine's reason when it gives one."""
+    given = [tab for tab in tabs or () if tab.x is None and tab.unavailable]
+    if given and reason == _TAB_UNGIVEN:
+        issues.update(("tab", f"{_TAB_AT_BROWSER}: {tab.unavailable[0]}") for tab in given)
+        count -= len(given)
+    if count > 0:
+        issues[reason] += count
+
+
+def _line_markup(
+    line: Any, paragraph: ET.Element, styles: Mapping[str, Any], inserts: tuple[tuple[int, str, str], ...] = (),
+    *, align: str = "left",
+) -> tuple[str, int]:
+    """A line's label and text, and how many tabs of it stand at the engine's places.
+
+    Where the engine gives the place of every tab of the line (``LinePlacement.tabs``,
+    ``TableCellLinePlacement.tabs``: from the edge the line's *x* is measured from, as the line's alignment moves
+    them), its text is cut at the tabs and each piece after one starts at that place right of the line's own left
+    edge, however wide the browser draws the piece before it. The piece before the first tab begins at the line's
+    left edge (set left or justified), or ends where the engine starts the first tab (set centred or right). A
+    tab with a fill (``hh:tabItem@leader``) is filled from where the engine starts it to where the text after it
+    starts. Elsewhere the browser's tab width stands, counted (:data:`_TAB_ISSUES`)."""
+    label = _label_markup(paragraph, styles, line)
+    count = (line.text or "").count("\t")
+    if not count:
+        return label + (_styled_line_text(line, styles, inserts) if line.text is not None else ""), 0
+    tabs = getattr(line, "tabs", None)
+    issues = _TAB_ISSUES.get()
+    segments = _styled_segments(line, styles, inserts, split=True)
+    reason = (
+        _TAB_NO_FIELD if tabs is None else _TAB_UNGIVEN
+        if len(tabs) != count or any(tab.x is None for tab in tabs) else _TAB_NO_ORIGIN
+        if line.x is None else _TAB_NO_RUNS if len(segments) != count + 1 else _TAB_ALIGNED
+        if align in ("center", "right") and tabs[0].start is None else None
+    )
+    if reason is not None:
+        if issues is not None:
+            _tab_issue(tabs, count, issues, reason)
+        return label + _styled_line_text(line, styles, inserts), 0
+    assert tabs is not None
+
+    def mm(value: float) -> str:
+        return _fmt_mm(_hwp_to_mm(value - line.x))
+
+    first_start = tabs[0].start if align in ("center", "right") else None
+    markup = []
+    for index, segment in enumerate(segments):
+        body = (label if index == 0 else "") + "".join(segment)
+        if index:
+            css = {"left": mm(tabs[index - 1].x)}
+        elif first_start is not None:  # the piece ends where the engine starts the first tab
+            css = {"right": f"calc(100% - {mm(first_start)})", "position": "absolute", "top": "0"}
+        else:
+            css = {}
+        markup.append(f'<span class="hwpx-tab-piece" data-tab="{index}" style="{_style_attr(css)}">{body}</span>')
+    for tab in tabs:
+        leader = str(tab.leader or "NONE").upper()
+        if leader == "NONE":
+            continue
+        if tab.start is None:
+            if issues is not None:
+                issues[_TAB_LEADER_START] += 1
+            continue
+        style = _TAB_LEADERS.get(leader)
+        if style is None and issues is not None:
+            issues[_TAB_LEADER] += 1
+        css = {"left": mm(tab.start), "width": _fmt_mm(_hwp_to_mm(max(0.0, tab.x - tab.start))),
+               "border-bottom-style": style or "dotted"}
+        markup.append(f'<span class="hwpx-tab-leader" data-leader="{html.escape(leader)}" style="{_style_attr(css)}">'
+                      "</span>")
+    return f'<span class="hwpx-tab-frame">{"".join(markup)}</span>', count
 
 
 def _line_frame(line: Any, page: Any) -> tuple[float, float | None, float, bool]:
@@ -2100,6 +2233,8 @@ def _engine_line(
     run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
     char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
     para_style = styles["para"].get(paragraph.get("paraPrIDRef", "0"), {})
+    align = para_style.get("align", "left")
+    text, tabbed = _line_markup(line, paragraph, styles, inserts, align=align)
     css = _style_attr({
         "left": _fmt_mm(_hwp_to_mm(paper_x)),
         "--hwpx-line-offset": _fmt_mm(_hwp_to_mm(offset)) if offset is not None else None,
@@ -2111,13 +2246,14 @@ def _engine_line(
         "line-height": None if hosted else "var(--hwpx-line-height)",
         "font-size": None if hosted else _fmt_pt(char.get("font_size_pt", 10.0)),
         "color": None if hosted else char.get("color", "#000000"),
-        "text-align": None if hosted else para_style.get("align", "left"),
+        "text-align": None if hosted else "left" if tabbed else align,
     })
-    text = _label_markup(paragraph, styles, line) + _styled_line_text(line, styles, inserts)
     css_class = "hwpx-engine-area-line" if area_line else "hwpx-engine-line"
     attrs = f' data-engine-advance="{advance}"' if advance is not None else ""
     if hosted:
         attrs += ' data-engine-host="1"'
+    if tabbed:
+        attrs += f' data-tabs="{tabbed}"'
     markup = (
         f'<div class="{css_class}" data-column="{column}" data-text-start="{line.text_start}" '
         f'data-text-end="{line.text_end}"{attrs} style="{css}">{text}{hosted}</div>'
@@ -2586,22 +2722,23 @@ def _positioned_cell_line(
 ) -> str:
     """One text line of a cell at the engine's top, left edge and width (cell-relative), as tall as the line;
     *inserts* are the page numbers the engine's text leaves out (see :func:`_styled_line_text`)."""
-    text = _label_markup(paragraph, styles, line) + _styled_line_text(line, styles, inserts)
+    align = styles["para"].get(paragraph.get("paraPrIDRef") or "0", {}).get("align", "left")
+    text, tabbed = _line_markup(line, paragraph, styles, inserts, align=align)
     if not text:
         return ""  # a line with nothing to show (an empty paragraph's) keeps its room without markup
     run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
     char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
-    align = styles["para"].get(paragraph.get("paraPrIDRef") or "0", {}).get("align", "left")
     css = _style_attr({
         "left": _fmt_mm(_hwp_to_mm(line.x)), "top": _fmt_mm(_hwp_to_mm(line.top)),
         "width": _fmt_mm(_hwp_to_mm(line.width)),
         "height": _fmt_mm(_hwp_to_mm(line.height)), "line-height": _fmt_mm(_hwp_to_mm(line.height)),
         "font-size": _fmt_pt(char.get("font_size_pt", 10.0)), "color": char.get("color", "#000000"),
-        "text-align": align if align != "left" else None,
+        "text-align": align if align != "left" and not tabbed else None,
     })
+    tabs = f' data-tabs="{tabbed}"' if tabbed else ""
     return (
         f'<div class="hwpx-engine-cell-line" data-text-start="{line.text_start}" data-text-end="{line.text_end}" '
-        f'data-engine-top="{line.top}" style="{css}">{text}</div>'
+        f'data-engine-top="{line.top}"{tabs} style="{css}">{text}</div>'
     )
 
 
@@ -3811,9 +3948,11 @@ def _render_engine_preview(
     """The engine preview, the numbers and bullets of its paragraphs drawn before their first lines."""
     labels = _Labels.of(document, styles["char"])
     token = _LABELS.set(labels)
+    tabs = _TAB_ISSUES.set(Counter())
     try:
         return _draw_engine_preview(document, layout, mode, title, styles, warnings, parts, labels)
     finally:
+        _TAB_ISSUES.reset(tabs)
         _LABELS.reset(token)
 
 
@@ -4008,6 +4147,7 @@ def _draw_engine_preview(
     if flowing_tables:
         issues[_FLOWING_TABLE] += len(flowing_tables)
     issues.update(labels.issues)
+    issues.update(_TAB_ISSUES.get() or Counter())
     if labels.drawn:
         issues[_LABEL_ROOM] += len(labels.drawn)
     if memos := _memo_count(sections):
