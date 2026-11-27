@@ -1776,6 +1776,8 @@ def _base_css(mode: str) -> str:
         # on the paper is still placed from the page box).
         ".hwpx-engine-column-area { display: flex; align-items: flex-start; }\n"
         ".hwpx-engine-column { flex: none; display: flow-root; min-width: 0; }\n"
+        # The line between two columns, on the paper (a flow page's too), centred on the middle of their gap.
+        ".hwpx-column-line { position: absolute; width: 0; margin: 0; pointer-events: none; }\n"
         # What the approximate flow stacks past the body's foot: under the page box, marked.
         ".hwpx-engine-spill { position: absolute; top: 100%; left: 0; right: 0; box-sizing: border-box; isolation: isolate; "
         "padding-top: 1mm !important; padding-bottom: 2mm !important; background: #fff8ef; "
@@ -3456,6 +3458,90 @@ def _page_content(
     return "".join(parts)
 
 
+_COLUMN_LINE_STYLE = ("column-line", "column separator line style is drawn solid")
+_COLUMN_LINE_WIDTH = ("column-line", "column separator width is not given: it is drawn a pixel wide")
+_COLUMN_LINE_GAP = ("column-line", "column separator is not drawn: the gap between the columns is not given")
+
+
+def _rows_across(page: Any, tables: tuple[Any, ...]) -> list[tuple[int, int, float, float]]:
+    """The engine's boxes of the table rows set on *page*: (top, foot, left, right) on the paper, where the row's
+    top, height, left edge and cells' widths are all given."""
+    areas = page.column_areas
+    boxes = []
+    for table in tables:
+        for row in table.rows:
+            if row.page != page.page or None in (row.top, row.height, row.x) or not row.cells:
+                continue
+            if any(cell.x is None or cell.width is None for cell in row.cells):
+                continue
+            area = next((area for area in reversed(areas) if area.top <= row.top), None)
+            if area is None or row.column >= max(len(area.widths), 1):
+                continue
+            gaps = _area_gaps(area)
+            if row.column and gaps is None:
+                continue
+            left = page.body[0] + sum(area.widths[:row.column]) + sum((gaps or ())[:row.column]) + row.x
+            right = left + max(cell.x + cell.width for cell in row.cells)
+            boxes.append((row.top, row.top + row.height, left, right))
+    return boxes
+
+
+def _area_gaps(area: Any) -> tuple[int, ...] | None:
+    """The gap after each column of a column area but the last (``gaps``, or the one ``gap`` of equal columns);
+    ``None`` when neither is given."""
+    gaps = tuple(getattr(area, "gaps", ()) or ())
+    if len(gaps) == len(area.widths) - 1:
+        return gaps
+    return (area.gap,) * (len(area.widths) - 1) if area.gap is not None else None
+
+
+def _column_lines(page: Any, issues: Counter[tuple[str, str]], tables: tuple[Any, ...] = ()) -> str:
+    """The lines between the columns of each column area of *page* that has one (``ColumnArea.separator``), on the
+    paper: in the middle of each gap (the layout gives no x: column *n*'s gap runs from ``sum(widths[:n + 1]) +
+    sum(gaps[:n])`` right of the body's left edge, ``gaps[n]`` wide), from the area's top to the next area's top or
+    the body's foot, broken where an engine table row set on the page (*tables*) stands across the gap (a table
+    across the columns is not struck through). A line style other than solid is drawn solid; what is drawn
+    otherwise is counted in *issues*."""
+    body_left, body_top, _, body_height = page.body
+    areas = page.column_areas
+    across = _rows_across(page, tables) if tables else []
+    lines = []
+    for number, area in enumerate(areas):
+        separator = getattr(area, "separator", None)
+        if separator is None or len(area.widths) < 2:
+            continue
+        gaps = _area_gaps(area)
+        if gaps is None:
+            issues[_COLUMN_LINE_GAP] += 1
+            continue
+        if (separator.type or "").upper() != "SOLID":
+            issues[_COLUMN_LINE_STYLE] += 1
+        if separator.width_mm is None:
+            issues[_COLUMN_LINE_WIDTH] += 1
+        width = f"{separator.width_mm:g}mm" if separator.width_mm is not None else "0mm"
+        top = area.top
+        foot = areas[number + 1].top if number + 1 < len(areas) else body_top + body_height
+        if foot <= top:
+            continue
+        for column in range(len(area.widths) - 1):
+            middle = body_left + sum(area.widths[:column + 1]) + sum(gaps[:column]) + gaps[column] / 2
+            breaks = sorted((max(row_top, top), min(row_foot, foot)) for row_top, row_foot, left, right in across
+                            if left < middle < right and row_top < foot and row_foot > top)
+            start = top
+            for stop, resume in [*breaks, (foot, foot)]:
+                if stop > start:
+                    css = _style_attr({
+                        "left": _fmt_mm(_hwp_to_mm(middle)), "top": _fmt_mm(_hwp_to_mm(start)),
+                        "height": _fmt_mm(_hwp_to_mm(stop - start)),
+                        "border-left": f"max(1px, {width}) solid {_css_color(separator.color)}",
+                        "transform": "translateX(-50%)",
+                    })
+                    lines.append(f'<i class="hwpx-column-line" data-column-area="{number}" data-column="{column}" '
+                                 f'style="{css}"></i>')
+                start = max(start, resume)
+    return "".join(lines)
+
+
 def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool, backdrop: str = "") -> str:
     """One page box. A flow page is as high as its paper: what its approximate flow stacks past the body's
     foot is moved (by the page's script) into the overflow band under the box, so its footer stays in the
@@ -3815,6 +3901,7 @@ def _draw_engine_preview(
                 issues[("page-fill", note)] += 1
             if filled[index].picture is not None and not with_pictures:
                 issues[("page-fill", "page fill picture is not drawn")] += 1
+        backdrop += _column_lines(page, issues, layout.tables)
         fragments.append(_engine_page_fragment(
             page, page_id,
             _page_content(content[index], page, styles, flow=flow, issues=issues, flowing_tables=flowing_tables,
