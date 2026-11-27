@@ -154,8 +154,22 @@ def test_a_text_box_in_a_table_cell_shows_once_in_the_preview() -> None:
     assert html.count("칸 글") == 1
 
 
-def test_the_preview_writes_the_box_text_next_to_the_shape_marker() -> None:
+def test_the_approximate_preview_writes_the_box_text_next_to_the_shape_marker(monkeypatch) -> None:
+    from hwpx import experimental
+
+    monkeypatch.setattr(experimental, "estimate_layout", None)  # the approximate drawing
     html = render_layout_preview(_text_box_document().to_bytes()).html
 
     marker = html.index("⟦도형⟧")
     assert html.index('<span class="hwpx-shape-text">상자 글</span>') > marker
+
+
+def test_the_engine_preview_writes_the_box_text_in_the_shape_box() -> None:
+    from lxml import html as lxml_html
+
+    preview = render_layout_preview(_text_box_document().to_bytes())
+
+    page = lxml_html.fromstring(preview.page_fragments[0])
+    shape, = page.xpath(".//div[contains(@class, 'hwpx-shape-outline')]")
+    assert [line.text_content() for line in shape.xpath("./div[@class='hwpx-engine-cell-line']")] == ["상자 글"]
+    assert "⟦도형⟧" not in preview.html

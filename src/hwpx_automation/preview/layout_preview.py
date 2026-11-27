@@ -121,6 +121,10 @@ class _ParagraphSources:
     images: Mapping[str, tuple[str, bytes]]
     #: Tables (by ``TablePlacement.table``) the engine sets on a line of some cell of this paragraph.
     hosted_tables: frozenset[int] = frozenset()
+    #: The paragraph's visible engine lines (where an object without a place may stand).
+    lines: tuple[Any, ...] = ()
+    #: The section's header and footer margins (HWPUNIT): where a header or footer without a page stands.
+    margins: Mapping[str, int] = field(default_factory=dict)
 
 
 _DEFAULT_PAGE_WIDTH_MM = 210.0
@@ -978,6 +982,9 @@ class _CellPlan:
     home: Mapping[int, int]
     whole: frozenset[int]
     lines: bool
+    #: Paragraphs in *whole* only for the objects they set as characters: the engine's lines give all
+    #: their text, so a page at coordinates draws those lines and each object at its own place.
+    for_objects: frozenset[int] = frozenset()
 
 
 def _characters(text: str) -> Counter[str]:
@@ -1022,6 +1029,7 @@ def _cell_plans(table: ET.Element, placed: Any) -> dict[int, _CellPlan]:
                     ends[line.paragraph] = id(part)
                     shown.setdefault(line.paragraph, Counter()).update(_characters(line.text or ""))
         whole = set()
+        for_objects = set()
         latest = id(parts[0])
         for index, paragraph in enumerate(own):
             if index in home:
@@ -1034,7 +1042,9 @@ def _cell_plans(table: ET.Element, placed: Any) -> dict[int, _CellPlan]:
             )
             if uncovered or unseen or _has_inline_objects(paragraph):
                 whole.add(index)
-        plans[number] = _CellPlan(id(parts[0]), home, frozenset(whole), bool(shown))
+                if not uncovered and not unseen:
+                    for_objects.add(index)
+        plans[number] = _CellPlan(id(parts[0]), home, frozenset(whole), bool(shown), frozenset(for_objects))
     return plans
 
 
@@ -1441,6 +1451,23 @@ def _base_css(mode: str) -> str:
         ".hwpx-placed-object[data-overlay=front] { z-index: 2; }\n"
         ".hwpx-placed-object img { display: block; width: 100%; height: 100%; }\n"
         ".hwpx-placed-object.hwpx-shape-outline { border: 1px solid #646e79; }\n"
+        # A group's members and a text box's lines stand at their places in the object's box.
+        ".hwpx-group { position: relative; }\n"
+        ".hwpx-group > .hwpx-placed-object { position: absolute; }\n"
+        ".hwpx-placed-object > .hwpx-engine-cell-line { position: absolute; z-index: 2; margin: 0; "
+        "white-space: pre; overflow: visible; }\n"
+        # A flat line (no height or no width) keeps a box the browser draws.
+        ".hwpx-shape-svg { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 1px; "
+        "min-height: 1px; overflow: visible; }\n"
+        ".hwpx-box-text { white-space: pre-wrap; font-size: 10pt; }\n"
+        # A chart, an embedded or form object (or a picture the browser cannot show): its box and a marker.
+        ".hwpx-object-placeholder { border: 1px dashed #9aa2ad; background: #f7f8fa; }\n"
+        # A header, footer or note stands at its place on the paper, beside the body (a flow page included).
+        ".hwpx-area-layer { position: absolute; inset: 0; margin: 0; pointer-events: none; }\n"
+        ".hwpx-area-layer > .hwpx-engine-area-line { position: absolute; margin-left: 0; }\n"
+        ".hwpx-area-room { position: absolute; overflow: visible; }\n"
+        # What stands at a place the engine does not give is marked as approximate.
+        "[data-approx] { outline: 1px dashed #d08a3a; outline-offset: -1px; }\n"
         ".hwpx-page-fill { position: absolute; inset: 0; z-index: -1; margin: 0; "
         "background-repeat: repeat-y; }\n"
         ".hwpx-engine-page-status { position: absolute; top: 1mm; inset-inline: 2mm; "
@@ -1559,8 +1586,9 @@ def _line_frame(line: Any, page: Any) -> tuple[float, float | None, float, bool]
     left, _, body_width, _ = page.body
     area = next((area for area in reversed(page.column_areas) if area.top <= line.top), None)
     column = line.position.column
-    column_x = None if area is None or column >= len(area.widths) or (column and area.gap is None) else (
-        sum(area.widths[:column]) + column * (area.gap or 0)
+    # The first column starts at the body's left edge whatever columns are set (a header's line stands above them).
+    column_x = 0 if column == 0 else None if area is None or column >= len(area.widths) or area.gap is None else (
+        sum(area.widths[:column]) + column * area.gap
     )
     offset = column_x + line.x if column_x is not None and line.x is not None else None
     approximate = bool(line.text) and (offset is None or line.width is None)
@@ -1701,12 +1729,19 @@ def _flow_anchors(
                 obj = next((node for node in options if node in sources.objects and sources.objects[node].page is not None),
                            options[0] if options else None)
             if obj is not None:
-                anchors.append(_object_anchor(obj, home, sources.objects.get(obj), sources.images, issues, counter, styles))
-            for table in _outer_tables(child):
+                anchors.append(_object_anchor(
+                    obj, home, sources.objects.get(obj), sources.images, issues, counter, styles, sources.objects,
+                    lines=sources.lines, pages=pages, paragraph=paragraph,
+                ))
+            # What a header, footer or note holds is drawn with it, in its room.
+            for table in _outer_tables(child, areas=False):
                 anchors.extend(_table_anchors(table, styles, counter, issues, home, sources, table_counts, pages))
             for area in child.iter():
                 if area.tag in _AREA_LABELS:
-                    anchors.extend(_area_anchors(area, home, sources.areas.get(area, []), pages, styles, issues))
+                    anchors.extend(_engine_area_anchors(
+                        area, home, sources.areas.get(area, []), pages, styles, issues, counter, sources.margins,
+                        table_counts,
+                    ))
     return anchors
 
 
@@ -1755,7 +1790,8 @@ def _table_anchors(
         issues[("table", "caption placement is unavailable")] += 1
     anchors = []
     seen: set[int] = set()
-    drawable = _drawable_at_coordinates(table)
+    drawable = _drawable_at_coordinates(table, sources.objects)
+    held = _cell_held_objects(table) if drawable else []
     for page, rows in sorted(rows_by_page.items()):
         table_counts[page] += 1
         captions = tuple(caption for caption in placed.captions if caption.page == page)
@@ -1782,21 +1818,45 @@ def _table_anchors(
                 page, positioned, flow=False, inline=inline, flow_html=flowing_markup, issues=at_coordinates,
                 flow_issues=flowing, table=id(table),
             ))
+            # The objects its cells hold stand at their own places; a flow page draws them in the flowing rows.
+            for node in held:
+                found = sources.objects.get(node)
+                if found is None or found.page != page:
+                    continue
+                drawn: Counter[tuple[str, str]] = Counter()
+                anchor = _object_anchor(node, page, found, sources.images, drawn, counter, styles, sources.objects,
+                                        pages=pages or ())
+                anchors.append(_AnchorMarkup(page, anchor.html, flow=False, overlay=anchor.overlay, flow_html="",
+                                             issues=drawn))
     return anchors
 
 
 _FLOWING_TABLE = ("table", "table content uses approximate flow within engine row pages")
 
 
-def _drawable_at_coordinates(table: ET.Element) -> bool:
-    """Whether a table holds only what its engine cell lines give: no table, object, note or caption.
+def _cell_held_objects(table: ET.Element) -> list[ET.Element]:
+    """The objects the cells of *table* anchor in their own paragraphs (a nested table's are its own)."""
+    return [
+        node for cell in table.findall(f"{_HP}tr/{_HP}tc") for paragraph in cell.findall(f"{_HP}subList/{_HP}p")
+        for run in paragraph.findall(f"{_HP}run") for node in _run_objects(run)
+    ]
 
-    Those the engine sets no lines for in a cell; a table holding any of them flows.
+
+def _drawable_at_coordinates(table: ET.Element, objects: Mapping[Any, Any] | None = None) -> bool:
+    """Whether a table holds only what is drawn at coordinates: its engine cell lines, and objects its cells
+    anchor that the engine gives a rectangle (with what they hold). No table, note or caption, and no other
+    object: the engine sets no lines for those in a cell, and a table holding any of them flows.
     """
     if table.find(f"{_HP}caption") is not None:
         return False
+    held = _cell_held_objects(table)
+    if any(_object_rect((objects or {}).get(node)) is None for node in held):
+        return False
+    inside = {node for holder in held for node in holder.iter()}
     return not any(
-        node is not table and (node.tag == f"{_HP}tbl" or node.tag in _OBJECT_TAGS or node.tag in _AREA_LABELS)
+        node is not table and (
+            node.tag == f"{_HP}tbl" or node.tag in _AREA_LABELS or (node.tag in _OBJECT_TAGS and node not in inside)
+        )
         for node in table.iter()
     )
 
@@ -1863,7 +1923,7 @@ def _positioned_table(
             ):
                 return None
             plan = None if row.repeated else plans.get(cell.source_index)
-            if plan is not None and plan.whole:
+            if plan is not None and plan.whole - plan.for_objects:
                 return None
             boxes.append((row, cell, source, own, lines, origin_x + cell.x, origin_top + cell.top))
     if not boxes:
@@ -1941,58 +2001,294 @@ def _picture_sources(document: HwpxDocument, parts: Mapping[str, bytes]) -> dict
     return result
 
 
-def _object_anchor(
-    element: ET.Element, home: int, placed: Any, images: Mapping[str, tuple[str, bytes]],
-    issues: Counter[tuple[str, str]], counter: _ObjectCounter, styles: Mapping[str, Any],
-) -> _AnchorMarkup:
-    kind = _OBJECT_KINDS.get(element.tag, "shape" if element.tag in _SHAPE_TAGS else element.tag.removeprefix(_HP))
-    page = home if placed is None or placed.page is None else placed.page
-    width, height = (None, None) if placed is None else (placed.width, placed.height)
-    left, top = (None, None) if placed is None else (placed.x, placed.top)
-    sized = width is not None and height is not None and width > 0 and height > 0
-    positioned = sized and left is not None and top is not None
-    if not positioned:
-        for reason in (placed.unavailable if placed is not None and placed.unavailable else
-                       ("object placement is unavailable",)):
+#: Wrapping in front of or behind the text: the object takes no room from it.
+_FLOATING = frozenset({"IN_FRONT_OF_TEXT", "BEHIND_TEXT"})
+_GROUP_TAG = f"{_HP}container"
+_APPROX_FLOATING = "object in front of or behind the text is drawn at an approximate place"
+_APPROX_INLINE = "object set as a character is drawn at an approximate place on its line"
+_APPROX_MEMBER = "a member of a group without a place is drawn at the group's top left"
+_BOX_TEXT_WHOLE = "text box text is drawn whole in its box: the engine's lines do not give it"
+
+
+def _object_kind(element: ET.Element) -> str:
+    return _OBJECT_KINDS.get(element.tag, "shape" if element.tag in _SHAPE_TAGS else element.tag.removeprefix(_HP))
+
+
+def _object_size(placed: Any) -> tuple[int, int] | None:
+    """The engine's width and height of an object; a line may be flat (one of them 0), not both."""
+    if placed is None or placed.width is None or placed.height is None:
+        return None
+    if placed.width < 0 or placed.height < 0 or placed.width + placed.height <= 0:
+        return None
+    return placed.width, placed.height
+
+
+def _object_rect(placed: Any) -> tuple[int, int, int, int] | None:
+    """The engine's paper rectangle of an object (x, top, width, height), when it gives all of it."""
+    size = _object_size(placed)
+    if size is None or placed.page is None or placed.x is None or placed.top is None:
+        return None
+    return placed.x, placed.top, size[0], size[1]
+
+
+def _approximate_place(
+    placed: Any, size: tuple[int, int], lines: tuple[Any, ...], page: Any, styles: Mapping[str, Any],
+    paragraph: ET.Element | None, number: int,
+) -> tuple[int, int, str] | None:
+    """Where a sized object the engine gives a page but no place is drawn on a page at coordinates, and why
+    that is approximate; ``None`` where the object may take room the engine's lines do not show (the page flows).
+
+    The decision rule: an object takes no room from the text when it stands in front of or behind it, or
+    when it is set as a character with its size known and its paragraph has a line on that page -- the
+    engine set that line with the object in it, so the line's top and height already hold it. Such an
+    object stands on the first of those lines as tall as it (else the tallest), its foot on the line's foot,
+    at the line's start (moved as the paragraph aligns a line holding no text); one in front of or behind
+    the text at its paragraph's first line there. A value the engine gives (its left edge, its top) is kept.
+    """
+    own = [line for line in lines if line.position.page == number]
+    if placed.wrap in _FLOATING:
+        x = placed.x if placed.x is not None else (round(_line_frame(own[0], page)[0]) if own else page.body[0])
+        top = placed.top if placed.top is not None else (own[0].top if own else page.body[1])
+        return x, top, _APPROX_FLOATING
+    if placed.wrap != "AS_CHARACTER" or not own:
+        return None
+    holder = next((line for line in own if line.height >= size[1]), max(own, key=lambda line: line.height))
+    top = placed.top if placed.top is not None else holder.top + max(0, holder.height - size[1])
+    if placed.x is not None:
+        x = placed.x
+    else:
+        line_x, _, room, _ = _line_frame(holder, page)
+        align = "left"
+        if paragraph is not None and not (holder.text or "").strip():
+            align = styles["para"].get(paragraph.get("paraPrIDRef") or "0", {}).get("align", "left")
+        shift = {"center": (room - size[0]) / 2, "right": room - size[0]}.get(align, 0)
+        x = round(line_x + max(0, shift))
+    return x, top, _APPROX_INLINE
+
+
+def _shape_fill(element: ET.Element, issues: Counter[tuple[str, str]], kind: str) -> str | None:
+    """The one colour a drawing's fill (``hc:fillBrush``) is drawn as; what is reduced is counted."""
+    brush = element.find(f"{_HC}fillBrush")
+    if brush is None:
+        return None
+    face = None
+    win = brush.find(f"{_HC}winBrush")
+    if win is not None and (win.get("faceColor") or "none").lower() != "none":
+        face = _css_color(win.get("faceColor"), default="")
+        if win.get("alpha") not in (None, "0", "0.0") and face:
+            issues[(kind, "shape fill transparency is not drawn")] += 1
+    if win is not None and (win.get("hatchStyle") or "NONE").upper() != "NONE":
+        issues[(kind, "shape fill pattern or gradient is drawn as one colour")] += 1
+    gradation = brush.find(f"{_HC}gradation")
+    if gradation is not None:
+        stops = [_css_color(stop.get("value"), default="") for stop in gradation.findall(f"{_HC}color")]
+        face = _mean_color([stop for stop in stops if stop]) or face
+        issues[(kind, "shape fill pattern or gradient is drawn as one colour")] += 1
+    if brush.find(f"{_HC}imgBrush") is not None:
+        issues[(kind, "shape fill picture is not drawn")] += 1
+    return face or None
+
+
+def _shape_points(element: ET.Element, width: int, height: int) -> list[tuple[float, float]] | None:
+    """A line's or polygon's points in the drawn box (HWPUNIT), scaled from its own size (``hp:orgSz``)."""
+    nodes: list[ET.Element | None] = (
+        [element.find(f"{_HC}startPt"), element.find(f"{_HC}endPt")]
+        if element.tag in (f"{_HP}line", f"{_HP}connectLine") else list(element.findall(f"{_HC}pt"))
+    )
+    if len(nodes) < 2 or any(node is None for node in nodes):
+        return None
+    size = element.find(f"{_HP}orgSz")
+    own_width = _safe_int(size.get("width") if size is not None else None, width) or width or 1
+    own_height = _safe_int(size.get("height") if size is not None else None, height) or height or 1
+    return [
+        (_safe_int(node.get("x")) * width / own_width, _safe_int(node.get("y")) * height / own_height)
+        for node in nodes if node is not None
+    ]
+
+
+def _shape_drawing(element: ET.Element, width: int, height: int, issues: Counter[tuple[str, str]], kind: str
+                   ) -> tuple[dict[str, str | None], str]:
+    """The outline of a drawing in its box: (CSS of the box, markup inside it).
+
+    Its line colour and width are the file's (``hp:lineShape``; a dashed or doubled line is drawn solid
+    and counted); its fill one colour (:func:`_shape_fill`). A rectangle or an ellipse is the box's own
+    border, a line or polygon an SVG path through its points; any other drawing is drawn as its
+    bounding box, and counted.
+    """
+    line = element.find(f"{_HP}lineShape")
+    style = ((line.get("style") if line is not None else None) or "SOLID").upper()
+    color = _css_color(line.get("color") if line is not None else None)
+    stroke_mm = max(_hwp_to_mm(line.get("width") if line is not None else None), 0.1)
+    if style not in ("SOLID", "NONE"):
+        issues[(kind, "shape line style is drawn solid")] += 1
+    border = "none" if style == "NONE" else f"{_fmt_mm(stroke_mm)} solid {color}"
+    fill = _shape_fill(element, issues, kind)
+    local = element.tag.removeprefix(_HP)
+    if local in ("rect", "ellipse"):
+        radius = "50%" if local == "ellipse" else (f"{min(_safe_int(element.get('ratio')), 50)}%"
+                                                   if _safe_int(element.get("ratio")) else None)
+        return {"border": border, "background": fill, "border-radius": radius}, ""
+    points = _shape_points(element, width, height) if local in ("line", "connectLine", "polygon") else None
+    if points is None:
+        issues[(kind, "shape is drawn as its bounding box")] += 1
+        return {"border": border if style != "NONE" else "none", "border-style": "dashed", "background": fill}, ""
+    coordinates = " ".join(f"{x:.0f},{y:.0f}" for x, y in points)
+    stroke = "none" if style == "NONE" else color
+    stroke_px = f"{stroke_mm * 96 / 25.4:.2f}"
+    figure = "polygon" if local == "polygon" else "polyline"
+    svg = (
+        f'<svg class="hwpx-shape-svg" viewBox="0 0 {max(width, 1)} {max(height, 1)}" preserveAspectRatio="none" '
+        f'aria-hidden="true"><{figure} points="{coordinates}" fill="{html.escape(fill or "none")}" '
+        f'stroke="{html.escape(stroke)}" stroke-width="{stroke_px}" vector-effect="non-scaling-stroke"/></svg>'
+    )
+    return {"border": "none"}, svg
+
+
+def _box_text(
+    element: ET.Element, placed: Any, styles: Mapping[str, Any], issues: Counter[tuple[str, str]], kind: str,
+) -> str:
+    """The text a drawing holds (``hp:drawText``): the engine's lines at their places in the box when they give
+    all of it, else the text whole in the box (counted with the engine's reasons)."""
+    holder = element.find(f"{_HP}drawText")
+    if holder is None:
+        return ""
+    paragraphs = holder.findall(f"{_HP}subList/{_HP}p")
+    text = _characters("".join(_paragraph_text(paragraph) for paragraph in paragraphs))
+    lines = placed.lines if placed is not None else ()
+    complete = bool(lines) and all(
+        None not in (line.top, line.x, line.width, line.text) and line.paragraph < len(paragraphs) for line in lines
+    ) and not (text - _characters("".join(line.text or "" for line in lines)))
+    if complete:
+        return "".join(_positioned_cell_line(line, paragraphs[line.paragraph], styles) for line in lines)
+    shown = _shape_text_lines(holder)  # the text of drawings it holds too (tables in it are drawn as tables)
+    if not shown:
+        return ""
+    issues[(kind, _BOX_TEXT_WHOLE)] += 1
+    for reason in (placed.unavailable if placed is not None else ()):
+        if "line" in reason or "text" in reason:
             issues[(kind, reason)] += 1
+    # Where the engine gives its first line a place, the text begins there.
+    first = lines[0] if lines and lines[0].top is not None and lines[0].x is not None else None
+    css = "" if first is None else ' style="{}"'.format(_style_attr({
+        "position": "absolute", "left": _fmt_mm(_hwp_to_mm(first.x)), "top": _fmt_mm(_hwp_to_mm(first.top)),
+    }))
+    return f'<div class="hwpx-box-text" aria-label="글상자"{css}>{"<br>".join(html.escape(line) for line in shown)}</div>'
+
+
+def _object_box(
+    element: ET.Element, placed: Any, box: tuple[int, int, int, int], images: Mapping[str, tuple[str, bytes]],
+    issues: Counter[tuple[str, str]], counter: _ObjectCounter, styles: Mapping[str, Any], objects: Mapping[Any, Any],
+    *, origin: tuple[int, int] = (0, 0), attrs: str = "",
+) -> str:
+    """An object drawn in its *box* (paper x, top, width, height; *origin* is where its holder stands).
+
+    A picture shows the document's picture file, a drawing its outline (:func:`_shape_drawing`) and the
+    text it holds (:func:`_box_text`), a group its members at their places in it, an equation its MathML;
+    a chart, an embedded object or a form object a marker in the box (counted).
+    """
+    kind = _object_kind(element)
+    x, top, width, height = box
     classes = "hwpx-placed-object"
-    overlay = ""
-    if positioned:
-        layer = {"IN_FRONT_OF_TEXT": "front", "BEHIND_TEXT": "behind"}.get(placed.wrap if placed is not None else "")
-        if layer:
-            overlay = f' data-overlay="{layer}"'
+    look: dict[str, str | None] = {}
     if element.tag == _PICTURE_TAG:
         label = f"그림 {counter.next_picture()}"
         image = element.find(f".//{_HC}img")
         asset = images.get(image.get("binaryItemIDRef", "")) if image is not None else None
-        if asset is not None and sized:
-            mime, data = asset
-            encoded = base64.b64encode(data).decode("ascii")
-            content = f'<img alt="{label}" src="data:{mime};base64,{encoded}">'
+        if asset is not None:
+            content = f'<img alt="{label}" src="data:{asset[0]};base64,{base64.b64encode(asset[1]).decode("ascii")}">'
         else:
+            classes += " hwpx-object-placeholder"
             content = _render_object_marker(label)
-            if asset is None:
-                issues[(kind, "embedded image is missing or unsupported in the browser")] += 1
-    elif element.tag in _SHAPE_TAGS and sized:
-        classes += " hwpx-shape-outline"
-        if positioned:
-            text = "<br>".join(html.escape(line) for line in _shape_text_lines(element, captions=False))
-            content = f'<div aria-label="도형">{text}</div>'
-        else:
-            content = _render_shape(element, captions=False)
-    elif element.tag in _OTHER_OBJECT_LABELS:
-        content = _render_object_marker(_OTHER_OBJECT_LABELS[element.tag])
-        issues[(kind, _PLACEHOLDER)] += 1
+            issues[(kind, "embedded image is missing or unsupported in the browser")] += 1
+    elif element.tag == _GROUP_TAG:
+        classes += " hwpx-group"
+        content = "".join(
+            _group_member(member, box, images, issues, counter, styles, objects)
+            for member in element if member.tag in _OBJECT_TAGS
+        )
     elif element.tag in _SHAPE_TAGS:
-        content = _render_shape(element, captions=False)
+        classes += " hwpx-shape-outline"
+        look, content = _shape_drawing(element, width, height, issues, kind)
+        content += _box_text(element, placed, styles, issues, kind)
+    elif element.tag == _EQUATION_TAG:
+        content = _render_equation_element(element)
     else:
-        content = _render_inline_object(element, counter)
+        classes += " hwpx-object-placeholder"
+        content = _render_object_marker(_OTHER_OBJECT_LABELS.get(element.tag, "개체"))
+        issues[(kind, _PLACEHOLDER)] += 1
     css = _style_attr({
-        key: _fmt_mm(_hwp_to_mm(value)) for key, value in (
-            ("left", left), ("top", top), ("width", width), ("height", height),
-        ) if value is not None
+        "left": _fmt_mm(_hwp_to_mm(x - origin[0])), "top": _fmt_mm(_hwp_to_mm(top - origin[1])),
+        "width": _fmt_mm(_hwp_to_mm(width)), "height": _fmt_mm(_hwp_to_mm(height)), **look,
     })
-    markup = f'<div class="{classes}" data-object-kind="{kind}"{overlay} style="{css}">{content}</div>'
+    return f'<div class="{classes}" data-object-kind="{kind}"{attrs} style="{css}">{content}</div>'
+
+
+def _group_member(
+    member: ET.Element, group: tuple[int, int, int, int], images: Mapping[str, tuple[str, bytes]],
+    issues: Counter[tuple[str, str]], counter: _ObjectCounter, styles: Mapping[str, Any], objects: Mapping[Any, Any],
+) -> str:
+    """A member of a group at its place in the group's box; one the engine gives no place stands at the
+    box's top left the approximate way (counted with the engine's reasons)."""
+    placed = objects.get(member)
+    rect = _object_rect(placed)
+    if rect is not None:
+        return _object_box(member, placed, rect, images, issues, counter, styles, objects, origin=group[:2])
+    kind = _object_kind(member)
+    for reason in (placed.unavailable if placed is not None and placed.unavailable else
+                   ("object placement is unavailable",)):
+        issues[(kind, reason)] += 1
+    issues[(kind, _APPROX_MEMBER)] += 1
+    if member.tag in _SHAPE_TAGS and member.tag != _GROUP_TAG:
+        content = _render_shape(member, captions=False)
+    elif member.tag == _GROUP_TAG:
+        content = "".join(_group_member(inner, group, images, issues, counter, styles, objects)
+                          for inner in member if inner.tag in _OBJECT_TAGS)
+    else:
+        content = _render_inline_object(member, counter) or _render_object_marker(
+            _OTHER_OBJECT_LABELS.get(member.tag, "개체"))
+    return f'<div class="hwpx-group-member-approx" data-object-kind="{kind}" data-approx="place">{content}</div>'
+
+
+def _object_anchor(
+    element: ET.Element, home: int, placed: Any, images: Mapping[str, tuple[str, bytes]],
+    issues: Counter[tuple[str, str]], counter: _ObjectCounter, styles: Mapping[str, Any],
+    objects: Mapping[Any, Any] | None = None, *, lines: tuple[Any, ...] = (), pages: tuple[Any, ...] = (),
+    paragraph: ET.Element | None = None,
+) -> _AnchorMarkup:
+    """An object on its page: in its engine rectangle, at an approximate place where it takes no room the
+    engine's lines do not hold (:func:`_approximate_place`), or flowing (its page flows) otherwise."""
+    kind = _object_kind(element)
+    page = home if placed is None or placed.page is None else placed.page
+    size = _object_size(placed)
+    rect = _object_rect(placed)
+    if rect is None:
+        for reason in (placed.unavailable if placed is not None and placed.unavailable else
+                       ("object placement is unavailable",)):
+            issues[(kind, reason)] += 1
+    approximate = None
+    if rect is None and placed is not None and size is not None and 0 <= page < len(pages) and (
+        placed.page is not None or placed.wrap in _FLOATING  # one taking no room stands on its paragraph's page
+    ):
+        approximate = _approximate_place(placed, size, lines, pages[page], styles, paragraph, page)
+        if approximate is not None:
+            issues[(kind, approximate[2])] += 1
+            rect = (approximate[0], approximate[1], *size)
+    positioned = rect is not None
+    overlay = ""
+    wrap = placed.wrap if placed is not None else ""
+    if positioned:
+        layer = {"IN_FRONT_OF_TEXT": "front", "BEHIND_TEXT": "behind"}.get(wrap)
+        if layer:
+            overlay = f' data-overlay="{layer}"'
+    if rect is not None:
+        attrs = overlay + (f' data-wrap="{html.escape(wrap)}"' if wrap else "")
+        if approximate is not None:
+            attrs += ' data-approx="place"'
+        markup = _object_box(element, placed, rect, images, issues, counter, styles, objects or {}, attrs=attrs)
+    else:
+        markup = _unplaced_object(element, kind, placed, images, issues, counter)
+    left, top = (rect[0], rect[1]) if rect is not None else (None, None)
+    width, height = (rect[2], rect[3]) if rect is not None else (None, None)
     caption = _caption_text(element, styles, counter)
     if caption:
         # The engine places no caption: it is drawn next to its object (under it; above it when the
@@ -2013,50 +2309,160 @@ def _object_anchor(
     return _AnchorMarkup(page, markup, flow=not positioned, inline=_placed_as_character(element), overlay=bool(overlay))
 
 
-def _area_anchors(area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...],
-                  styles: Mapping[str, Any], issues: Counter[tuple[str, str]]) -> list[_AnchorMarkup]:
-    label = _AREA_LABELS[area.tag]
+def _unplaced_object(
+    element: ET.Element, kind: str, placed: Any, images: Mapping[str, tuple[str, bytes]],
+    issues: Counter[tuple[str, str]], counter: _ObjectCounter,
+) -> str:
+    """An object without a place, flowing in its page: itself in its size where the engine gives one."""
+    width, height = (None, None) if placed is None else (placed.width, placed.height)
+    sized = width is not None and height is not None and width > 0 and height > 0
+    classes = "hwpx-placed-object"
+    if element.tag == _PICTURE_TAG:
+        label = f"그림 {counter.next_picture()}"
+        image = element.find(f".//{_HC}img")
+        asset = images.get(image.get("binaryItemIDRef", "")) if image is not None else None
+        if asset is not None and sized:
+            content = f'<img alt="{label}" src="data:{asset[0]};base64,{base64.b64encode(asset[1]).decode("ascii")}">'
+        else:
+            content = _render_object_marker(label)
+            if asset is None:
+                issues[(kind, "embedded image is missing or unsupported in the browser")] += 1
+    elif element.tag in _SHAPE_TAGS:
+        if sized:
+            classes += " hwpx-shape-outline"
+        content = _render_shape(element, captions=False)
+    elif element.tag in _OTHER_OBJECT_LABELS or element.tag == _OLE_TAG:
+        content = _render_object_marker(_OTHER_OBJECT_LABELS.get(element.tag, "개체"))
+        issues[(kind, _PLACEHOLDER)] += 1
+    else:
+        content = _render_inline_object(element, counter)
+    css = _style_attr({
+        key: _fmt_mm(_hwp_to_mm(value)) for key, value in (("width", width), ("height", height)) if value is not None
+    })
+    return f'<div class="{classes}" data-object-kind="{kind}" style="{css}">{content}</div>'
+
+
+_AREA_WHOLE = "area is drawn whole in its room: its lines do not give all it holds"
+_AREA_MARGIN = "area without a page is drawn in the margin of its paragraph's page"
+_NOTE_FOOT = "note without a place is drawn at the foot of its paragraph's page body"
+
+
+def _area_line_paragraphs(lines: tuple[Any, ...], own: list[ET.Element]) -> list[ET.Element] | None:
+    """The paragraph of each of an area's lines: a paragraph's lines begin at its text position 0."""
+    if not own:
+        return None
+    result, index = [], -1
+    for line in lines:
+        if line.text_start == 0 or index < 0:
+            index += 1
+        if index >= len(own):
+            return None
+        result.append(own[index])
+    return result if index == len(own) - 1 else None
+
+
+def _area_room(placed: Any, pages: tuple[Any, ...]) -> tuple[int, tuple[int, int, int, int]] | None:
+    """The page an area stands on and its room there (x, top, width, height on the paper), when given."""
+    if placed is None or None in (placed.page, placed.x, placed.top, placed.width, placed.height):
+        return None
+    if not 0 <= placed.page < len(pages):
+        return None
+    return placed.page, (placed.x, placed.top, placed.width, placed.height)
+
+
+def _area_whole(
+    area: ET.Element, kind: str, room: tuple[int, int, int | None, int | None], styles: Mapping[str, Any],
+    counter: _ObjectCounter, *, foot: bool = False,
+) -> str:
+    """All an area holds, its paragraphs and tables the approximate way, in its *room* on the paper
+    (with *foot*, standing on the room's top: a note above the body's foot)."""
+    content = "".join(
+        _render_paragraph(paragraph, styles, counter, extended_styles=True)
+        for paragraph in area.findall(f"{_HP}subList/{_HP}p")
+    )
+    css = _style_attr({
+        "left": _fmt_mm(_hwp_to_mm(room[0])), "top": _fmt_mm(_hwp_to_mm(room[1])),
+        "width": _fmt_mm(_hwp_to_mm(room[2])) if room[2] is not None else None,
+        "height": _fmt_mm(_hwp_to_mm(room[3])) if room[3] is not None else None,
+        "transform": "translateY(-100%)" if foot else None,
+    })
+    return (f'<div class="hwpx-placed-object hwpx-area-room" data-area-kind="{kind}" data-approx="area" '
+            f'style="{css}">{content}</div>')
+
+
+def _engine_area_anchors(
+    area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...], styles: Mapping[str, Any],
+    issues: Counter[tuple[str, str]], counter: _ObjectCounter, margins: Mapping[str, int],
+    table_counts: Counter[int],
+) -> list[_AnchorMarkup]:
+    """A header, footer or note on each page the engine gives it, over or beside the body: it takes no room
+    in a flow page, which only stacks the body.
+
+    Its lines stand at the engine's places when they give all its text. Otherwise it is drawn whole,
+    the approximate way, in the room the engine gives it on that page; one the engine gives no page is
+    drawn once on its paragraph's page, a header or footer in that page's header or footer margin, a
+    note at the foot of the body. Each approximation is counted.
+    """
     kind = area.tag.removeprefix(_HP)
-    paragraphs = list(area.iter(f"{_HP}p"))
+    own = area.findall(f"{_HP}subList/{_HP}p")
+    every = list(area.iter(f"{_HP}p"))
+    tables = sum(1 for _ in area.iter(f"{_HP}tbl"))
     if not placements:
         placements = [None]
-    # The lines of all the area's parts must give all its text, or it is shown whole the approximate way.
     given: Counter[str] = Counter()
     for placed in placements:
         for line in (placed.lines if placed is not None else ()):
             given.update(_characters(line.text or ""))
-    covered = not (_characters("".join(_paragraph_text(paragraph) for paragraph in paragraphs)) - given)
-    if not covered and any(placed is not None and placed.lines for placed in placements):
+    covered = not tables and not (_characters("".join(_paragraph_text(paragraph) for paragraph in every)) - given)
+    if not covered and given:
         issues[(kind, "area lines do not give all its text: the area is shown whole")] += 1
     result = []
-    for index, placed in enumerate(placements):
-        page = placed.page if placed is not None and placed.page is not None else home
+    unplaced = False
+    for placed in placements:
         lines = placed.lines if placed is not None else ()
-        if covered and lines and all(line.text is not None for line in lines) and paragraphs:
-            rendered = [_engine_line(line, paragraphs[0], styles, pages[page], area_line=True) for line in lines]
-            exact = (placed is not None and placed.top is not None and placed.x is not None
-                     and not any(partial for _, partial in rendered))
-            if not exact:
+        found = _area_room(placed, pages)
+        reasons = (placed.unavailable if placed is not None and placed.unavailable else ())
+        if found is not None and covered and lines and all(line.text is not None for line in lines):
+            page = found[0]
+            holders = _area_line_paragraphs(lines, own) or [own[0] if own else every[0]] * len(lines)
+            rendered = [
+                _engine_line(line, holder, styles, pages[page], area_line=True) for line, holder in zip(lines, holders)
+            ]
+            partial = any(approximate for _, approximate in rendered)
+            if partial:
                 issues[(kind, "area coordinates are incomplete")] += 1
-            prefix = "" if exact else _render_object_marker(label)
-            content = prefix + "".join(markup for markup, _ in rendered)
-            paced = prefix + "".join(
-                _engine_line(line, paragraphs[0], styles, pages[page], area_line=True,
-                             advance=_line_advance(line, following))[0]
-                for line, following in zip(lines, (*lines[1:], None))
-            )
+            markup = "".join(markup for markup, _ in rendered)
+            attrs = ' data-approx-lines="1"' if partial else ""
             result.append(_AnchorMarkup(
-                page, f'<div data-area-kind="{kind}">{content}</div>', flow=not exact,
-                flow_html=f'<div data-area-kind="{kind}">{paced}</div>',
+                page, f'<div class="hwpx-area-layer" data-area-kind="{kind}"{attrs}>{markup}</div>',
+                flow=False, overlay=True,
             ))
+            continue
+        for reason in reasons or ("area placement is unavailable",):
+            issues[(kind, reason)] += 1
+        if found is not None:
+            issues[(kind, _AREA_WHOLE)] += 1
+            if not result:
+                table_counts[found[0]] += tables
+            result.append(_AnchorMarkup(
+                found[0], _area_whole(area, kind, found[1], styles, counter), flow=False, overlay=True,
+            ))
+            continue
+        if unplaced or not 0 <= home < len(pages):
+            continue
+        unplaced = True  # drawn once, on its paragraph's page
+        left, top, width, height = pages[home].body
+        if kind == "header":
+            margin_room = (left, top - margins.get("header", 0), width, margins.get("header", 0))
+        elif kind == "footer":
+            margin_room = (left, top + height, width, margins.get("footer", 0))
         else:
-            for reason in (placed.unavailable if placed is not None and placed.unavailable else
-                           ("area placement is unavailable",)):
-                issues[(kind, reason)] += 1
-            text = " ".join(_paragraph_text(p) for p in paragraphs) if index == 0 else ""
-            result.append(_AnchorMarkup(
-                page, f'<p class="hwpx-paragraph" data-area-kind="{kind}">{_render_object_marker(label)} {html.escape(text)}</p>',
-            ))
+            margin_room = None
+        issues[(kind, _AREA_MARGIN if margin_room is not None else _NOTE_FOOT)] += 1
+        table_counts[home] += tables
+        markup = (_area_whole(area, kind, margin_room, styles, counter) if margin_room is not None else
+                  _area_whole(area, kind, (left, top + height, width, None), styles, counter, foot=True))
+        result.append(_AnchorMarkup(home, markup, flow=False, overlay=True))
     return result
 
 
@@ -2222,6 +2628,15 @@ def _engine_page_fragment(page: Any, page_id: str, content: str, *, flow: bool, 
     )
 
 
+def _header_footer_margins(section: ET.Element) -> dict[str, int]:
+    """The header and footer margins a section's page sets (``hp:pagePr/hp:margin``), in HWPUNIT."""
+    margin = section.find(f".//{_HP}pagePr/{_HP}margin")
+    defaults = {key: round(_DEFAULT_MARGINS_MM[key] * _HWP_UNITS_PER_MM) for key in ("header", "footer")}
+    if margin is None:
+        return defaults
+    return {key: _safe_int(margin.get(key), defaults[key]) for key in defaults}
+
+
 def _memo_count(sections: list[ET.Element]) -> int:
     """The memos of the document: its MEMO fields, and the ``hp:memogroup`` memos no field anchors.
 
@@ -2267,6 +2682,7 @@ def _render_engine_preview(
     section_starts: dict[int, int] = {}
     for page in layout.pages:
         section_starts.setdefault(page.section, page.page)
+    area_margins = [_header_footer_margins(section) for section in sections]
     for placed in layout.paragraphs:
         key = placed.section, placed.paragraph
         paragraph = body_paragraphs[key[0]][key[1]]
@@ -2290,6 +2706,8 @@ def _render_engine_preview(
                 number for table in table_results.values() for row in table.rows for cell in row.cells
                 for line in getattr(cell, "lines_with_tables", ()) for number in line.tables
             ),
+            tuple(visible),
+            area_margins[key[0]],
         )
         without_text_range = [line for line in visible if line.text is None]
         missing_pages = {line.position.page for line in without_text_range}

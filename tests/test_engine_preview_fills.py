@@ -58,7 +58,7 @@ def _fill(cell) -> str:
 def drawn(request, monkeypatch) -> str:
     """Cells drawn at the engine's coordinates, and drawn as the flowing rows of a flow page."""
     if request.param == "flow":
-        monkeypatch.setattr(layout_preview, "_drawable_at_coordinates", lambda table: False)
+        monkeypatch.setattr(layout_preview, "_drawable_at_coordinates", lambda table, objects=None: False)
     return request.param
 
 

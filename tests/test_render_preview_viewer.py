@@ -108,7 +108,10 @@ def test_render_preview_viewer_renders_mathml(tmp_path: Path) -> None:
         "scriptFallback": 0,
     }
     assert viewer["fidelityTier"].endswith("; equations=mathml")
-    assert viewer["fidelityTier"].split(";")[0] in {"text-approx-pagination", "partial-engine-estimated-pagination"}
+    # Any of the three honest tiers: an engine that places every equation gives the full engine tier.
+    assert viewer["fidelityTier"].split(";")[0] in {
+        "text-approx-pagination", "partial-engine-estimated-pagination", "engine-estimated-pagination",
+    }
     assert "<math" in viewer["html"]
     assert viewer["byteSize"] == len(viewer["html"].encode("utf-8"))
     assert viewer["pageCount"] >= 1
