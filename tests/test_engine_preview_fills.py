@@ -40,7 +40,29 @@ def _limitations(preview) -> dict[tuple[str, str], int]:
     return {(item["kind"], item["reason"]): item["count"] for item in preview.as_dict()["limitations"]}
 
 
-def test_a_dark_cell_fill_shows_under_text_in_the_page_colour() -> None:
+def _cells(fragment: str, drawn: str) -> list:
+    """The cells of the page's tables: flowing rows' ``td``, or the boxes of a table at coordinates."""
+    page = html.fromstring(fragment)
+    cells = page.xpath(".//td" if drawn == "flow" else ".//div[@class='hwpx-engine-cell']")
+    assert cells and page.get("data-layout-mode") == ("flow" if drawn == "flow" else "positioned")
+    return cells
+
+
+def _fill(cell) -> str:
+    """The cell's background as drawn; a box at coordinates leaves out a transparent one."""
+    style = cell.get("style")
+    return style.split("background: ", 1)[1].split(";", 1)[0] if "background: " in style else "transparent"
+
+
+@pytest.fixture(params=["coordinates", "flow"])
+def drawn(request, monkeypatch) -> str:
+    """Cells drawn at the engine's coordinates, and drawn as the flowing rows of a flow page."""
+    if request.param == "flow":
+        monkeypatch.setattr(layout_preview, "_drawable_at_coordinates", lambda table: False)
+    return request.param
+
+
+def test_a_dark_cell_fill_shows_under_text_in_the_page_colour(drawn) -> None:
     document = HwpxDocument.new()
     table = document.add_paragraph("").add_table(1, 2)
     label = table.cell(0, 0)
@@ -51,15 +73,15 @@ def test_a_dark_cell_fill_shows_under_text_in_the_page_colour() -> None:
 
     preview = render_layout_preview(document.to_bytes())
 
-    dark, plain = html.fromstring(preview.page_fragments[0]).xpath(".//td")
-    assert "background: #1F2A44" in dark.get("style")
+    dark, plain = _cells(preview.page_fragments[0], drawn)
+    assert _fill(dark) == "#1F2A44"
     text, = [span for span in dark.xpath(".//span") if span.text == "이름표"]
     assert "color: #FFFFFF" in text.get("style")
-    assert "background: transparent" in plain.get("style")
+    assert _fill(plain) == "transparent"
     assert not any(kind == "table-cell" and "fill" in reason for kind, reason in _limitations(preview))
 
 
-def test_pattern_gradient_and_picture_cell_fills_are_reduced_and_counted(monkeypatch) -> None:
+def test_pattern_gradient_and_picture_cell_fills_are_reduced_and_counted(monkeypatch, drawn) -> None:
     document = HwpxDocument.new()
     table = document.add_paragraph("").add_table(1, 5)
     table.set_cell_shading(0, 0, "#203050")
@@ -81,10 +103,9 @@ def test_pattern_gradient_and_picture_cell_fills_are_reduced_and_counted(monkeyp
 
     preview = render_layout_preview(payload)
 
-    styles = [cell.get("style") for cell in html.fromstring(preview.page_fragments[0]).xpath(".//td")]
-    assert "background: #203050" in styles[0]  # the pattern's face colour
-    assert "background: #203858" in styles[1] and "background: #203858" in styles[2]  # the mean of the two stops
-    assert "background: transparent" in styles[3] and "background: transparent" in styles[4]
+    fills = [_fill(cell) for cell in _cells(preview.page_fragments[0], drawn)]
+    # the pattern's face colour, the mean of the gradient's two stops, nothing for a picture or a bare pattern
+    assert fills == ["#203050", "#203858", "#203858", "transparent", "transparent"]
     assert "url(" not in preview.html
     limitations = _limitations(preview)
     assert limitations["table-cell", "cell fill pattern or gradient is drawn as one colour"] == 3

@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from hwpx import HwpxDocument
+from preview_overlap import drawn_wrongly, overlaps
 
 from hwpx_automation.preview import layout_preview
 
@@ -58,13 +59,16 @@ def missing_characters(document: HwpxDocument, fragments: tuple[str, ...]) -> Co
 
 @pytest.fixture(autouse=True)
 def every_engine_preview_shows_the_text(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Every document a test renders through the engine path must show all its text."""
+    """Every document a test renders through the engine path must show all its text, and its pages
+    drawn at coordinates no overlap the engine's line pitch does not set (:mod:`preview_overlap`)."""
     render = layout_preview._render_engine_preview
 
     def checked(document: HwpxDocument, *args: Any, **kwargs: Any) -> Any:
         preview = render(document, *args, **kwargs)
         missing = missing_characters(document, preview.page_fragments)
         assert not missing, f"the preview drops {sum(missing.values())} characters of the document"
+        found = overlaps(preview.page_fragments)
+        assert not drawn_wrongly(found), f"the preview draws overlapping text: {dict(found)}"
         return preview
 
     monkeypatch.setattr(layout_preview, "_render_engine_preview", checked)

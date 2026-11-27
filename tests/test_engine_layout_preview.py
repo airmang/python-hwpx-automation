@@ -12,6 +12,7 @@ from hwpx import HwpxDocument, experimental
 from lxml import etree, html
 
 from hwpx_automation.preview import layout_preview, render_layout_preview
+from preview_flow import tables_flow  # noqa: F401
 from preview_text_cover import every_engine_preview_shows_the_text  # noqa: F401
 
 HH = "{http://www.hancom.co.kr/hwpml/2011/head}"
@@ -74,8 +75,9 @@ def test_declined_estimate_keeps_legacy_page_fragments(mode: str, monkeypatch) -
     assert any("MS Word" in warning for warning in preview.warnings)
 
 
+@pytest.mark.usefixtures("tables_flow")
 @pytest.mark.parametrize("mode", ["pages", "long"])
-def test_only_the_page_with_an_unplaced_table_flows_in_document_order(mode: str) -> None:
+def test_only_the_page_with_a_flowing_table_flows_in_document_order(mode: str) -> None:
     estimate_layout = getattr(experimental, "estimate_layout", None)
     if estimate_layout is None:
         pytest.skip("needs the core placement API")
@@ -136,13 +138,14 @@ def _same_text_on_two_pages(document: HwpxDocument) -> None:
     body().element.set("pageBreak", "1")
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_flow_lines_take_the_engine_advance_of_a_positioned_page() -> None:
     estimate_layout = getattr(experimental, "estimate_layout", None)
     if estimate_layout is None:
         pytest.skip("needs the core placement API")
     document = HwpxDocument.new()
     _same_text_on_two_pages(document)
-    document.add_paragraph("").add_table(2, 2)  # no engine coordinates: the second page flows
+    document.add_paragraph("").add_table(2, 2)  # drawn flowing (tables_flow): the second page flows
     payload = document.to_bytes()
 
     preview = render_layout_preview(payload)
@@ -174,6 +177,7 @@ def test_flow_lines_take_the_engine_advance_of_a_positioned_page() -> None:
     assert not positioned.xpath(".//*[@data-engine-advance]")
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_a_flow_line_before_a_floating_table_keeps_its_own_height() -> None:
     if not hasattr(experimental, "estimate_layout"):
         pytest.skip("needs the core placement API")
@@ -243,8 +247,12 @@ def test_table_rows_follow_the_engine_across_pages_and_repeat_headers() -> None:
     table_placement, = experimental.estimate_layout(payload).tables
 
     for page, fragment in enumerate(preview.page_fragments):
-        elements = html.fromstring(fragment).xpath(".//tr[@data-engine-row]")
-        observed = [(int(row.get("data-engine-row")), row.get("data-engine-repeated") == "1") for row in elements]
+        markup = html.fromstring(fragment)
+        assert markup.get("data-layout-mode") == "positioned"  # every row and cell has its coordinates
+        cells = markup.xpath(".//div[@class='hwpx-engine-cell']")
+        observed = list(dict.fromkeys(
+            (int(cell.get("data-engine-row")), cell.get("data-engine-repeated") == "1") for cell in cells
+        ))
         expected = [(row.row, row.repeated) for row in table_placement.rows if row.page == page]
         assert observed == expected and observed
 

@@ -16,6 +16,7 @@ from hwpx.oxml.namespaces import HP
 
 from hwpx_automation.preview import render_layout_preview
 from hwpx_automation.preview.layout_preview import _fmt_mm, _hwp_to_mm
+from preview_flow import tables_flow  # noqa: F401
 
 
 CORPUS = Path(__file__).parent / "fixtures" / "moved" / "misc"
@@ -39,6 +40,7 @@ def test_layout_preview_renders_page_box_and_margins() -> None:
     assert "padding:" in preview.html
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_layout_preview_renders_table_geometry_and_borders() -> None:
     preview = render_layout_preview(CORPUS / "reader_writer__SimpleTable.hwpx")
 
@@ -100,6 +102,7 @@ def _cell_with_two_margins(has_margin: str | None):
 _RULE_CASES = [("0", _TABLE_MARGIN), (None, _TABLE_MARGIN), ("1", _CELL_MARGIN)]
 
 
+@pytest.mark.usefixtures("tables_flow")
 @pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
 def test_the_layout_preview_pads_cells_with_the_effective_margins(has_margin, expected) -> None:
     doc, _, _ = _cell_with_two_margins(has_margin)

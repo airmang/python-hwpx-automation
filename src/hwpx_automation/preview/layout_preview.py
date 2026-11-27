@@ -86,8 +86,20 @@ class _AnchorMarkup:
     inline: bool = False
     #: Drawn over or under the text at engine coordinates: it takes no room in a flow page.
     overlay: bool = False
-    #: What a flow page shows instead of *html* (area lines at the engine's pitch).
+    #: What a flow page shows instead of *html* (area lines at the engine's pitch, a table's flowing rows).
     flow_html: str | None = None
+    #: What drawing *html* counts in ``limitations``, and drawing *flow_html* (for anchors that keep
+    #: them apart: what is counted depends on which of the two the page draws).
+    issues: Counter[tuple[str, str]] | None = None
+    flow_issues: Counter[tuple[str, str]] | None = None
+    #: The table (by ``id``) an engine-placed table fragment belongs to.
+    table: int | None = None
+
+    def markup(self, flow: bool) -> tuple[str, Counter[tuple[str, str]] | None]:
+        """The markup a page draws (a *flow* page or one at coordinates) and what it counts."""
+        if flow and self.flow_html is not None:
+            return self.flow_html, self.flow_issues
+        return self.html, self.issues
 
 
 @dataclass
@@ -96,7 +108,9 @@ class _PlacedLine:
 
     line: Any
     paragraph: ET.Element
-    hosted: list[str] = field(default_factory=list)
+    #: Objects placed as characters this line holds. A flow page draws them inside the line;
+    #: a page at coordinates draws each at its own place after the line.
+    hosted: list[_AnchorMarkup] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -1391,6 +1405,12 @@ def _base_css(mode: str) -> str:
         "{ position: absolute; }\n"
         ".hwpx-engine-line, .hwpx-engine-area-line { margin: 0; white-space: pre; "
         "overflow: visible; overflow-wrap: normal; word-break: normal; }\n"
+        # A table at the engine's coordinates: cells at their rectangles, borders over the fills, lines over both.
+        ".hwpx-engine-table { position: absolute; isolation: isolate; margin: 0; font-size: 10pt; }\n"
+        ".hwpx-engine-cell { position: absolute; box-sizing: border-box; margin: 0; }\n"
+        ".hwpx-cell-frame { position: absolute; box-sizing: border-box; z-index: 1; pointer-events: none; }\n"
+        ".hwpx-engine-cell > .hwpx-engine-cell-line { position: absolute; z-index: 2; margin: 0; "
+        "white-space: pre; overflow: visible; }\n"
         ".hwpx-engine-flow { display: flow-root; }\n"
         ".hwpx-engine-flow :is(.hwpx-engine-line, .hwpx-engine-area-line) "
         "{ margin-left: var(--hwpx-line-offset, 0mm); "
@@ -1503,7 +1523,7 @@ def _document_html(
         "</head>\n"
         f'<body data-hwpx-preview-mode="{html.escape(mode)}">\n'
         f"{body}\n"
-        f"{_flow_overflow_script() if has_flow else ''}"
+        f"{_flow_overflow_script() if has_flow or 'hwpx-engine-cell-line' in body else ''}"
         "</body>\n"
         "</html>\n"
     )
@@ -1674,7 +1694,7 @@ def _flow_anchors(
             if obj is not None:
                 anchors.append(_object_anchor(obj, home, sources.objects.get(obj), sources.images, issues, counter, styles))
             for table in _outer_tables(child):
-                anchors.extend(_table_anchors(table, styles, counter, issues, home, sources, table_counts))
+                anchors.extend(_table_anchors(table, styles, counter, issues, home, sources, table_counts, pages))
             for area in child.iter():
                 if area.tag in _AREA_LABELS:
                     anchors.extend(_area_anchors(area, home, sources.areas.get(area, []), pages, styles, issues))
@@ -1688,8 +1708,10 @@ def _placed_as_character(element: ET.Element) -> bool:
 
 def _table_anchors(
     table: ET.Element, styles: Mapping[str, Any], counter: _ObjectCounter, issues: Counter[tuple[str, str]],
-    home: int, sources: _ParagraphSources, table_counts: Counter[int],
+    home: int, sources: _ParagraphSources, table_counts: Counter[int], pages: tuple[Any, ...] | None = None,
 ) -> list[_AnchorMarkup]:
+    """A table's markup on each page the engine sets its rows. A page's rows are drawn at the engine's
+    coordinates where every value they need is given; else, and on a page drawn as flow, they flow."""
     placements = sources.tables
     placed = placements.get(table)
     inline = _placed_as_character(table)
@@ -1704,7 +1726,6 @@ def _table_anchors(
             inline=inline,
         )]
     plans = _cell_plans(table, placed)
-    issues[("table", "table content uses approximate flow within engine row pages")] += 1
     for nested in table.iter(f"{_HP}tbl"):
         found = placements.get(nested)
         if found is None or not found.rows:
@@ -1725,17 +1746,171 @@ def _table_anchors(
         issues[("table", "caption placement is unavailable")] += 1
     anchors = []
     seen: set[int] = set()
+    drawable = _drawable_at_coordinates(table)
     for page, rows in sorted(rows_by_page.items()):
         table_counts[page] += 1
         captions = tuple(caption for caption in placed.captions if caption.page == page)
-        anchors.append(_AnchorMarkup(page, _render_table(
+        closing = rows[-1] is placed.rows[-1]
+        flowing: Counter[tuple[str, str]] = Counter()
+        flowing_markup = _render_table(
             table, styles, counter, flow=True, row_parts=tuple(rows), table_index=placed.table,
             table_placements=placements, continued_rows=frozenset(seen), captions=captions,
-            show_approx_caption=fallback_caption and page == min(rows_by_page), issues=issues, sources=sources,
-            plans=plans, closing=rows[-1] is placed.rows[-1],
-        ), inline=inline))
+            show_approx_caption=fallback_caption and page == min(rows_by_page), issues=flowing, sources=sources,
+            plans=plans, closing=closing,
+        )
         seen.update(row.row for row in rows if not row.repeated)
+        at_coordinates: Counter[tuple[str, str]] = Counter()
+        positioned = None
+        if drawable and pages is not None and 0 <= page < len(pages):
+            positioned = _positioned_table(
+                table, tuple(rows), placed.table, pages[page], styles, plans, at_coordinates,
+                unplaced=closing and _has_unplaced_cells(table, plans),
+            )
+        if positioned is None:
+            anchors.append(_AnchorMarkup(page, flowing_markup, inline=inline, issues=flowing, table=id(table)))
+        else:
+            anchors.append(_AnchorMarkup(
+                page, positioned, flow=False, inline=inline, flow_html=flowing_markup, issues=at_coordinates,
+                flow_issues=flowing, table=id(table),
+            ))
     return anchors
+
+
+_FLOWING_TABLE = ("table", "table content uses approximate flow within engine row pages")
+
+
+def _drawable_at_coordinates(table: ET.Element) -> bool:
+    """Whether a table holds only what its engine cell lines give: no table, object, note or caption.
+
+    Those the engine sets no lines for in a cell; a table holding any of them flows.
+    """
+    if table.find(f"{_HP}caption") is not None:
+        return False
+    return not any(
+        node is not table and (node.tag == f"{_HP}tbl" or node.tag in _OBJECT_TAGS or node.tag in _AREA_LABELS)
+        for node in table.iter()
+    )
+
+
+def _has_unplaced_cells(table: ET.Element, plans: Mapping[int, _CellPlan]) -> bool:
+    """Whether a cell with content is in no row the engine placed."""
+    return any(
+        number not in plans and _holds_content(cell) for number, cell in enumerate(table.findall(f"{_HP}tr/{_HP}tc"))
+    )
+
+
+def _column_left(page: Any, column: int, top: int) -> int | None:
+    """Paper x of the left edge of *column* on *page*, for the column configuration in force at *top*."""
+    area = next((area for area in reversed(page.column_areas) if area.top <= top), None)
+    if area is None or column >= len(area.widths) or (column and area.gap is None):
+        return None
+    left: int = page.body[0] + sum(area.widths[:column]) + column * (area.gap or 0)
+    return left
+
+
+def _half_border(border: str | None) -> str:
+    """Half the width of a CSS border side, as the distance its line stands out of the cell's edge."""
+    width = (border or "none").split(" ", 1)[0]
+    if width.endswith("mm"):
+        return f"-{float(width[:-2]) / 2:.3f}mm"
+    if width.endswith("px"):
+        return f"-{float(width[:-2]) / 2:g}px"
+    return "0mm"
+
+
+def _positioned_table(
+    table: ET.Element, rows: tuple[Any, ...], number: int, page: Any, styles: Mapping[str, Any],
+    plans: Mapping[int, _CellPlan], issues: Counter[tuple[str, str]], *, unplaced: bool,
+) -> str | None:
+    """The rows the engine set on one page, drawn at the engine's coordinates; ``None`` when a value is missing.
+
+    Every row needs its paper top, height and left edge; every cell its rectangle; every cell line
+    its top, left, width and text, and no paragraph of a cell may need drawing whole. A cell's
+    rectangle is the engine's; its border lines stand on the cell's edges (half inside, half out,
+    so two cells share one line); its lines stand at the engine's tops, left edges and widths.
+    """
+    if unplaced:
+        return None
+    sources = table.findall(f"{_HP}tr/{_HP}tc")
+    boxes = []
+    for row in rows:
+        if row.top is None or row.height is None or row.x is None:
+            return None
+        column_left = _column_left(page, row.column, row.top)
+        if column_left is None:
+            return None
+        origin_x, origin_top = column_left + row.x, row.top - row.table_offset
+        for cell in row.cells:
+            if None in (cell.x, cell.top, cell.width, cell.height, cell.source_index):
+                return None
+            if cell.source_index >= len(sources):
+                return None
+            source = sources[cell.source_index]
+            own = source.findall(f"{_HP}subList/{_HP}p")
+            lines = _fragment_lines(cell)
+            if any(
+                line.top is None or line.x is None or line.width is None or line.text is None
+                or line.paragraph >= len(own) for line in lines
+            ):
+                return None
+            plan = None if row.repeated else plans.get(cell.source_index)
+            if plan is not None and plan.whole:
+                return None
+            boxes.append((row, cell, source, own, lines, origin_x + cell.x, origin_top + cell.top))
+    if not boxes:
+        return None
+    left = min(box[5] for box in boxes)
+    top = min(box[6] for box in boxes)
+    right = max(box[5] + box[1].width for box in boxes)
+    bottom = max(box[6] + box[1].height for box in boxes)
+    cells = []
+    for row, cell, source, own, lines, cell_x, cell_top in boxes:
+        css = _border_style(source.get("borderFillIDRef") or table.get("borderFillIDRef"), styles, issues=issues)
+        frame = _style_attr({
+            **{f"border-{side}": css[f"border-{side}"] for side in ("top", "right", "bottom", "left")},
+            **{side: _half_border(css[f"border-{side}"]) for side in ("top", "right", "bottom", "left")},
+        })
+        box = _style_attr({
+            "left": _fmt_mm(_hwp_to_mm(cell_x - left)), "top": _fmt_mm(_hwp_to_mm(cell_top - top)),
+            "width": _fmt_mm(_hwp_to_mm(cell.width)), "height": _fmt_mm(_hwp_to_mm(cell.height)),
+            "background": css["background"] if css["background"] != "transparent" else None,
+        })
+        drawn = "".join(_positioned_cell_line(line, own[line.paragraph], styles) for line in lines)
+        cells.append(
+            f'<div class="hwpx-engine-cell" data-engine-row="{row.row}" data-engine-column="{cell.column}" '
+            f'data-engine-repeated="{int(row.repeated)}" '
+            f'data-border-fill-id="{html.escape(source.get("borderFillIDRef") or "")}" style="{box}">'
+            f'<i class="hwpx-cell-frame" style="{frame}"></i>{drawn}</div>'
+        )
+    extent = _style_attr({
+        "left": _fmt_mm(_hwp_to_mm(left)), "top": _fmt_mm(_hwp_to_mm(top)),
+        "width": _fmt_mm(_hwp_to_mm(right - left)), "height": _fmt_mm(_hwp_to_mm(bottom - top)),
+    })
+    return (
+        f'<div class="hwpx-engine-table" data-engine-table="{number}" data-engine-page="{page.page}" '
+        f'style="{extent}">{"".join(cells)}</div>'
+    )
+
+
+def _positioned_cell_line(line: Any, paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
+    """One text line of a cell at the engine's top, left edge and width (cell-relative), as tall as the line."""
+    text = _styled_line_text(line, styles)
+    if not text:
+        return ""  # a line with nothing to show (an empty paragraph's) keeps its room without markup
+    run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
+    char = styles["char"].get(run.get("charPrIDRef", "0") if run is not None else "0", {})
+    align = styles["para"].get(paragraph.get("paraPrIDRef") or "0", {}).get("align", "left")
+    css = _style_attr({
+        "left": _fmt_mm(_hwp_to_mm(line.x)), "top": _fmt_mm(_hwp_to_mm(line.top)),
+        "width": _fmt_mm(_hwp_to_mm(line.width)),
+        "height": _fmt_mm(_hwp_to_mm(line.height)), "line-height": _fmt_mm(_hwp_to_mm(line.height)),
+        "font-size": _fmt_pt(char.get("font_size_pt", 10.0)), "color": char.get("color", "#000000"),
+        "text-align": align if align != "left" else None,
+    })
+    return (
+        f'<div class="hwpx-engine-cell-line" data-text-start="{line.text_start}" data-text-end="{line.text_end}" '
+        f'data-engine-top="{line.top}" style="{css}">{text}</div>'
+    )
 
 
 def _picture_sources(document: HwpxDocument, parts: Mapping[str, bytes]) -> dict[str, tuple[str, bytes]]:
@@ -1968,13 +2143,26 @@ def _stretched_picture(brush: ET.Element, images: Mapping[str, tuple[str, bytes]
 
 def _page_content(
     items: list[str | _PlacedLine | _AnchorMarkup], page: Any, styles: Mapping[str, Any], *, flow: bool,
+    issues: Counter[tuple[str, str]], flowing_tables: set[int],
 ) -> str:
     """The markup of one page. A flow page stacks its lines at the engine's line advance.
 
     The advance is the distance between the tops of two lines that follow each other in the
     same column with nothing between them taking room. A line without such a successor keeps
     its own height: the page stays marked as an approximate vertical placement.
+
+    What the drawn markup of an anchor counts goes into *issues*; an engine-placed table drawn
+    with its rows flowing goes into *flowing_tables*.
     """
+
+    def drawn(anchor: _AnchorMarkup) -> str:
+        markup, counted = anchor.markup(flow)
+        if counted:
+            issues.update(counted)
+        if anchor.table is not None and (flow or anchor.flow):
+            flowing_tables.add(anchor.table)
+        return markup
+
     advances: dict[int, int | None] = {}
     below: Any = None
     for index in range(len(items) - 1, -1, -1):
@@ -1989,11 +2177,13 @@ def _page_content(
         if isinstance(item, str):
             parts.append(item)
         elif isinstance(item, _AnchorMarkup):
-            parts.append(item.flow_html if flow and item.flow_html is not None else item.html)
-        else:
-            parts.append(_engine_line(
-                item.line, item.paragraph, styles, page, advance=advances[index], hosted="".join(item.hosted),
-            )[0])
+            parts.append(drawn(item))
+        elif flow:
+            hosted = "".join(drawn(anchor) for anchor in item.hosted)
+            parts.append(_engine_line(item.line, item.paragraph, styles, page, advance=advances[index], hosted=hosted)[0])
+        else:  # at coordinates: the line, then what it holds, each at its own place
+            parts.append(_engine_line(item.line, item.paragraph, styles, page)[0])
+            parts.extend(drawn(anchor) for anchor in item.hosted)
     return "".join(parts)
 
 
@@ -2121,8 +2311,9 @@ def _render_engine_preview(
             if anchor.flow:
                 flow_pages.add(anchor.page)
             paragraphs_by_page[anchor.page].add(key)
-            if host is not None and anchor.flow and anchor.inline and anchor.page == host.line.position.page:
-                host.hosted.append(anchor.html)
+            hostable = anchor.flow or anchor.table is not None  # a table's flowing rows stand in the line
+            if host is not None and hostable and anchor.inline and anchor.page == host.line.position.page:
+                host.hosted.append(anchor)
                 continue
             if host is not None and anchor.page == host.line.position.page:
                 host = None
@@ -2147,6 +2338,7 @@ def _render_engine_preview(
         if (fill := fills[page.section]) is not None and fill.shows_on(page.page == section_starts[page.section])
     }
     with_pictures = sum(len(fill.picture[1]) for fill in filled.values() if fill.picture) <= _PAGE_FILL_PICTURE_BUDGET
+    flowing_tables: set[int] = set()
     fragments, pages = [], []
     for page in layout.pages:
         index = page.page
@@ -2162,10 +2354,14 @@ def _render_engine_preview(
             if filled[index].picture is not None and not with_pictures:
                 issues[("page-fill", "page fill picture is not drawn")] += 1
         fragments.append(_engine_page_fragment(
-            page, page_id, _page_content(content[index], page, styles, flow=flow), flow=flow, backdrop=backdrop,
+            page, page_id,
+            _page_content(content[index], page, styles, flow=flow, issues=issues, flowing_tables=flowing_tables),
+            flow=flow, backdrop=backdrop,
         ))
         pages.append(PreviewPage(index, page.section, page_id, width, height, margins,
                                  len(paragraphs_by_page[index]), table_counts[index]))
+    if flowing_tables:
+        issues[_FLOWING_TABLE] += len(flowing_tables)
     if flow_pages:
         issues[("page-flow", "vertical placement is approximate and may exceed the engine body")] = len(flow_pages)
     limitations = tuple(_Limitation(kind, reason, count) for (kind, reason), count in sorted(issues.items()))

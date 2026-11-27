@@ -10,6 +10,7 @@ from hwpx import HwpxDocument, experimental
 from lxml import etree, html
 
 from hwpx_automation.preview import layout_preview, render_layout_preview
+from preview_flow import tables_flow  # noqa: F401
 from preview_text_cover import every_engine_preview_shows_the_text  # noqa: F401
 
 pytestmark = pytest.mark.skipif(
@@ -128,6 +129,7 @@ def _aligned_table() -> HwpxDocument:
     return document
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_placed_cells_follow_the_paragraph_and_cell_alignment() -> None:
     preview = render_layout_preview(_aligned_table().to_bytes())
 
@@ -140,6 +142,7 @@ def test_placed_cells_follow_the_paragraph_and_cell_alignment() -> None:
     assert all(_css(cell, "padding-top").startswith("calc(") for cell in first_row)
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_placed_cell_lines_take_the_engine_or_the_file_pitch_and_never_overlap() -> None:
     payload = _aligned_table().to_bytes()
     table, = experimental.estimate_layout(payload).tables
@@ -169,8 +172,11 @@ def test_placed_cell_lines_take_the_engine_or_the_file_pitch_and_never_overlap()
         _css(line, "height") for line in page.xpath(".//div[@data-line-pitch='file']")
         if line.getparent().getparent() is row_markup
     }
-    assert pitches <= {"4.59mm", "6.00mm", "7.41mm"} and pitches
-    assert _limitations(preview).get(STACKED, 0) == stacked > 0
+    assert pitches <= {"4.59mm", "6.00mm", "7.41mm"}
+    # A core that gives every cell line its top leaves nothing to the file's spacing.
+    untopped = any(line.top is None for cell in row.cells for line in cell.lines)
+    assert bool(pitches) == bool(stacked) == untopped
+    assert _limitations(preview).get(STACKED, 0) == stacked
     assert "data-text-start]').forEach" in preview.html  # lines wider than their cell are narrowed in the browser
 
 
@@ -205,6 +211,7 @@ def test_the_file_pitch_of_a_cell_line(spacing, following_paragraph, expected) -
     assert with_tops == (pytest.approx(1300 * unit), 1300)  # an engine top replaces the file's pitch
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_columns_keep_their_widths_under_a_merged_first_row() -> None:
     document = HwpxDocument.new()
     table = document.add_paragraph("").add_table(2, 3)
