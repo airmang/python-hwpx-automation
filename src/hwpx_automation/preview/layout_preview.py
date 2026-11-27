@@ -1339,10 +1339,15 @@ def _render_paragraph(
     return "".join(result)
 
 
+def _section_blocks(section: ET.Element) -> list[ET.Element]:
+    """The paragraphs of a section in order, and a table set right in the section (not in a paragraph)."""
+    return [child for child in section if child.tag in (f"{_HP}p", f"{_HP}tbl")]
+
+
 def _split_section_pages(section: ET.Element) -> list[list[ET.Element]]:
     pages: list[list[ET.Element]] = [[]]
-    for paragraph in section.findall(f"{_HP}p"):
-        if paragraph.get("pageBreak") == "1" and pages[-1]:
+    for paragraph in _section_blocks(section):
+        if paragraph.tag == f"{_HP}p" and paragraph.get("pageBreak") == "1" and pages[-1]:
             pages.append([])
         pages[-1].append(paragraph)
     return [page for page in pages if page]
@@ -1368,8 +1373,12 @@ def _render_page(
             ),
         }
     )
-    body = "".join(_render_paragraph(p, styles, counter) for p in paragraphs)
-    table_count = sum(len(p.findall(f".//{_HP}tbl")) for p in paragraphs)
+    # A table right in the section is drawn where it stands among the paragraphs.
+    body = "".join(
+        _render_table(p, styles, counter) if p.tag == f"{_HP}tbl" else _render_paragraph(p, styles, counter)
+        for p in paragraphs
+    )
+    table_count = sum(len(p.findall(f".//{_HP}tbl")) + (p.tag == f"{_HP}tbl") for p in paragraphs)
     page = PreviewPage(
         index=page_index,
         section_index=section_index,
@@ -1377,7 +1386,7 @@ def _render_page(
         width_mm=width_mm,
         height_mm=height_mm,
         margins_mm=margins_mm,
-        paragraph_count=len(paragraphs),
+        paragraph_count=sum(p.tag == f"{_HP}p" for p in paragraphs),
         table_count=table_count,
     )
     html_page = (
@@ -2434,7 +2443,7 @@ def render_layout_preview(
             continue
         split_pages = _split_section_pages(section)
         if mode == "long":
-            split_pages = [section.findall(f"{_HP}p")]
+            split_pages = [_section_blocks(section)]
         for paragraphs in split_pages:
             page_html, page = _render_page(
                 len(pages),

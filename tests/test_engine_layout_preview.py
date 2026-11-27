@@ -373,3 +373,46 @@ def test_a_package_python_hwpx_refuses_keeps_its_approximate_preview(monkeypatch
     assert preview.warnings == ("layout estimate unavailable: HwpxStructureError",)
     assert (preview.pages, preview.page_fragments) == (legacy.pages, legacy.page_fragments)
     assert len(preview.pages) == 2
+
+
+def _without_header_and_with_a_section_table(payload: bytes) -> bytes:
+    """No ``header.xml`` (the estimate refuses the package), and the document's table moved out of
+    its paragraph to stand right in the section, between the paragraphs."""
+    output = io.BytesIO()
+    with ZipFile(io.BytesIO(payload)) as source, ZipFile(output, "w") as target:
+        for member in source.namelist():
+            if member == "Contents/header.xml":
+                continue
+            data = source.read(member)
+            if member == "Contents/section0.xml":
+                section = etree.fromstring(data)
+                table = next(section.iter("{*}tbl"))
+                holder = next(paragraph for paragraph in section.findall("{*}p") if table in paragraph.iter())
+                holder.addnext(table)
+                data = etree.tostring(section)
+            target.writestr(member, data)
+    return output.getvalue()
+
+
+@pytest.mark.parametrize("mode", ["pages", "long"])
+def test_a_declined_document_shows_a_table_set_right_in_its_section(mode: str, monkeypatch) -> None:
+    document = HwpxDocument.new()
+    document.add_paragraph("구역 표 앞 문단")
+    table = document.add_paragraph("").add_table(2, 2)
+    table.cell(0, 0).text = "구역에 바로 놓인 표의 칸"
+    table.cell(1, 1).text = "다른 칸"
+    document.add_paragraph("구역 표 뒤 문단")
+    payload = _without_header_and_with_a_section_table(document.to_bytes())
+
+    preview = render_layout_preview(payload, mode=mode)
+
+    assert preview.fidelity_tier == "text-approx-pagination"
+    page, = preview.page_fragments
+    text = html.fromstring(page).text_content()
+    assert text.index("구역 표 앞 문단") < text.index("구역에 바로 놓인 표의 칸") < text.index("구역 표 뒤 문단")
+    assert "다른 칸" in text and preview.pages[0].table_count == 1
+    assert preview.pages[0].paragraph_count == 3  # the paragraphs alone, the table apart
+    # Nothing else of the approximate drawing changes: without the table it is what it was.
+    monkeypatch.setattr(layout_preview, "_render_table", lambda *args, **kwargs: "")
+    without = render_layout_preview(payload, mode=mode).page_fragments[0]
+    assert re.sub(r'<table class="hwpx-table".*?</tbody></table>', "", page, flags=re.S) == without
