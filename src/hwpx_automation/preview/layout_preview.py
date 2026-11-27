@@ -2224,6 +2224,7 @@ def _flow_anchors(
                     anchors.extend(_engine_area_anchors(
                         area, home, sources.areas.get(area, []), pages, styles, issues, counter, sources.margins,
                         table_counts, sources.numbering,
+                        {placed.table: table for table, placed in sources.tables.items()},
                     ))
     return anchors
 
@@ -2483,7 +2484,7 @@ def _half_border(border: str | None) -> str:
 def _positioned_table(
     table: ET.Element, rows: tuple[Any, ...], number: int, page: Any, styles: Mapping[str, Any],
     plans: Mapping[int, _CellPlan], issues: Counter[tuple[str, str]], *, unplaced: bool,
-    placements: Mapping[Any, Any] | None = None,
+    placements: Mapping[Any, Any] | None = None, area_left: int | None = None,
 ) -> str | None:
     """The rows the engine set on one page, drawn at the engine's coordinates; ``None`` when a value is missing.
 
@@ -2493,6 +2494,8 @@ def _positioned_table(
     so two cells share one line); its lines stand at the engine's tops, left edges and widths.
     A cell line holding a table (its text not given) draws nothing itself: the table's rows on this
     page are drawn after the outer table, at the engine's coordinates in turn (*placements*).
+    A row's x is taken from its column's left edge, or from *area_left* (a header's or footer's table: the
+    area's left edge). A page number a cell holds is set into its line as the page being drawn shows it.
     """
     if unplaced:
         return None
@@ -2517,7 +2520,7 @@ def _positioned_table(
     for row in rows:
         if row.top is None or row.height is None or row.x is None:
             return None
-        column_left = _column_left(page, row.column, row.top)
+        column_left = area_left if area_left is not None else _column_left(page, row.column, row.top)
         if column_left is None:
             return None
         origin_x, origin_top = column_left + row.x, row.top - row.table_offset
@@ -2559,7 +2562,9 @@ def _positioned_table(
             "width": _fmt_mm(_hwp_to_mm(cell.width)), "height": _fmt_mm(_hwp_to_mm(cell.height)),
             "background": css["background"] if css["background"] != "transparent" else None,
         })
-        drawn = "".join(_positioned_cell_line(line, own[line.paragraph], styles) for line in lines)
+        inserts = _line_numbers(lines, [own[line.paragraph] for line in lines], own, source) if lines else []
+        drawn = "".join(_positioned_cell_line(line, own[line.paragraph], styles, numbers)
+                        for line, numbers in zip(lines, inserts))
         cells.append(
             f'<div class="hwpx-engine-cell" data-engine-row="{row.row}" data-engine-column="{cell.column}" '
             f'data-engine-repeated="{int(row.repeated)}" '
@@ -2576,9 +2581,12 @@ def _positioned_table(
     )
 
 
-def _positioned_cell_line(line: Any, paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
-    """One text line of a cell at the engine's top, left edge and width (cell-relative), as tall as the line."""
-    text = _label_markup(paragraph, styles, line) + _styled_line_text(line, styles)
+def _positioned_cell_line(
+    line: Any, paragraph: ET.Element, styles: Mapping[str, Any], inserts: tuple[tuple[int, str, str], ...] = (),
+) -> str:
+    """One text line of a cell at the engine's top, left edge and width (cell-relative), as tall as the line;
+    *inserts* are the page numbers the engine's text leaves out (see :func:`_styled_line_text`)."""
+    text = _label_markup(paragraph, styles, line) + _styled_line_text(line, styles, inserts)
     if not text:
         return ""  # a line with nothing to show (an empty paragraph's) keeps its room without markup
     run = next((run for run in paragraph.findall(f"{_HP}run") if _find_text_in_run(run)), None)
@@ -3087,13 +3095,14 @@ def _tables_at_its_top(paragraph: ET.Element) -> bool:
 def _area_whole(
     area: ET.Element, kind: str, room: tuple[int, int, int | None, int | None], styles: Mapping[str, Any],
     counter: _ObjectCounter, *, foot: bool = False, lines: tuple[Any, ...] = (),
-    issues: Counter[tuple[str, str]] | None = None,
+    issues: Counter[tuple[str, str]] | None = None, placed_tables: frozenset[int] = frozenset(),
 ) -> str:
     """All an area holds, its paragraphs and tables the approximate way, in its *room* on the paper
     (with *foot*, standing on the room's top: a note above the body's foot). A paragraph that holds only
     tables standing at its top draws no empty line of its own: the tables are what it shows. Where the
     engine's *lines* give each paragraph its first line's top, the paragraph begins there in the room.
-    The tables' cell diagonals are drawn, what of them is approximate counted in *issues*."""
+    The tables' cell diagonals are drawn, what of them is approximate counted in *issues*. A table drawn
+    at the engine's place apart from the room (its ``id`` in *placed_tables*) is left out of it."""
     issues = issues if issues is not None else Counter()
     own = area.findall(f"{_HP}subList/{_HP}p")
     holders = _area_line_paragraphs(lines, own) if lines and all(line.top is not None for line in lines) else None
@@ -3102,12 +3111,17 @@ def _area_whole(
         tops.setdefault(id(holder), line.top - room[1])
     parts = []
     for paragraph in own:
-        drawn = (
-            "".join(_render_table(table, styles, counter, diagonals=issues)
-                    for table in paragraph.findall(f"{_HP}run/{_HP}tbl"))
-            if _tables_at_its_top(paragraph)
-            else _render_paragraph(paragraph, styles, counter, extended_styles=True, diagonals=issues)
-        )
+        if _tables_at_its_top(paragraph):
+            drawn = "".join(_render_table(table, styles, counter, diagonals=issues)
+                            for table in paragraph.findall(f"{_HP}run/{_HP}tbl") if id(table) not in placed_tables)
+        elif placed_tables:
+            drawn = _render_paragraph(paragraph, styles, counter, extended_styles=True, include_tables=False) + "".join(
+                _render_table(table, styles, counter, diagonals=issues)
+                for outer in _anchored_tables(paragraph, areas=False) if id(outer) not in placed_tables
+                for table in outer.iter(f"{_HP}tbl")
+            )
+        else:
+            drawn = _render_paragraph(paragraph, styles, counter, extended_styles=True, diagonals=issues)
         if id(paragraph) in tops:
             css = _style_attr({"top": _fmt_mm(_hwp_to_mm(max(0, tops[id(paragraph)])))})
             drawn = f'<div class="hwpx-area-paragraph" style="{css}">{drawn}</div>'
@@ -3126,6 +3140,7 @@ def _engine_area_anchors(
     area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...], styles: Mapping[str, Any],
     issues: Counter[tuple[str, str]], counter: _ObjectCounter, margins: Mapping[str, int],
     table_counts: Counter[int], numbering: _Numbering | None = None,
+    table_elements: Mapping[int, ET.Element] | None = None,
 ) -> list[_AnchorMarkup]:
     """A header, footer or note on each page the engine gives it, over or beside the body: it takes no room
     in a flow page, which only stacks the body.
@@ -3136,9 +3151,14 @@ def _engine_area_anchors(
     note at the foot of the body. Each approximation is counted. A page number it holds shows the
     number of the page it is drawn on (*numbering*).
 
+    A table it holds that the engine places with it on a page (``AreaPlacement.tables``; its element by
+    the table's address among the paragraph's tables, *table_elements*) is drawn at the engine's place,
+    the way a body table at coordinates is, whether the area's lines or the area drawn whole stand beside it.
+
     On a flow page a footer stands on the foot of the page box, at its place in a paper-high layer.
     """
-    anchors = _area_anchors(area, home, placements, pages, styles, issues, counter, margins, table_counts, numbering)
+    anchors = _area_anchors(area, home, placements, pages, styles, issues, counter, margins, table_counts, numbering,
+                            table_elements or {})
     if area.tag != f"{_HP}footer":
         return anchors
     return [replace(anchor, flow_html=f'<div class="hwpx-area-foot">{anchor.html}</div>') for anchor in anchors]
@@ -3148,30 +3168,53 @@ def _area_anchors(
     area: ET.Element, home: int, placements: list[Any], pages: tuple[Any, ...], styles: Mapping[str, Any],
     issues: Counter[tuple[str, str]], counter: _ObjectCounter, margins: Mapping[str, int],
     table_counts: Counter[int], numbering: _Numbering | None,
+    table_elements: Mapping[int, ET.Element],
 ) -> list[_AnchorMarkup]:
     """See :func:`_engine_area_anchors`."""
     kind = area.tag.removeprefix(_HP)
     own = area.findall(f"{_HP}subList/{_HP}p")
     every = list(area.iter(f"{_HP}p"))
     tables = sum(1 for _ in area.iter(f"{_HP}tbl"))
+    outer_tables = [table for paragraph in own for table in _anchored_tables(paragraph, areas=False)]
     if not placements:
         placements = [None]
     given: Counter[str] = Counter()
     for placed in placements:
         for line in (placed.lines if placed is not None else ()):
             given.update(_characters(line.text or ""))
-    covered = not tables and not (_characters("".join(_paragraph_text(paragraph) for paragraph in every)) - given)
-    if not covered and given:
-        issues[(kind, "area lines do not give all its text: the area is shown whole")] += 1
-    result = []
+    # The text of its own paragraphs (a table's is the table's to draw) is all in the engine's lines.
+    text_given = not (_characters("".join(_paragraph_text(paragraph) for paragraph in own)) - given)
+    result: list[_AnchorMarkup] = []
     unplaced = False
+    shown_whole = False
     for placed in placements:
         lines = placed.lines if placed is not None else ()
         found = _area_room(placed, pages)
         reasons = (placed.unavailable if placed is not None and placed.unavailable else ())
-        if found is not None and covered and lines and all(line.text is not None for line in lines):
+        drawn_tables, placed_ids = "", frozenset[int]()
+        if found is not None and tables:
+            with _numbers_of(numbering, found[0]):
+                drawn_tables, placed_ids = _area_tables(
+                    placed, found, kind, area, table_elements, pages[found[0]], styles, issues,
+                )
+        # Its tables are all drawn at the engine's places (a table drawn so holds no table of its own).
+        covered = text_given and tables == len(outer_tables) and all(id(table) in placed_ids for table in outer_tables)
+        shown_whole = shown_whole or not covered
+        matched = _area_line_paragraphs(lines, own) if lines else None
+        # A line without text that only holds tables drawn at their places shows nothing of its own.
+        bare = {index for index, line in enumerate(lines) if line.text is None and matched is not None
+                and _tables_at_its_top(matched[index])
+                and all(id(table) in placed_ids for table in _anchored_tables(matched[index], areas=False))}
+        if found is not None and covered and lines and all(
+            line.text is not None or index in bare for index, line in enumerate(lines)
+        ):
             page = found[0]
-            holders = _area_line_paragraphs(lines, own) or [own[0] if own else every[0]] * len(lines)
+            if tables and not result:
+                table_counts[page] += tables
+            holders = matched or [own[0] if own else every[0]] * len(lines)
+            if bare:
+                lines = tuple(line for index, line in enumerate(lines) if index not in bare)
+                holders = [holder for index, holder in enumerate(holders) if index not in bare]
             with _numbers_of(numbering, page):
                 inserts = _line_numbers(lines, holders, own, area)
             rendered = [
@@ -3181,7 +3224,7 @@ def _area_anchors(
             partial = any(approximate for _, approximate in rendered)
             if partial:
                 issues[(kind, "area coordinates are incomplete")] += 1
-            markup = "".join(markup for markup, _ in rendered)
+            markup = "".join(markup for markup, _ in rendered) + drawn_tables
             attrs = ' data-approx-lines="1"' if partial else ""
             result.append(_AnchorMarkup(
                 page, f'<div class="hwpx-area-layer" data-area-kind="{kind}"{attrs}>{markup}</div>',
@@ -3195,7 +3238,10 @@ def _area_anchors(
             if not result:
                 table_counts[found[0]] += tables
             with _numbers_of(numbering, found[0]):
-                whole = _area_whole(area, kind, found[1], styles, counter, lines=tuple(lines), issues=issues)
+                whole = _area_whole(area, kind, found[1], styles, counter, lines=tuple(lines), issues=issues,
+                                    placed_tables=placed_ids)
+            if drawn_tables:
+                whole += f'<div class="hwpx-area-layer" data-area-kind="{kind}">{drawn_tables}</div>'
             result.append(_AnchorMarkup(found[0], whole, flow=False, overlay=True))
             continue
         if unplaced or not 0 <= home < len(pages):
@@ -3215,7 +3261,49 @@ def _area_anchors(
                       else _area_whole(area, kind, (left, top + height, width, None), styles, counter, foot=True,
                                        issues=issues))
         result.append(_AnchorMarkup(home, markup, flow=False, overlay=True))
+    if shown_whole and given:
+        issues[(kind, "area lines do not give all its text: the area is shown whole")] += 1
     return result
+
+
+_AREA_TABLE_TOP = "table's top is not measured: it stands in the area's room at the area's vertical alignment"
+
+
+def _area_tables(
+    placed: Any, found: tuple[int, tuple[int, int, int, int]], kind: str, area: ET.Element,
+    table_elements: Mapping[int, ET.Element], page: Any, styles: Mapping[str, Any], issues: Counter[tuple[str, str]],
+) -> tuple[str, frozenset[int]]:
+    """The tables an area placement holds on its page (``AreaPlacement.tables``) drawn at the engine's coordinates,
+    their x right of the area's left edge, and the ``id`` of each table so drawn. A table whose rows have no top
+    (the engine sets its line nowhere in the room) stands at the engine's x and, stacked as its rows' heights
+    say, at the top, middle or foot of the room as the area's text is set vertically (``hp:subList@vertAlign``):
+    counted. A table missing any other value is left to the area drawn whole."""
+    markup, drawn = [], set()
+    _, (room_x, room_top, _, room_height) = found
+    for table in getattr(placed, "tables", ()):
+        element = table_elements.get(table.table)
+        rows = tuple(row for row in table.rows if row.page == found[0])
+        if element is None or not rows or any(row.height is None for row in rows):
+            continue
+        counted: Counter[tuple[str, str]] = Counter()
+        if any(row.top is None for row in rows):
+            height = max(row.table_offset + row.height for row in rows)
+            sub_list = area.find(f"{_HP}subList")
+            align = ((sub_list.get("vertAlign") if sub_list is not None else None) or "TOP").upper()
+            start = room_top + {"BOTTOM": room_height - height, "CENTER": (room_height - height) // 2}.get(align, 0)
+            rows = tuple(replace(row, top=start + row.table_offset) for row in rows)
+            counted[(kind, _AREA_TABLE_TOP)] += 1
+        plans = _cell_plans(element, table)
+        shown = _positioned_table(
+            element, rows, table.table, page, styles, plans, counted,
+            unplaced=rows[-1].row == table.rows[-1].row and _has_unplaced_cells(element, plans), area_left=room_x,
+        )
+        if shown is None:
+            continue
+        issues.update(counted)
+        markup.append(shown)
+        drawn.add(id(element))
+    return "".join(markup), frozenset(drawn)
 
 
 #: Bytes of fill pictures a document may repeat over its pages before they are left out.

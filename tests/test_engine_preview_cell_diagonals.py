@@ -161,7 +161,7 @@ def test_a_declined_document_draws_no_diagonal(monkeypatch) -> None:
     assert "position: relative" not in html.fromstring(preview.html).xpath(".//td")[0].get("style")
 
 
-def test_a_header_table_drawn_whole_draws_its_cell_diagonals() -> None:
+def test_a_header_table_draws_its_cell_diagonals() -> None:
     document = HwpxDocument.new()
     document.page.set_header(text="표를 담은 머리말")
     node = next(node for node in document.sections[0].element.iter() if node.tag.endswith("}header"))
@@ -181,6 +181,7 @@ def test_a_header_table_drawn_whole_draws_its_cell_diagonals() -> None:
     preview = render_layout_preview(payload)
 
     for fragment in preview.page_fragments:
-        room, = html.fromstring(fragment).xpath(".//div[contains(@class, 'hwpx-area-room')]")
-        first, second = room.xpath(".//td")
+        # at the engine's place in the header's layer, or drawn whole in its room on a core without its rows
+        first, second = html.fromstring(fragment).xpath(
+            ".//div[@data-area-kind='header']//*[self::td or self::div[@class='hwpx-engine-cell']]")
         assert [line[0] for line in _diagonals(first)] == [RISING] and not _diagonals(second)

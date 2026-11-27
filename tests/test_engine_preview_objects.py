@@ -385,7 +385,7 @@ def test_a_header_set_in_a_table_cell_stands_in_its_room_and_the_table_at_coordi
     assert not drawn_wrongly(overlaps(preview.page_fragments))
 
 
-def test_a_header_holding_a_table_is_drawn_whole_in_its_room_on_every_page() -> None:
+def test_a_header_holding_a_table_draws_the_table_at_the_engines_place_on_every_page() -> None:
     document = HwpxDocument.new()
     document.page.set_header(text="표를 담은 머리말")
     node = next(node for node in document.sections[0].element.iter() if node.tag.endswith("}header"))
@@ -402,12 +402,31 @@ def test_a_header_holding_a_table_is_drawn_whole_in_its_room_on_every_page() -> 
 
     assert set(_modes(preview)) == {"positioned"}
     for number, fragment in enumerate(preview.page_fragments):
-        room, = html.fromstring(fragment).xpath(".//div[contains(@class, 'hwpx-area-room')]")
+        page = html.fromstring(fragment)
         placed, = [area for area in layout.areas if area.page == number]
-        _assert_engine_box(room, placed)
-        assert "머리말 표 칸" in room.text_content() and room.find(".//table") is not None
-    assert _limitations(preview)["header", "area is drawn whole in its room: its lines do not give all it holds"] \
-        == len(preview.pages)
+        tables = [table for table in getattr(placed, "tables", ()) if table.rows]
+        if not tables:  # a core without the header's table rows: the table is drawn whole in the room
+            room, = page.xpath(".//div[contains(@class, 'hwpx-area-room')]")
+            _assert_engine_box(room, placed)
+            assert "머리말 표 칸" in room.text_content() and room.find(".//table") is not None
+            continue
+        # The table at the engine's x right of the area's left edge, in the header's layer; not in the room too.
+        drawn, = page.xpath(".//div[@class='hwpx-area-layer'][@data-area-kind='header']"
+                            "/div[@class='hwpx-engine-table']")
+        assert "머리말 표 칸" in drawn.text_content()
+        assert _mm(drawn, "left") == pytest.approx((placed.x + tables[0].rows[0].x) / MM, abs=0.006)
+        assert "머리말 표 칸" not in "".join(
+            room.text_content() for room in page.xpath(".//div[contains(@class, 'hwpx-area-room')]"))
+        assert not page.xpath(".//table")
+    limits = _limitations(preview)
+    if any(getattr(area, "tables", ()) for area in layout.areas):
+        rows = [row for area in layout.areas for table in area.tables for row in table.rows]
+        top_approximate = ("table's top is not measured: it stands in the area's room at the area's "
+                           "vertical alignment")
+        assert limits.get(("header", top_approximate), 0) == sum(row.top is None for row in rows)
+    else:
+        assert limits["header", "area is drawn whole in its room: its lines do not give all it holds"] \
+            == len(preview.pages)
 
 
 def test_a_picture_in_a_table_cell_with_its_rectangle_keeps_the_table_at_coordinates(monkeypatch) -> None:
