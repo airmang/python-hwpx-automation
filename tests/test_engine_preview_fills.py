@@ -60,17 +60,21 @@ def test_a_dark_cell_fill_shows_under_text_in_the_page_colour() -> None:
 
 def test_pattern_gradient_and_picture_cell_fills_are_reduced_and_counted(monkeypatch) -> None:
     document = HwpxDocument.new()
-    table = document.add_paragraph("").add_table(1, 4)
+    table = document.add_paragraph("").add_table(1, 5)
     table.set_cell_shading(0, 0, "#203050")
     pattern = table.cell(0, 0).element.get("borderFillIDRef")
+    table.set_cell_shading(0, 4, "#405060")
+    bare_pattern = table.cell(0, 4).element.get("borderFillIDRef")
     gradient = document.styles.ensure_border_fill(fill_gradient=GRADIENT)
     picture = document.styles.ensure_border_fill(fill_image=document.media.add_image(PIXEL, "png"))
     for column, fill in ((1, gradient), (2, gradient), (3, picture)):
         table.cell(0, column).element.set("borderFillIDRef", fill)
 
     def hatch(header) -> None:
-        brush, = header.xpath(f".//*[local-name()='borderFill'][@id='{pattern}']//*[local-name()='winBrush']")
-        brush.set("hatchStyle", "CROSS")
+        for fill in (pattern, bare_pattern):
+            brush, = header.xpath(f".//*[local-name()='borderFill'][@id='{fill}']//*[local-name()='winBrush']")
+            brush.set("hatchStyle", "CROSS")
+        brush.set("faceColor", "none")  # the last one: lines only, no face colour
 
     payload = _with_header(document.to_bytes(), hatch)
 
@@ -79,11 +83,12 @@ def test_pattern_gradient_and_picture_cell_fills_are_reduced_and_counted(monkeyp
     styles = [cell.get("style") for cell in html.fromstring(preview.page_fragments[0]).xpath(".//td")]
     assert "background: #203050" in styles[0]  # the pattern's face colour
     assert "background: #203858" in styles[1] and "background: #203858" in styles[2]  # the mean of the two stops
-    assert "background: transparent" in styles[3]
+    assert "background: transparent" in styles[3] and "background: transparent" in styles[4]
     assert "url(" not in preview.html
     limitations = _limitations(preview)
     assert limitations["table-cell", "cell fill pattern or gradient is drawn as one colour"] == 3
     assert limitations["table-cell", "cell fill picture is not drawn"] == 1
+    assert limitations["table-cell", "cell fill pattern is not drawn"] == 1
     # The approximate preview of a document the estimate does not answer draws fills as before.
     monkeypatch.setattr(experimental, "estimate_layout", None)
     legacy = [cell.get("style") for cell in html.fromstring(render_layout_preview(payload).html).xpath(".//td")]
@@ -180,6 +185,19 @@ def test_a_page_fill_picture_with_an_effect_or_not_stretched_is_left_out(change)
 
     assert _page_fills(preview) == [[], []]
     assert _limitations(preview) == {("page-fill", "page fill picture is not drawn"): 2}
+
+
+def test_a_page_fill_pattern_without_a_face_colour_is_named() -> None:
+    document, _ = _two_pages_with_a_page_fill({"fill_color": "#102040"})
+
+    def lines_only(header) -> None:
+        brush, = [node for node in header.iter(f"{HC}winBrush") if node.get("faceColor") == "#102040"]
+        brush.attrib.update({"faceColor": "none", "hatchStyle": "CROSS"})
+
+    preview = render_layout_preview(_with_header(document.to_bytes(), lines_only))
+
+    assert _page_fills(preview) == [[], []]
+    assert _limitations(preview) == {("page-fill", "page fill pattern is not drawn"): 2}
 
 
 def test_page_fill_pictures_past_the_budget_are_left_out_and_named(monkeypatch) -> None:

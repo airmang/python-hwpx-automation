@@ -451,11 +451,11 @@ def _parse_border_fill(node: ET.Element) -> dict[str, Any]:
             fill = _css_color(face, default="transparent")
 
     # What an engine page draws: the solid face colour as it is; one colour for a pattern
-    # (its face) or a gradient (the mean of its colours); no picture. *fill_notes* names
-    # what was reduced, so the page can say so.
+    # (its face, nothing when it has none) or a gradient (the mean of its colours); no
+    # picture. *fill_notes* names what was reduced, so the page can say so.
     shown, notes = fill, []
     if win_brush is not None and (win_brush.get("hatchStyle") or "NONE").upper() != "NONE":
-        notes.append("pattern")
+        notes.append("pattern" if fill != "transparent" else "bare-pattern")
     gradation = node.find(f".//{_HC}gradation")
     if gradation is not None:
         stops = [_css_color(stop.get("value"), default="") for stop in gradation.findall(f"{_HC}color")]
@@ -620,6 +620,7 @@ def _paragraph_style(paragraph: ET.Element, styles: Mapping[str, Any]) -> str:
 _CELL_FILL_NOTES = {
     "pattern": ("table-cell", "cell fill pattern or gradient is drawn as one colour"),
     "gradient": ("table-cell", "cell fill pattern or gradient is drawn as one colour"),
+    "bare-pattern": ("table-cell", "cell fill pattern is not drawn"),
     "picture": ("table-cell", "cell fill picture is not drawn"),
 }
 
@@ -1418,6 +1419,8 @@ def _page_fill(
         return _PageFill(visibility=visibility, notes=tuple(notes))
     if {"pattern", "gradient"} & set(both["fill_notes"]):
         notes.append("page fill pattern or gradient is drawn as one colour")
+    if "bare-pattern" in both["fill_notes"]:
+        notes.append("page fill pattern is not drawn")
     picture = None
     if both["fill_picture"] is not None:
         picture = _stretched_picture(both["fill_picture"], images)
