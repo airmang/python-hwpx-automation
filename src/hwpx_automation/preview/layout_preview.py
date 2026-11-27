@@ -3267,6 +3267,8 @@ def _area_anchors(
 
 
 _AREA_TABLE_TOP = "table's top is not measured: it stands in the area's room at the area's vertical alignment"
+_AREA_TABLE_HOLDS = ("a table in it holds an object, a table or a caption the engine gives no place with the area: "
+                     "the area is shown whole")
 
 
 def _area_tables(
@@ -3284,6 +3286,11 @@ def _area_tables(
         element = table_elements.get(table.table)
         rows = tuple(row for row in table.rows if row.page == found[0])
         if element is None or not rows or any(row.height is None for row in rows):
+            continue
+        if not _drawable_at_coordinates(element):
+            # What its cells hold besides their lines (an object, a table) has no place drawn with an area's
+            # table: the table is left to the area drawn whole, which shows all of it.
+            issues[(kind, _AREA_TABLE_HOLDS)] += 1
             continue
         counted: Counter[tuple[str, str]] = Counter()
         if any(row.top is None for row in rows):

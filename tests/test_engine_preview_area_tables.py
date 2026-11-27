@@ -101,6 +101,48 @@ def test_an_area_table_without_a_top_stands_at_the_rooms_foot_as_the_area_is_set
     assert _limitations(preview) == {("footer", TOP_APPROXIMATE): len(preview.pages)}
 
 
+BOX_TEXT = "칸 안 글상자 글"
+HOLDS = ("a table in it holds an object, a table or a caption the engine gives no place with the area: "
+         "the area is shown whole")
+
+
+def test_an_area_table_whose_cell_holds_a_text_box_is_drawn_whole_with_the_box_text() -> None:
+    """A header's 2x3 table set as a character, its first cell a character and a rectangle set as a character
+    holding text: the engine gives the cell line its character only and the rectangle no place, so the table
+    is not drawn at coordinates (its rectangle and the text in it would vanish) but with the area drawn whole."""
+    document = HwpxDocument.new()
+    document.page.set_header(text="자리")
+    area = next(node for node in document.sections[0].element.iter() if node.tag == f"{HP}header")
+    for index in range(40):
+        document.add_paragraph(f"본문 문단 {index} " + "글자 " * 20)
+    table = document.add_paragraph("").add_table(2, 3)
+    table.cell(0, 0).text = "가"
+    box = document.shapes.add_rectangle(4000, 1500, paragraph=table.cell(0, 0).paragraphs[0], treat_as_char=True)
+    box.set_draw_text(BOX_TEXT)
+    table.cell(1, 2).text = CELL_TEXT
+    holder = area.find(f".//{HP}p/{HP}run")
+    for text in holder.findall(f"{HP}t"):
+        holder.remove(text)
+    holder.append(table.element)
+    margin = next(document.sections[0].element.iter(f"{HP}margin"))
+    margin.set("header", "14000")  # a room the table fits in
+    margin.set("top", "16000")
+    payload = document.to_bytes()
+    layout = experimental.estimate_layout(payload)
+    # The engine places the table's rows with the header, its first cell's line holding the character only.
+    assert all(placed.tables and all(row.top is not None for row in placed.tables[0].rows) for placed in layout.areas)
+
+    preview = render_layout_preview(payload)  # every character shown (preview_text_cover)
+
+    assert len(preview.page_fragments) == len(layout.pages) > 1
+    for fragment in preview.page_fragments:
+        page = html.fromstring(fragment)
+        assert not page.xpath(".//div[@class='hwpx-area-layer']/div[@class='hwpx-engine-table']")
+        room, = page.xpath(".//div[contains(@class, 'hwpx-area-room')]")
+        assert BOX_TEXT in room.text_content() and CELL_TEXT in room.text_content()
+    assert _limitations(preview)["header", HOLDS] == len(preview.pages)
+
+
 def test_an_area_table_the_engine_does_not_place_is_drawn_whole_in_the_room(monkeypatch) -> None:
     payload = _document("header").to_bytes()
     layout = experimental.estimate_layout(payload)
