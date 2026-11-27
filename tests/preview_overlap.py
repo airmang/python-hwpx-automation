@@ -21,9 +21,16 @@ an object against the body lines it does not stand on (``object-body``), two lin
 body line (``area-body``). What is drawn at a place the engine does not give (``data-approx``) is
 counted apart, as approximate.
 
+A header or footer drawn whole in its room is measured too: its content's height estimated from the
+markup (:func:`_content_height`, a floor), what runs out under the room against the body's lines
+(``area-room-overflow-body``).
+
 Only text that shows counts (a line without characters takes room but draws nothing), and an
 object the document sets in front of or behind the text is left out: there the overlap is the
-document's own. Pages drawn as flow are not measured: the browser stacks them.
+document's own. A page drawn as flow is stacked by the browser; what its markup alone tells is
+checked (:func:`flow_page_overlaps`): a header drawn whole reaching below the body's top
+(``area-room-flow``), and a table in a column's box wider than the column beside a column with
+text (``column-spill``).
 """
 
 from __future__ import annotations
@@ -68,10 +75,101 @@ def _cross(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
             and min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1]) > _EPSILON_MM)
 
 
+def _style_mm(element: Any, name: str) -> float:
+    """A length in millimetres the element's style sets (``0`` without one)."""
+    found = re.search(rf"(?:^|;)\s*{re.escape(name)}:\s*(-?[\d.]+)mm", element.get("style") or "")
+    return float(found.group(1)) if found else 0.0
+
+
+def _content_height(holder: Any, *, shown: bool = False) -> float:
+    """How tall what an area drawn whole in its room stands, estimated from its markup (millimetres): each
+    paragraph a line per ``<br>`` at its largest character size and its line spacing, with its margins; each
+    table its rows at their cells' least height (a table in a room takes no margin of its own, as the style
+    sheet sets); a paragraph the engine sets at its top in the room (``hwpx-area-paragraph``) from there.
+    With *shown*, down to the foot of the last of them that shows something (an empty line draws nothing).
+    A paragraph running onto more lines in the browser is taller: this is a floor."""
+    tall = reach = 0.0
+    for child in holder:
+        classes = child.get("class") or ""
+        if child.tag == "div" and "hwpx-area-paragraph" in classes:
+            if not shown or _shows_text(child):
+                reach = max(reach, _style_mm(child, "top") + _content_height(child, shown=shown))
+            continue
+        if child.tag == "p" and "hwpx-paragraph" in classes:
+            sizes = [float(size) for size in re.findall(r"font-size:\s*([\d.]+)pt", html.tostring(child, encoding="unicode"))]
+            spacing = re.search(r"line-height:\s*([\d.]+)%", child.get("style") or "")
+            lines = 1 + len(child.xpath(".//br"))
+            tall += lines * max(sizes, default=10.0) * 25.4 / 72 * (float(spacing.group(1)) / 100 if spacing else 1.6)
+            tall += _style_mm(child, "margin-top") + _style_mm(child, "margin-bottom")
+        elif child.tag == "table" and "hwpx-table" in classes:
+            for row in child.xpath("./tbody/tr | ./tr"):
+                tall += max((max(_style_mm(cell, "min-height"), _content_height(cell) + _padding(cell))
+                             for cell in row.xpath("./td")), default=0.0)
+        else:
+            continue
+        if not shown or _shows_text(child):
+            reach = max(reach, tall)
+    return reach
+
+
+def _padding(element: Any) -> float:
+    """The top and bottom padding an element's style sets (``padding: top right bottom left``), millimetres."""
+    found = re.search(r"(?:^|;)\s*padding:\s*([\d.]+)mm\s+[\d.]+mm\s+([\d.]+)mm", element.get("style") or "")
+    return float(found.group(1)) + float(found.group(2)) if found else 0.0
+
+
+def _room_overflow(room: Any) -> tuple[float, ...] | None:
+    """The band under an area room drawn whole that its content (:func:`_content_height`) runs into, if any."""
+    box = _box(room)
+    if box is None:
+        return None
+    tall = _content_height(room, shown=True)
+    if tall <= box[3] + _EPSILON_MM:
+        return None
+    return box[0], box[1] + box[3], box[2], tall - box[3]
+
+
+def flow_page_overlaps(page: Any) -> Counter[str]:
+    """What a flow page can be checked for from its markup alone (the browser stacks the rest):
+
+    - ``area-room-flow``: a header drawn whole in its room whose content reaches below the body's top, where
+      the flow begins (the page's top padding);
+    - ``column-spill``: a table in a column's box wider than the column, beside another column of the same
+      column area that shows text: it runs over that column.
+    """
+    found: Counter[str] = Counter()
+    found["flow pages"] += 1
+    padding = re.search(r"padding:\s*([\d.]+)mm", page.get("style") or "")
+    body_top = float(padding.group(1)) if padding else 0.0
+    flow = page.xpath("./div[@class='hwpx-engine-flow']")
+    shows = bool(flow) and _shows_text(flow[0])
+    for room in page.xpath(".//div[contains(concat(' ', @class, ' '), ' hwpx-area-room ')][@data-area-kind='header']"):
+        box = _box(room)
+        if box is None or not shows:
+            continue
+        found["area-rooms"] += 1
+        if box[1] + _content_height(room, shown=True) > body_top + _EPSILON_MM:
+            found["area-room-flow"] += 1
+    for area in page.xpath(".//div[@class='hwpx-engine-column-area']"):
+        columns = area.xpath("./div[@class='hwpx-engine-column']")
+        for column in columns:
+            width = _style_mm(column, "width")
+            others = [other for other in columns if other is not column and _shows_text(other)]
+            # (what stands on the paper -- a header or footer room, an object over the text -- is not in the column)
+            for table in column.xpath(".//table[contains(@class, 'hwpx-table')][not(ancestor::table)]"
+                                      "[not(ancestor::div[contains(@class, 'hwpx-placed-object')])]"):
+                found["column tables"] += 1
+                if others and _style_mm(table, "width") > width + _EPSILON_MM * 10:
+                    found["column-spill"] += 1
+    return found
+
+
 def page_overlaps(fragment: str) -> Counter[str]:
-    """The overlaps on one page fragment (nothing for a flow page)."""
+    """The overlaps on one page fragment (a flow page: :func:`flow_page_overlaps`)."""
     found: Counter[str] = Counter()
     page = html.fromstring(fragment)
+    if page.get("data-layout-mode") == "flow":
+        return flow_page_overlaps(page)
     if page.get("data-layout-mode") != "positioned":
         return found
     every = [
@@ -143,6 +241,11 @@ def _objects_and_areas(page: Any, every: list[tuple[tuple[float, ...], bool]], f
             continue
         if "hwpx-area-room" in classes:
             found["area-room-body approximate"] += sum(1 for line, _ in body if _cross(box, line))
+            # What the room holds is drawn in it: its content running out of it over the body is the drawing's.
+            band = _room_overflow(item)
+            found["area-rooms"] += 1
+            if band is not None:
+                found["area-room-overflow-body"] += sum(1 for _, text in body if _cross(band, text))
             continue
         found["objects"] += 1
         # An object set as a character stands in the line holding it (as tall as it or taller).
@@ -205,4 +308,5 @@ def drawn_wrongly(found: Counter[str]) -> int:
             + found["table-body"] - found["table-body inside the table's line"]
             + found["box-lines"] - found["box-lines closer than their height"]
             + found["object-body"] - found["object-body inside its line's height"]
-            + found["area-body"] - found["area-body inside a line's height"])
+            + found["area-body"] - found["area-body inside a line's height"]
+            + found["area-room-overflow-body"] + found["area-room-flow"] + found["column-spill"])

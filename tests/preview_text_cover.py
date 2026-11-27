@@ -1,7 +1,8 @@
 """The preview shows every character the document holds: a check for the engine preview tests.
 
-Document text is every ``hp:t`` of the sections; preview text is the page markup without its
-tags and markers. Characters are compared as multisets, whitespace apart, so this finds text
+Document text is every ``hp:t`` of the sections and the number or bullet each numbered, outline
+and bullet paragraph shows before its text (a paragraph with a number shows it); preview text is
+the page markup without its tags and markers. Characters are compared as multisets, whitespace apart, so this finds text
 that is missing, not text that is misplaced. Text Hangul itself does not put on the page -- a
 memo: the ``hp:subList`` of a ``MEMO`` field and ``hp:memogroup`` -- is left out.
 """
@@ -16,6 +17,7 @@ from typing import Any
 
 import pytest
 from hwpx import HwpxDocument
+from hwpx.tools.exporter import ListLabels
 from preview_overlap import drawn_wrongly, overlaps
 
 from hwpx_automation.preview import layout_preview
@@ -41,9 +43,21 @@ def _in_a_memo(node: Any) -> bool:
     return False
 
 
-def document_characters(document: HwpxDocument) -> Counter[str]:
-    """The characters Hangul puts on the document's pages."""
+def label_characters(document: HwpxDocument) -> Counter[str]:
+    """The characters of the numbers and bullets Hangul draws before numbered, outline and bullet
+    paragraphs (python-hwpx's count, :class:`hwpx.tools.exporter.ListLabels`)."""
+    labels = ListLabels(document)
     found: Counter[str] = Counter()
+    for section in document.sections:
+        for paragraph in section.element.iter(f"{HP}p"):
+            if not _in_a_memo(paragraph):
+                found.update(_characters(labels.label(paragraph)))
+    return found
+
+
+def document_characters(document: HwpxDocument) -> Counter[str]:
+    """The characters Hangul puts on the document's pages: its text and its paragraphs' labels."""
+    found = label_characters(document)
     for section in document.sections:
         for node in section.element.iter(f"{HP}t"):
             if not _in_a_memo(node):
