@@ -495,7 +495,80 @@ def _parse_border_fill(node: ET.Element) -> dict[str, Any]:
     if image is not None:
         notes.append("picture")
 
-    return {"sides": sides, "fill": fill, "shown_fill": shown, "fill_notes": tuple(notes), "fill_picture": image}
+    return {
+        "sides": sides, "fill": fill, "shown_fill": shown, "fill_notes": tuple(notes), "fill_picture": image,
+        "diagonal": _parse_diagonal(node),
+    }
+
+
+# A diagonal's ends in the cell's box (x1, y1, x2, y2): a slash rises from the bottom left corner to the
+# top right, a back slash falls from the top left to the bottom right; a centre line crosses the middle.
+_SLASH_ENDS = {"slash": ("0", "100%", "100%", "0"), "backSlash": ("0", "0", "100%", "100%")}
+_CENTRE_LINE_ENDS = {
+    "VERTICAL": (("50%", "0", "50%", "100%"),),
+    "HORIZONTAL": (("0", "50%", "100%", "50%"),),
+    "CROSS": (("50%", "0", "50%", "100%"), ("0", "50%", "100%", "50%")),
+}
+_DIAGONAL_BESIDE = ("table-cell", "cell diagonal is drawn as its centre line: the slanted lines beside it are not drawn")
+_DIAGONAL_BENT = ("table-cell", "cell diagonal is drawn straight: its bend or counter direction is not drawn")
+_DIAGONAL_STYLE = ("table-cell", "cell diagonal line style is drawn solid")
+_CENTRE_LINE = ("table-cell", "cell centre line is drawn with the diagonal's line")
+
+
+def _parse_diagonal(node: ET.Element) -> dict[str, Any] | None:
+    """The lines a border fill's ``hh:slash``, ``hh:backSlash`` and ``centerLine`` draw across a cell, with
+    the ``hh:diagonal`` line they are drawn with; ``None`` when there is nothing to draw.
+
+    With no ``hh:diagonal`` (or one of type ``NONE``) no line is drawn: the line has no kind (python-hwpx
+    writes it as kind 0 to a .hwp). What is drawn otherwise than the file says is named in *notes*.
+    """
+    line = node.find(f"{_HH}diagonal")
+    kind = (line.get("type") or "NONE").upper() if line is not None else "NONE"
+    if line is None or kind == "NONE":
+        return None
+    ends: list[tuple[str, str, str, str]] = []
+    notes: list[tuple[str, str]] = []
+    for tag, corner_to_corner in _SLASH_ENDS.items():
+        slash = node.find(f"{_HH}{tag}")
+        shape = (slash.get("type") or "NONE").upper() if slash is not None else "NONE"
+        if slash is None or shape == "NONE":
+            continue
+        ends.append(corner_to_corner)
+        if shape != "CENTER":
+            notes.append(_DIAGONAL_BESIDE)
+        if any((slash.get(name) or "0").lower() not in ("0", "false") for name in ("Crooked", "isCounter")):
+            notes.append(_DIAGONAL_BENT)
+    centre = _CENTRE_LINE_ENDS.get((node.get("centerLine") or "NONE").upper(), ())
+    if centre:
+        ends.extend(centre)
+        notes.append(_CENTRE_LINE)
+    if not ends:
+        return None
+    if kind != "SOLID":
+        notes.append(_DIAGONAL_STYLE)
+    return {
+        "ends": tuple(ends), "width": _css_border_width(line.get("width")), "color": _css_color(line.get("color")),
+        "notes": tuple(dict.fromkeys(notes)),
+    }
+
+
+def _cell_diagonal(
+    border_ref: str | None, styles: Mapping[str, Any], issues: Counter[tuple[str, str]] | None,
+) -> str:
+    """The diagonals of a cell's border fill as an SVG over the cell's box (``""`` for none), solid lines
+    of the file's width (a pixel at least, as a browser draws a thin border) and colour; what is drawn
+    otherwise than the file says is counted in *issues*."""
+    diagonal = styles["border"].get(border_ref or "", {}).get("diagonal")
+    if not diagonal:
+        return ""
+    if issues is not None:
+        for note in diagonal["notes"]:
+            issues[note] += 1
+    stroke = _style_attr({"stroke": diagonal["color"], "stroke-width": f"max(1px, {diagonal['width']})"})
+    lines = "".join(
+        f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" style="{stroke}"/>' for x1, y1, x2, y2 in diagonal["ends"]
+    )
+    return f'<svg class="hwpx-cell-diagonal" aria-hidden="true">{lines}</svg>'
 
 
 def _mean_color(colors: list[str]) -> str | None:
@@ -1062,13 +1135,18 @@ def _render_table(
     sources: _ParagraphSources | None = None,
     plans: Mapping[int, _CellPlan] | None = None,
     closing: bool = False,
+    diagonals: Counter[tuple[str, str]] | None = None,
 ) -> str:
     """One table, or the rows of it the engine set on one page (*row_parts*).
 
     *plans* say where each placed cell draws what the engine's lines do not show. The part
     that is *closing* (it holds the table's last placed row) also draws, from the file, the
-    rows of cells the engine placed in no row at all.
+    rows of cells the engine placed in no row at all. On an engine page (*issues* or *diagonals*
+    given, the latter where a table there is otherwise drawn the approximate way) the cells' diagonals
+    are drawn and what of them is approximate counted; a declined document's page draws none.
     """
+    diagonal_notes = issues if issues is not None else diagonals
+    draw_diagonals = issues is not None or diagonals is not None
     size = table.find(f"{_HP}sz")
     table_width = _hwp_to_mm(size.get("width") if size is not None else None)
     table_style = _style_attr(
@@ -1117,7 +1195,9 @@ def _render_table(
                 key: _hwp_to_mm(getattr(cell_margins, key)) if cell_margins is not None else 0.5
                 for key in ("top", "right", "bottom", "left")
             }
-            css = _border_style(tc.get("borderFillIDRef") or table.get("borderFillIDRef"), styles, issues=issues)
+            border_ref = tc.get("borderFillIDRef") or table.get("borderFillIDRef")
+            css = _border_style(border_ref, styles, issues=issues)
+            diagonal = _cell_diagonal(border_ref, styles, diagonal_notes) if draw_diagonals else ""
             above = below = None
             vertical = "middle"
             if flow:
@@ -1139,6 +1219,7 @@ def _render_table(
                     "padding-top": above,
                     "padding-bottom": below,
                     "vertical-align": vertical,
+                    "position": "relative" if diagonal else None,  # the diagonals' box is the cell's
                 }
             )
             plan = None
@@ -1167,7 +1248,7 @@ def _render_table(
                 attrs.append(f'colspan="{colspan}"')
             if rowspan > 1:
                 attrs.append(f'rowspan="{rowspan}"')
-            cells.append(f"<td {' '.join(attrs)}>{''.join(body_parts)}</td>")
+            cells.append(f"<td {' '.join(attrs)}>{diagonal}{''.join(body_parts)}</td>")
         row_attrs = ""
         if part is not None:
             row_attrs = f' data-engine-row="{part.row}" data-engine-repeated="{int(part.repeated)}"'
@@ -1572,7 +1653,10 @@ def _render_paragraph(
     include_objects: bool = True,
     extended_styles: bool = False,
     cell_objects: _CellObjects | None = None,
+    diagonals: Counter[tuple[str, str]] | None = None,
 ) -> str:
+    """A paragraph the approximate way, and after it the tables it holds (their cell diagonals drawn
+    on an engine page, *diagonals* counting what of them is approximate)."""
     text_html = _label_markup(paragraph, styles) + _render_inline_runs(
         paragraph, styles, counter, include_objects=include_objects, extended_styles=extended_styles,
         cell_objects=cell_objects,
@@ -1585,7 +1669,7 @@ def _render_paragraph(
     result = [f'<p class="{" ".join(classes)}" style="{css}">{text_html}</p>']
     if include_tables:
         for table in paragraph.findall(f".//{_HP}tbl"):
-            result.append(_render_table(table, styles, counter))
+            result.append(_render_table(table, styles, counter, diagonals=diagonals))
     return "".join(result)
 
 
@@ -1670,6 +1754,9 @@ def _base_css(mode: str) -> str:
         ".hwpx-cell-frame { position: absolute; box-sizing: border-box; z-index: 1; pointer-events: none; }\n"
         ".hwpx-engine-cell > .hwpx-engine-cell-line { position: absolute; z-index: 2; margin: 0; "
         "white-space: pre; overflow: visible; }\n"
+        # A cell's diagonals span its box (a positioned cell's rectangle, a flowing cell's td), under its lines.
+        ".hwpx-cell-diagonal { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; "
+        "overflow: visible; pointer-events: none; }\n"
         ".hwpx-engine-flow { display: flow-root; }\n"
         ".hwpx-engine-flow :is(.hwpx-engine-line, .hwpx-engine-area-line) "
         "{ margin-left: var(--hwpx-line-offset, 0mm); "
@@ -2458,7 +2545,9 @@ def _positioned_table(
     bottom = max(box[6] + box[1].height for box in boxes)
     cells = []
     for row, cell, source, own, lines, cell_x, cell_top in boxes:
-        css = _border_style(source.get("borderFillIDRef") or table.get("borderFillIDRef"), styles, issues=issues)
+        border_ref = source.get("borderFillIDRef") or table.get("borderFillIDRef")
+        css = _border_style(border_ref, styles, issues=issues)
+        diagonal = _cell_diagonal(border_ref, styles, issues)
         frame = _style_attr({
             **{f"border-{side}": css[f"border-{side}"] for side in ("top", "right", "bottom", "left")},
             **{side: _half_border(css[f"border-{side}"]) for side in ("top", "right", "bottom", "left")},
@@ -2473,7 +2562,7 @@ def _positioned_table(
             f'<div class="hwpx-engine-cell" data-engine-row="{row.row}" data-engine-column="{cell.column}" '
             f'data-engine-repeated="{int(row.repeated)}" '
             f'data-border-fill-id="{html.escape(source.get("borderFillIDRef") or "")}" style="{box}">'
-            f'<i class="hwpx-cell-frame" style="{frame}"></i>{drawn}</div>'
+            f'<i class="hwpx-cell-frame" style="{frame}"></i>{diagonal}{drawn}</div>'
         )
     extent = _style_attr({
         "left": _fmt_mm(_hwp_to_mm(left)), "top": _fmt_mm(_hwp_to_mm(top)),
@@ -2996,11 +3085,14 @@ def _tables_at_its_top(paragraph: ET.Element) -> bool:
 def _area_whole(
     area: ET.Element, kind: str, room: tuple[int, int, int | None, int | None], styles: Mapping[str, Any],
     counter: _ObjectCounter, *, foot: bool = False, lines: tuple[Any, ...] = (),
+    issues: Counter[tuple[str, str]] | None = None,
 ) -> str:
     """All an area holds, its paragraphs and tables the approximate way, in its *room* on the paper
     (with *foot*, standing on the room's top: a note above the body's foot). A paragraph that holds only
     tables standing at its top draws no empty line of its own: the tables are what it shows. Where the
-    engine's *lines* give each paragraph its first line's top, the paragraph begins there in the room."""
+    engine's *lines* give each paragraph its first line's top, the paragraph begins there in the room.
+    The tables' cell diagonals are drawn, what of them is approximate counted in *issues*."""
+    issues = issues if issues is not None else Counter()
     own = area.findall(f"{_HP}subList/{_HP}p")
     holders = _area_line_paragraphs(lines, own) if lines and all(line.top is not None for line in lines) else None
     tops: dict[int, int] = {}
@@ -3009,8 +3101,10 @@ def _area_whole(
     parts = []
     for paragraph in own:
         drawn = (
-            "".join(_render_table(table, styles, counter) for table in paragraph.findall(f"{_HP}run/{_HP}tbl"))
-            if _tables_at_its_top(paragraph) else _render_paragraph(paragraph, styles, counter, extended_styles=True)
+            "".join(_render_table(table, styles, counter, diagonals=issues)
+                    for table in paragraph.findall(f"{_HP}run/{_HP}tbl"))
+            if _tables_at_its_top(paragraph)
+            else _render_paragraph(paragraph, styles, counter, extended_styles=True, diagonals=issues)
         )
         if id(paragraph) in tops:
             css = _style_attr({"top": _fmt_mm(_hwp_to_mm(max(0, tops[id(paragraph)])))})
@@ -3099,7 +3193,7 @@ def _area_anchors(
             if not result:
                 table_counts[found[0]] += tables
             with _numbers_of(numbering, found[0]):
-                whole = _area_whole(area, kind, found[1], styles, counter, lines=tuple(lines))
+                whole = _area_whole(area, kind, found[1], styles, counter, lines=tuple(lines), issues=issues)
             result.append(_AnchorMarkup(found[0], whole, flow=False, overlay=True))
             continue
         if unplaced or not 0 <= home < len(pages):
@@ -3115,8 +3209,9 @@ def _area_anchors(
         issues[(kind, _AREA_MARGIN if margin_room is not None else _NOTE_FOOT)] += 1
         table_counts[home] += tables
         with _numbers_of(numbering, home):
-            markup = (_area_whole(area, kind, margin_room, styles, counter) if margin_room is not None else
-                      _area_whole(area, kind, (left, top + height, width, None), styles, counter, foot=True))
+            markup = (_area_whole(area, kind, margin_room, styles, counter, issues=issues) if margin_room is not None
+                      else _area_whole(area, kind, (left, top + height, width, None), styles, counter, foot=True,
+                                       issues=issues))
         result.append(_AnchorMarkup(home, markup, flow=False, overlay=True))
     return result
 
@@ -3691,7 +3786,7 @@ def _draw_engine_preview(
                 flow_pages.add(page)
                 paragraphs_by_page[page].add((number, index))
                 put(page, _render_paragraph(paragraph, styles, counter, include_tables=False, extended_styles=True)
-                    + "".join(_render_table(table, styles, counter)
+                    + "".join(_render_table(table, styles, counter, diagonals=issues)
                               for table in _anchored_tables(paragraph, areas=False)))
                 for area in (node for node in paragraph.iter() if node.tag in _AREA_LABELS):
                     for anchor in _engine_area_anchors(area, page, [], layout.pages, styles, issues, counter,
