@@ -1403,7 +1403,7 @@ def _base_css(mode: str) -> str:
         "min-height: var(--hwpx-line-advance, var(--hwpx-line-height)); }\n"
         ".hwpx-engine-flow [data-engine-host] > .hwpx-table { margin: 0 !important; }\n"
         ".hwpx-engine-cell-objects { white-space: normal; }\n"
-        ".hwpx-object-caption { white-space: normal; }\n"
+        ".hwpx-object-caption { display: block; white-space: normal; }\n"
         ".hwpx-cell-picture { display: inline-block; vertical-align: bottom; }\n"
         ".hwpx-engine-flow-page { position: relative; isolation: isolate; }\n"
         ".hwpx-placed-object { display: block; box-sizing: border-box; margin: 0; }\n"
