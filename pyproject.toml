@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "python-hwpx-automation"
-version = "8.0.1"
+version = "8.0.2"
 description = "Task-oriented HWPX document automation for Python, with an optional MCP adapter."
 readme = "README.md"
 authors = [{ name = "Kohkyuhyun" }]
@@ -32,10 +32,12 @@ dependencies = [
     # console name (core stopped declaring it at 5.0), which is what makes "no
     # valid install has two declarers" true rather than hopeful. The bounded
     # major (<8) keeps the next core major from silently breaking an
-    # already-published automation line. 7.0.2 is the patch floor of 8.0.1:
+    # already-published automation line. 7.0.2 became the patch floor in 8.0.1:
     # the engine refuses to overwrite an existing .hwp on every write path and
     # moves section settings back on saving, which this package's tools rely on.
-    "python-hwpx>=7.0.2,<8", # HWPX object model, OXML/OPC, format-native primitives
+    # 7.0.3 is the floor of 8.0.2: the HTML preview lays pages out from
+    # hwpx.experimental.estimate_layout, which 7.0.3 adds.
+    "python-hwpx>=7.0.3,<8", # HWPX object model, OXML/OPC, format-native primitives
 
     "pydantic>=2.11,<3",
     # cryptography (workflow store only) is the [workflow] extra and anyio is

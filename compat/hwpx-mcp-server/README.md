@@ -13,7 +13,7 @@ pip install python-hwpx-automation   # 새 이름. MCP 없이 파이썬 API만
 ```
 
 이 배포판은 `python-hwpx-automation[mcp]`와 **같은 판 번호**로 나가고 그 판을 정확히
-요구합니다(예: `hwpx-mcp-server 8.0.1` → `python-hwpx-automation[mcp]==8.0.1`). 남은 것은
+요구합니다(예: `hwpx-mcp-server 8.0.2` → `python-hwpx-automation[mcp]==8.0.2`). 남은 것은
 아래 둘뿐입니다.
 
 | 남은 것 | 동작 | 새로 쓸 것 |

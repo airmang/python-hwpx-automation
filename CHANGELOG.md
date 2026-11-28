@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [8.0.2] - 2026-11-28
+
+### Changed
+
+- python-hwpx 하한을 7.0.3으로 올립니다(`python-hwpx>=7.0.3,<8`). HTML 미리보기가 7.0.3의 배치 추정
+  (`hwpx.experimental.estimate_layout`)으로 쪽과 줄을 나눕니다. 도구 계약의 `minPythonHwpx`(7.0.0)와 계약 해시
+  (`c895883d5f4350ae`)는 그대로이고, `render_preview`의 출력 의미 변화는 `docs/tool-contract-delta-8.0.2.json`에 있습니다.
+
+### Added
+
 - HTML 미리보기는 지원되는 문서의 쪽과 줄을 python-hwpx의 배치 추정으로 나눈다.
   근사로 표시한 요소는 경고에 사유와 건수를 넣고, 추정을 거절한 문서는 사유와 함께 기존 방식으로 보여 준다.
   `render_preview`의 기존 결과 스키마와 도구 계약 해시는 그대로다.
