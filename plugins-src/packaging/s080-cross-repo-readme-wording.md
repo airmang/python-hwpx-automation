@@ -2,7 +2,7 @@
 
 릴리스 상태: `release-approved`. 현재 공개 트레인은
 python-hwpx 7.0.0 / python-hwpx-automation 8.0.0 / hwpx-plugin 8.0.0이고,
-발행 승인 후보는 python-hwpx 7.0.2 / python-hwpx-automation 8.0.1 / hwpx-plugin 8.0.1이다.
+발행 승인 후보는 python-hwpx 7.0.3 / python-hwpx-automation 8.0.2 / hwpx-plugin 8.0.2이다.
 
 이 파일은 `packaging/product-identity.json`의 제품 정체성·공개 버전·성숙도 어휘를
 `python-hwpx`와 `python-hwpx-automation` README에 적용할 때 사용할 정확 문구다. 이 저장소의

@@ -2,7 +2,7 @@
 
 > Python 자동화와 선택 MCP 어댑터로 여는 한글(HWPX) 문서 워크플로
 >
-> 릴리스 상태: `release-approved` — 8.0.1 발행이 승인되었으며 원격 발행·설치 관찰을 기다립니다.
+> 릴리스 상태: `release-approved` — 8.0.2 발행이 승인되었으며 원격 발행·설치 관찰을 기다립니다.
 > 현재 공개 트레인은 `python-hwpx 7.0.0 → python-hwpx-automation 8.0.0 → hwpx-plugin 8.0.0`입니다.
 > 현재 공개 계약은 `c895883d5f4350ae`입니다. 이 작업에는 `python-hwpx >= 7.0.0`이 필요합니다.
 

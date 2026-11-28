@@ -53,7 +53,7 @@ jobs:
           # During the unpublished train this repository variable may name the
           # clean candidate branch. After core 5.0 lands, main is authoritative.
           # 8.0 needs python-hwpx 7.0: every job here tests against the core
-          # release tag (v7.0.3: the engine preview draws from its layout estimate).
+          # release tag (v7.0.3, the floor of 8.0.2: the engine preview draws from its layout estimate).
           # TODO(core-7.0-release): once python-hwpx 7.0 is published, install
           # `python -m pip install "python-hwpx>=7.0,<8"` from PyPI instead of
           # the editable checkout and point this ref at the v7.0.0 tag (the

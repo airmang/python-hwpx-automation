@@ -4,12 +4,12 @@
   "releaseState": {
     "status": "release-approved",
     "candidate": {
-      "pythonHwpx": "7.0.2",
+      "pythonHwpx": "7.0.3",
       "canonicalDistribution": "python-hwpx-automation",
-      "canonicalAutomation": "8.0.1",
+      "canonicalAutomation": "8.0.2",
       "compatibilityDistribution": "hwpx-mcp-server",
-      "compatibility": "8.0.1",
-      "plugin": "8.0.1",
+      "compatibility": "8.0.2",
+      "plugin": "8.0.2",
       "contractHash": "c895883d5f4350ae"
     },
     "currentPublic": {
@@ -50,7 +50,7 @@
       "repository": "python-hwpx",
       "distribution": "python-hwpx",
       "importName": "hwpx",
-      "currentVersion": "7.0.2",
+      "currentVersion": "7.0.3",
       "minimumCompatibleVersion": "7.0.0",
       "maturity": "stable",
       "maturityEvidence": "Development Status :: 5 - Production/Stable"
@@ -66,7 +66,7 @@
       "hostConfigKey": "hwpx",
       "hostConfigKeyKind": "local-alias",
       "launcherPath": "scripts/hwpx-automation-mcp",
-      "currentVersion": "8.0.1",
+      "currentVersion": "8.0.2",
       "minimumCompatibleVersion": "7.2.0",
       "maturity": "not-declared",
       "mcpExtra": "mcp",
@@ -81,7 +81,7 @@
       "repository": "hwpx-plugins",
       "installedPluginId": "hwpx-plugin",
       "installedSkillName": "hwpx",
-      "currentVersion": "8.0.1",
+      "currentVersion": "8.0.2",
       "minimumCompatibleVersion": "2.0.0",
       "maturity": "not-declared"
     }
@@ -107,14 +107,14 @@
     "공식 에이전트 스킬"
   ],
   "verifiedStack": {
-    "pythonHwpx": "7.0.2",
-    "automation": "8.0.1",
-    "plugin": "8.0.1",
+    "pythonHwpx": "7.0.3",
+    "automation": "8.0.2",
+    "plugin": "8.0.2",
     "contractHash": "c895883d5f4350ae",
     "verifiedAt": "2026-09-28"
   },
   "installConstraint": {
-    "core": "python-hwpx[preview]>=7.0.2,<8",
-    "automation": "python-hwpx-automation[mcp,oracle,preview]>=8.0.1,<9"
+    "core": "python-hwpx[preview]>=7.0.3,<8",
+    "automation": "python-hwpx-automation[mcp,oracle,preview]>=8.0.2,<9"
   }
 }

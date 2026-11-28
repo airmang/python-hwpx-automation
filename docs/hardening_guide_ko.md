@@ -1,6 +1,6 @@
 # python-hwpx-automation 하드닝 가이드
 
-> 릴리스 상태: `release-approved` — 8.0.1 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
+> 릴리스 상태: `release-approved` — 8.0.2 발행이 승인되었으며 원격 발행·설치 검증은 진행 전입니다.
 
 > 릴리스 상태: `released` — 8.0.0 공개 발행과 7.0.0/8.0.0/8.0.0 marketplace 설치를 관찰했습니다.
 
@@ -17,7 +17,7 @@
 
 - 도구 등록, 입력·출력 스키마, health/capability 표면과 생성 문서는 하나의
   `ToolSpec` 레지스트리에서 만들어집니다. 현재 소스(`python-hwpx-automation`
-  8.0.1 후보)는 기본 128개, 고급 모드 포함 136개 도구와 29개 skill-required
+  8.0.2 후보)는 기본 128개, 고급 모드 포함 136개 도구와 29개 skill-required
   도구를 유지하며 계약 해시는 `c895883d5f4350ae`입니다. 최소 좌표는 core `7.0.0`,
   automation `7.2.0`, skill `2.0.0`입니다. 이 줄의 숫자는
   `hwpx_automation.tool_contract`의 값과 같아야 하며
