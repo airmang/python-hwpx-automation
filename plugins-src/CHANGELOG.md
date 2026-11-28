@@ -6,6 +6,8 @@
 
 - 플러그인 판이 8.0.2가 됩니다. 같은 판의 python-hwpx-automation(8.0.2)과 python-hwpx 7.0.3을 검증 좌표로 삼습니다.
   `render_preview`의 HTML 미리보기가 엔진의 배치 추정으로 쪽·줄·표·개체를 그립니다. 도구 계약(`c895883d5f4350ae`)은 그대로입니다.
+- Claude Code 번들의 잠긴 런타임을 `python-hwpx 7.0.3` · `python-hwpx-automation 8.0.2`로 올립니다(`server/pyproject.toml`,
+  `uv.lock`; 전이 의존성도 허용 범위 안의 최신으로).
 
 ## [8.0.1] - 2026-11-26
 
