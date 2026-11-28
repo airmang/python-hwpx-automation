@@ -25,7 +25,8 @@ from hwpx_automation.preview import layout_preview
 HP = "{http://www.hancom.co.kr/hwpml/2011/paragraph}"
 _NOT_TEXT = re.compile(
     r'<p class="hwpx-engine-page-status">.*?</p>|<span class="hwpx-object-marker">.*?</span>'
-    r'|<span class="hwpx-equation-tag">.*?</span>|<script.*?</script>|<style.*?</style>', re.S,
+    r'|<span class="hwpx-equation-tag">.*?</span>|<script\b.*?</script\b[^>]*>|<style\b.*?</style\b[^>]*>',
+    re.S | re.I,
 )
 _TAG = re.compile(r"<[^>]+>")
 
