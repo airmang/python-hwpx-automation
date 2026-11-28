@@ -9,7 +9,7 @@ import math
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import Any, Collection, Dict, Mapping, Optional, Sequence
 
 from ..configuration import absolute_executable, env_value, find_executable
 from ..hwp_converter import HwpConversionError, convert_hwp_to_hwpx
@@ -185,7 +185,7 @@ class PreviewExportService:
         *,
         page_html_paths: Sequence[Path],
         pages: Sequence[Dict[str, Any]],
-        flow_pages: set[int],
+        flow_pages: Collection[int] = (),
         output_dir: Path,
         max_pages: int | None,
         embed_images: bool = False,

@@ -160,7 +160,7 @@ def _nested_document() -> HwpxDocument:
     return document
 
 
-@pytest.mark.skipif(not hasattr(experimental.TableRowPlacement, "x"), reason="needs the core row left edge")
+@pytest.mark.skipif(not hasattr(getattr(experimental, "TableRowPlacement", None), "x"), reason="needs the core row left edge")
 def test_a_table_alone_on_a_cell_line_is_drawn_at_the_engine_s_coordinates_inside_its_cell() -> None:
     payload = _nested_document().to_bytes()
     layout = experimental.estimate_layout(payload)

@@ -180,7 +180,7 @@ def test_a_page_number_in_a_footer_shows_the_number_of_its_page() -> None:
         assert not "".join(span.text_content() for span in shown)
 
 
-@pytest.mark.skipif(not hasattr(experimental.PagePlacement, "number"), reason="needs the core page numbers")
+@pytest.mark.skipif(not hasattr(getattr(experimental, "PagePlacement", None), "number"), reason="needs the core page numbers")
 def test_page_numbers_are_the_engine_s_and_the_preview_counts_only_where_it_gives_none(monkeypatch) -> None:
     document = HwpxDocument.new()
     document.page.set_page_number()
