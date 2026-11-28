@@ -11,11 +11,13 @@ from pathlib import Path
 
 import pytest
 
+from hwpx import experimental as core_experimental
 from hwpx.document import HwpxDocument
 from hwpx.oxml.namespaces import HP
 
 from hwpx_automation.preview import render_layout_preview
 from hwpx_automation.preview.layout_preview import _fmt_mm, _hwp_to_mm
+from preview_flow import tables_flow  # noqa: F401
 
 
 CORPUS = Path(__file__).parent / "fixtures" / "moved" / "misc"
@@ -39,6 +41,7 @@ def test_layout_preview_renders_page_box_and_margins() -> None:
     assert "padding:" in preview.html
 
 
+@pytest.mark.usefixtures("tables_flow")
 def test_layout_preview_renders_table_geometry_and_borders() -> None:
     preview = render_layout_preview(CORPUS / "reader_writer__SimpleTable.hwpx")
 
@@ -100,6 +103,7 @@ def _cell_with_two_margins(has_margin: str | None):
 _RULE_CASES = [("0", _TABLE_MARGIN), (None, _TABLE_MARGIN), ("1", _CELL_MARGIN)]
 
 
+@pytest.mark.usefixtures("tables_flow")
 @pytest.mark.parametrize(("has_margin", "expected"), _RULE_CASES)
 def test_the_layout_preview_pads_cells_with_the_effective_margins(has_margin, expected) -> None:
     doc, _, _ = _cell_with_two_margins(has_margin)
@@ -151,8 +155,26 @@ def test_a_text_box_in_a_table_cell_shows_once_in_the_preview() -> None:
     assert html.count("칸 글") == 1
 
 
-def test_the_preview_writes_the_box_text_next_to_the_shape_marker() -> None:
+def test_the_approximate_preview_writes_the_box_text_next_to_the_shape_marker(monkeypatch) -> None:
+    from hwpx import experimental
+
+    monkeypatch.setattr(experimental, "estimate_layout", None, raising=False)  # the approximate drawing
     html = render_layout_preview(_text_box_document().to_bytes()).html
 
     marker = html.index("⟦도형⟧")
     assert html.index('<span class="hwpx-shape-text">상자 글</span>') > marker
+
+
+@pytest.mark.skipif(
+    not hasattr(core_experimental, "estimate_layout"),
+    reason="needs the core layout estimate (python-hwpx 7.0.3)",
+)
+def test_the_engine_preview_writes_the_box_text_in_the_shape_box() -> None:
+    from lxml import html as lxml_html
+
+    preview = render_layout_preview(_text_box_document().to_bytes())
+
+    page = lxml_html.fromstring(preview.page_fragments[0])
+    shape, = page.xpath(".//div[contains(@class, 'hwpx-shape-outline')]")
+    assert [line.text_content() for line in shape.xpath("./div[@class='hwpx-engine-cell-line']")] == ["상자 글"]
+    assert "⟦도형⟧" not in preview.html

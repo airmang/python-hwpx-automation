@@ -47,7 +47,8 @@ def test_viewer_has_top_bar_page_indicator_and_honest_badge() -> None:
     assert "<title>수식 프리뷰</title>" in html
     assert "hwpx-viewer-bar" in html
     assert 'id="hwpx-viewer-page"' in html
-    assert FIDELITY_BADGE in html
+    assert viewer.preview.badge in html
+    assert "추정" in viewer.preview.badge
     # honest, non-truth framing (Constitution IX)
     assert "근사" in FIDELITY_BADGE and "MathML" in FIDELITY_BADGE
 
@@ -133,4 +134,7 @@ def test_shape_and_ole_markers() -> None:
 
 def test_tables_still_render_as_tables_not_markers() -> None:
     html = render_layout_preview(CORPUS / "reader_writer__SimpleTable.hwpx").html
-    assert '<table class="hwpx-table"' in html
+    # A table the engine gives every coordinate is drawn at them, as cells; else as an HTML table.
+    assert '<table class="hwpx-table"' in html or 'class="hwpx-engine-table"' in html
+    assert "hwpx-engine-cell" in html or "<td" in html
+    assert "⟦표" not in html

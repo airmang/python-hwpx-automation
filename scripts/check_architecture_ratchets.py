@@ -88,7 +88,7 @@ EXPECTED_SERVICE_LINES = {
     # S-108: canonical Chrome-path guidance names the 6.x fallback explicitly.
     # 8.0: the layout preview moved into this package (hwpx_automation.preview),
     # so the branches for a core without it went away (585 -> 549).
-    "preview_export.py": 549,
+    "preview_export.py": 539,
     "read_query.py": 606,
     # Receipt-truthfulness repair: the written verification report copied the
     # domain payload's preservation claim verbatim, so an incoherent payload
