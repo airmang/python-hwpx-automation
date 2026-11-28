@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Optional, Sequence, Tuple, cast
 
 from .core.plan import PlanManager
 from .core.locator import RegisteredHandle
@@ -1356,10 +1356,12 @@ class HwpxOps:
         max_pages: int | None,
         embed_images: bool = False,
         max_image_bytes: int | None = None,
+        flow_pages: Collection[int] = (),
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         return self._services.preview_export._capture_preview_pages(
             page_html_paths=page_html_paths,
             pages=pages,
+            flow_pages=set(flow_pages),
             output_dir=output_dir,
             max_pages=max_pages,
             embed_images=embed_images,
